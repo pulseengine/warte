@@ -1,0 +1,14 @@
+[package]
+name = "warte"
+version = "0.1.0"
+edition = "2021"
+description = "Warte — the PulseEngine control tower. A CI dashboard with an ask feature and an API."
+license = "MIT"
+repository = "https://github.com/pulseengine/warte"
+
+[dependencies]
+# TODO: add dependencies (axum, tokio, serde, etc.)
+
+[[bin]]
+name = "warte"
+path = "src/main.rs"
