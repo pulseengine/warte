@@ -248,3 +248,17 @@ artifacts:
         target: REQ-DISCOVERY-001
       - type: verifies
         target: REQ-DISCOVERY-002
+
+  - id: TEST-PLATFORM-001
+    type: verification
+    title: test_github_cloud/enterprise + test_gitlab_cloud/self_hosted + test_fleet_aggregator — CiPlatform trait
+    status: draft
+    release: v0.2.0
+    description: "Unit tests verify: GitHub cloud platform creation (github.com API), GitHub Enterprise creation (GHE API with configurable base URL), GitLab cloud creation (gitlab.com API), GitLab self-hosted creation (configurable base URL), FleetAggregator multi-platform aggregation. The CiPlatform trait provides a uniform interface for repo listing, CI status, PR/MR listing, and ETA estimation across GitHub (cloud + enterprise) and GitLab (cloud + self-hosted)."
+    links:
+      - type: verifies
+        target: REQ-PLATFORM-001
+      - type: verifies
+        target: REQ-PLATFORM-002
+      - type: verifies
+        target: REQ-PLATFORM-003

@@ -16,6 +16,7 @@ pub mod db;
 pub mod discovery;
 pub mod docs;
 pub mod migrate;
+pub mod platform;
 pub mod server;
 pub mod sync;
 
