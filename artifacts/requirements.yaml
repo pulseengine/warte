@@ -8,7 +8,7 @@ artifacts:
   - id: REQ-AGENT-REG-001
     type: requirement
     title: Agent registration requires cryptographic identity proof
-    status: draft
+    status: accepted
     release: v0.1.0
     description: >
       The control tower SHALL require every agent registration to include a
@@ -26,7 +26,7 @@ artifacts:
   - id: REQ-AGENT-REG-002
     type: requirement
     title: Agent identity is bound to a unique agent ID
-    status: draft
+    status: accepted
     release: v0.1.0
     description: >
       Each registered agent SHALL be assigned a unique, immutable agent ID
@@ -41,7 +41,7 @@ artifacts:
   - id: REQ-ARTIFACT-001
     type: requirement
     title: Artifact downloads require agent authentication
-    status: draft
+    status: accepted
     release: v0.1.0
     description: >
       The artifact download endpoint SHALL require a valid agent authentication
@@ -54,7 +54,7 @@ artifacts:
   - id: REQ-ARTIFACT-002
     type: requirement
     title: Artifacts carry verifiable integrity proofs
-    status: draft
+    status: accepted
     release: v0.1.0
     description: >
       Every artifact in the distribution store SHALL carry an integrity proof:
@@ -71,7 +71,7 @@ artifacts:
   - id: REQ-ARTIFACT-003
     type: requirement
     title: Artifact download is scoped to agent access rights
-    status: draft
+    status: accepted
     release: v0.1.0
     description: >
       The control tower SHALL enforce per-agent access scoping on artifact
@@ -85,7 +85,7 @@ artifacts:
   - id: REQ-ACCESS-001
     type: requirement
     title: Access rights are managed via a central policy service
-    status: draft
+    status: accepted
     release: v0.1.0
     description: >
       The system SHALL provide a central access control service that manages
@@ -98,7 +98,7 @@ artifacts:
   - id: REQ-ACCESS-002
     type: requirement
     title: Access revocation propagates within 5 seconds
-    status: draft
+    status: accepted
     release: v0.1.0
     description: >
       When an agent's access is revoked, the revocation SHALL propagate to all
@@ -114,7 +114,7 @@ artifacts:
   - id: REQ-ACCESS-003
     type: requirement
     title: Access rights are scoped per resource and action
-    status: draft
+    status: accepted
     release: v0.1.0
     description: >
       Access rights SHALL be scoped by resource (artifact, agent, instance)
@@ -129,7 +129,7 @@ artifacts:
   - id: REQ-SYNC-001
     type: requirement
     title: Instances synchronize state via an authenticated sync protocol
-    status: draft
+    status: accepted
     release: v0.1.0
     description: >
       All warte instances SHALL synchronize shared state (agent registrations,
@@ -145,7 +145,7 @@ artifacts:
   - id: REQ-SYNC-002
     type: requirement
     title: Sync conflicts are detected and resolved deterministically
-    status: draft
+    status: accepted
     release: v0.1.0
     description: >
       The sync mechanism SHALL detect conflicting updates using version vectors
@@ -159,7 +159,7 @@ artifacts:
   - id: REQ-SYNC-003
     type: requirement
     title: Instance divergence is detected and alerted
-    status: draft
+    status: accepted
     release: v0.1.0
     description: >
       The system SHALL detect when instances have diverged beyond a threshold
@@ -174,7 +174,7 @@ artifacts:
     type: requirement
     title: Mobile control uses mutual TLS with device-bound certificates
     status: draft
-    release: v0.1.0
+    release: v0.3.0
     description: >
       The mobile control channel (Android/iOS) SHALL use mutual TLS with
       device-bound client certificates. The client certificate SHALL be
@@ -190,7 +190,7 @@ artifacts:
     type: requirement
     title: Mobile commands require operator biometric authentication
     status: draft
-    release: v0.1.0
+    release: v0.3.0
     description: >
       Every control command issued via the mobile client SHALL require operator
       authentication via biometric (fingerprint/face) or hardware token (YubiKey).
@@ -205,7 +205,7 @@ artifacts:
     type: requirement
     title: Mobile client shows real-time system status
     status: draft
-    release: v0.1.0
+    release: v0.3.0
     description: >
       The mobile client SHALL display real-time system status (agent health,
       CI status, access rights, alerts) with freshness indicators. Status
@@ -218,7 +218,7 @@ artifacts:
   - id: REQ-EDGE-001
     type: requirement
     title: Edge proxy terminates TLS 1.3 and enforces rate limiting
-    status: draft
+    status: accepted
     release: v0.1.0
     description: >
       The edge proxy (Hetzner/Netcup) SHALL terminate TLS 1.3 for all external
@@ -234,7 +234,7 @@ artifacts:
   - id: REQ-EDGE-002
     type: requirement
     title: Edge proxy validates all requests against schemas
-    status: draft
+    status: accepted
     release: v0.1.0
     description: >
       The edge proxy SHALL validate all incoming requests against JSON schemas
@@ -247,7 +247,7 @@ artifacts:
   - id: REQ-EDGE-003
     type: requirement
     title: Edge proxy auto-patches within 24 hours
-    status: draft
+    status: accepted
     release: v0.1.0
     description: >
       All software on the edge proxy SHALL be configured for automatic security
@@ -263,7 +263,7 @@ artifacts:
   - id: REQ-DASH-001
     type: requirement
     title: Dashboard displays status with freshness indicators
-    status: draft
+    status: accepted
     release: v0.1.0
     description: >
       The dashboard SHALL display a last-updated timestamp and freshness
@@ -276,7 +276,7 @@ artifacts:
   - id: REQ-DASH-002
     type: requirement
     title: Dashboard provides agent registry overview
-    status: draft
+    status: accepted
     release: v0.1.0
     description: >
       The dashboard SHALL provide an overview of all registered agents:
@@ -289,7 +289,7 @@ artifacts:
   - id: REQ-DASH-003
     type: requirement
     title: Dashboard provides CI status overview
-    status: draft
+    status: accepted
     release: v0.1.0
     description: >
       The dashboard SHALL display CI status for all repos: gate status
@@ -303,7 +303,7 @@ artifacts:
   - id: REQ-CAPTURE-001
     type: requirement
     title: Agents capture and report structured data
-    status: draft
+    status: accepted
     release: v0.1.0
     description: >
       Agents SHALL capture structured data during their work (build logs,
@@ -317,7 +317,7 @@ artifacts:
   - id: REQ-CAPTURE-002
     type: requirement
     title: Captured data is queryable via the API
-    status: draft
+    status: accepted
     release: v0.1.0
     description: >
       Captured agent data SHALL be queryable via the warte API with filters
@@ -331,7 +331,7 @@ artifacts:
   - id: REQ-API-001
     type: requirement
     title: REST API with structured JSON responses
-    status: draft
+    status: accepted
     release: v0.1.0
     description: >
       The control tower SHALL expose a REST API with structured JSON responses.
@@ -344,7 +344,7 @@ artifacts:
   - id: REQ-API-002
     type: requirement
     title: API requires authentication for all mutating operations
-    status: draft
+    status: accepted
     release: v0.1.0
     description: >
       All mutating API operations (POST, PUT, DELETE, PATCH) SHALL require
@@ -361,7 +361,7 @@ artifacts:
   - id: REQ-CLI-001
     type: requirement
     title: CLI follows PulseEngine CLI conventions
-    status: draft
+    status: accepted
     release: v0.1.0
     description: >
       The warte CLI SHALL follow PulseEngine CLI conventions: --version/-V prints
@@ -375,7 +375,7 @@ artifacts:
   - id: REQ-MIGRATE-001
     type: requirement
     title: Migrate agent fleet data from smithy
-    status: draft
+    status: accepted
     release: v0.1.0
     description: >
       The system SHALL provide a migration path for existing agent fleet data
@@ -388,7 +388,7 @@ artifacts:
   - id: REQ-MIGRATE-002
     type: requirement
     title: Migrate repo hardening config from temper
-    status: draft
+    status: accepted
     release: v0.1.0
     description: >
       The system SHALL provide a migration path for repo hardening configuration

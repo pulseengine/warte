@@ -8,7 +8,7 @@ artifacts:
   - id: AADL-COMP-001
     type: aadl-component
     title: "EdgeProxy — sole internet-facing component (CTRL-004)"
-    status: approved
+    status: accepted
     release: v0.1.0
     fields:
       category: system
@@ -32,7 +32,7 @@ artifacts:
   - id: AADL-COMP-002
     type: aadl-component
     title: "WarteInstance — the control tower (CTRL-001)"
-    status: approved
+    status: accepted
     release: v0.1.0
     fields:
       category: system
@@ -56,7 +56,7 @@ artifacts:
   - id: AADL-COMP-003
     type: aadl-component
     title: "MobileClient — iOS/Android control (CTRL-003)"
-    status: approved
+    status: accepted
     release: v0.1.0
     fields:
       category: system
@@ -78,7 +78,7 @@ artifacts:
   - id: AADL-COMP-004
     type: aadl-component
     title: "AgentRuntime — worker machine agent (CTRL-005)"
-    status: approved
+    status: accepted
     release: v0.1.0
     fields:
       category: system
@@ -101,7 +101,7 @@ artifacts:
   - id: AADL-ANALYSIS-001
     type: aadl-analysis-result
     title: "SPAR EMV2 fault tree — single points of failure"
-    status: approved
+    status: accepted
     release: v0.1.0
     fields:
       analysis-name: "emv2_fault_tree"
@@ -130,7 +130,7 @@ artifacts:
   - id: AADL-ANALYSIS-002
     type: aadl-analysis-result
     title: "SPAR connectivity analysis — data flow paths"
-    status: approved
+    status: accepted
     release: v0.1.0
     fields:
       analysis-name: "connectivity"
@@ -156,7 +156,7 @@ artifacts:
   - id: AADL-FLOW-001
     type: aadl-flow
     title: "Agent registration flow (mTLS authenticated)"
-    status: approved
+    status: accepted
     release: v0.1.0
     fields:
       flow-kind: end-to-end
@@ -176,7 +176,7 @@ artifacts:
   - id: AADL-FLOW-002
     type: aadl-flow
     title: "Artifact download flow (integrity-verified)"
-    status: approved
+    status: accepted
     release: v0.1.0
     fields:
       flow-kind: end-to-end
@@ -197,7 +197,7 @@ artifacts:
   - id: AADL-FLOW-003
     type: aadl-flow
     title: "Multi-instance sync flow (CRDT, mTLS)"
-    status: approved
+    status: accepted
     release: v0.1.0
     fields:
       flow-kind: end-to-end
@@ -219,7 +219,7 @@ artifacts:
   - id: AADL-FLOW-004
     type: aadl-flow
     title: "Mobile control flow (mTLS + biometric)"
-    status: approved
+    status: accepted
     release: v0.1.0
     fields:
       flow-kind: end-to-end

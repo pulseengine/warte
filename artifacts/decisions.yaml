@@ -5,7 +5,7 @@ artifacts:
   - id: DD-ARCH-001
     type: design-decision
     title: "Rust + Axum + Tokio for the server stack"
-    status: approved
+    status: accepted
     release: v0.1.0
     description: >
       The warte server is built in Rust using Axum (web framework) on Tokio
@@ -23,7 +23,7 @@ artifacts:
   - id: DD-ARCH-002
     type: design-decision
     title: "SQLite for local state, with CRDT-based sync for multi-instance"
-    status: approved
+    status: accepted
     release: v0.1.0
     description: >
       Each warte instance uses a local SQLite database for state. Multi-instance
@@ -41,7 +41,7 @@ artifacts:
   - id: DD-ARCH-003
     type: design-decision
     title: "mTLS with per-agent certificates for agent authentication"
-    status: approved
+    status: accepted
     release: v0.1.0
     description: >
       Agent authentication uses mutual TLS with per-agent X.509 certificates
@@ -61,7 +61,7 @@ artifacts:
   - id: DD-ARCH-004
     type: design-decision
     title: "Sigil/wsc signatures for artifact integrity"
-    status: approved
+    status: accepted
     release: v0.1.0
     description: >
       Artifact integrity uses sigil/wsc detached signatures. Every artifact
@@ -78,7 +78,7 @@ artifacts:
   - id: DD-ARCH-005
     type: design-decision
     title: "Push-based revocation with active disconnection"
-    status: approved
+    status: accepted
     release: v0.1.0
     description: >
       Access revocation uses a push model with active disconnection of the
@@ -96,7 +96,7 @@ artifacts:
   - id: DD-ARCH-006
     type: design-decision
     title: "WebSocket/SSE for real-time dashboard and mobile push"
-    status: approved
+    status: accepted
     release: v0.1.0
     description: >
       Real-time updates use WebSocket (bidirectional) for mobile and SSE
@@ -114,7 +114,7 @@ artifacts:
   - id: DD-ARCH-007
     type: design-decision
     title: "Edge proxy as the sole internet-facing component (Hetzner/Netcup)"
-    status: approved
+    status: accepted
     release: v0.1.0
     description: >
       The edge proxy (deployed on Hetzner/Netcup) is the ONLY component
@@ -137,7 +137,7 @@ artifacts:
   - id: DD-ARCH-008
     type: design-decision
     title: "Mobile app uses native iOS (Swift) and Android (Kotlin)"
-    status: approved
+    status: accepted
     release: v0.1.0
     description: >
       The mobile control client is built as native apps: SwiftUI for iOS and
@@ -158,7 +158,7 @@ artifacts:
   - id: DD-ARCH-009
     type: design-decision
     title: "Migration from smithy — agent fleet data import"
-    status: approved
+    status: accepted
     release: v0.1.0
     description: >
       The smithy migration imports agent registrations, captured session data,
@@ -175,7 +175,7 @@ artifacts:
   - id: DD-ARCH-010
     type: design-decision
     title: "Migration from temper — repo hardening config import"
-    status: approved
+    status: accepted
     release: v0.1.0
     description: >
       The temper migration imports branch protection rules, issue labels,
@@ -192,7 +192,7 @@ artifacts:
   - id: DD-ARCH-011
     type: design-decision
     title: "CLI follows PulseEngine CLI conventions"
-    status: approved
+    status: accepted
     release: v0.1.0
     description: >
       The warte CLI follows PulseEngine CLI conventions for version, help,
@@ -209,7 +209,7 @@ artifacts:
   - id: DD-ARCH-012
     type: design-decision
     title: "RBAC with per-resource, per-action scoping"
-    status: approved
+    status: accepted
     release: v0.1.0
     description: >
       Access control uses Role-Based Access Control with per-resource and
