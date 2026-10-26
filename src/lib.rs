@@ -8,6 +8,7 @@
 pub mod access;
 pub mod agent;
 pub mod artifact;
+pub mod auth;
 pub mod ca;
 pub mod cli;
 pub mod config;

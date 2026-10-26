@@ -14,28 +14,29 @@ use serde::{Deserialize, Serialize};
 
 /// Build all API routes.
 pub fn build_routes() -> Router<AppState> {
-    Router::new()
-        // Health
-        .route("/health", get(health))
-        // Agents
-        .route("/agents", get(list_agents))
+    // Mutating routes — require authentication
+    let mutating_routes = Router::new()
         .route("/agents/register", post(register_agent))
-        .route("/agents/{id}", get(get_agent))
         .route("/agents/{id}/heartbeat", post(agent_heartbeat))
-        .route("/agents/{id}/data", post(capture_data).get(query_data))
-        // Access control
+        .route("/agents/{id}/data", post(capture_data))
         .route("/access/grant", post(grant_access))
         .route("/access/revoke", post(revoke_access))
+        .route("/sync/update", post(sync_update));
+
+    // Read-only routes — public (rate-limited at edge proxy)
+    let read_routes = Router::new()
+        .route("/health", get(health))
+        .route("/agents", get(list_agents))
+        .route("/agents/{id}", get(get_agent))
+        .route("/agents/{id}/data", get(query_data))
         .route("/access/list/{agent_id}", get(list_access))
-        // Artifacts
         .route("/artifacts", get(list_artifacts))
         .route("/artifacts/{id}/download", get(download_artifact))
-        // Dashboard
         .route("/dashboard/overview", get(dashboard_overview))
         .route("/dashboard/ask", get(dashboard_ask))
-        // Sync
-        .route("/sync/state", get(sync_state))
-        .route("/sync/update", post(sync_update))
+        .route("/sync/state", get(sync_state));
+
+    Router::new().nest("/api", read_routes.merge(mutating_routes))
 }
 
 // ── Health ──────────────────────────────────────────────────────────

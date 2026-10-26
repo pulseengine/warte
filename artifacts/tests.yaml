@@ -190,3 +190,13 @@ artifacts:
         target: REQ-AGENT-REG-001
       - type: verifies
         target: REQ-AGENT-REG-002
+
+  - id: TEST-API-AUTH-001
+    type: verification
+    title: test_token_issue_and_verify + test_token_expired + test_token_invalid_format + test_token_tampered + test_base64url_roundtrip — bearer token auth
+    status: draft
+    release: v0.1.0
+    description: "Unit tests verify: token issuance and verification roundtrip, expired tokens rejected, invalid format rejected, tampered tokens rejected (signature verification), base64url encoding roundtrip. The auth middleware enforces bearer token auth on all mutating endpoints (POST/PUT/DELETE/PATCH)."
+    links:
+      - type: verifies
+        target: REQ-API-002

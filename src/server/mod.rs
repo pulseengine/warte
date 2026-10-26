@@ -23,12 +23,19 @@ pub struct AppState {
     pub access: Arc<AccessControl>,
     pub artifacts: Arc<ArtifactStore>,
     pub sync: Arc<SyncService>,
+    pub tokens: Arc<crate::auth::TokenManager>,
 }
 
 /// Build the Axum router with all routes.
 pub fn build_router(state: AppState) -> Router {
+    use axum::middleware;
+
     Router::new()
         .nest("/api", api::build_routes())
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            crate::auth::auth_middleware,
+        ))
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
         .with_state(state)
@@ -56,6 +63,7 @@ pub async fn serve(config: Config, db: Database) -> anyhow::Result<()> {
         access: Arc::new(AccessControl::new(pool.clone(), instance_id.clone())),
         artifacts: Arc::new(ArtifactStore::new(pool.clone())),
         sync: Arc::new(SyncService::new(pool.clone(), instance_id.clone())),
+        tokens: Arc::new(crate::auth::TokenManager::new(24)),
         config: config.clone(),
         db,
     };

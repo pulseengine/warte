@@ -31,8 +31,9 @@ clap = { version = "4", features = ["derive", "env"] }
 # Crypto / identity
 uuid = { version = "1", features = ["v7", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
-ed25519-dalek = { version = "2", features = ["serde"] }
+ed25519-dalek = { version = "2", features = ["serde", "rand_core"] }
 x509-parser = "0.17"
+rand = "0.8"
 
 # TLS
 rustls = { version = "0.23", features = ["ring"] }
