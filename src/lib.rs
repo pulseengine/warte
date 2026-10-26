@@ -13,6 +13,7 @@ pub mod ca;
 pub mod cli;
 pub mod config;
 pub mod db;
+pub mod discovery;
 pub mod docs;
 pub mod migrate;
 pub mod server;

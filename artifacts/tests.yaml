@@ -236,3 +236,15 @@ artifacts:
     links:
       - type: verifies
         target: REQ-EDGE-003
+
+  - id: TEST-DISCOVERY-001
+    type: verification
+    title: test_discovery_service_create + test_discovery_add_static_peer + test_discovery_update_peer — mDNS discovery service
+    status: draft
+    release: v0.2.0
+    description: "Unit tests verify: discovery service creation with instance ID + addresses, static peer addition (PeerDiscovered event), peer update (PeerUpdated event). The discovery service uses mdns-sd crate for wire protocol (adopted per research) and builds warte-specific discovery semantics (TXT record with id|wg|lan|vv|ts)."
+    links:
+      - type: verifies
+        target: REQ-DISCOVERY-001
+      - type: verifies
+        target: REQ-DISCOVERY-002
