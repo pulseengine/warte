@@ -1,0 +1,186 @@
+artifacts:
+  # ============================================================
+  # v0.2.0 REQUIREMENTS — toolchain integration, discovery, multi-platform
+  # ============================================================
+
+  # --- Embedded docs ---
+  - id: REQ-DOCS-001
+    type: requirement
+    title: "Embedded queryable documentation (warte docs)"
+    status: draft
+    release: v0.2.0
+    description: >
+      The warte CLI SHALL include embedded, queryable documentation via
+      `warte docs` (list topics) and `warte docs <topic>` (show one topic),
+      following the same pattern as `varve docs` and `rivet docs`. Topics
+      SHALL cover: architecture, agent registration, access control,
+      artifact distribution, multi-instance sync, deployment, security model,
+      CLI reference, API reference, migration guide.
+    links:
+      - type: satisfies
+        target: SC-006
+
+  - id: REQ-DOCS-002
+    type: requirement
+    title: "Documentation coverage check (warte docs check)"
+    status: draft
+    release: v0.2.0
+    description: >
+      The warte CLI SHALL include `warte docs check --coverage` that asserts
+      every subcommand is documented, following the varve pattern
+      (REQ-DOCS-001 in varve). The check SHALL be part of CI.
+    links:
+      - type: satisfies
+        target: SC-006
+
+  # --- Service discovery ---
+  - id: REQ-DISCOVERY-001
+    type: requirement
+    title: "mDNS/Bonjour service discovery for multi-instance"
+    status: draft
+    release: v0.2.0
+    description: >
+      Warte instances SHALL discover each other on the local network via
+      mDNS/Bonjour (DNS-SD), without hardcoded peer addresses. Each instance
+      SHALL advertise a service record (_warte._tcp) with its instance ID,
+      address, and sync port. Discovery SHALL be optional — instances with
+      static sync_peers config SHALL work without mDNS.
+    links:
+      - type: satisfies
+        target: SC-005
+
+  - id: REQ-DISCOVERY-002
+    type: requirement
+    title: "Discovery security — mDNS over authenticated channel"
+    status: draft
+    release: v0.2.0
+    description: >
+      mDNS service discovery SHALL NOT be trusted for authentication.
+      Discovered peers SHALL still authenticate via mTLS (per-instance
+      certificates) before exchanging sync data. mDNS is for discovery
+      only, not authorization.
+    links:
+      - type: satisfies
+        target: SC-001
+      - type: satisfies
+        target: SC-007
+
+  # --- Multi-platform CI ---
+  - id: REQ-PLATFORM-001
+    type: requirement
+    title: "Support enterprise GitHub (GHE) in addition to github.com"
+    status: draft
+    release: v0.2.0
+    description: >
+      Warte SHALL support GitHub Enterprise Server (GHE) as a CI platform,
+      configurable via warte.toml (github_enterprise_url). The GitHub API
+      client SHALL use the configured base URL, not hardcoded api.github.com.
+    links:
+      - type: satisfies
+        target: SC-006
+
+  - id: REQ-PLATFORM-002
+    type: requirement
+    title: "Support GitLab CI as a platform"
+    status: draft
+    release: v0.2.0
+    description: >
+      Warte SHALL support GitLab CI (gitlab.com and self-hosted) as a CI
+      platform, configurable via warte.toml (gitlab_url, gitlab_token).
+      The platform abstraction SHALL provide a uniform interface for:
+      repo listing, CI status, PR/MR listing, queue depth.
+    links:
+      - type: satisfies
+        target: SC-006
+
+  - id: REQ-PLATFORM-003
+    type: requirement
+    title: "Platform abstraction layer for CI providers"
+    status: draft
+    release: v0.2.0
+    description: >
+      Warte SHALL define a platform abstraction (trait CiPlatform) with
+      implementations for GitHub (cloud + enterprise) and GitLab (cloud +
+      self-hosted). The dashboard SHALL aggregate status across all
+      configured platforms. Adding a new platform SHALL require only a
+      new trait implementation.
+    links:
+      - type: satisfies
+        target: SC-006
+
+  # --- Varve layer integration ---
+  - id: REQ-LAYER-001
+    type: requirement
+    title: "Warte binary included in the varve toolchain layer"
+    status: draft
+    release: v0.2.0
+    description: >
+      The warte binary SHALL be included in the pulseengine varve layer
+      (like rivet, spar, witness, wsc). The layer manifest SHALL list
+      warte with its version, platform targets, and signed digest.
+      `varve which warte` SHALL resolve to the pinned layer binary.
+    links:
+      - type: satisfies
+        target: SC-006
+
+  # --- Temper as optional link ---
+  - id: REQ-TEMPER-001
+    type: requirement
+    title: "Temper integration as optional link, not full absorption"
+    status: draft
+    release: v0.2.0
+    description: >
+      Warte SHALL integrate with temper as an optional link, not by
+      absorbing temper's code. Integration points: (a) warte dashboard
+      shows temper's repo hardening status, (b) warte access control can
+      read temper's config.yml for role mapping, (c) warte CLI can query
+      temper's API for repo compliance status. Temper remains a separate
+      tool; warte links to it.
+    links:
+      - type: satisfies
+        target: SC-006
+
+  # --- Release pipeline ---
+  - id: REQ-RELEASE-001
+    type: requirement
+    title: "Release artifact pipeline (SHA256SUMS, SBOM, SLSA, cosign)"
+    status: draft
+    release: v0.2.0
+    description: >
+      Warte releases SHALL follow the PulseEngine release-artifact-pipeline:
+      signed SHA256SUMS, SBOM (via varve sbom or cargo-cyclonedx), SLSA
+      provenance, and cosign signatures. The pipeline SHALL be part of CI
+      and SHALL block the release if any step fails.
+    links:
+      - type: satisfies
+        target: SC-002
+
+  - id: REQ-RELEASE-002
+    type: requirement
+    title: "Release execution with V-model traceability gate"
+    status: draft
+    release: v0.2.0
+    description: >
+      Warte releases SHALL pass through the release-execution skill:
+      the V-model traceability gate (rivet release status) must show all
+      artifacts verified before tagging. The release SHALL include a
+      falsification statement in the release notes.
+    links:
+      - type: satisfies
+        target: SC-006
+
+  # --- Reuse from relay ---
+  - id: REQ-REUSE-001
+    type: requirement
+    title: "Reuse relay's contract patterns for agent orchestration"
+    status: draft
+    release: v0.2.0
+    description: >
+      Warte SHALL reuse patterns from the relay repo (flight stack) where
+      applicable: (a) thin agreed interfaces (contracts) between agents
+      and the control tower, (b) HAL-style seam traits for platform
+      abstraction, (c) consumption contracts for artifact distribution.
+      The goal is architectural consistency across PulseEngine repos.
+    links:
+      - type: satisfies
+        target: SC-005

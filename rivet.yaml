@@ -1,0 +1,14 @@
+project:
+  name: warte
+  version: "0.1.0"
+  schemas:
+    - common
+    - stpa
+    - stpa-sec
+    - cybersecurity
+    - dev
+    - aadl
+
+sources:
+  - path: artifacts
+    format: generic-yaml

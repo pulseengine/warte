@@ -7,8 +7,67 @@ license = "MIT"
 repository = "https://github.com/pulseengine/warte"
 
 [dependencies]
-# TODO: add dependencies (axum, tokio, serde, etc.)
+# Web framework
+axum = { version = "0.8", features = ["ws", "macros"] }
+tokio = { version = "1", features = ["full"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "trace", "limit"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+toml = "0.8"
+
+# Database
+sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite", "migrate", "chrono", "uuid"] }
+
+# Async utilities
+futures = "0.3"
+async-trait = "0.1"
+
+# CLI
+clap = { version = "4", features = ["derive", "env"] }
+
+# Crypto / identity
+uuid = { version = "1", features = ["v7", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+ed25519-dalek = { version = "2", features = ["serde", "rand_core"] }
+x509-parser = "0.17"
+rand = "0.8"
+
+# TLS
+rustls = { version = "0.23", features = ["ring"] }
+tokio-rustls = "0.26"
+rcgen = { version = "0.13", features = ["pem", "x509-parser"] }
+
+# Integrity / signing
+sha2 = "0.10"
+hex = "0.4"
+
+# Logging / tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Error handling
+thiserror = "2"
+anyhow = "1"
+
+# HTTP client (for GitHub API, sync)
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+
+# CRDT / sync
+crdts = "7"
+
+[dev-dependencies]
+tokio-test = "0.4"
+tempfile = "3"
 
 [[bin]]
 name = "warte"
 path = "src/main.rs"
+
+[profile.release]
+opt-level = 2
+lto = "thin"
+strip = true

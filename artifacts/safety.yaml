@@ -1,0 +1,569 @@
+artifacts:
+  # ============================================================
+  # LOSSES — stakeholder harms the system must prevent
+  # ============================================================
+  - id: L-001
+    type: loss
+    title: Unauthorized system access via agent impersonation
+    status: draft
+    description: >
+      An attacker impersonates a legitimate agent or gains access to agent
+      credentials, leading to unauthorized control of the orchestration system,
+      data exfiltration, or malicious artifact distribution.
+    fields:
+      stakeholders: [system-operator, agent-owner, downstream-users, infrastructure-provider]
+
+  - id: L-002
+    type: loss
+    title: Loss of work or data due to orchestration failure
+    status: draft
+    description: >
+      The control tower fails to coordinate agents correctly — agents run
+      conflicting work, downloads are corrupted, or sync failures lose captured
+      data — resulting in lost engineering work and inconsistent system state.
+    fields:
+      stakeholders: [engineering-team, agent-owner, system-operator]
+
+  - id: L-003
+    type: loss
+    title: Unauthorized control via mobile channel compromise
+    status: draft
+    description: >
+      An attacker compromises the mobile access channel (Android/iOS) and
+      issues unauthorized commands to the control tower — revoking access,
+      downloading malicious artifacts, or disrupting agent orchestration.
+    fields:
+      stakeholders: [system-operator, engineering-team, infrastructure-provider]
+
+  - id: L-004
+    type: loss
+    title: Inconsistent state across instances due to sync failure
+    status: draft
+    description: >
+      Multiple warte instances fail to synchronize — agents register with one
+      instance but not others, access rights diverge, or captured data is lost
+      — leading to security gaps and operational confusion.
+    fields:
+      stakeholders: [system-operator, agent-owner, engineering-team]
+
+  - id: L-005
+    type: loss
+    title: Bad decisions from incorrect dashboard status
+    status: draft
+    description: >
+      The dashboard shows stale or incorrect CI/agent status, leading operators
+      to make wrong decisions — merging broken code, dispatching agents to
+      wrong tasks, or missing critical failures.
+    fields:
+      stakeholders: [engineering-team, system-operator, release-manager]
+
+  # ============================================================
+  # HAZARDS — system states that lead to losses
+  # ============================================================
+  - id: H-001
+    type: hazard
+    title: Unauthorized agent registers or authenticates
+    status: draft
+    description: >
+      An agent registers with the control tower without proper authorization,
+      or an attacker presents stolen/forged credentials, gaining access to
+      orchestration capabilities.
+    fields:
+      severity: catastrophic
+    links:
+      - type: leads-to-loss
+        target: L-001
+
+  - id: H-002
+    type: hazard
+    title: Agent downloads untrusted or tampered artifact
+    status: draft
+    description: >
+      An agent downloads an artifact that has been tampered with or is from an
+      untrusted source, leading to compromised builds, stolen secrets, or
+      malicious code execution in the agent's environment.
+    fields:
+      severity: catastrophic
+    links:
+      - type: leads-to-loss
+        target: L-001
+
+  - id: H-003
+    type: hazard
+    title: Access rights not properly revoked
+    status: draft
+    description: >
+      An agent's access rights are revoked but the revocation does not propagate
+      to all instances or services, leaving a window where the agent can still
+      access resources it should no longer reach.
+    fields:
+      severity: critical
+    links:
+      - type: leads-to-loss
+        target: L-001
+
+  - id: H-004
+    type: hazard
+    title: Mobile control channel used without proper authentication
+    status: draft
+    description: >
+      The mobile access channel (Android/iOS) is used to issue commands without
+      sufficient authentication or authorization, allowing an attacker to
+      control the system.
+    fields:
+      severity: catastrophic
+    links:
+      - type: leads-to-loss
+        target: L-003
+
+  - id: H-005
+    type: hazard
+    title: Multi-instance sync conflict causes state divergence
+    status: draft
+    description: >
+      Two warte instances make conflicting changes to shared state (agent
+      registrations, access rights, captured data) and the sync mechanism
+      fails to resolve the conflict, leading to inconsistent state.
+    fields:
+      severity: critical
+    links:
+      - type: leads-to-loss
+        target: L-004
+
+      - type: leads-to-loss
+        target: L-002
+  - id: H-006
+    type: hazard
+    title: Dashboard displays stale or incorrect status
+    status: draft
+    description: >
+      The dashboard shows CI/agent status that is out of date or incorrect,
+      leading operators to make decisions based on wrong information.
+    fields:
+      severity: critical
+    links:
+      - type: leads-to-loss
+        target: L-005
+
+  - id: H-007
+    type: hazard
+    title: Edge server (Hetzner/Netcup) compromised
+    status: draft
+    description: >
+      The edge server that exposes warte to the internet is compromised,
+      giving an attacker a foothold to attack the internal control plane,
+      intercept agent communications, or pivot to other systems.
+    fields:
+      severity: catastrophic
+    links:
+      - type: leads-to-loss
+        target: L-001
+
+  # ============================================================
+  # CONTROLLERS — system components
+  # ============================================================
+  - id: CTRL-001
+    type: controller
+    title: Warte control tower
+    status: draft
+    description: >
+      The central warte server that manages agent registration, orchestration,
+      access control, artifact distribution, and multi-instance synchronization.
+    fields:
+      controller-type: automated
+
+  - id: CTRL-002
+    type: controller
+    title: Access control service
+    status: draft
+    description: >
+      The service that grants and revokes agent access rights, manages
+      credentials, and enforces authorization policies across all warte
+      instances and downstream services.
+    fields:
+      controller-type: automated
+
+  - id: CTRL-003
+    type: controller
+    title: Mobile control client
+    status: draft
+    description: >
+      The Android/iOS application that allows the system operator to monitor
+      and control the warte system remotely.
+    fields:
+      controller-type: human
+
+  - id: CTRL-004
+    type: controller
+    title: Edge proxy (Hetzner/Netcup)
+    status: draft
+    description: >
+      The reverse proxy / edge server that terminates external connections,
+      provides TLS, rate limiting, and acts as the security boundary between
+      the internet and the internal warte instances.
+    fields:
+      controller-type: automated
+
+  - id: CTRL-005
+    type: controller
+    title: Agent runtime
+    status: draft
+    description: >
+      The agent process running on a worker machine that registers with warte,
+      receives tasks, downloads artifacts, captures data, and reports status.
+    fields:
+      controller-type: automated
+    links:
+      - type: acts-on
+        target: CTRL-001
+
+  # ============================================================
+  # UNSAFE CONTROL ACTIONS (UCAs)
+  # ============================================================
+  - id: UCA-001
+    type: uca
+    title: Control tower accepts agent registration without verifying identity
+    status: draft
+    description: >
+      The control tower accepts an agent registration without cryptographically
+      verifying the agent's identity, allowing an attacker to register a
+      malicious agent.
+    fields:
+      uca-type: not-providing
+      context: Agent registration request arrives with self-asserted identity
+    links:
+      - type: issued-by
+        target: CTRL-001
+      - type: leads-to-hazard
+        target: H-001
+
+  - id: UCA-002
+    type: uca
+    title: Control tower serves artifact without integrity verification
+    status: draft
+    description: >
+      The control tower serves a download artifact without verifying its
+      integrity (signature/hash), allowing a tampered artifact to reach the
+      agent.
+    fields:
+      uca-type: providing
+      context: Agent requests artifact download; integrity check skipped or bypassed
+    links:
+      - type: issued-by
+        target: CTRL-001
+      - type: leads-to-hazard
+        target: H-002
+
+  - id: UCA-003
+    type: uca
+    title: Access control service fails to propagate revocation
+    status: draft
+    description: >
+      The access control service revokes an agent's rights but the revocation
+      does not reach all instances or downstream services within the revocation
+      window, leaving the agent with residual access.
+    fields:
+      uca-type: too-early-too-late
+      context: Revocation issued but sync delay leaves agent with active credentials
+    links:
+      - type: issued-by
+        target: CTRL-002
+      - type: leads-to-hazard
+        target: H-003
+
+  - id: UCA-004
+    type: uca
+    title: Mobile client sends command without mutual TLS authentication
+    status: draft
+    description: >
+      The mobile client sends a control command without completing mutual TLS
+      authentication, allowing an attacker to issue commands.
+    fields:
+      uca-type: not-providing
+      context: Mobile app connects to warte API; server identity not verified
+    links:
+      - type: issued-by
+        target: CTRL-003
+      - type: leads-to-hazard
+        target: H-004
+
+  - id: UCA-005
+    type: uca
+    title: Sync mechanism applies conflicting updates without resolution
+    status: draft
+    description: >
+      Two warte instances make conflicting changes to the same state and the
+      sync mechanism applies both without conflict resolution, causing state
+      divergence.
+    fields:
+      uca-type: providing
+      context: Concurrent updates to agent registration or access rights from different instances
+    links:
+      - type: issued-by
+        target: CTRL-001
+      - type: leads-to-hazard
+        target: H-005
+
+  - id: UCA-006
+    type: uca
+    title: Dashboard displays cached status without freshness indicator
+    status: draft
+    description: >
+      The dashboard displays CI/agent status from cache without indicating
+      staleness, leading operators to act on outdated information.
+    fields:
+      uca-type: too-early-too-late
+      context: Dashboard renders status from cache; last-updated timestamp not shown or stale
+    links:
+      - type: issued-by
+        target: CTRL-001
+      - type: leads-to-hazard
+        target: H-006
+
+  - id: UCA-007
+    type: uca
+    title: Edge proxy forwards request without rate limiting or validation
+    status: draft
+    description: >
+      The edge proxy forwards an external request to the internal warte
+      instance without rate limiting, request validation, or attack detection,
+      enabling brute-force, DoS, or injection attacks.
+    fields:
+      uca-type: not-providing
+      context: External request arrives at edge proxy; security checks skipped
+    links:
+      - type: issued-by
+        target: CTRL-004
+      - type: leads-to-hazard
+        target: H-007
+
+  # ============================================================
+  # SYSTEM CONSTRAINTS — what the system must guarantee
+  # ============================================================
+  - id: SC-001
+    type: system-constraint
+    title: All agent registrations must be cryptographically verified
+    status: draft
+    description: >
+      Every agent registration must include a cryptographic proof of identity
+      (signed challenge, mTLS certificate, or hardware-backed attestation)
+      verified by the control tower before the agent is accepted.
+    links:
+      - type: prevents
+        target: H-001
+
+  - id: SC-002
+    type: system-constraint
+    title: All artifact downloads must be integrity-verified
+    status: draft
+    description: >
+      Every artifact served to an agent must carry a verifiable integrity
+      proof (signature via sigil/wsc, or SHA-256 hash pinned in a signed
+      manifest) that the agent verifies before use.
+    links:
+      - type: prevents
+        target: H-002
+
+  - id: SC-003
+    type: system-constraint
+    title: Access revocations must propagate within bounded time
+    status: draft
+    description: >
+      When an agent's access is revoked, the revocation must propagate to all
+      warte instances and downstream services within a bounded time (target:
+      < 5 seconds), and the agent must be actively disconnected.
+    links:
+      - type: prevents
+        target: H-003
+
+  - id: SC-004
+    type: system-constraint
+    title: Mobile control requires mutual TLS and operator authentication
+    status: draft
+    description: >
+      All mobile control channel communication must use mutual TLS (client
+      certificate or device attestation) plus operator authentication (biometric
+      or hardware token), with per-command authorization checks.
+    links:
+      - type: prevents
+        target: H-004
+
+  - id: SC-005
+    type: system-constraint
+    title: Multi-instance state must converge with conflict resolution
+    status: draft
+    description: >
+      All warte instances must converge to a consistent state using a
+      deterministic conflict resolution strategy (last-writer-wins with
+      version vectors, or CRDT-based merge), with divergence detection and alerting.
+    links:
+      - type: prevents
+        target: H-005
+
+  - id: SC-006
+    type: system-constraint
+    title: Dashboard status must include freshness metadata
+    status: draft
+    description: >
+      Every status displayed on the dashboard must include a last-updated
+      timestamp and a freshness indicator (green/yellow/red based on age),
+      and stale data must be visually distinguished from fresh data.
+    links:
+      - type: prevents
+        target: H-006
+
+  - id: SC-007
+    type: system-constraint
+    title: Edge proxy must enforce rate limiting, TLS, and request validation
+    status: draft
+    description: >
+      The edge proxy must terminate TLS 1.3, enforce per-IP and per-agent
+      rate limiting, validate all requests against a schema, and drop
+      connections exhibiting attack patterns (brute force, injection, scanning).
+    links:
+      - type: prevents
+        target: H-007
+
+  # ============================================================
+  # CONTROLLER CONSTRAINTS — what each controller must do
+  # ============================================================
+  - id: CC-001
+    type: controller-constraint
+    title: Control tower must reject unverified agent registrations
+    status: draft
+    description: >
+      The control tower must reject any agent registration that does not
+      include a valid cryptographic identity proof.
+    fields:
+      constraint: >
+        The control tower SHALL reject any agent registration that does not
+        include a valid cryptographic identity proof. No fallback to
+        unauthenticated registration is permitted.
+    links:
+      - type: constrains-controller
+        target: CTRL-001
+      - type: inverts-uca
+        target: UCA-001
+      - type: prevents
+        target: H-001
+
+  - id: CC-002
+    type: controller-constraint
+    title: Control tower must verify artifact integrity before serving
+    status: draft
+    description: >
+      The control tower must verify the integrity of every artifact before
+      serving it to an agent.
+    fields:
+      constraint: >
+        The control tower SHALL verify the integrity (signature/hash) of every
+        artifact before serving it to an agent. Artifacts without valid integrity
+        proofs SHALL be rejected and the incident logged.
+    links:
+      - type: constrains-controller
+        target: CTRL-001
+      - type: inverts-uca
+        target: UCA-002
+      - type: prevents
+        target: H-002
+
+  - id: CC-003
+    type: controller-constraint
+    title: Access control service must push revocations immediately
+    status: draft
+    description: >
+      The access control service must push access revocations to all instances
+      and services immediately.
+    fields:
+      constraint: >
+        The access control service SHALL push access revocations to all instances
+        and services immediately (not poll), actively disconnect the agent, and
+        confirm propagation before acknowledging the revocation.
+    links:
+      - type: constrains-controller
+        target: CTRL-002
+      - type: inverts-uca
+        target: UCA-003
+      - type: prevents
+        target: H-003
+
+  - id: CC-004
+    type: controller-constraint
+    title: Mobile client must verify server identity and authenticate operator
+    status: draft
+    description: >
+      The mobile client must verify the server's TLS certificate and authenticate
+      the operator before sending any control command.
+    fields:
+      constraint: >
+        The mobile client SHALL verify the server's TLS certificate (mutual TLS),
+        authenticate the operator via biometric or hardware token, and check
+        per-command authorization before sending any control command.
+    links:
+      - type: constrains-controller
+        target: CTRL-003
+      - type: inverts-uca
+        target: UCA-004
+      - type: prevents
+        target: H-004
+
+  - id: CC-005
+    type: controller-constraint
+    title: Sync mechanism must detect and resolve conflicts
+    status: draft
+    description: >
+      The sync mechanism must detect conflicting updates and resolve them
+      deterministically.
+    fields:
+      constraint: >
+        The sync mechanism SHALL detect conflicting updates using version vectors
+        or CRDT semantics, resolve them deterministically, and alert on
+        unresolvable conflicts. Divergence beyond a threshold SHALL trigger an
+        operator alert.
+    links:
+      - type: constrains-controller
+        target: CTRL-001
+      - type: inverts-uca
+        target: UCA-005
+      - type: prevents
+        target: H-005
+
+  - id: CC-006
+    type: controller-constraint
+    title: Dashboard must display freshness indicators for all status data
+    status: draft
+    description: >
+      The dashboard must display a last-updated timestamp and freshness
+      indicator for every status item.
+    fields:
+      constraint: >
+        The dashboard SHALL display a last-updated timestamp and freshness
+        indicator for every status item. Data older than the freshness threshold
+        SHALL be visually marked as stale.
+    links:
+      - type: constrains-controller
+        target: CTRL-001
+      - type: inverts-uca
+        target: UCA-006
+      - type: prevents
+        target: H-006
+
+  - id: CC-007
+    type: controller-constraint
+    title: Edge proxy must enforce security policies on all external traffic
+    status: draft
+    description: >
+      The edge proxy must enforce TLS 1.3, rate limiting, and request validation
+      on all external traffic.
+    fields:
+      constraint: >
+        The edge proxy SHALL enforce TLS 1.3, rate limiting, request schema
+        validation, and attack pattern detection on all external traffic before
+        forwarding to internal warte instances.
+    links:
+      - type: constrains-controller
+        target: CTRL-004
+      - type: inverts-uca
+        target: UCA-007
+      - type: prevents
+        target: H-007

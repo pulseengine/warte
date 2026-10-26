@@ -1,0 +1,226 @@
+artifacts:
+  # ============================================================
+  # DESIGN DECISIONS — architectural choices for warte v0.1
+  # ============================================================
+  - id: DD-ARCH-001
+    type: design-decision
+    title: "Rust + Axum + Tokio for the server stack"
+    status: accepted
+    release: v0.1.0
+    description: >
+      The warte server is built in Rust using Axum (web framework) on Tokio
+      (async runtime).
+    fields:
+      rationale: >
+        The PulseEngine toolchain is Rust-native; Axum provides tower
+        middleware for auth/rate-limiting; Tokio provides the async runtime
+        for concurrent agent connections. This matches the existing toolchain
+        (rivet, spar, varve are all Rust).
+    links:
+      - type: satisfies
+        target: REQ-API-001
+
+  - id: DD-ARCH-002
+    type: design-decision
+    title: "SQLite for local state, with CRDT-based sync for multi-instance"
+    status: accepted
+    release: v0.1.0
+    description: >
+      Each warte instance uses a local SQLite database for state. Multi-instance
+      sync uses a CRDT-based approach.
+    fields:
+      rationale: >
+        SQLite is embedded (no external dependency), ACID compliant, and the
+        CRDT approach provides eventual consistency without a central coordinator.
+    links:
+      - type: satisfies
+        target: REQ-SYNC-001
+      - type: satisfies
+        target: REQ-SYNC-002
+
+  - id: DD-ARCH-003
+    type: design-decision
+    title: "mTLS with per-agent certificates for agent authentication"
+    status: accepted
+    release: v0.1.0
+    description: >
+      Agent authentication uses mutual TLS with per-agent X.509 certificates
+      signed by the warte CA.
+    fields:
+      rationale: >
+        mTLS provides strong identity verification at the transport layer, is
+        well-supported in Rust (rustls), and integrates with the edge proxy
+        (which terminates TLS). Certificates are short-lived (24h) with
+        automatic renewal.
+    links:
+      - type: satisfies
+        target: REQ-AGENT-REG-001
+      - type: satisfies
+        target: REQ-AGENT-REG-002
+
+  - id: DD-ARCH-004
+    type: design-decision
+    title: "Sigil/wsc signatures for artifact integrity"
+    status: accepted
+    release: v0.1.0
+    description: >
+      Artifact integrity uses sigil/wsc detached signatures. Every artifact
+      carries a wsc signature.
+    fields:
+      rationale: >
+        Sigil is the PulseEngine attestation tool; using it dogfoods the
+        toolchain. Fallback: SHA-256 hashes in a signed manifest (SHA256SUMS
+        signed by the release key).
+    links:
+      - type: satisfies
+        target: REQ-ARTIFACT-002
+
+  - id: DD-ARCH-005
+    type: design-decision
+    title: "Push-based revocation with active disconnection"
+    status: accepted
+    release: v0.1.0
+    description: >
+      Access revocation uses a push model with active disconnection of the
+      agent's connections.
+    fields:
+      rationale: >
+        Polling introduces unacceptable delay; push ensures bounded propagation
+        (target < 5 seconds). The access control service pushes revocations to
+        all instances via the sync channel and confirms propagation before
+        acknowledging.
+    links:
+      - type: satisfies
+        target: REQ-ACCESS-002
+
+  - id: DD-ARCH-006
+    type: design-decision
+    title: "WebSocket/SSE for real-time dashboard and mobile push"
+    status: accepted
+    release: v0.1.0
+    description: >
+      Real-time updates use WebSocket (bidirectional) for mobile and SSE
+      (unidirectional) for the dashboard.
+    fields:
+      rationale: >
+        WebSocket provides low-latency bidirectional communication for mobile
+        commands; SSE is simpler for dashboard updates and works through proxies.
+    links:
+      - type: satisfies
+        target: REQ-MOBILE-003
+      - type: satisfies
+        target: REQ-DASH-001
+
+  - id: DD-ARCH-007
+    type: design-decision
+    title: "Edge proxy as the sole internet-facing component (Hetzner/Netcup)"
+    status: accepted
+    release: v0.1.0
+    description: >
+      The edge proxy (deployed on Hetzner/Netcup) is the ONLY component
+      exposed to the internet.
+    fields:
+      rationale: >
+        Defense-in-depth: a single hardened entry point reduces the attack
+        surface. The edge proxy terminates TLS 1.3, enforces rate limiting,
+        validates requests, and proxies to internal warte instances over a
+        private network (WireGuard VPN or private VLAN). Internal instances
+        are NOT directly reachable from the internet.
+    links:
+      - type: satisfies
+        target: REQ-EDGE-001
+      - type: satisfies
+        target: REQ-EDGE-002
+      - type: satisfies
+        target: REQ-EDGE-003
+
+  - id: DD-ARCH-008
+    type: design-decision
+    title: "Mobile app uses native iOS (Swift) and Android (Kotlin)"
+    status: accepted
+    release: v0.1.0
+    description: >
+      The mobile control client is built as native apps: SwiftUI for iOS and
+      Jetpack Compose for Android.
+    fields:
+      rationale: >
+        Native apps provide the best security (hardware-backed keystore) and
+        user experience. Both use mTLS with device-bound client certificates
+        stored in the hardware-backed keystore (iOS Keychain / Android
+        Keystore). Cross-platform frameworks do not provide the same keystore
+        guarantees.
+    links:
+      - type: satisfies
+        target: REQ-MOBILE-001
+      - type: satisfies
+        target: REQ-MOBILE-002
+
+  - id: DD-ARCH-009
+    type: design-decision
+    title: "Migration from smithy — agent fleet data import"
+    status: accepted
+    release: v0.1.0
+    description: >
+      The smithy migration imports agent registrations, captured session data,
+      and tool friction reports.
+    fields:
+      rationale: >
+        The migration is a one-time import via a CLI command (warte migrate
+        smithy --source <path>). The import is idempotent (re-running produces
+        the same state) and verifiable (checksums match).
+    links:
+      - type: satisfies
+        target: REQ-MIGRATE-001
+
+  - id: DD-ARCH-010
+    type: design-decision
+    title: "Migration from temper — repo hardening config import"
+    status: accepted
+    release: v0.1.0
+    description: >
+      The temper migration imports branch protection rules, issue labels,
+      PR/issue templates, CODEOWNERS, and dependabot configuration.
+    fields:
+      rationale: >
+        The import converts temper's config format to warte's access control
+        policy format. The import is verifiable (all settings preserved, diff
+        is reviewable).
+    links:
+      - type: satisfies
+        target: REQ-MIGRATE-002
+
+  - id: DD-ARCH-011
+    type: design-decision
+    title: "CLI follows PulseEngine CLI conventions"
+    status: accepted
+    release: v0.1.0
+    description: >
+      The warte CLI follows PulseEngine CLI conventions for version, help,
+      and structured output.
+    fields:
+      rationale: >
+        --version/-V prints 'warte <semver>' and exits 0, --help exits 0,
+        unknown flags exit 2, structured output via --format json. Subcommands:
+        serve, status, agents, schedule, watch, migrate, access.
+    links:
+      - type: satisfies
+        target: REQ-CLI-001
+
+  - id: DD-ARCH-012
+    type: design-decision
+    title: "RBAC with per-resource, per-action scoping"
+    status: accepted
+    release: v0.1.0
+    description: >
+      Access control uses Role-Based Access Control with per-resource and
+      per-action scoping.
+    fields:
+      rationale: >
+        Custom roles can be defined per deployment. The access control service
+        is the single source of truth; all instances query it for authorization
+        decisions.
+    links:
+      - type: satisfies
+        target: REQ-ACCESS-003
+      - type: satisfies
+        target: REQ-ARTIFACT-003

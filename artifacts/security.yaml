@@ -1,0 +1,476 @@
+artifacts:
+  # ============================================================
+  # ASSETS — items of value requiring protection (ISO 21434 TARA)
+  # ============================================================
+  - id: AST-001
+    type: asset
+    title: Agent credentials and identity keys
+    status: draft
+    description: >
+      Cryptographic keys, certificates, and tokens used by agents to
+      authenticate to the control tower. Compromise allows agent impersonation.
+    fields:
+      asset-type: key-material
+      cybersecurity-properties: [confidentiality, integrity]
+
+  - id: AST-002
+    type: asset
+    title: Access control policy database
+    status: draft
+    description: >
+      The database of agent access rights, roles, and revocation state.
+      Tampering allows privilege escalation or unauthorized access.
+    fields:
+      asset-type: data
+      cybersecurity-properties: [confidentiality, integrity]
+
+  - id: AST-003
+    type: asset
+    title: Artifact distribution store
+    status: draft
+    description: >
+      The store of downloadable artifacts (tools, configs, data) served to
+      agents. Tampering allows supply-chain attacks via malicious artifacts.
+    fields:
+      asset-type: data
+      cybersecurity-properties: [integrity, availability]
+
+  - id: AST-004
+    type: asset
+    title: Multi-instance sync state
+    status: draft
+    description: >
+      The shared state synchronized across warte instances — agent
+      registrations, access rights, captured data. Divergence causes
+      security gaps and operational inconsistency.
+    fields:
+      asset-type: data
+      cybersecurity-properties: [integrity, availability]
+
+  - id: AST-005
+    type: asset
+    title: Mobile operator session
+    status: draft
+    description: >
+      The authenticated session between the mobile client (Android/iOS) and
+      the control tower. Compromise allows unauthorized remote control.
+    fields:
+      asset-type: function
+      cybersecurity-properties: [confidentiality, integrity]
+
+  - id: AST-006
+    type: asset
+    title: Edge proxy TLS termination
+    status: draft
+    description: >
+      The TLS termination and security enforcement at the edge proxy
+      (Hetzner/Netcup). Compromise exposes all internal traffic.
+    fields:
+      asset-type: function
+      cybersecurity-properties: [confidentiality, integrity, availability]
+
+  # ============================================================
+  # SECURITY LOSSES — CIA breaches (STPA-Sec)
+  # ============================================================
+  - id: SL-001
+    type: sec-loss
+    title: Confidentiality breach — agent credentials exposed
+    status: draft
+    description: >
+      Agent credentials, API keys, or session tokens are exposed to an
+      unauthorized party, enabling agent impersonation and unauthorized
+      system access.
+    fields:
+      cia-impact: [confidentiality]
+      stakeholders: [system-operator, agent-owner]
+
+  - id: SL-002
+    type: sec-loss
+    title: Integrity breach — artifact tampering
+    status: draft
+    description: >
+      A downloadable artifact is tampered with (malicious code injected,
+      configuration altered) and served to agents, compromising their
+      execution environment.
+    fields:
+      cia-impact: [integrity]
+      stakeholders: [agent-owner, downstream-users]
+
+  - id: SL-003
+    type: sec-loss
+    title: Integrity breach — access policy tampering
+    status: draft
+    description: >
+      The access control policy database is tampered with — rights
+      escalated, revocations removed — allowing unauthorized access
+      to persist undetected.
+    fields:
+      cia-impact: [integrity]
+      stakeholders: [system-operator, infrastructure-provider]
+
+  - id: SL-004
+    type: sec-loss
+    title: Availability breach — control tower denial of service
+    status: draft
+    description: >
+      The control tower or edge proxy is overwhelmed or disabled,
+      preventing legitimate agents from registering, downloading, or
+      reporting — halting engineering operations.
+    fields:
+      cia-impact: [availability]
+      stakeholders: [engineering-team, system-operator]
+
+  - id: SL-005
+    type: sec-loss
+    title: Confidentiality breach — captured agent data exposed
+    status: draft
+    description: >
+      Data captured by agents (build logs, test results, code snippets)
+      is exposed to unauthorized parties, leaking proprietary information
+      or system internals.
+    fields:
+      cia-impact: [confidentiality]
+      stakeholders: [engineering-team, system-operator]
+
+  # ============================================================
+  # SECURITY HAZARDS — exploitable system states
+  # ============================================================
+  - id: SH-001
+    type: sec-hazard
+    title: Agent authenticates with stolen or forged credentials
+    status: draft
+    description: >
+      An attacker obtains or forges agent credentials and successfully
+      authenticates to the control tower, gaining unauthorized access
+      to orchestration capabilities.
+    fields:
+      cia-impact: [confidentiality, integrity]
+      severity: critical
+    links:
+      - type: leads-to-sec-loss
+        target: SL-001
+
+      - type: leads-to-sec-loss
+        target: SL-005
+  - id: SH-002
+    type: sec-hazard
+    title: Artifact served without integrity verification
+    status: draft
+    description: >
+      The control tower serves an artifact whose integrity has not been
+      verified (no signature check, no hash validation), allowing a
+      tampered artifact to reach agents.
+    fields:
+      cia-impact: [integrity]
+      severity: critical
+    links:
+      - type: leads-to-sec-loss
+        target: SL-002
+
+  - id: SH-003
+    type: sec-hazard
+    title: Access revocation not propagated within bound
+    status: draft
+    description: >
+      An agent's access is revoked but the revocation does not reach all
+      instances and services within the bounded time, leaving the agent
+      with active access during the propagation window.
+    fields:
+      cia-impact: [integrity]
+      severity: high
+    links:
+      - type: leads-to-sec-loss
+        target: SL-003
+
+  - id: SH-004
+    type: sec-hazard
+    title: Mobile command issued without operator authentication
+    status: draft
+    description: >
+      A control command is issued via the mobile channel without verifying
+      the operator's identity (biometric/hardware token), allowing an
+      attacker with physical access to the device to control the system.
+    fields:
+      cia-impact: [confidentiality, integrity]
+      severity: critical
+    links:
+      - type: leads-to-sec-loss
+        target: SL-001
+
+  - id: SH-005
+    type: sec-hazard
+    title: Edge proxy compromised via unpatched vulnerability
+    status: draft
+    description: >
+      The edge proxy (Hetzner/Netcup) runs an unpatched service or
+      misconfiguration that an attacker exploits to gain a foothold,
+      intercept traffic, or pivot to internal systems.
+    fields:
+      cia-impact: [confidentiality, integrity, availability]
+      severity: critical
+    links:
+      - type: leads-to-sec-loss
+        target: SL-001
+
+  - id: SH-006
+    type: sec-hazard
+    title: Sync channel used to inject conflicting state
+    status: draft
+    description: >
+      An attacker intercepts or injects messages on the inter-instance
+      sync channel, causing state divergence, data corruption, or
+      denial of service.
+    fields:
+      cia-impact: [integrity, availability]
+      severity: high
+    links:
+      - type: leads-to-sec-loss
+        target: SL-004
+
+  # ============================================================
+  # THREAT SCENARIOS (TARA — ISO 21434 clause 8)
+  # ============================================================
+  - id: TS-001
+    type: threat-scenario
+    title: Attacker intercepts agent registration and steals credentials
+    status: draft
+    description: >
+      An attacker on the network path between an agent and the control tower
+      intercepts the registration handshake and extracts or replays credentials.
+    fields:
+      attack-vector: network
+      attack-feasibility: high
+      impact: severe
+    links:
+      - type: threatens
+        target: AST-001
+
+  - id: TS-002
+    type: threat-scenario
+    title: Attacker tampers with artifact in transit or at rest
+    status: draft
+    description: >
+      An attacker with access to the artifact store or the network path
+      modifies an artifact (injects malicious code) before it reaches an agent.
+    fields:
+      attack-vector: network
+      attack-feasibility: medium
+      impact: severe
+    links:
+      - type: threatens
+        target: AST-003
+
+  - id: TS-003
+    type: threat-scenario
+    title: Insider or compromised agent exploits revocation delay
+    status: draft
+    description: >
+      A compromised or malicious agent exploits the revocation propagation
+      delay to continue accessing resources after its access was revoked.
+    fields:
+      attack-vector: local
+      attack-feasibility: medium
+      impact: major
+    links:
+      - type: threatens
+        target: AST-002
+
+  - id: TS-004
+    type: threat-scenario
+    title: Attacker hijacks mobile session or steals device
+    status: draft
+    description: >
+      An attacker steals the operator's mobile device or hijacks the session
+      token and issues unauthorized control commands.
+    fields:
+      attack-vector: physical
+      attack-feasibility: medium
+      impact: severe
+    links:
+      - type: threatens
+        target: AST-005
+
+  - id: TS-005
+    type: threat-scenario
+    title: Attacker exploits edge proxy vulnerability
+    status: draft
+    description: >
+      An attacker scans the edge proxy (Hetzner/Netcup), finds an unpatched
+      service or misconfiguration, and exploits it to gain access.
+    fields:
+      attack-vector: network
+      attack-feasibility: high
+      impact: severe
+    links:
+      - type: threatens
+        target: AST-006
+
+  - id: TS-006
+    type: threat-scenario
+    title: Attacker injects messages on sync channel
+    status: draft
+    description: >
+      An attacker with network access to the inter-instance sync channel
+      injects forged state updates, causing divergence or corruption.
+    fields:
+      attack-vector: network
+      attack-feasibility: low
+      impact: major
+    links:
+      - type: threatens
+        target: AST-004
+
+  # ============================================================
+  # RISK ASSESSMENTS
+  # ============================================================
+  - id: RA-001
+    type: risk-assessment
+    title: Agent credential theft risk
+    status: draft
+    description: >
+      Combined risk of agent credential theft: high feasibility (network
+      interception, credential leakage) x severe impact (full system
+      compromise). Requires cybersecurity goals.
+    fields:
+      risk-level: unacceptable
+      risk-treatment: mitigate
+    links:
+      - type: assesses
+        target: TS-001
+
+  - id: RA-002
+    type: risk-assessment
+    title: Artifact tampering risk
+    status: draft
+    description: >
+      Combined risk of artifact tampering: medium feasibility (requires
+      store or network access) x severe impact (supply chain
+      compromise). Requires cybersecurity goals.
+    fields:
+      risk-level: unacceptable
+      risk-treatment: mitigate
+    links:
+      - type: assesses
+        target: TS-002
+
+  - id: RA-003
+    type: risk-assessment
+    title: Edge proxy compromise risk
+    status: draft
+    description: >
+      Combined risk of edge proxy compromise: high feasibility (internet-
+      exposed, constant scanning) x severe impact (full traffic
+      exposure). Requires cybersecurity goals.
+    fields:
+      risk-level: unacceptable
+      risk-treatment: mitigate
+    links:
+      - type: assesses
+        target: TS-005
+
+  # ============================================================
+  # CYBERSECURITY GOALS (ISO 21434 clause 9)
+  # ============================================================
+  - id: CG-001
+    type: cybersecurity-goal
+    title: Agent identity is cryptographically verified
+    status: draft
+    description: >
+      All agent registrations and ongoing communications must use
+      cryptographic identity verification (mTLS, signed challenges, or
+      hardware-backed attestation) to prevent impersonation.
+    fields:
+      cal: "1"
+      verification-criteria: >
+        Penetration test confirms no agent can register without valid
+        cryptographic proof. Code review confirms all registration paths
+        verify identity.
+    links:
+      - type: mitigates
+        target: TS-001
+
+  - id: CG-002
+    type: cybersecurity-goal
+    title: Artifact integrity is verified end-to-end
+    status: draft
+    description: >
+      All artifacts distributed to agents must carry verifiable integrity
+      proofs (sigil/wsc signatures or signed hash manifests) verified at
+      both the server and the agent.
+    fields:
+      cal: "1"
+      verification-criteria: >
+        Fuzz test confirms tampered artifacts are rejected. Integration
+        test confirms agents verify integrity before use.
+    links:
+      - type: mitigates
+        target: TS-002
+
+  - id: CG-003
+    type: cybersecurity-goal
+    title: Access revocations propagate within bounded time
+    status: draft
+    description: >
+      Access revocations must propagate to all instances and services within
+      5 seconds, with active disconnection of the revoked agent.
+    fields:
+      cal: "2"
+      verification-criteria: >
+        Integration test measures revocation propagation time < 5s across
+        all instances. Chaos test confirms disconnection on revocation.
+    links:
+      - type: mitigates
+        target: TS-003
+
+  - id: CG-004
+    type: cybersecurity-goal
+    title: Mobile control channel is mutually authenticated
+    status: draft
+    description: >
+      The mobile control channel must use mutual TLS with operator
+      authentication (biometric or hardware token) and per-command
+      authorization.
+    fields:
+      cal: "1"
+      verification-criteria: >
+        Penetration test confirms no command can be issued without mTLS
+        and operator authentication. Code review confirms per-command
+        authorization checks.
+    links:
+      - type: mitigates
+        target: TS-004
+
+  - id: CG-005
+    type: cybersecurity-goal
+    title: Edge proxy enforces defense-in-depth
+    status: draft
+    description: >
+      The edge proxy must enforce TLS 1.3, rate limiting, request validation,
+      attack pattern detection, and automatic IP blocking. All edge software
+      must be auto-patched with a maximum 24h patch window.
+    fields:
+      cal: "1"
+      verification-criteria: >
+        Vulnerability scan confirms no critical CVEs older than 24h.
+        Rate limit test confirms DoS protection. Penetration test confirms
+        attack pattern detection.
+    links:
+      - type: mitigates
+        target: TS-005
+
+  - id: CG-006
+    type: cybersecurity-goal
+    title: Inter-instance sync is authenticated and integrity-protected
+    status: draft
+    description: >
+      All inter-instance sync communication must use mutual TLS with
+      per-instance certificates, and all state updates must carry integrity
+      proofs (signatures or CRDT with authenticated merge).
+    fields:
+      cal: "2"
+      verification-criteria: >
+        Integration test confirms sync messages without valid signatures
+        are rejected. Chaos test confirms divergence detection.
+    links:
+      - type: mitigates
+        target: TS-006

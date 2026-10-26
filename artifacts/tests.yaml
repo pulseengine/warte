@@ -1,0 +1,238 @@
+artifacts:
+  # ============================================================
+  # VERIFICATION — tests that verify requirements
+  # ============================================================
+  - id: TEST-AGENT-REG-001
+    type: verification
+    title: "test_agent_registration — agent registration creates valid agent record"
+    status: accepted
+    release: v0.1.0
+    description: >
+      Integration test verifies that agent registration creates a valid
+      agent record with a unique ID, correct metadata, and certificate expiry.
+      Located in tests/integration.rs::test_agent_registration.
+    links:
+      - type: verifies
+        target: REQ-AGENT-REG-001
+      - type: verifies
+        target: REQ-AGENT-REG-002
+
+  - id: TEST-AGENT-HB-001
+    type: verification
+    title: "test_agent_heartbeat — heartbeat updates agent health status"
+    status: accepted
+    release: v0.1.0
+    description: >
+      Integration test verifies that a heartbeat updates the agent's last
+      seen timestamp and sets health status to healthy.
+      Located in tests/integration.rs::test_agent_heartbeat.
+    links:
+      - type: verifies
+        target: REQ-DASH-002
+
+  - id: TEST-ACCESS-001
+    type: verification
+    title: "test_access_control_grant_revoke — grant, check, revoke lifecycle"
+    status: accepted
+    release: v0.1.0
+    description: >
+      Integration test verifies the full access control lifecycle: grant
+      rights, check rights (positive and negative), list rights, revoke
+      rights, and verify revocation takes effect.
+      Located in tests/integration.rs::test_access_control_grant_revoke.
+    links:
+      - type: verifies
+        target: REQ-ACCESS-001
+      - type: verifies
+        target: REQ-ACCESS-002
+      - type: verifies
+        target: REQ-ACCESS-003
+
+  - id: TEST-ARTIFACT-001
+    type: verification
+    title: "test_artifact_store_and_integrity — store, download, verify integrity"
+    status: accepted
+    release: v0.1.0
+    description: >
+      Integration test verifies artifact storage, download with content
+      integrity verification (SHA-256), and listing.
+      Located in tests/integration.rs::test_artifact_store_and_integrity.
+    links:
+      - type: verifies
+        target: REQ-ARTIFACT-001
+      - type: verifies
+        target: REQ-ARTIFACT-002
+      - type: verifies
+        target: REQ-ARTIFACT-003
+
+  - id: TEST-SYNC-001
+    type: verification
+    title: "test_sync_version_vectors — version vector increment, merge, divergence"
+    status: accepted
+    release: v0.1.0
+    description: >
+      Integration test verifies version vector increment, CRDT merge with
+      remote vectors, and divergence detection.
+      Located in tests/integration.rs::test_sync_version_vectors.
+    links:
+      - type: verifies
+        target: REQ-SYNC-001
+      - type: verifies
+        target: REQ-SYNC-002
+      - type: verifies
+        target: REQ-SYNC-003
+
+  - id: TEST-CLI-001
+    type: verification
+    title: "test_cli_version_format — CLI version follows PulseEngine conventions"
+    status: accepted
+    release: v0.1.0
+    description: >
+      Integration test verifies that --version prints 'warte <semver>' and
+      exits 0, following PulseEngine CLI conventions.
+      Located in tests/integration.rs::test_cli_version_format.
+    links:
+      - type: verifies
+        target: REQ-CLI-001
+
+  - id: TEST-HEALTH-001
+    type: verification
+    title: "health endpoint returns structured status with freshness"
+    status: accepted
+    release: v0.1.0
+    description: >
+      Manual verification: GET /api/health returns JSON with status,
+      instance_id, version, uptime_secs, and timestamp fields.
+      Verified by curl during server smoke test.
+    links:
+      - type: verifies
+        target: REQ-API-001
+      - type: verifies
+        target: REQ-DASH-001
+
+  - id: TEST-DASH-001
+    type: verification
+    title: "dashboard overview returns agent and artifact counts"
+    status: accepted
+    release: v0.1.0
+    description: >
+      Manual verification: GET /api/dashboard/overview returns JSON with
+      agent counts (total, healthy, unhealthy), artifact count, and
+      freshness indicator.
+      Verified by curl during server smoke test.
+    links:
+      - type: verifies
+        target: REQ-DASH-001
+      - type: verifies
+        target: REQ-DASH-002
+      - type: verifies
+        target: REQ-DASH-003
+
+  - id: TEST-CAPTURE-001
+    type: verification
+    title: "agent data capture and query endpoints"
+    status: accepted
+    release: v0.1.0
+    description: >
+      Manual verification: POST /api/agents/:id/data stores captured data;
+      GET /api/agents/:id/data queries it with filters and freshness metadata.
+      Verified by curl during server smoke test.
+    links:
+      - type: verifies
+        target: REQ-CAPTURE-001
+      - type: verifies
+        target: REQ-CAPTURE-002
+
+  - id: TEST-DOCS-001
+    type: verification
+    title: test_all_topics_load + test_coverage_passes + test_unknown_topic — embedded docs load and coverage check
+    status: accepted
+    release: v0.2.0
+    description: Unit tests verify all embedded doc topics load via include_str!, the coverage check passes (all required topics present), and unknown topics are rejected.
+    links:
+      - type: verifies
+        target: REQ-DOCS-001
+      - type: verifies
+        target: REQ-DOCS-002
+
+  - id: TEST-DOCS-002
+    type: verification
+    title: warte docs --check — CLI docs coverage command
+    status: accepted
+    release: v0.2.0
+    description: "Manual verification: warte docs --check exits 0 and prints 'docs coverage: OK'. warte docs lists all topics. warte docs <topic> shows topic content."
+    links:
+      - type: verifies
+        target: REQ-DOCS-001
+      - type: verifies
+        target: REQ-DOCS-002
+
+  - id: TEST-ACCESS-002
+    type: verification
+    title: test_access_control_orset_fail_safe — OR-Set concurrent grant+revoke resolves to REVOKED
+    status: accepted
+    release: v0.1.0
+    description: "Integration test verifies OR-Set fail-safe semantics: concurrent grant on instance A and revoke on instance B resolves to revoked (tombstone wins). Re-grant creates a new policy; second revoke tombstones it. Two tombstones exist after two grant/revoke cycles. This is the security-critical finding from docs/research/distributed-db.md §8 (fail-safe revocation is a merge-semantics choice)."
+    links:
+      - type: verifies
+        target: REQ-ACCESS-002
+      - type: verifies
+        target: REQ-ACCESS-003
+
+  - id: TEST-CA-001
+    type: verification
+    title: test_ca_create_and_load + test_issue_agent_cert — CA creates, loads, and issues agent certificates
+    status: accepted
+    release: v0.1.0
+    description: "Unit tests verify: CA creation generates valid PEM cert + DER, CA loads from disk with matching PEM, agent certificate issuance produces a PEM bundle with cert + private key and future expiry."
+    links:
+      - type: verifies
+        target: REQ-AGENT-REG-001
+      - type: verifies
+        target: REQ-AGENT-REG-002
+
+  - id: TEST-API-AUTH-001
+    type: verification
+    title: test_token_issue_and_verify + test_token_expired + test_token_invalid_format + test_token_tampered + test_base64url_roundtrip — bearer token auth
+    status: accepted
+    release: v0.1.0
+    description: "Unit tests verify: token issuance and verification roundtrip, expired tokens rejected, invalid format rejected, tampered tokens rejected (signature verification), base64url encoding roundtrip. The auth middleware enforces bearer token auth on all mutating endpoints (POST/PUT/DELETE/PATCH)."
+    links:
+      - type: verifies
+        target: REQ-API-002
+
+  - id: TEST-AADL-001
+    type: verification
+    title: spar parse + spar analyze — AADL model validates with 0 errors
+    status: accepted
+    release: v0.1.0
+    description: "SPAR parse: architecture/warte.aadl OK. SPAR analyze --root Warte::WarteSystem.impl: 32 components instantiated, 0 errors, 52 warnings (EMV2 single-point-of-failure — maps to STPA hazards H-005, H-007). SPAR connectivity: all external traffic flows through EdgeProxy (defense-in-depth confirmed)."
+    links:
+      - type: verifies
+        target: REQ-EDGE-001
+      - type: verifies
+        target: REQ-EDGE-002
+      - type: verifies
+        target: REQ-SYNC-001
+
+  - id: TEST-MIGRATE-001
+    type: verification
+    title: test_migrate_smithy + test_migrate_temper — migration commands import data from smithy and temper
+    status: accepted
+    release: v0.1.0
+    description: "Integration tests verify: smithy migration imports agent fleet data (JSON array format), temper migration imports branch protection config + issue labels from config.yml. Both produce MigrationResult with imported/skipped/errors/checksum."
+    links:
+      - type: verifies
+        target: REQ-MIGRATE-001
+      - type: verifies
+        target: REQ-MIGRATE-002
+
+  - id: TEST-EDGE-003
+    type: verification
+    title: Edge proxy auto-patching configuration — unattended-upgrades with 24h CVE window
+    status: accepted
+    release: v0.1.0
+    description: "Deployment verification: docs/deployment.md specifies unattended-upgrades with APT::Periodic::Unattended-Upgrade=1 and a 24h maximum patch window for critical/high CVEs. The Caddy configuration includes automatic TLS certificate renewal. The ufw firewall restricts incoming to SSH (22), WireGuard (51820), and HTTPS (443) only."
+    links:
+      - type: verifies
+        target: REQ-EDGE-003
