@@ -71,11 +71,7 @@ artifacts:
       toolchain integration). Build, don't buy. Learn patterns from others
       but own the implementation.
     fields:
-      rationale: >
-        Self-built, purpose-built preference. Existing tools each cover
-        part of the problem but none cover the full stack with PulseEngine
-        traceability (rivet), attestation (sigil), and toolchain integration
-        (varve). Adopting would couple warte to another project's roadmap.
+      rationale: "Research complete (docs/research/similar-tools.md, 155 sources). No existing tool combines warte's six features. The ETA estimation (ask) feature is genuinely novel. Architecture choices match industry direction (SPIRE short-lived SVIDs, CRDT sync, push-based revocation). Biggest landscape risk is license changes. Recommendation: keep building warte; adopt only small permissive components."
     links:
       - type: satisfies
         target: REQ-API-001

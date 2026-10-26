@@ -39,8 +39,20 @@ pub async fn serve(config: Config, db: Database) -> anyhow::Result<()> {
     let instance_id = config.instance_id();
     let pool = db.pool().clone();
 
+    // Initialize CA for mTLS certificate issuance
+    let ca = Arc::new(crate::ca::CertificateAuthority::load_or_create(
+        &config.ca_cert_path,
+        &config.ca_key_path,
+        config.cert_validity_hours,
+    )?);
+    tracing::info!(ca_cert = %config.ca_cert_path.display(), "CA initialized");
+
     let state = AppState {
-        agents: Arc::new(AgentRegistry::new(pool.clone(), instance_id.clone())),
+        agents: Arc::new(AgentRegistry::with_ca(
+            pool.clone(),
+            instance_id.clone(),
+            ca,
+        )),
         access: Arc::new(AccessControl::new(pool.clone(), instance_id.clone())),
         artifacts: Arc::new(ArtifactStore::new(pool.clone())),
         sync: Arc::new(SyncService::new(pool.clone(), instance_id.clone())),

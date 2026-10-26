@@ -178,3 +178,15 @@ artifacts:
         target: REQ-ACCESS-002
       - type: verifies
         target: REQ-ACCESS-003
+
+  - id: TEST-CA-001
+    type: verification
+    title: test_ca_create_and_load + test_issue_agent_cert — CA creates, loads, and issues agent certificates
+    status: draft
+    release: v0.1.0
+    description: "Unit tests verify: CA creation generates valid PEM cert + DER, CA loads from disk with matching PEM, agent certificate issuance produces a PEM bundle with cert + private key and future expiry."
+    links:
+      - type: verifies
+        target: REQ-AGENT-REG-001
+      - type: verifies
+        target: REQ-AGENT-REG-002

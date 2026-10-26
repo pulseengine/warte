@@ -3,6 +3,7 @@
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
+use std::sync::Arc;
 use uuid::Uuid;
 
 /// How an agent proved its identity at registration.
@@ -85,11 +86,29 @@ pub struct RegisterResponse {
 pub struct AgentRegistry {
     pool: SqlitePool,
     instance_id: String,
+    ca: Option<Arc<crate::ca::CertificateAuthority>>,
 }
 
 impl AgentRegistry {
     pub fn new(pool: SqlitePool, instance_id: String) -> Self {
-        Self { pool, instance_id }
+        Self {
+            pool,
+            instance_id,
+            ca: None,
+        }
+    }
+
+    /// Create a registry with a certificate authority for mTLS issuance.
+    pub fn with_ca(
+        pool: SqlitePool,
+        instance_id: String,
+        ca: Arc<crate::ca::CertificateAuthority>,
+    ) -> Self {
+        Self {
+            pool,
+            instance_id,
+            ca: Some(ca),
+        }
     }
 
     /// Register a new agent. Returns the agent ID and optionally a certificate.
@@ -98,11 +117,19 @@ impl AgentRegistry {
         let now = Utc::now();
         let cert_expires = now + Duration::hours(24);
 
+        // Issue mTLS certificate if CA is available
+        let (cert_pem, cert_expires_at) = if let Some(ref ca) = self.ca {
+            let (bundle, expires) = ca.issue_agent_cert(&agent_id, &req.name).await?;
+            (Some(bundle), Some(expires))
+        } else {
+            (None, Some(cert_expires))
+        };
+
         sqlx::query(
             r#"
-            INSERT INTO agents (id, name, repo, identity_type, public_key, cert_expires_at,
+            INSERT INTO agents (id, name, repo, identity_type, public_key, cert_pem, cert_expires_at,
                                 access_rights, health_status, instance_id, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, '[]', 'unknown', ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, '[]', 'unknown', ?, ?, ?)
             "#,
         )
         .bind(&agent_id)
@@ -110,7 +137,8 @@ impl AgentRegistry {
         .bind(&req.repo)
         .bind(&req.identity_type)
         .bind(req.public_key.as_bytes())
-        .bind(cert_expires.to_rfc3339())
+        .bind(cert_pem.as_ref().map(|s| s.as_bytes()))
+        .bind(cert_expires_at.map(|d| d.to_rfc3339()))
         .bind(&self.instance_id)
         .bind(now.to_rfc3339())
         .bind(now.to_rfc3339())
@@ -119,8 +147,8 @@ impl AgentRegistry {
 
         Ok(RegisterResponse {
             agent_id,
-            cert_pem: None, // TODO: issue mTLS certificate
-            cert_expires_at: Some(cert_expires),
+            cert_pem,
+            cert_expires_at,
             access_rights: vec![],
         })
     }
