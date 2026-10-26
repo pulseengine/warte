@@ -262,3 +262,13 @@ artifacts:
         target: REQ-PLATFORM-002
       - type: verifies
         target: REQ-PLATFORM-003
+
+  - id: TEST-TEMPER-001
+    type: verification
+    title: test_temper_client_creation + test_temper_client_trailing_slash + test_temper_link_creation + test_dashboard_summary_serialization — temper HTTP link
+    status: draft
+    release: v0.2.0
+    description: "Unit tests verify: TemperClient creation with API base URL + token, trailing slash normalization, TemperLink creation, dashboard summary serialization (compliance rate, failing checks). The temper link reads temper's API via HTTP — temper is linked, not absorbed. Warte does not import temper's code; it queries temper's /api/org/health and /api/org/repos/:repo/status endpoints."
+    links:
+      - type: verifies
+        target: REQ-TEMPER-001

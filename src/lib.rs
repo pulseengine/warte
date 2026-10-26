@@ -19,5 +19,6 @@ pub mod migrate;
 pub mod platform;
 pub mod server;
 pub mod sync;
+pub mod temper;
 
 pub use config::Config;
