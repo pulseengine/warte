@@ -284,3 +284,13 @@ artifacts:
         target: REQ-RELEASE-001
       - type: verifies
         target: REQ-RELEASE-002
+
+  - id: TEST-REUSE-001
+    type: verification
+    title: test_agent_contract + test_consumption_contract + test_contract_serialization — relay contract patterns
+    status: draft
+    release: v0.2.0
+    description: "Unit tests verify: AgentContract defines the thin interface between agents and control tower (5 operations, 4 data types, auth requirements). ConsumptionContract defines what agents can download and how to verify (3 consumable types, 4-step verification procedure). AgentSeam trait is the HAL-style seam for agent-side platform abstraction. These patterns are reused from relay (jess #62 HAL contract, jess #167 consumption contract)."
+    links:
+      - type: verifies
+        target: REQ-REUSE-001

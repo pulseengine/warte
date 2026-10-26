@@ -12,6 +12,7 @@ pub mod auth;
 pub mod ca;
 pub mod cli;
 pub mod config;
+pub mod contract;
 pub mod db;
 pub mod discovery;
 pub mod docs;
