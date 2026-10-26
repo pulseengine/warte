@@ -134,19 +134,44 @@ async fn main() -> anyhow::Result<()> {
         }
 
         Commands::Migrate { source, path } => {
-            println!("Migrating from {} (path: {})", source, path);
-            match source.as_str() {
+            let config = Config::load()?;
+            let db = Database::connect(&config.db_path).await?;
+            let path = std::path::PathBuf::from(&path);
+
+            let result = match source.as_str() {
                 "smithy" => {
-                    println!("  Importing agent fleet data from smithy...");
-                    // TODO: implement smithy migration
+                    println!(
+                        "Migrating agent fleet data from smithy ({})...",
+                        path.display()
+                    );
+                    warte::migrate::migrate_smithy(db.pool(), &path).await?
                 }
                 "temper" => {
-                    println!("  Importing repo hardening config from temper...");
-                    // TODO: implement temper migration
+                    println!(
+                        "Migrating repo hardening config from temper ({})...",
+                        path.display()
+                    );
+                    warte::migrate::migrate_temper(db.pool(), &path).await?
                 }
                 _ => {
                     eprintln!("Unknown source: {}. Expected 'smithy' or 'temper'.", source);
                     std::process::exit(1);
+                }
+            };
+
+            match cli.format {
+                OutputFormat::Json => {
+                    println!("{}", serde_json::to_string_pretty(&result)?);
+                }
+                OutputFormat::Text => {
+                    println!("Migration from {} complete:", result.source);
+                    println!("  imported:  {}", result.imported);
+                    println!("  skipped:   {}", result.skipped);
+                    println!("  errors:    {}", result.errors.len());
+                    println!("  checksum:  {}", &result.checksum[..16]);
+                    for err in &result.errors {
+                        eprintln!("  ERROR: {}", err);
+                    }
                 }
             }
         }

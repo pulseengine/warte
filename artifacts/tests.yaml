@@ -214,3 +214,15 @@ artifacts:
         target: REQ-EDGE-002
       - type: verifies
         target: REQ-SYNC-001
+
+  - id: TEST-MIGRATE-001
+    type: verification
+    title: test_migrate_smithy + test_migrate_temper — migration commands import data from smithy and temper
+    status: draft
+    release: v0.1.0
+    description: "Integration tests verify: smithy migration imports agent fleet data (JSON array format), temper migration imports branch protection config + issue labels from config.yml. Both produce MigrationResult with imported/skipped/errors/checksum."
+    links:
+      - type: verifies
+        target: REQ-MIGRATE-001
+      - type: verifies
+        target: REQ-MIGRATE-002
