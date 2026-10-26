@@ -1,0 +1,400 @@
+artifacts:
+  # ============================================================
+  # SYSTEM REQUIREMENTS — trace roots for warte v0.1
+  # Each requirement traces to system constraints and cybersecurity goals
+  # ============================================================
+
+  # --- Agent Registration & Identity ---
+  - id: REQ-AGENT-REG-001
+    type: requirement
+    title: Agent registration requires cryptographic identity proof
+    status: draft
+    release: v0.1.0
+    description: >
+      The control tower SHALL require every agent registration to include a
+      cryptographic identity proof. Accepted proof types: (a) mTLS client
+      certificate signed by the warte CA, (b) signed challenge-response using
+      an Ed25519 key pair registered out-of-band, (c) hardware-backed attestation
+      (TPM 2.0 or Apple Secure Enclave / Android Keystore). Registrations
+      without valid proof SHALL be rejected with a structured error.
+    links:
+      - type: satisfies
+        target: SC-001
+      - type: satisfies
+        target: CG-001
+
+  - id: REQ-AGENT-REG-002
+    type: requirement
+    title: Agent identity is bound to a unique agent ID
+    status: draft
+    release: v0.1.0
+    description: >
+      Each registered agent SHALL be assigned a unique, immutable agent ID
+      (UUIDv7 or ULID). The agent ID SHALL be bound to the agent's cryptographic
+      identity at registration time. Re-registration with a different identity
+      under the same agent ID SHALL be rejected.
+    links:
+      - type: satisfies
+        target: SC-001
+
+  # --- Artifact Distribution ---
+  - id: REQ-ARTIFACT-001
+    type: requirement
+    title: Artifact downloads require agent authentication
+    status: draft
+    release: v0.1.0
+    description: >
+      The artifact download endpoint SHALL require a valid agent authentication
+      token (mTLS or signed bearer token with < 5 minute expiry). Unauthenticated
+      download requests SHALL be rejected with HTTP 401.
+    links:
+      - type: satisfies
+        target: SC-002
+
+  - id: REQ-ARTIFACT-002
+    type: requirement
+    title: Artifacts carry verifiable integrity proofs
+    status: draft
+    release: v0.1.0
+    description: >
+      Every artifact in the distribution store SHALL carry an integrity proof:
+      either (a) a sigil/wsc detached signature, or (b) a SHA-256 hash entry in
+      a signed manifest (SHA256SUMS signed by the release key). The control
+      tower SHALL verify the proof before serving. Agents SHALL verify the
+      proof after download.
+    links:
+      - type: satisfies
+        target: SC-002
+      - type: satisfies
+        target: CG-002
+
+  - id: REQ-ARTIFACT-003
+    type: requirement
+    title: Artifact download is scoped to agent access rights
+    status: draft
+    release: v0.1.0
+    description: >
+      The control tower SHALL enforce per-agent access scoping on artifact
+      downloads. An agent SHALL only download artifacts it has been granted
+      access to. Access grants SHALL be checked on every download request.
+    links:
+      - type: satisfies
+        target: SC-002
+
+  # --- Access Control ---
+  - id: REQ-ACCESS-001
+    type: requirement
+    title: Access rights are managed via a central policy service
+    status: draft
+    release: v0.1.0
+    description: >
+      The system SHALL provide a central access control service that manages
+      agent access rights (grant, revoke, query). The service SHALL expose a
+      REST API and SHALL be the single source of truth for access decisions.
+    links:
+      - type: satisfies
+        target: SC-003
+
+  - id: REQ-ACCESS-002
+    type: requirement
+    title: Access revocation propagates within 5 seconds
+    status: draft
+    release: v0.1.0
+    description: >
+      When an agent's access is revoked, the revocation SHALL propagate to all
+      warte instances and downstream services within 5 seconds. The access
+      control service SHALL push revocations (not poll), actively disconnect
+      the agent's active sessions, and confirm propagation before acknowledging.
+    links:
+      - type: satisfies
+        target: SC-003
+      - type: satisfies
+        target: CG-003
+
+  - id: REQ-ACCESS-003
+    type: requirement
+    title: Access rights are scoped per resource and action
+    status: draft
+    release: v0.1.0
+    description: >
+      Access rights SHALL be scoped by resource (artifact, agent, instance)
+      and action (read, download, register, revoke, control). The access
+      control service SHALL support role-based access control (RBAC) with
+      custom roles per deployment.
+    links:
+      - type: satisfies
+        target: SC-003
+
+  # --- Multi-Instance Synchronization ---
+  - id: REQ-SYNC-001
+    type: requirement
+    title: Instances synchronize state via an authenticated sync protocol
+    status: draft
+    release: v0.1.0
+    description: >
+      All warte instances SHALL synchronize shared state (agent registrations,
+      access rights, captured data) via an authenticated sync protocol using
+      mutual TLS with per-instance certificates. Sync messages SHALL carry
+      integrity proofs.
+    links:
+      - type: satisfies
+        target: SC-005
+      - type: satisfies
+        target: CG-006
+
+  - id: REQ-SYNC-002
+    type: requirement
+    title: Sync conflicts are detected and resolved deterministically
+    status: draft
+    release: v0.1.0
+    description: >
+      The sync mechanism SHALL detect conflicting updates using version vectors
+      and resolve them deterministically (last-writer-wins by version vector,
+      or CRDT-based merge for commutative state). Unresolvable conflicts SHALL
+      trigger an operator alert.
+    links:
+      - type: satisfies
+        target: SC-005
+
+  - id: REQ-SYNC-003
+    type: requirement
+    title: Instance divergence is detected and alerted
+    status: draft
+    release: v0.1.0
+    description: >
+      The system SHALL detect when instances have diverged beyond a threshold
+      (e.g., version vector distance > 3, or conflicting state for > 30 seconds)
+      and SHALL alert the operator via the dashboard and mobile notification.
+    links:
+      - type: satisfies
+        target: SC-005
+
+  # --- Mobile Access ---
+  - id: REQ-MOBILE-001
+    type: requirement
+    title: Mobile control uses mutual TLS with device-bound certificates
+    status: draft
+    release: v0.1.0
+    description: >
+      The mobile control channel (Android/iOS) SHALL use mutual TLS with
+      device-bound client certificates. The client certificate SHALL be
+      stored in the device's hardware-backed keystore (Android Keystore /
+      iOS Keychain with kSecAttrAccessibleWhenUnlockedThisDeviceOnly).
+    links:
+      - type: satisfies
+        target: SC-004
+      - type: satisfies
+        target: CG-004
+
+  - id: REQ-MOBILE-002
+    type: requirement
+    title: Mobile commands require operator biometric authentication
+    status: draft
+    release: v0.1.0
+    description: >
+      Every control command issued via the mobile client SHALL require operator
+      authentication via biometric (fingerprint/face) or hardware token (YubiKey).
+      The authentication SHALL be verified server-side, not just client-side.
+    links:
+      - type: satisfies
+        target: SC-004
+      - type: satisfies
+        target: CG-004
+
+  - id: REQ-MOBILE-003
+    type: requirement
+    title: Mobile client shows real-time system status
+    status: draft
+    release: v0.1.0
+    description: >
+      The mobile client SHALL display real-time system status (agent health,
+      CI status, access rights, alerts) with freshness indicators. Status
+      data SHALL be pushed via WebSocket or Server-Sent Events, not polled.
+    links:
+      - type: satisfies
+        target: SC-006
+
+  # --- Edge Security ---
+  - id: REQ-EDGE-001
+    type: requirement
+    title: Edge proxy terminates TLS 1.3 and enforces rate limiting
+    status: draft
+    release: v0.1.0
+    description: >
+      The edge proxy (Hetzner/Netcup) SHALL terminate TLS 1.3 for all external
+      connections, enforce per-IP and per-agent rate limiting (configurable
+      limits, default: 100 req/min per IP, 1000 req/min per agent), and drop
+      connections exceeding limits.
+    links:
+      - type: satisfies
+        target: SC-007
+      - type: satisfies
+        target: CG-005
+
+  - id: REQ-EDGE-002
+    type: requirement
+    title: Edge proxy validates all requests against schemas
+    status: draft
+    release: v0.1.0
+    description: >
+      The edge proxy SHALL validate all incoming requests against JSON schemas
+      or OpenAPI specifications before forwarding to internal instances.
+      Invalid requests SHALL be rejected with HTTP 400 and logged.
+    links:
+      - type: satisfies
+        target: SC-007
+
+  - id: REQ-EDGE-003
+    type: requirement
+    title: Edge proxy auto-patches within 24 hours
+    status: draft
+    release: v0.1.0
+    description: >
+      All software on the edge proxy SHALL be configured for automatic security
+      patching with a maximum 24-hour window for critical/high CVEs. The patch
+      status SHALL be visible on the dashboard.
+    links:
+      - type: satisfies
+        target: SC-007
+      - type: satisfies
+        target: CG-005
+
+  # --- Dashboard & Observability ---
+  - id: REQ-DASH-001
+    type: requirement
+    title: Dashboard displays status with freshness indicators
+    status: draft
+    release: v0.1.0
+    description: >
+      The dashboard SHALL display a last-updated timestamp and freshness
+      indicator (green < 30s, yellow < 5min, red > 5min) for every status item.
+      Stale data SHALL be visually distinguished (dimmed, warning icon).
+    links:
+      - type: satisfies
+        target: SC-006
+
+  - id: REQ-DASH-002
+    type: requirement
+    title: Dashboard provides agent registry overview
+    status: draft
+    release: v0.1.0
+    description: >
+      The dashboard SHALL provide an overview of all registered agents:
+      agent ID, identity type, access rights, last heartbeat, instance
+      assignment, and health status.
+    links:
+      - type: satisfies
+        target: SC-001
+
+  - id: REQ-DASH-003
+    type: requirement
+    title: Dashboard provides CI status overview
+    status: draft
+    release: v0.1.0
+    description: >
+      The dashboard SHALL display CI status for all repos: gate status
+      (green/red/pending), queue depth, estimated wait time, and critical
+      path analysis.
+    links:
+      - type: satisfies
+        target: SC-006
+
+  # --- Agent Data Capture ---
+  - id: REQ-CAPTURE-001
+    type: requirement
+    title: Agents capture and report structured data
+    status: draft
+    release: v0.1.0
+    description: >
+      Agents SHALL capture structured data during their work (build logs,
+      test results, tool friction reports, session learnings) and report it
+      to the control tower via an authenticated API. Captured data SHALL be
+      stored per-agent and synchronized across instances.
+    links:
+      - type: satisfies
+        target: SC-005
+
+  - id: REQ-CAPTURE-002
+    type: requirement
+    title: Captured data is queryable via the API
+    status: draft
+    release: v0.1.0
+    description: >
+      Captured agent data SHALL be queryable via the warte API with filters
+      (agent ID, time range, data type, instance). Query results SHALL include
+      freshness metadata.
+    links:
+      - type: satisfies
+        target: SC-006
+
+  # --- API ---
+  - id: REQ-API-001
+    type: requirement
+    title: REST API with structured JSON responses
+    status: draft
+    release: v0.1.0
+    description: >
+      The control tower SHALL expose a REST API with structured JSON responses.
+      All endpoints SHALL support --format json (CLI) and Accept: application/json
+      (HTTP). Error responses SHALL include structured error codes and messages.
+    links:
+      - type: satisfies
+        target: SC-006
+
+  - id: REQ-API-002
+    type: requirement
+    title: API requires authentication for all mutating operations
+    status: draft
+    release: v0.1.0
+    description: >
+      All mutating API operations (POST, PUT, DELETE, PATCH) SHALL require
+      authentication. Read operations MAY be public for dashboard display but
+      SHALL be rate-limited. Authentication SHALL use the same identity
+      mechanisms as agent registration (mTLS or signed bearer tokens).
+    links:
+      - type: satisfies
+        target: SC-001
+      - type: satisfies
+        target: SC-007
+
+  # --- CLI ---
+  - id: REQ-CLI-001
+    type: requirement
+    title: CLI follows PulseEngine CLI conventions
+    status: draft
+    release: v0.1.0
+    description: >
+      The warte CLI SHALL follow PulseEngine CLI conventions: --version/-V prints
+      'warte <semver>' and exits 0, --help exits 0, unknown flags exit 2,
+      structured output via --format json.
+    links:
+      - type: satisfies
+        target: SC-006
+
+  # --- Migration ---
+  - id: REQ-MIGRATE-001
+    type: requirement
+    title: Migrate agent fleet data from smithy
+    status: draft
+    release: v0.1.0
+    description: >
+      The system SHALL provide a migration path for existing agent fleet data
+      from smithy (agent registrations, captured session data, working context)
+      into warte's data model. Migration SHALL be idempotent and verifiable.
+    links:
+      - type: satisfies
+        target: SC-005
+
+  - id: REQ-MIGRATE-002
+    type: requirement
+    title: Migrate repo hardening config from temper
+    status: draft
+    release: v0.1.0
+    description: >
+      The system SHALL provide a migration path for repo hardening configuration
+      from temper (branch protection rules, labels, templates, dependabot config)
+      into warte's configuration model. Migration SHALL preserve all existing
+      settings and SHALL be verifiable.
+    links:
+      - type: satisfies
+        target: SC-007

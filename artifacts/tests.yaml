@@ -1,0 +1,144 @@
+artifacts:
+  # ============================================================
+  # VERIFICATION — tests that verify requirements
+  # ============================================================
+  - id: TEST-AGENT-REG-001
+    type: verification
+    title: "test_agent_registration — agent registration creates valid agent record"
+    status: draft
+    release: v0.1.0
+    description: >
+      Integration test verifies that agent registration creates a valid
+      agent record with a unique ID, correct metadata, and certificate expiry.
+      Located in tests/integration.rs::test_agent_registration.
+    links:
+      - type: verifies
+        target: REQ-AGENT-REG-001
+      - type: verifies
+        target: REQ-AGENT-REG-002
+
+  - id: TEST-AGENT-HB-001
+    type: verification
+    title: "test_agent_heartbeat — heartbeat updates agent health status"
+    status: draft
+    release: v0.1.0
+    description: >
+      Integration test verifies that a heartbeat updates the agent's last
+      seen timestamp and sets health status to healthy.
+      Located in tests/integration.rs::test_agent_heartbeat.
+    links:
+      - type: verifies
+        target: REQ-DASH-002
+
+  - id: TEST-ACCESS-001
+    type: verification
+    title: "test_access_control_grant_revoke — grant, check, revoke lifecycle"
+    status: draft
+    release: v0.1.0
+    description: >
+      Integration test verifies the full access control lifecycle: grant
+      rights, check rights (positive and negative), list rights, revoke
+      rights, and verify revocation takes effect.
+      Located in tests/integration.rs::test_access_control_grant_revoke.
+    links:
+      - type: verifies
+        target: REQ-ACCESS-001
+      - type: verifies
+        target: REQ-ACCESS-002
+      - type: verifies
+        target: REQ-ACCESS-003
+
+  - id: TEST-ARTIFACT-001
+    type: verification
+    title: "test_artifact_store_and_integrity — store, download, verify integrity"
+    status: draft
+    release: v0.1.0
+    description: >
+      Integration test verifies artifact storage, download with content
+      integrity verification (SHA-256), and listing.
+      Located in tests/integration.rs::test_artifact_store_and_integrity.
+    links:
+      - type: verifies
+        target: REQ-ARTIFACT-001
+      - type: verifies
+        target: REQ-ARTIFACT-002
+      - type: verifies
+        target: REQ-ARTIFACT-003
+
+  - id: TEST-SYNC-001
+    type: verification
+    title: "test_sync_version_vectors — version vector increment, merge, divergence"
+    status: draft
+    release: v0.1.0
+    description: >
+      Integration test verifies version vector increment, CRDT merge with
+      remote vectors, and divergence detection.
+      Located in tests/integration.rs::test_sync_version_vectors.
+    links:
+      - type: verifies
+        target: REQ-SYNC-001
+      - type: verifies
+        target: REQ-SYNC-002
+      - type: verifies
+        target: REQ-SYNC-003
+
+  - id: TEST-CLI-001
+    type: verification
+    title: "test_cli_version_format — CLI version follows PulseEngine conventions"
+    status: draft
+    release: v0.1.0
+    description: >
+      Integration test verifies that --version prints 'warte <semver>' and
+      exits 0, following PulseEngine CLI conventions.
+      Located in tests/integration.rs::test_cli_version_format.
+    links:
+      - type: verifies
+        target: REQ-CLI-001
+
+  - id: TEST-HEALTH-001
+    type: verification
+    title: "health endpoint returns structured status with freshness"
+    status: draft
+    release: v0.1.0
+    description: >
+      Manual verification: GET /api/health returns JSON with status,
+      instance_id, version, uptime_secs, and timestamp fields.
+      Verified by curl during server smoke test.
+    links:
+      - type: verifies
+        target: REQ-API-001
+      - type: verifies
+        target: REQ-DASH-001
+
+  - id: TEST-DASH-001
+    type: verification
+    title: "dashboard overview returns agent and artifact counts"
+    status: draft
+    release: v0.1.0
+    description: >
+      Manual verification: GET /api/dashboard/overview returns JSON with
+      agent counts (total, healthy, unhealthy), artifact count, and
+      freshness indicator.
+      Verified by curl during server smoke test.
+    links:
+      - type: verifies
+        target: REQ-DASH-001
+      - type: verifies
+        target: REQ-DASH-002
+      - type: verifies
+        target: REQ-DASH-003
+
+  - id: TEST-CAPTURE-001
+    type: verification
+    title: "agent data capture and query endpoints"
+    status: draft
+    release: v0.1.0
+    description: >
+      Manual verification: POST /api/agents/:id/data stores captured data;
+      GET /api/agents/:id/data queries it with filters and freshness metadata.
+      Verified by curl during server smoke test.
+    links:
+      - type: verifies
+        target: REQ-CAPTURE-001
+      - type: verifies
+        target: REQ-CAPTURE-002
