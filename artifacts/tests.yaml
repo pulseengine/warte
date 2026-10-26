@@ -236,3 +236,71 @@ artifacts:
     links:
       - type: verifies
         target: REQ-EDGE-003
+
+  - id: TEST-DISCOVERY-001
+    type: verification
+    title: test_discovery_service_create + test_discovery_add_static_peer + test_discovery_update_peer — mDNS discovery service
+    status: accepted
+    release: v0.2.0
+    description: "Unit tests verify: discovery service creation with instance ID + addresses, static peer addition (PeerDiscovered event), peer update (PeerUpdated event). The discovery service uses mdns-sd crate for wire protocol (adopted per research) and builds warte-specific discovery semantics (TXT record with id|wg|lan|vv|ts)."
+    links:
+      - type: verifies
+        target: REQ-DISCOVERY-001
+      - type: verifies
+        target: REQ-DISCOVERY-002
+
+  - id: TEST-PLATFORM-001
+    type: verification
+    title: test_github_cloud/enterprise + test_gitlab_cloud/self_hosted + test_fleet_aggregator — CiPlatform trait
+    status: accepted
+    release: v0.2.0
+    description: "Unit tests verify: GitHub cloud platform creation (github.com API), GitHub Enterprise creation (GHE API with configurable base URL), GitLab cloud creation (gitlab.com API), GitLab self-hosted creation (configurable base URL), FleetAggregator multi-platform aggregation. The CiPlatform trait provides a uniform interface for repo listing, CI status, PR/MR listing, and ETA estimation across GitHub (cloud + enterprise) and GitLab (cloud + self-hosted)."
+    links:
+      - type: verifies
+        target: REQ-PLATFORM-001
+      - type: verifies
+        target: REQ-PLATFORM-002
+      - type: verifies
+        target: REQ-PLATFORM-003
+
+  - id: TEST-TEMPER-001
+    type: verification
+    title: test_temper_client_creation + test_temper_client_trailing_slash + test_temper_link_creation + test_dashboard_summary_serialization — temper HTTP link
+    status: accepted
+    release: v0.2.0
+    description: "Unit tests verify: TemperClient creation with API base URL + token, trailing slash normalization, TemperLink creation, dashboard summary serialization (compliance rate, failing checks). The temper link reads temper's API via HTTP — temper is linked, not absorbed. Warte does not import temper's code; it queries temper's /api/org/health and /api/org/repos/:repo/status endpoints."
+    links:
+      - type: verifies
+        target: REQ-TEMPER-001
+
+  - id: TEST-RELEASE-001
+    type: verification
+    title: release-pipeline.sh + release.yml — SHA256SUMS, SBOM, SLSA, cosign, V-model gate
+    status: accepted
+    release: v0.2.0
+    description: "Release pipeline verification: scripts/release-pipeline.sh generates SHA256SUMS, SBOM (cargo-cyclonedx or varve sbom), and cosign signatures locally. .github/workflows/release.yml runs the full pipeline in CI: V-model gate (rivet release status), cross-platform build (Linux + macOS), SHA256SUMS, SBOM, cosign signing, GitHub release creation. The rivet V-model gate blocks the release if any artifact is not verified."
+    links:
+      - type: verifies
+        target: REQ-RELEASE-001
+      - type: verifies
+        target: REQ-RELEASE-002
+
+  - id: TEST-REUSE-001
+    type: verification
+    title: test_agent_contract + test_consumption_contract + test_contract_serialization — relay contract patterns
+    status: accepted
+    release: v0.2.0
+    description: "Unit tests verify: AgentContract defines the thin interface between agents and control tower (5 operations, 4 data types, auth requirements). ConsumptionContract defines what agents can download and how to verify (3 consumable types, 4-step verification procedure). AgentSeam trait is the HAL-style seam for agent-side platform abstraction. These patterns are reused from relay (jess #62 HAL contract, jess #167 consumption contract)."
+    links:
+      - type: verifies
+        target: REQ-REUSE-001
+
+  - id: TEST-LAYER-001
+    type: verification
+    title: varve layer integration — warte.toml pin, varve-realms.toml, CLI conventions, embedded docs
+    status: accepted
+    release: v0.2.0
+    description: "Verification: warte has varve.toml pin (realm: pulseengine, channel: rolling, layer: 2026.10.30) and varve-realms.toml committed. CLI follows PulseEngine conventions (--version prints 'warte <semver>', --help exits 0, --format json). Embedded docs via warte docs <topic>. docs/varve-layer.md documents the layer manifest entry for adding warte to the varve layer. The actual layer deposit happens in the varve/realm repo."
+    links:
+      - type: verifies
+        target: REQ-LAYER-001

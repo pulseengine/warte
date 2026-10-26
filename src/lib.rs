@@ -12,10 +12,14 @@ pub mod auth;
 pub mod ca;
 pub mod cli;
 pub mod config;
+pub mod contract;
 pub mod db;
+pub mod discovery;
 pub mod docs;
 pub mod migrate;
+pub mod platform;
 pub mod server;
 pub mod sync;
+pub mod temper;
 
 pub use config::Config;

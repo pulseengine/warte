@@ -7,7 +7,7 @@ artifacts:
   - id: REQ-DOCS-001
     type: requirement
     title: "Embedded queryable documentation (warte docs)"
-    status: draft
+    status: accepted
     release: v0.2.0
     description: >
       The warte CLI SHALL include embedded, queryable documentation via
@@ -23,7 +23,7 @@ artifacts:
   - id: REQ-DOCS-002
     type: requirement
     title: "Documentation coverage check (warte docs check)"
-    status: draft
+    status: accepted
     release: v0.2.0
     description: >
       The warte CLI SHALL include `warte docs check --coverage` that asserts
@@ -37,7 +37,7 @@ artifacts:
   - id: REQ-DISCOVERY-001
     type: requirement
     title: "mDNS/Bonjour service discovery for multi-instance"
-    status: draft
+    status: accepted
     release: v0.2.0
     description: >
       Warte instances SHALL discover each other on the local network via
@@ -52,7 +52,7 @@ artifacts:
   - id: REQ-DISCOVERY-002
     type: requirement
     title: "Discovery security — mDNS over authenticated channel"
-    status: draft
+    status: accepted
     release: v0.2.0
     description: >
       mDNS service discovery SHALL NOT be trusted for authentication.
@@ -69,7 +69,7 @@ artifacts:
   - id: REQ-PLATFORM-001
     type: requirement
     title: "Support enterprise GitHub (GHE) in addition to github.com"
-    status: draft
+    status: accepted
     release: v0.2.0
     description: >
       Warte SHALL support GitHub Enterprise Server (GHE) as a CI platform,
@@ -82,7 +82,7 @@ artifacts:
   - id: REQ-PLATFORM-002
     type: requirement
     title: "Support GitLab CI as a platform"
-    status: draft
+    status: accepted
     release: v0.2.0
     description: >
       Warte SHALL support GitLab CI (gitlab.com and self-hosted) as a CI
@@ -96,7 +96,7 @@ artifacts:
   - id: REQ-PLATFORM-003
     type: requirement
     title: "Platform abstraction layer for CI providers"
-    status: draft
+    status: accepted
     release: v0.2.0
     description: >
       Warte SHALL define a platform abstraction (trait CiPlatform) with
@@ -112,7 +112,7 @@ artifacts:
   - id: REQ-LAYER-001
     type: requirement
     title: "Warte binary included in the varve toolchain layer"
-    status: draft
+    status: accepted
     release: v0.2.0
     description: >
       The warte binary SHALL be included in the pulseengine varve layer
@@ -127,7 +127,7 @@ artifacts:
   - id: REQ-TEMPER-001
     type: requirement
     title: "Temper integration as optional link, not full absorption"
-    status: draft
+    status: accepted
     release: v0.2.0
     description: >
       Warte SHALL integrate with temper as an optional link, not by
@@ -144,7 +144,7 @@ artifacts:
   - id: REQ-RELEASE-001
     type: requirement
     title: "Release artifact pipeline (SHA256SUMS, SBOM, SLSA, cosign)"
-    status: draft
+    status: accepted
     release: v0.2.0
     description: >
       Warte releases SHALL follow the PulseEngine release-artifact-pipeline:
@@ -158,7 +158,7 @@ artifacts:
   - id: REQ-RELEASE-002
     type: requirement
     title: "Release execution with V-model traceability gate"
-    status: draft
+    status: accepted
     release: v0.2.0
     description: >
       Warte releases SHALL pass through the release-execution skill:
@@ -173,7 +173,7 @@ artifacts:
   - id: REQ-REUSE-001
     type: requirement
     title: "Reuse relay's contract patterns for agent orchestration"
-    status: draft
+    status: accepted
     release: v0.2.0
     description: >
       Warte SHALL reuse patterns from the relay repo (flight stack) where

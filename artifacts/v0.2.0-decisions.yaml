@@ -5,7 +5,7 @@ artifacts:
   - id: DD-DOCS-001
     type: design-decision
     title: "Embedded docs via clap + include_str! (like varve docs)"
-    status: approved
+    status: accepted
     release: v0.2.0
     description: >
       Documentation is embedded in the binary as Markdown files in docs/topics/,
@@ -26,7 +26,7 @@ artifacts:
   - id: DD-DISCOVERY-001
     type: design-decision
     title: "mDNS via zeroconf crate, optional with static fallback"
-    status: approved
+    status: accepted
     release: v0.2.0
     description: >
       Service discovery uses the zeroconf Rust crate (mDNS/DNS-SD). Each
@@ -47,7 +47,7 @@ artifacts:
   - id: DD-PLATFORM-001
     type: design-decision
     title: "CiPlatform trait with GitHub + GitLab implementations"
-    status: approved
+    status: accepted
     release: v0.2.0
     description: >
       Platform abstraction via a CiPlatform trait. Implementations:
@@ -70,7 +70,7 @@ artifacts:
   - id: DD-TEMPER-001
     type: design-decision
     title: "Temper as HTTP link, not code absorption"
-    status: approved
+    status: accepted
     release: v0.2.0
     description: >
       Warte links to temper via HTTP API calls, not by importing temper's
@@ -90,7 +90,7 @@ artifacts:
   - id: DD-RELEASE-001
     type: design-decision
     title: "Release pipeline via GitHub Actions + varve sbom + cosign"
-    status: approved
+    status: accepted
     release: v0.2.0
     description: >
       Release pipeline: GitHub Actions workflow runs cargo build --release,
@@ -111,7 +111,7 @@ artifacts:
   - id: DD-REUSE-001
     type: design-decision
     title: "Relay contract patterns: thin interfaces, seam traits, consumption contracts"
-    status: approved
+    status: accepted
     release: v0.2.0
     description: >
       Reuse relay's architectural patterns: (a) thin agreed interfaces
