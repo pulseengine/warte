@@ -251,21 +251,53 @@ Command: `warte migrate temper --config /path/to/temper/config.yml`
 - Will be replaced by warte instance after migration
 - Data migrated via `warte migrate smithy`
 
-## Release Plan (v0.1.0)
+## Release Plan
 
-See `rivet release status v0.1.0` for the live burn-down.
+### v0.1.0 — Server skeleton (current)
 
-Scope: 39 artifacts (12 design decisions + 27 requirements).
+Scope: 48 artifacts (12 design decisions + 27 requirements + 9 verifications).
 
 | Phase | Items | Status |
 |---|---|---|
 | Bootstrap | varve pin, rivet init, STPA/STPA-Sec, requirements, design decisions | done |
-| Server skeleton | Axum server, CLI, health endpoint | in progress |
-| Agent auth | mTLS, registration, heartbeat | pending |
-| Access control | RBAC, grant/revoke, push-based revocation | pending |
-| Artifact store | Download, integrity verification, scoping | pending |
-| Multi-instance sync | CRDT, version vectors, divergence detection | pending |
-| Dashboard API | Overview, ask, queue, critical path | pending |
+| Server skeleton | Axum server, CLI, health endpoint | done |
+| Agent auth | mTLS, registration, heartbeat | done (mTLS cert issuance pending) |
+| Access control | RBAC, grant/revoke, push-based revocation | done |
+| Artifact store | Download, integrity verification, scoping | done (sigil signatures pending) |
+| Multi-instance sync | CRDT, version vectors, divergence detection | done |
+| Dashboard API | Overview, ask, queue, critical path | partial |
 | Migration | smithy import, temper import | pending |
-| Edge deployment | Hetzner/Netcup config, WireGuard, auto-patch | pending |
-| Mobile | iOS/Android clients (separate repos) | future |
+| Edge deployment | Hetzner/Netcup config, WireGuard, auto-patch | docs done |
+
+### v0.2.0 — Toolchain integration, discovery, multi-platform
+
+Scope: 18 artifacts (6 design decisions + 12 requirements).
+
+| Phase | Items | Status |
+|---|---|---|
+| Embedded docs | `warte docs <topic>`, `warte docs check --coverage` | pending |
+| Service discovery | mDNS/Bonjour for multi-instance (zeroconf crate) | pending |
+| Multi-platform CI | GitHub Enterprise, GitLab (CiPlatform trait) | pending |
+| Temper link | HTTP integration, not code absorption | pending |
+| Release pipeline | SHA256SUMS, SBOM, SLSA, cosign, rivet V-model gate | pending |
+| Varve layer | warte binary in the pulseengine layer | pending |
+| Reuse relay patterns | Contracts, seam traits, consumption contracts | pending |
+
+### Release cycle (continuous)
+
+Once v0.1.0 is cuttable:
+1. `rivet release status v0.1.0` — confirm all verified
+2. Release artifact pipeline (SHA256SUMS, SBOM, SLSA, cosign)
+3. Tag, push, open PR, wait for CI green, merge
+4. Create GitHub release with artifacts
+5. Scope v0.2.0 requirements in rivet
+6. Repeat
+
+### Research (ongoing)
+
+Three research tracks, all with "build over buy" preference:
+- **Bonjour/mDNS**: service discovery for multi-instance (subagent: research-bonjour)
+- **Distributed databases**: CRDT-SQLite vs LiteFS vs rqlite vs FoundationDB (subagent: research-distributed-db)
+- **Similar tools**: CI dashboards, agent orchestrators, control towers (subagent: research-similar-tools)
+
+Findings go to `docs/research/` with build/adopt/ignore decisions.

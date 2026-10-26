@@ -142,3 +142,27 @@ artifacts:
         target: REQ-CAPTURE-001
       - type: verifies
         target: REQ-CAPTURE-002
+
+  - id: TEST-DOCS-001
+    type: verification
+    title: test_all_topics_load + test_coverage_passes + test_unknown_topic — embedded docs load and coverage check
+    status: draft
+    release: v0.2.0
+    description: Unit tests verify all embedded doc topics load via include_str!, the coverage check passes (all required topics present), and unknown topics are rejected.
+    links:
+      - type: verifies
+        target: REQ-DOCS-001
+      - type: verifies
+        target: REQ-DOCS-002
+
+  - id: TEST-DOCS-002
+    type: verification
+    title: warte docs --check — CLI docs coverage command
+    status: draft
+    release: v0.2.0
+    description: "Manual verification: warte docs --check exits 0 and prints 'docs coverage: OK'. warte docs lists all topics. warte docs <topic> shows topic content."
+    links:
+      - type: verifies
+        target: REQ-DOCS-001
+      - type: verifies
+        target: REQ-DOCS-002

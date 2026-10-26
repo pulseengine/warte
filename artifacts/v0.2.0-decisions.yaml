@@ -1,0 +1,128 @@
+artifacts:
+  # ============================================================
+  # v0.2.0 DESIGN DECISIONS
+  # ============================================================
+  - id: DD-DOCS-001
+    type: design-decision
+    title: "Embedded docs via clap + include_str! (like varve docs)"
+    status: approved
+    release: v0.2.0
+    description: >
+      Documentation is embedded in the binary as Markdown files in docs/topics/,
+      loaded via include_str! at compile time. `warte docs` lists topics,
+      `warte docs <topic>` shows one, `warte docs check --coverage` asserts
+      every subcommand is documented. This follows the varve docs pattern.
+    fields:
+      rationale: >
+        Embedded docs ship with the binary — no external files needed, works
+        offline, versioned with the code. The coverage check prevents docs
+        from drifting. Same pattern as varve and rivet.
+    links:
+      - type: satisfies
+        target: REQ-DOCS-001
+      - type: satisfies
+        target: REQ-DOCS-002
+
+  - id: DD-DISCOVERY-001
+    type: design-decision
+    title: "mDNS via zeroconf crate, optional with static fallback"
+    status: approved
+    release: v0.2.0
+    description: >
+      Service discovery uses the zeroconf Rust crate (mDNS/DNS-SD). Each
+      instance advertises _warte._tcp with instance ID and sync port.
+      Discovery is optional — static sync_peers config works without mDNS.
+      Discovered peers still authenticate via mTLS before sync.
+    fields:
+      rationale: >
+        Self-built preference: the zeroconf crate is a thin wrapper around
+        mDNS, the discovery logic is ours. Static fallback ensures warte
+        works in environments without multicast (cloud, containers).
+    links:
+      - type: satisfies
+        target: REQ-DISCOVERY-001
+      - type: satisfies
+        target: REQ-DISCOVERY-002
+
+  - id: DD-PLATFORM-001
+    type: design-decision
+    title: "CiPlatform trait with GitHub + GitLab implementations"
+    status: approved
+    release: v0.2.0
+    description: >
+      Platform abstraction via a CiPlatform trait. Implementations:
+      GitHubCloud, GitHubEnterprise, GitLabCloud, GitLabSelfHosted.
+      The dashboard aggregates across all configured platforms.
+    fields:
+      rationale: >
+        Trait-based abstraction is the Rust-native way (like relay's HAL
+        seam traits). Adding a platform is a new impl, not a fork of the
+        dashboard. Self-built: the trait is ours, the API clients are
+        thin wrappers around reqwest.
+    links:
+      - type: satisfies
+        target: REQ-PLATFORM-001
+      - type: satisfies
+        target: REQ-PLATFORM-002
+      - type: satisfies
+        target: REQ-PLATFORM-003
+
+  - id: DD-TEMPER-001
+    type: design-decision
+    title: "Temper as HTTP link, not code absorption"
+    status: approved
+    release: v0.2.0
+    description: >
+      Warte links to temper via HTTP API calls, not by importing temper's
+      code. Integration: warte dashboard shows temper's repo compliance
+      status (fetched from temper's API), warte access control reads
+      temper's config.yml for role mapping. Temper remains a separate
+      deployment.
+    fields:
+      rationale: >
+        Temper is a GitHub App with its own deployment lifecycle. Absorbing
+        its code would couple warte to Probot/Node.js. HTTP links keep
+        warte self-contained (Rust) while still showing temper's data.
+    links:
+      - type: satisfies
+        target: REQ-TEMPER-001
+
+  - id: DD-RELEASE-001
+    type: design-decision
+    title: "Release pipeline via GitHub Actions + varve sbom + cosign"
+    status: approved
+    release: v0.2.0
+    description: >
+      Release pipeline: GitHub Actions workflow runs cargo build --release,
+      generates SHA256SUMS, SBOM (varve sbom), SLSA provenance, and cosign
+      signatures. The rivet V-model gate blocks the release if any
+      artifact is not verified.
+    fields:
+      rationale: >
+        Same pipeline as other PulseEngine tools (rivet, spar, witness).
+        The rivet gate ensures traceability before release. varve sbom
+        transcribes from the signed layer manifest.
+    links:
+      - type: satisfies
+        target: REQ-RELEASE-001
+      - type: satisfies
+        target: REQ-RELEASE-002
+
+  - id: DD-REUSE-001
+    type: design-decision
+    title: "Relay contract patterns: thin interfaces, seam traits, consumption contracts"
+    status: approved
+    release: v0.2.0
+    description: >
+      Reuse relay's architectural patterns: (a) thin agreed interfaces
+      between agents and control tower (like relay↔jess contracts),
+      (b) seam traits for platform abstraction (like relay's HAL traits),
+      (c) consumption contracts for artifact distribution (like jess #167).
+    fields:
+      rationale: >
+        Architectural consistency across PulseEngine repos. The patterns
+        are proven in relay/jess. Reusing them makes warte feel native
+        to the toolchain.
+    links:
+      - type: satisfies
+        target: REQ-REUSE-001

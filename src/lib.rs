@@ -11,6 +11,7 @@ pub mod artifact;
 pub mod cli;
 pub mod config;
 pub mod db;
+pub mod docs;
 pub mod server;
 pub mod sync;
 

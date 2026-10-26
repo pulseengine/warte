@@ -198,6 +198,20 @@ async fn main() -> anyhow::Result<()> {
                 }
             }
         }
+
+        Commands::Docs { topic, check } => {
+            if check {
+                if !warte::docs::run_check() {
+                    std::process::exit(1);
+                }
+            } else if let Some(topic) = topic {
+                if !warte::docs::print_topic(&topic) {
+                    std::process::exit(1);
+                }
+            } else {
+                warte::docs::print_topic_list();
+            }
+        }
     }
 
     Ok(())

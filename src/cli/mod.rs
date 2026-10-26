@@ -75,6 +75,16 @@ pub enum Commands {
         #[command(subcommand)]
         action: ArtifactCommands,
     },
+
+    /// Show embedded documentation
+    Docs {
+        /// Topic name (omit to list all topics)
+        topic: Option<String>,
+
+        /// Assert every subcommand is documented
+        #[arg(long)]
+        check: bool,
+    },
 }
 
 #[derive(Subcommand)]
