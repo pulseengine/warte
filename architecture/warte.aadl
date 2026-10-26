@@ -1,0 +1,297 @@
+-- warte — the PulseEngine control tower
+-- AADL architecture model for spar analysis
+--
+-- This model captures the system architecture: components, interfaces (ports),
+-- and connections. SPAR analyzes this model and the results feed rivet's
+-- traceability graph.
+--
+-- Components map to STPA controllers (CTRL-001 through CTRL-005):
+--   CTRL-001: WarteInstance (API Server, Agent Registry, Access Control, Artifact Store, Sync)
+--   CTRL-002: AccessControlService (embedded in WarteInstance)
+--   CTRL-003: MobileClient
+--   CTRL-004: EdgeProxy
+--   CTRL-005: AgentRuntime
+--
+-- All ports use the generic Message type — TLS carries opaque bytes,
+-- the application layer interprets the payload.
+
+package Warte
+public
+
+  -----------------------------------------------------------------------
+  -- Generic message type (TLS carries opaque bytes)
+  -----------------------------------------------------------------------
+
+  data Message
+    properties
+      Data_Model::Data_Representation => Array;
+  end Message;
+
+  -----------------------------------------------------------------------
+  -- Edge Proxy (CTRL-004) — sole internet-facing component
+  -- Terminates TLS 1.3, rate limits, validates requests, proxies to instances
+  -----------------------------------------------------------------------
+
+  system EdgeProxy
+    features
+      ext_in : in out data port Message;
+      ext_out : out data port Message;
+      int_req : out data port Message;
+      int_resp : in data port Message;
+      sync : in out data port Message;
+  end EdgeProxy;
+
+  system implementation EdgeProxy.impl
+    subcomponents
+      tls_terminator : process TLSTerminator.impl;
+      rate_limiter : process RateLimiter.impl;
+      request_validator : process RequestValidator.impl;
+      reverse_proxy : process ReverseProxy.impl;
+    connections
+      c_tls_rl : port ext_in -> tls_terminator.tls_in;
+      c_rl_rv : port tls_terminator.tls_out -> rate_limiter.rl_in;
+      c_rv_rp : port rate_limiter.rl_out -> request_validator.rv_in;
+      c_rp_req : port request_validator.rv_out -> int_req;
+      c_resp_rp : port int_resp -> reverse_proxy.rp_resp;
+      c_rp_out : port reverse_proxy.rp_out -> ext_out;
+  end EdgeProxy.impl;
+
+  process TLSTerminator
+    features
+      tls_in : in data port Message;
+      tls_out : out data port Message;
+  end TLSTerminator;
+
+  process implementation TLSTerminator.impl
+  end TLSTerminator.impl;
+
+  process RateLimiter
+    features
+      rl_in : in data port Message;
+      rl_out : out data port Message;
+  end RateLimiter;
+
+  process implementation RateLimiter.impl
+  end RateLimiter.impl;
+
+  process RequestValidator
+    features
+      rv_in : in data port Message;
+      rv_out : out data port Message;
+  end RequestValidator;
+
+  process implementation RequestValidator.impl
+  end RequestValidator.impl;
+
+  process ReverseProxy
+    features
+      rp_req : in data port Message;
+      rp_out : out data port Message;
+      rp_resp : in data port Message;
+  end ReverseProxy;
+
+  process implementation ReverseProxy.impl
+  end ReverseProxy.impl;
+
+  -----------------------------------------------------------------------
+  -- Warte Instance (CTRL-001) — the control tower
+  -----------------------------------------------------------------------
+
+  system WarteInstance
+    features
+      api_req : in data port Message;
+      api_resp : out data port Message;
+      sync : in out data port Message;
+  end WarteInstance;
+
+  system implementation WarteInstance.impl
+    subcomponents
+      api_server : process APIServer.impl;
+      agent_registry : process AgentRegistry.impl;
+      access_control : process AccessControl.impl;
+      artifact_store : process ArtifactStore.impl;
+      sync_service : process SyncService.impl;
+      db : data SqliteDB.impl;
+    connections
+      c_api_in : port api_req -> api_server.api_in;
+      c_api_out : port api_server.api_out -> api_resp;
+      c_sync : port sync <-> sync_service.sync_port;
+      c_reg_db : port agent_registry.db_port <-> db.access_port;
+      c_acc_db : port access_control.db_port <-> db.access_port;
+      c_art_db : port artifact_store.db_port <-> db.access_port;
+      c_sync_db : port sync_service.db_port <-> db.access_port;
+  end WarteInstance.impl;
+
+  process APIServer
+    features
+      api_in : in data port Message;
+      api_out : out data port Message;
+  end APIServer;
+
+  process implementation APIServer.impl
+  end APIServer.impl;
+
+  process AgentRegistry
+    features
+      db_port : in out data port Message;
+  end AgentRegistry;
+
+  process implementation AgentRegistry.impl
+  end AgentRegistry.impl;
+
+  process AccessControl
+    features
+      db_port : in out data port Message;
+  end AccessControl;
+
+  process implementation AccessControl.impl
+  end AccessControl.impl;
+
+  process ArtifactStore
+    features
+      db_port : in out data port Message;
+  end ArtifactStore;
+
+  process implementation ArtifactStore.impl
+  end ArtifactStore.impl;
+
+  process SyncService
+    features
+      sync_port : in out data port Message;
+      db_port : in out data port Message;
+  end SyncService;
+
+  process implementation SyncService.impl
+  end SyncService.impl;
+
+  data SqliteDB
+  end SqliteDB;
+
+  data implementation SqliteDB.impl
+  end SqliteDB.impl;
+
+  -----------------------------------------------------------------------
+  -- Mobile Client (CTRL-003) — iOS/Android
+  -----------------------------------------------------------------------
+
+  system MobileClient
+    features
+      cmd_out : out data port Message;
+      status_in : in data port Message;
+  end MobileClient;
+
+  system implementation MobileClient.impl
+    subcomponents
+      ui : process MobileUI.impl;
+      mtls_client : process MTLSClient.impl;
+      biometric_auth : process BiometricAuth.impl;
+    connections
+      c_ui_mtls : port ui.cmd_out -> mtls_client.cmd_in;
+      c_mtls_out : port mtls_client.cmd_out -> cmd_out;
+      c_status_in : port status_in -> ui.status_in;
+      c_bio_ui : port biometric_auth.auth_out -> ui.auth_in;
+  end MobileUI.impl;
+
+  process MobileUI
+    features
+      cmd_out : out data port Message;
+      status_in : in data port Message;
+      auth_in : in data port Message;
+  end MobileUI;
+
+  process implementation MobileUI.impl
+  end MobileUI.impl;
+
+  process MTLSClient
+    features
+      cmd_in : in data port Message;
+      cmd_out : out data port Message;
+  end MTLSClient;
+
+  process implementation MTLSClient.impl
+  end MTLSClient.impl;
+
+  process BiometricAuth
+    features
+      auth_out : out data port Message;
+  end BiometricAuth;
+
+  process implementation BiometricAuth.impl
+  end BiometricAuth.impl;
+
+  -----------------------------------------------------------------------
+  -- Agent Runtime (CTRL-005) — runs on worker machines
+  -----------------------------------------------------------------------
+
+  system AgentRuntime
+    features
+      msg_out : out data port Message;
+      msg_in : in data port Message;
+  end AgentRuntime;
+
+  system implementation AgentRuntime.impl
+    subcomponents
+      agent_core : process AgentCore.impl;
+      mtls_agent : process MTLSClient.impl;
+      artifact_cache : data ArtifactCache.impl;
+    connections
+      c_core_mtls : port agent_core.msg_out -> mtls_agent.cmd_in;
+      c_mtls_out : port mtls_agent.cmd_out -> msg_out;
+      c_msg_in : port msg_in -> artifact_cache.store_in;
+  end AgentRuntime.impl;
+
+  process AgentCore
+    features
+      msg_out : out data port Message;
+  end AgentCore;
+
+  process implementation AgentCore.impl
+  end AgentCore.impl;
+
+  data ArtifactCache
+    properties
+      Data_Model::Data_Representation => Array;
+  end ArtifactCache;
+
+  data implementation ArtifactCache.impl
+  end ArtifactCache.impl;
+
+  -----------------------------------------------------------------------
+  -- Root system — the full warte deployment
+  -----------------------------------------------------------------------
+
+  system WarteSystem
+    features
+      internet : in out data port Message;
+  end WarteSystem;
+
+  system implementation WarteSystem.impl
+    subcomponents
+      edge : system EdgeProxy.impl;
+      instance1 : system WarteInstance.impl;
+      instance2 : system WarteInstance.impl;
+      mobile : system MobileClient.impl;
+      agent1 : system AgentRuntime.impl;
+      agent2 : system AgentRuntime.impl;
+    connections
+      -- Internet ↔ Edge Proxy
+      c_internet_edge : port internet <-> edge.ext_in;
+      c_edge_internet : port edge.ext_out -> internet;
+      -- Edge Proxy → Instances (WireGuard VPN, mTLS)
+      c_edge_inst1 : port edge.int_req -> instance1.api_req;
+      c_inst1_edge : port instance1.api_resp -> edge.int_resp;
+      c_edge_inst2 : port edge.int_req -> instance2.api_req;
+      c_inst2_edge : port instance2.api_resp -> edge.int_resp;
+      -- Instance ↔ Instance (sync, mTLS over WireGuard)
+      c_inst1_sync : port instance1.sync <-> instance2.sync;
+      -- Mobile → Edge (mTLS + biometric)
+      c_mobile_edge : port mobile.cmd_out -> edge.ext_in;
+      c_edge_mobile : port edge.ext_out -> mobile.status_in;
+      -- Agents → Edge (mTLS)
+      c_agent1_edge : port agent1.msg_out -> edge.ext_in;
+      c_edge_agent1 : port edge.ext_out -> agent1.msg_in;
+      c_agent2_edge : port agent2.msg_out -> edge.ext_in;
+      c_edge_agent2 : port edge.ext_out -> agent2.msg_in;
+  end WarteSystem.impl;
+
+end Warte;

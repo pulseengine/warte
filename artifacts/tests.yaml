@@ -200,3 +200,17 @@ artifacts:
     links:
       - type: verifies
         target: REQ-API-002
+
+  - id: TEST-AADL-001
+    type: verification
+    title: spar parse + spar analyze — AADL model validates with 0 errors
+    status: draft
+    release: v0.1.0
+    description: "SPAR parse: architecture/warte.aadl OK. SPAR analyze --root Warte::WarteSystem.impl: 32 components instantiated, 0 errors, 52 warnings (EMV2 single-point-of-failure — maps to STPA hazards H-005, H-007). SPAR connectivity: all external traffic flows through EdgeProxy (defense-in-depth confirmed)."
+    links:
+      - type: verifies
+        target: REQ-EDGE-001
+      - type: verifies
+        target: REQ-EDGE-002
+      - type: verifies
+        target: REQ-SYNC-001

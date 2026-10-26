@@ -1,0 +1,237 @@
+artifacts:
+  # ============================================================
+  # AADL ARCHITECTURE — spar model artifacts
+  # Model: architecture/warte.aadl (32 components, 0 errors, 52 warnings)
+  # ============================================================
+
+  # --- Architecture components (mapped to STPA controllers) ---
+  - id: AADL-COMP-001
+    type: aadl-component
+    title: "EdgeProxy — sole internet-facing component (CTRL-004)"
+    status: approved
+    release: v0.1.0
+    fields:
+      category: system
+      aadl-package: "Warte"
+      aadl-file: "architecture/warte.aadl"
+      classifier-kind: implementation
+    description: >
+      AADL system EdgeProxy.impl: TLS terminator, rate limiter, request
+      validator, reverse proxy. Maps to STPA controller CTRL-004.
+      SPAR EMV2: 4 single-point-of-failure warnings (tls_terminator,
+      rate_limiter, request_validator, reverse_proxy) — mitigated by
+      auto-patching (REQ-EDGE-003) and edge proxy redundancy.
+    links:
+      - type: traces-to
+        target: CTRL-004
+      - type: satisfies
+        target: REQ-EDGE-001
+      - type: satisfies
+        target: REQ-EDGE-002
+
+  - id: AADL-COMP-002
+    type: aadl-component
+    title: "WarteInstance — the control tower (CTRL-001)"
+    status: approved
+    release: v0.1.0
+    fields:
+      category: system
+      aadl-package: "Warte"
+      aadl-file: "architecture/warte.aadl"
+      classifier-kind: implementation
+    description: >
+      AADL system WarteInstance.impl: API server, agent registry, access
+      control, artifact store, sync service, SQLite DB. Maps to STPA
+      controller CTRL-001. SPAR EMV2: 6 single-point-of-failure warnings
+      per instance — mitigated by multi-instance deployment (instance1 +
+      instance2) with CRDT sync.
+    links:
+      - type: traces-to
+        target: CTRL-001
+      - type: satisfies
+        target: REQ-API-001
+      - type: satisfies
+        target: REQ-SYNC-001
+
+  - id: AADL-COMP-003
+    type: aadl-component
+    title: "MobileClient — iOS/Android control (CTRL-003)"
+    status: approved
+    release: v0.1.0
+    fields:
+      category: system
+      aadl-package: "Warte"
+      aadl-file: "architecture/warte.aadl"
+      classifier-kind: implementation
+    description: >
+      AADL system MobileClient.impl: UI, mTLS client, biometric auth.
+      Maps to STPA controller CTRL-003. Connects via edge proxy with
+      mTLS + biometric authentication.
+    links:
+      - type: traces-to
+        target: CTRL-003
+      - type: satisfies
+        target: REQ-MOBILE-001
+      - type: satisfies
+        target: REQ-MOBILE-002
+
+  - id: AADL-COMP-004
+    type: aadl-component
+    title: "AgentRuntime — worker machine agent (CTRL-005)"
+    status: approved
+    release: v0.1.0
+    fields:
+      category: system
+      aadl-package: "Warte"
+      aadl-file: "architecture/warte.aadl"
+      classifier-kind: implementation
+    description: >
+      AADL system AgentRuntime.impl: agent core, mTLS client, artifact
+      cache. Maps to STPA controller CTRL-005. Registers with warte,
+      downloads artifacts, captures data.
+    links:
+      - type: traces-to
+        target: CTRL-005
+      - type: satisfies
+        target: REQ-AGENT-REG-001
+      - type: satisfies
+        target: REQ-CAPTURE-001
+
+  # --- SPAR analysis results ---
+  - id: AADL-ANALYSIS-001
+    type: aadl-analysis-result
+    title: "SPAR EMV2 fault tree — single points of failure"
+    status: approved
+    release: v0.1.0
+    fields:
+      analysis-name: "emv2_fault_tree"
+      severity: warning
+      component-path: "WarteSystem.impl"
+    description: >
+      SPAR EMV2 analysis on WarteSystem.impl: 52 warnings, 0 errors.
+      All warnings are single-point-of-failure (SPOF) on edge proxy
+      subcomponents (tls_terminator, rate_limiter, request_validator,
+      reverse_proxy) and instance subcomponents (api_server, agent_registry,
+      access_control, artifact_store, sync_service, db). These map to
+      STPA hazards H-007 (edge compromised) and H-005 (sync conflict).
+      Mitigations: edge proxy auto-patching (REQ-EDGE-003), multi-instance
+      deployment with CRDT sync (REQ-SYNC-001/002), rate limiting
+      (REQ-EDGE-001).
+    links:
+      - type: traces-to
+        target: H-007
+      - type: traces-to
+        target: H-005
+      - type: satisfies
+        target: REQ-EDGE-003
+      - type: satisfies
+        target: REQ-SYNC-002
+
+  - id: AADL-ANALYSIS-002
+    type: aadl-analysis-result
+    title: "SPAR connectivity analysis — data flow paths"
+    status: approved
+    release: v0.1.0
+    fields:
+      analysis-name: "connectivity"
+      severity: info
+      component-path: "WarteSystem.impl"
+    description: >
+      SPAR connectivity analysis: all external traffic flows through
+      EdgeProxy (internet → edge.ext_in → tls_terminator → rate_limiter →
+      request_validator → reverse_proxy → instance.api_req). No direct
+      path from internet to instances — defense-in-depth confirmed.
+      Sync path: instance1.sync ↔ instance2.sync (mTLS over WireGuard).
+      Mobile path: mobile.cmd_out → edge.ext_in → ... → mobile.status_in.
+      Agent path: agent.msg_out → edge.ext_in → ... → agent.msg_in.
+    links:
+      - type: satisfies
+        target: REQ-EDGE-001
+      - type: satisfies
+        target: REQ-EDGE-002
+      - type: satisfies
+        target: SC-007
+
+  # --- End-to-end flows with security annotations ---
+  - id: AADL-FLOW-001
+    type: aadl-flow
+    title: "Agent registration flow (mTLS authenticated)"
+    status: approved
+    release: v0.1.0
+    fields:
+      flow-kind: end-to-end
+    description: >
+      End-to-end flow: AgentRuntime.msg_out → EdgeProxy.ext_in →
+      TLSTerminator → RateLimiter → RequestValidator → ReverseProxy →
+      WarteInstance.api_req → APIServer → AgentRegistry → SqliteDB.
+      Security: mTLS at EdgeProxy (TLS 1.3), rate limiting (100 req/min
+      per IP), request validation (schema check), agent cert issued by
+      warte CA (REQ-AGENT-REG-001).
+    links:
+      - type: satisfies
+        target: REQ-AGENT-REG-001
+      - type: satisfies
+        target: SC-001
+
+  - id: AADL-FLOW-002
+    type: aadl-flow
+    title: "Artifact download flow (integrity-verified)"
+    status: approved
+    release: v0.1.0
+    fields:
+      flow-kind: end-to-end
+    description: >
+      End-to-end flow: AgentRuntime.msg_out → EdgeProxy → WarteInstance
+      → APIServer → ArtifactStore → SqliteDB → ArtifactStore → APIServer
+      → WarteInstance → EdgeProxy → AgentRuntime.msg_in → ArtifactCache.
+      Security: mTLS, access control check (REQ-ACCESS-003), integrity
+      verification (SHA-256, sigil/wsc pending REQ-ARTIFACT-002).
+    links:
+      - type: satisfies
+        target: REQ-ARTIFACT-001
+      - type: satisfies
+        target: REQ-ARTIFACT-003
+      - type: satisfies
+        target: SC-002
+
+  - id: AADL-FLOW-003
+    type: aadl-flow
+    title: "Multi-instance sync flow (CRDT, mTLS)"
+    status: approved
+    release: v0.1.0
+    fields:
+      flow-kind: end-to-end
+    description: >
+      End-to-end flow: WarteInstance1.sync ↔ WarteInstance2.sync (mTLS
+      over WireGuard). CRDT merge with version vectors. Divergence
+      detection alerts operator. OR-Set for access policies (fail-safe
+      revocation).
+    links:
+      - type: satisfies
+        target: REQ-SYNC-001
+      - type: satisfies
+        target: REQ-SYNC-002
+      - type: satisfies
+        target: REQ-SYNC-003
+      - type: satisfies
+        target: SC-005
+
+  - id: AADL-FLOW-004
+    type: aadl-flow
+    title: "Mobile control flow (mTLS + biometric)"
+    status: approved
+    release: v0.1.0
+    fields:
+      flow-kind: end-to-end
+    description: >
+      End-to-end flow: MobileClient.cmd_out → EdgeProxy.ext_in →
+      WarteInstance.api_req → APIServer. Security: mTLS with device-bound
+      certificate, biometric authentication per command, per-command
+      authorization check.
+    links:
+      - type: satisfies
+        target: REQ-MOBILE-001
+      - type: satisfies
+        target: REQ-MOBILE-002
+      - type: satisfies
+        target: SC-004
