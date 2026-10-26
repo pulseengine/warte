@@ -166,3 +166,15 @@ artifacts:
         target: REQ-DOCS-001
       - type: verifies
         target: REQ-DOCS-002
+
+  - id: TEST-ACCESS-002
+    type: verification
+    title: test_access_control_orset_fail_safe — OR-Set concurrent grant+revoke resolves to REVOKED
+    status: draft
+    release: v0.1.0
+    description: "Integration test verifies OR-Set fail-safe semantics: concurrent grant on instance A and revoke on instance B resolves to revoked (tombstone wins). Re-grant creates a new policy; second revoke tombstones it. Two tombstones exist after two grant/revoke cycles. This is the security-critical finding from docs/research/distributed-db.md §8 (fail-safe revocation is a merge-semantics choice)."
+    links:
+      - type: verifies
+        target: REQ-ACCESS-002
+      - type: verifies
+        target: REQ-ACCESS-003

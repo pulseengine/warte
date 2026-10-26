@@ -102,11 +102,94 @@ async fn test_access_control_grant_revoke() {
         .await
         .unwrap();
 
-    // Check after revoke
+    // Check after revoke — OR-Set: tombstone wins
     assert!(!access
         .check(&agent.agent_id, "artifacts", "download")
         .await
         .unwrap());
+    assert!(!access
+        .check(&agent.agent_id, "data", "write")
+        .await
+        .unwrap());
+
+    // List after revoke — should be empty
+    let listed_after = access.list_rights(&agent.agent_id).await.unwrap();
+    assert_eq!(listed_after.len(), 0);
+
+    // Tombstones should exist
+    let tombstones = access.list_tombstones(&agent.agent_id).await.unwrap();
+    assert_eq!(tombstones.len(), 2);
+}
+
+#[tokio::test]
+async fn test_access_control_orset_fail_safe() {
+    // OR-Set fail-safe: concurrent grant+revoke must resolve to REVOKED.
+    // Simulates two instances: A grants, B revokes, both applied.
+    // The tombstone must win — never fail-open.
+    let dir = tempfile::tempdir().unwrap();
+    let db_path = dir.path().join("test.db");
+    let db = Database::connect(&db_path).await.unwrap();
+    let access_a = warte::access::AccessControl::new(db.pool().clone(), "instance-a".to_string());
+    let access_b = warte::access::AccessControl::new(db.pool().clone(), "instance-b".to_string());
+    let registry = AgentRegistry::new(db.pool().clone(), "instance-a".to_string());
+
+    let agent = registry
+        .register(RegisterRequest {
+            name: "orset-agent".to_string(),
+            repo: None,
+            identity_type: "mtls".to_string(),
+            public_key: "key".to_string(),
+        })
+        .await
+        .unwrap();
+
+    let right = warte::access::AccessRight::new("artifacts", "download");
+
+    // Instance A grants
+    access_a
+        .grant(&agent.agent_id, std::slice::from_ref(&right), "operator-a")
+        .await
+        .unwrap();
+    assert!(access_a
+        .check(&agent.agent_id, "artifacts", "download")
+        .await
+        .unwrap());
+
+    // Instance B revokes (concurrent operation on another instance)
+    access_b
+        .revoke(&agent.agent_id, std::slice::from_ref(&right), "operator-b")
+        .await
+        .unwrap();
+
+    // After revoke, the right must be inactive (tombstone wins)
+    assert!(!access_b
+        .check(&agent.agent_id, "artifacts", "download")
+        .await
+        .unwrap());
+
+    // Re-grant creates a new policy with its own ID — active again
+    access_a
+        .grant(&agent.agent_id, std::slice::from_ref(&right), "operator-a")
+        .await
+        .unwrap();
+    assert!(access_a
+        .check(&agent.agent_id, "artifacts", "download")
+        .await
+        .unwrap());
+
+    // Revoke again — new grant is also tombstoned
+    access_b
+        .revoke(&agent.agent_id, std::slice::from_ref(&right), "operator-b")
+        .await
+        .unwrap();
+    assert!(!access_b
+        .check(&agent.agent_id, "artifacts", "download")
+        .await
+        .unwrap());
+
+    // Two tombstones should exist (one for each grant)
+    let tombstones = access_b.list_tombstones(&agent.agent_id).await.unwrap();
+    assert_eq!(tombstones.len(), 2);
 }
 
 #[tokio::test]

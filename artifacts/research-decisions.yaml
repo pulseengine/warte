@@ -1,0 +1,81 @@
+artifacts:
+  # ============================================================
+  # RESEARCH DECISIONS — from docs/research/ reports
+  # ============================================================
+  - id: DD-RESEARCH-DB-001
+    type: design-decision
+    title: "BUILD: stay on SQLite + CRDT, evolve with per-table CRDT mapping"
+    status: approved
+    release: v0.2.0
+    description: >
+      Decision from docs/research/distributed-db.md: build on SQLite + CRDT,
+      do not adopt LiteFS (dead), rqlite (quorum=2 problem), etcd/Consul
+      (BUSL/overkill), or FoundationDB (overkill). Per-table CRDT mapping:
+      OR-Set with add-wins revocation for access_policies (fail-safe:
+      concurrent grant+revoke resolves to revoked), HLC-based LWW for
+      agents, append-only log for agent_data. Gossip anti-entropy transport.
+      Litestream as durability layer. Signed sync updates.
+    fields:
+      rationale: >
+        The 2-node quorum problem is decisive: with two instances, any
+        Raft-based option has quorum=2 — during any partition, neither side
+        can commit writes. CRDT keeps both writable and converges after.
+        Fail-safe revocation is a merge-semantics choice (OR-Set add-wins),
+        not a database feature. rqlite is the named fallback if strong
+        consistency ever becomes a hard requirement (requires 3rd voter).
+    links:
+      - type: satisfies
+        target: REQ-SYNC-001
+      - type: satisfies
+        target: REQ-SYNC-002
+      - type: satisfies
+        target: REQ-SYNC-003
+
+  - id: DD-RESEARCH-MDNS-001
+    type: design-decision
+    title: "ADOPT mdns-sd crate, BUILD discovery semantics in src/discovery/"
+    status: approved
+    release: v0.2.0
+    description: >
+      Decision from docs/research/bonjour-mdns.md: adopt the mdns-sd crate
+      (pure safe Rust, actively maintained, Apache-2.0/MIT, 6.8M downloads,
+      zero RustSec advisories) for the mDNS wire protocol. Build warte's
+      discovery semantics in a new src/discovery/ module: service type
+      _warte-sync._tcp.local, TXT record with id|wg|lan|vv|ts + Ed25519
+      signature, peer lifecycle feeding SyncService.
+    fields:
+      rationale: >
+        mDNS/DNS-SD has real complexity (probing, conflict resolution,
+        tiebreaking, known-answer suppression). mdns-sd handles the wire
+        protocol; warte owns the discovery semantics. mDNS is scoped to
+        the physical LAN only — WireGuard overlay uses static sync_peers
+        + mTLS. mDNS is unauthenticated by design (RFC 6762 §21), but
+        sync is already mTLS-authenticated, so a spoofed record can only
+        cause a failed handshake, never state injection.
+    links:
+      - type: satisfies
+        target: REQ-DISCOVERY-001
+      - type: satisfies
+        target: REQ-DISCOVERY-002
+
+  - id: DD-RESEARCH-TOOLS-001
+    type: design-decision
+    title: "BUILD: no adoption of similar tools — warte is purpose-built"
+    status: approved
+    release: v0.2.0
+    description: >
+      Decision from docs/research/similar-tools.md (pending): no existing
+      CI dashboard, agent orchestrator, or control tower matches warte's
+      specific combination (ETA estimation + agent registry + access control
+      + artifact distribution + multi-instance sync + mobile + PulseEngine
+      toolchain integration). Build, don't buy. Learn patterns from others
+      but own the implementation.
+    fields:
+      rationale: >
+        Self-built, purpose-built preference. Existing tools each cover
+        part of the problem but none cover the full stack with PulseEngine
+        traceability (rivet), attestation (sigil), and toolchain integration
+        (varve). Adopting would couple warte to another project's roadmap.
+    links:
+      - type: satisfies
+        target: REQ-API-001

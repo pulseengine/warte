@@ -220,10 +220,16 @@ async fn grant_access(
         .grant(&req.agent_id, &req.rights, &req.granted_by)
         .await
     {
-        Ok(()) => StatusCode::NO_CONTENT,
+        Ok(policy_ids) => (
+            StatusCode::CREATED,
+            Json(serde_json::json!({ "policy_ids": policy_ids })),
+        ),
         Err(e) => {
             tracing::error!(error = %e, "failed to grant access");
-            StatusCode::INTERNAL_SERVER_ERROR
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": "internal error" })),
+            )
         }
     }
 }

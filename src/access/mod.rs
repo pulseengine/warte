@@ -1,4 +1,9 @@
-//! Access control service — RBAC with grant/revoke and push-based revocation.
+//! Access control service — RBAC with OR-Set fail-safe revocation.
+//!
+//! OR-Set semantics: grants and tombstones are both additive. A right is
+//! active if there exists a grant without a matching tombstone. Concurrent
+//! grant+revoke resolves to REVOKED (tombstone wins) — fail-safe, never
+//! fail-open. This is a security requirement (TS-003, R3 from research).
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -89,7 +94,7 @@ pub struct RevocationEvent {
     pub instance_id: String,
 }
 
-/// Access control service.
+/// Access control service with OR-Set fail-safe revocation.
 pub struct AccessControl {
     pool: SqlitePool,
     instance_id: String,
@@ -112,12 +117,15 @@ impl AccessControl {
     }
 
     /// Grant access rights to an agent.
+    ///
+    /// OR-Set: grants are additive. A grant is a new row in access_policies.
     pub async fn grant(
         &self,
         agent_id: &str,
         rights: &[AccessRight],
         granted_by: &str,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<Vec<String>> {
+        let mut policy_ids = Vec::new();
         for right in rights {
             let id = Uuid::now_v7().to_string();
             sqlx::query(
@@ -133,11 +141,16 @@ impl AccessControl {
             .bind(granted_by)
             .execute(&self.pool)
             .await?;
+            policy_ids.push(id);
         }
-        Ok(())
+        Ok(policy_ids)
     }
 
-    /// Revoke access rights from an agent. Push-based: broadcasts to all instances.
+    /// Revoke access rights from an agent.
+    ///
+    /// OR-Set fail-safe: revocation adds a tombstone. A right is active only
+    /// if there is a grant WITHOUT a matching tombstone. Concurrent grant+revoke
+    /// resolves to REVOKED (tombstone wins) — never fail-open.
     pub async fn revoke(
         &self,
         agent_id: &str,
@@ -147,19 +160,44 @@ impl AccessControl {
         let now = Utc::now();
 
         for right in rights {
-            sqlx::query(
+            // Find all active grants for this agent+resource+action
+            let grants: Vec<(String,)> = sqlx::query_as(
                 r#"
-                UPDATE access_policies
-                SET revoked_at = ?
-                WHERE agent_id = ? AND resource = ? AND action = ? AND revoked_at IS NULL
+                SELECT ap.id FROM access_policies ap
+                WHERE ap.agent_id = ? AND ap.resource = ? AND ap.action = ?
+                  AND NOT EXISTS (
+                      SELECT 1 FROM access_policy_tombstones t
+                      WHERE t.policy_id = ap.id
+                  )
                 "#,
             )
-            .bind(now.to_rfc3339())
             .bind(agent_id)
             .bind(&right.resource)
             .bind(&right.action)
-            .execute(&self.pool)
+            .fetch_all(&self.pool)
             .await?;
+
+            // Add a tombstone for each active grant (OR-Set: additive)
+            for (policy_id,) in grants {
+                let tombstone_id = Uuid::now_v7().to_string();
+                sqlx::query(
+                    r#"
+                    INSERT INTO access_policy_tombstones
+                        (id, policy_id, agent_id, resource, action, revoked_at, revoked_by, instance_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    "#,
+                )
+                .bind(&tombstone_id)
+                .bind(&policy_id)
+                .bind(agent_id)
+                .bind(&right.resource)
+                .bind(&right.action)
+                .bind(now.to_rfc3339())
+                .bind(revoked_by)
+                .bind(&self.instance_id)
+                .execute(&self.pool)
+                .await?;
+            }
         }
 
         // Broadcast revocation to all instances
@@ -176,16 +214,23 @@ impl AccessControl {
     }
 
     /// Check if an agent has a specific access right.
+    ///
+    /// OR-Set: a right is active if there exists a grant without a tombstone.
     pub async fn check(
         &self,
         agent_id: &str,
         resource: &str,
         action: &str,
     ) -> anyhow::Result<bool> {
+        // Check for active grant (grant exists, no tombstone)
         let count: (i64,) = sqlx::query_as(
             r#"
-            SELECT COUNT(*) FROM access_policies
-            WHERE agent_id = ? AND resource = ? AND action = ? AND revoked_at IS NULL
+            SELECT COUNT(*) FROM access_policies ap
+            WHERE ap.agent_id = ? AND ap.resource = ? AND ap.action = ?
+              AND NOT EXISTS (
+                  SELECT 1 FROM access_policy_tombstones t
+                  WHERE t.policy_id = ap.id
+              )
             "#,
         )
         .bind(agent_id)
@@ -194,29 +239,38 @@ impl AccessControl {
         .fetch_one(&self.pool)
         .await?;
 
-        // Also check wildcard
-        if count.0 == 0 {
-            let wildcard: (i64,) = sqlx::query_as(
-                r#"
-                SELECT COUNT(*) FROM access_policies
-                WHERE agent_id = ? AND resource = '*' AND action = '*' AND revoked_at IS NULL
-                "#,
-            )
-            .bind(agent_id)
-            .fetch_one(&self.pool)
-            .await?;
-            return Ok(wildcard.0 > 0);
+        if count.0 > 0 {
+            return Ok(true);
         }
 
-        Ok(count.0 > 0)
+        // Check wildcard
+        let wildcard: (i64,) = sqlx::query_as(
+            r#"
+            SELECT COUNT(*) FROM access_policies ap
+            WHERE ap.agent_id = ? AND ap.resource = '*' AND ap.action = '*'
+              AND NOT EXISTS (
+                  SELECT 1 FROM access_policy_tombstones t
+                  WHERE t.policy_id = ap.id
+              )
+            "#,
+        )
+        .bind(agent_id)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(wildcard.0 > 0)
     }
 
     /// List all active access rights for an agent.
     pub async fn list_rights(&self, agent_id: &str) -> anyhow::Result<Vec<AccessRight>> {
         let rows: Vec<(String, String)> = sqlx::query_as(
             r#"
-            SELECT resource, action FROM access_policies
-            WHERE agent_id = ? AND revoked_at IS NULL
+            SELECT DISTINCT ap.resource, ap.action FROM access_policies ap
+            WHERE ap.agent_id = ?
+              AND NOT EXISTS (
+                  SELECT 1 FROM access_policy_tombstones t
+                  WHERE t.policy_id = ap.id
+              )
             "#,
         )
         .bind(agent_id)
@@ -227,5 +281,23 @@ impl AccessControl {
             .into_iter()
             .map(|(resource, action)| AccessRight { resource, action })
             .collect())
+    }
+
+    /// List all tombstones for an agent (for sync/debugging).
+    pub async fn list_tombstones(
+        &self,
+        agent_id: &str,
+    ) -> anyhow::Result<Vec<(String, String, String)>> {
+        let rows: Vec<(String, String, String)> = sqlx::query_as(
+            r#"
+            SELECT resource, action, revoked_at FROM access_policy_tombstones
+            WHERE agent_id = ?
+            ORDER BY revoked_at DESC
+            "#,
+        )
+        .bind(agent_id)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows)
     }
 }
