@@ -20,6 +20,7 @@ pub mod eta;
 pub mod migrate;
 pub mod platform;
 pub mod server;
+pub mod sigil;
 pub mod sync;
 pub mod temper;
 

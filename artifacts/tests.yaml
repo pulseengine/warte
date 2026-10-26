@@ -318,3 +318,13 @@ artifacts:
         target: REQ-ASK-002
       - type: verifies
         target: REQ-ASK-003
+
+  - id: TEST-SIGIL-001
+    type: verification
+    title: test_sigil_verifier_creation + test_sha256_fallback_sign + test_sha256_fallback_verify + test_wsc_signature_serialization — sigil/wsc signatures
+    status: draft
+    release: v0.3.0
+    description: "Unit tests verify: SigilVerifier creation (resolves wsc through varve), SHA-256 fallback signing (when wsc unavailable), SHA-256 fallback verification (tampered content rejected), WscSignature serialization. The sigil module wraps wsc for signing and verification, with SHA-256 fallback. wsc is resolved through the varve layer (varve which wsc)."
+    links:
+      - type: verifies
+        target: REQ-SIGIL-001

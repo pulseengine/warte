@@ -303,7 +303,11 @@ mod tests {
 
         // p50 of [60, 120, 180, 240, 300, 360, 420, 480, 540, 600] = 300 or 360
         let p50 = estimate.estimate_seconds.unwrap();
-        assert!(p50 >= 300 && p50 <= 360, "p50 should be ~330, got {}", p50);
+        assert!(
+            (300..=360).contains(&p50),
+            "p50 should be ~330, got {}",
+            p50
+        );
     }
 
     #[test]
