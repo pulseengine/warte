@@ -24,6 +24,7 @@ pub struct AppState {
     pub artifacts: Arc<ArtifactStore>,
     pub sync: Arc<SyncService>,
     pub tokens: Arc<crate::auth::TokenManager>,
+    pub realtime: Arc<crate::realtime::EventBroadcaster>,
 }
 
 /// Build the Axum router with all routes.
@@ -64,6 +65,7 @@ pub async fn serve(config: Config, db: Database) -> anyhow::Result<()> {
         artifacts: Arc::new(ArtifactStore::new(pool.clone())),
         sync: Arc::new(SyncService::new(pool.clone(), instance_id.clone())),
         tokens: Arc::new(crate::auth::TokenManager::new(24)),
+        realtime: Arc::new(crate::realtime::EventBroadcaster::new()),
         config: config.clone(),
         db,
     };

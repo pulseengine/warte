@@ -19,6 +19,7 @@ pub mod docs;
 pub mod eta;
 pub mod migrate;
 pub mod platform;
+pub mod realtime;
 pub mod server;
 pub mod sigil;
 pub mod sync;

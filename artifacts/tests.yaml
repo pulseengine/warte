@@ -328,3 +328,13 @@ artifacts:
     links:
       - type: verifies
         target: REQ-SIGIL-001
+
+  - id: TEST-REALTIME-001
+    type: verification
+    title: test_event_broadcaster + test_event_serialization + test_all_event_types — WebSocket/SSE real-time updates
+    status: draft
+    release: v0.3.0
+    description: "Unit tests verify: EventBroadcaster broadcasts events to subscribers, RealtimeEvent serialization (all 9 event types), event JSON structure with timestamp. The realtime module provides WebSocket (/api/ws) for bidirectional updates and SSE (/api/events) for unidirectional dashboard updates. Events: agent heartbeat, registration, health change, CI status, access grant/revoke, divergence, artifact upload, dashboard update."
+    links:
+      - type: verifies
+        target: REQ-REALTIME-001
