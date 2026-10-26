@@ -5,7 +5,7 @@ artifacts:
   - id: DD-RESEARCH-DB-001
     type: design-decision
     title: "BUILD: stay on SQLite + CRDT, evolve with per-table CRDT mapping"
-    status: approved
+    status: accepted
     release: v0.2.0
     description: >
       Decision from docs/research/distributed-db.md: build on SQLite + CRDT,
@@ -34,7 +34,7 @@ artifacts:
   - id: DD-RESEARCH-MDNS-001
     type: design-decision
     title: "ADOPT mdns-sd crate, BUILD discovery semantics in src/discovery/"
-    status: approved
+    status: accepted
     release: v0.2.0
     description: >
       Decision from docs/research/bonjour-mdns.md: adopt the mdns-sd crate
@@ -61,7 +61,7 @@ artifacts:
   - id: DD-RESEARCH-TOOLS-001
     type: design-decision
     title: "BUILD: no adoption of similar tools — warte is purpose-built"
-    status: approved
+    status: accepted
     release: v0.2.0
     description: >
       Decision from docs/research/similar-tools.md (pending): no existing
