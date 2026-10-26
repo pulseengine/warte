@@ -272,3 +272,15 @@ artifacts:
     links:
       - type: verifies
         target: REQ-TEMPER-001
+
+  - id: TEST-RELEASE-001
+    type: verification
+    title: release-pipeline.sh + release.yml — SHA256SUMS, SBOM, SLSA, cosign, V-model gate
+    status: draft
+    release: v0.2.0
+    description: "Release pipeline verification: scripts/release-pipeline.sh generates SHA256SUMS, SBOM (cargo-cyclonedx or varve sbom), and cosign signatures locally. .github/workflows/release.yml runs the full pipeline in CI: V-model gate (rivet release status), cross-platform build (Linux + macOS), SHA256SUMS, SBOM, cosign signing, GitHub release creation. The rivet V-model gate blocks the release if any artifact is not verified."
+    links:
+      - type: verifies
+        target: REQ-RELEASE-001
+      - type: verifies
+        target: REQ-RELEASE-002

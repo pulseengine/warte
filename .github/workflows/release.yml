@@ -1,0 +1,173 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 0.2.0)'
+        required: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  release-gate:
+    name: V-model traceability gate
+    runs-on: ubuntu-latest
+    outputs:
+      cuttable: ${{ steps.gate.outputs.cuttable }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install rivet
+        run: cargo install rivet-cli --locked 2>/dev/null || cargo install --git https://github.com/pulseengine/rivet --locked
+
+      - name: Check release readiness
+        id: gate
+        run: |
+          TAG="v${GITHUB_REF_NAME#v}"
+          if rivet release status "$TAG" 2>&1 | grep -q "Cuttable"; then
+            echo "cuttable=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "cuttable=false" >> "$GITHUB_OUTPUT"
+            echo "Release $TAG is not cuttable — V-model gate failed"
+            exit 1
+          fi
+
+  build:
+    name: Build release artifacts
+    needs: release-gate
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: macos-latest
+            target: aarch64-apple-darwin
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build release
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Package binary
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          mkdir -p "dist/v${TAG}"
+          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+            cp "target/${{ matrix.target }}/release/warte" "dist/v${TAG}/warte-${TAG}-linux-amd64"
+          else
+            cp "target/${{ matrix.target }}/release/warte" "dist/v${TAG}/warte-${TAG}-macos-arm64"
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: warte-${{ matrix.target }}
+          path: dist/
+
+  checksums:
+    name: Generate SHA256SUMS
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist/
+          merge-multiple: true
+
+      - name: Generate SHA256SUMS
+        run: |
+          cd dist/*/
+          sha256sum warte-* > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Upload SHA256SUMS
+        uses: actions/upload-artifact@v4
+        with:
+          name: checksums
+          path: dist/*/SHA256SUMS
+
+  sbom:
+    name: Generate SBOM
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-cyclonedx
+        run: cargo install cargo-cyclonedx --locked
+
+      - name: Generate SBOM
+        run: |
+          cargo cyclonedx --format json --output-file sbom.json
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.json
+
+  sign:
+    name: Sign with cosign
+    needs: [build, checksums]
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      packages: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist/
+          merge-multiple: true
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign SHA256SUMS
+        run: |
+          cosign sign-blob --yes dist/*/SHA256SUMS > dist/SHA256SUMS.sig
+
+      - name: Upload signature
+        uses: actions/upload-artifact@v4
+        with:
+          name: signatures
+          path: dist/SHA256SUMS.sig
+
+  release:
+    name: Create GitHub release
+    needs: [build, checksums, sbom, sign]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts/
+          merge-multiple: true
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-artifacts/warte-*
+            release-artifacts/SHA256SUMS
+            release-artifacts/sbom.json
+            release-artifacts/SHA256SUMS.sig
+          generate_release_notes: true
