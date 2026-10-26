@@ -1,0 +1,98 @@
+artifacts:
+  # ============================================================
+  # v0.3.0 REQUIREMENTS — ETA estimation, sigil signatures, real-time
+  # ============================================================
+
+  # --- ETA estimation (the "ask" feature) ---
+  - id: REQ-ASK-001
+    type: requirement
+    title: "ETA estimation from measured waits (the ask feature)"
+    status: draft
+    release: v0.3.0
+    description: >
+      The dashboard SHALL provide an "ask" feature: "when will this PR run?"
+      The ETA SHALL be computed from measured waits — how long jobs in the
+      same runner pool actually waited before starting over the last 3 hours.
+      The estimate SHALL include a confidence level and the basis (number of
+      samples). A pool with fewer than 5 recent jobs in the last 3 hours
+      SHALL return "no estimate" rather than a guess. The estimate SHALL NOT
+      be based on queue position (GitHub does not start jobs in creation order).
+    links:
+      - type: satisfies
+        target: SC-006
+
+  - id: REQ-ASK-002
+    type: requirement
+    title: "ETA estimation API endpoint"
+    status: draft
+    release: v0.3.0
+    description: >
+      The API SHALL expose GET /api/dashboard/ask?repo=<repo>&pr=<number>
+      returning JSON with: estimate_seconds, confidence, basis (sample count,
+      time window), running jobs, queued jobs. The response SHALL include
+      freshness metadata (last_updated timestamp).
+    links:
+      - type: satisfies
+        target: SC-006
+
+  - id: REQ-ASK-003
+    type: requirement
+    title: "Measured wait history storage"
+    status: draft
+    release: v0.3.0
+    description: >
+      The system SHALL store measured wait times for CI jobs: when a job
+      entered the queue, when it started running, which runner pool it ran on.
+      History SHALL be retained for at least 7 days. The ETA estimator SHALL
+      use this history to compute percentiles (p50, p90) per runner pool.
+    links:
+      - type: satisfies
+        target: SC-006
+
+  # --- Sigil/wsc signatures ---
+  - id: REQ-SIGIL-001
+    type: requirement
+    title: "Sigil/wsc signature verification for artifacts"
+    status: draft
+    release: v0.3.0
+    description: >
+      Artifact integrity proofs SHALL support sigil/wsc detached signatures
+      in addition to SHA-256 hashes. The control tower SHALL verify wsc
+      signatures before serving artifacts. Agents SHALL verify wsc signatures
+      after download. The wsc binary SHALL be resolved through the varve
+      layer (varve which wsc). SHA-256 SHALL remain as a fallback.
+    links:
+      - type: satisfies
+        target: SC-002
+
+  # --- Real-time updates ---
+  - id: REQ-REALTIME-001
+    type: requirement
+    title: "WebSocket for real-time dashboard and mobile updates"
+    status: draft
+    release: v0.3.0
+    description: >
+      The API SHALL expose a WebSocket endpoint (/api/ws) for real-time
+      updates: agent heartbeats, CI status changes, access revocations,
+      divergence alerts. The dashboard SHALL use Server-Sent Events (/api/events)
+      for unidirectional updates. Both SHALL require authentication (bearer
+      token or mTLS). Updates SHALL include freshness timestamps.
+    links:
+      - type: satisfies
+        target: SC-006
+
+  # --- Full mDNS wire protocol ---
+  - id: REQ-DISCOVERY-003
+    type: requirement
+    title: "Full mDNS wire protocol via mdns-sd ServiceDaemon"
+    status: draft
+    release: v0.3.0
+    description: >
+      The discovery service SHALL use mdns-sd's ServiceDaemon for the full
+      mDNS wire protocol: service registration (announce), browsing (discover),
+      goodbye packets (unregister), TTL-based expiry. The TXT record SHALL
+      include an Ed25519 signature over the peer metadata for attestation.
+      Discovered peers SHALL be integrated into the SyncService peer list.
+    links:
+      - type: satisfies
+        target: SC-005

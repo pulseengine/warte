@@ -304,3 +304,17 @@ artifacts:
     links:
       - type: verifies
         target: REQ-LAYER-001
+
+  - id: TEST-ASK-001
+    type: verification
+    title: test_eta_estimator_no_samples + test_eta_estimator_with_samples + test_percentile — ETA estimation from measured waits
+    status: draft
+    release: v0.3.0
+    description: "Unit tests verify: ETA estimator returns 'no estimate' with < 5 samples, computes p50/p90 from 10 measured waits with medium confidence, percentile function computes correct index-based percentiles. The ask feature computes ETA from measured waits (not queue position) — warte's unique selling point per docs/research/similar-tools.md."
+    links:
+      - type: verifies
+        target: REQ-ASK-001
+      - type: verifies
+        target: REQ-ASK-002
+      - type: verifies
+        target: REQ-ASK-003
