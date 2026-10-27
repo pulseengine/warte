@@ -418,3 +418,23 @@ artifacts:
     links:
       - type: satisfies
         target: SC-006
+
+  - id: REQ-WEBHOOK-001
+    type: requirement
+    title: GitHub webhook HTTP endpoint — receive workflow_run events
+    status: draft
+    release: v0.5.0
+    description: The system SHALL expose POST /api/webhooks/github to receive GitHub Actions workflow_run webhook events. The endpoint SHALL verify the X-Hub-Signature-256 header (HMAC-SHA256 with the configured webhook secret) before processing. Events SHALL be forwarded to the CiDataCollector for storage. The endpoint SHALL return 202 Accepted on success, 401 on invalid signature, 400 on invalid payload. The webhook secret SHALL be configured via warte.toml (github_webhook_secret) or environment variable (WARTE_GITHUB_WEBHOOK_SECRET).
+    links:
+      - type: satisfies
+        target: SC-006
+
+  - id: REQ-POLLER-001
+    type: requirement
+    title: Periodic CI status poller — fallback when webhooks are not configured
+    status: draft
+    release: v0.5.0
+    description: The system SHALL provide a periodic CI status poller that queries the GitHub/GitLab API every 60 seconds (configurable) to collect CI status for all repos. The poller SHALL be the fallback when webhooks are not configured. The poller SHALL record measured waits (queued_at → started_at) in the wait_history table. The poller SHALL update the ci_status cache for the dashboard. The poller SHALL run as a background task started by warte serve.
+    links:
+      - type: satisfies
+        target: SC-006

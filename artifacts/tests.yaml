@@ -368,3 +368,13 @@ artifacts:
     links:
       - type: verifies
         target: REQ-DASH-004
+
+  - id: TEST-WEBHOOK-001
+    type: verification
+    title: GitHub webhook endpoint — HMAC-SHA256 signature verification + workflow_run event processing
+    status: draft
+    release: v0.5.0
+    description: "Webhook endpoint verification: POST /api/webhooks/github receives GitHub Actions workflow_run events. Verifies X-Hub-Signature-256 header (HMAC-SHA256 with WARTE_GITHUB_WEBHOOK_SECRET). Returns 202 on success, 401 on invalid signature, 400 on invalid payload, 500 if secret not configured. Auth middleware skips /api/webhooks/ paths (HMAC instead of bearer token). Events forwarded to CiDataCollector for storage in ci_jobs + wait_history + ci_status."
+    links:
+      - type: verifies
+        target: REQ-WEBHOOK-001
