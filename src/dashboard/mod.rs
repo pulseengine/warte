@@ -374,3 +374,287 @@ pub async fn critical_path_partial(State(state): State<crate::server::AppState>)
 
     Html(html).into_response()
 }
+
+/// HTMX partial: resources view (agent resource needs, hardware claims).
+pub async fn resources_partial(State(state): State<crate::server::AppState>) -> Response {
+    let agents = state.agents.list().await.unwrap_or_default();
+
+    // Get hardware claims from agent_data
+    let claims: Vec<(String, String, String)> = sqlx::query_as(
+        r#"
+        SELECT agent_id, content, captured_at FROM agent_data
+        WHERE data_type = 'hardware-claim'
+        ORDER BY captured_at DESC
+        LIMIT 20
+        "#,
+    )
+    .fetch_all(state.db.pool())
+    .await
+    .unwrap_or_default();
+
+    let agent_cards: String = agents
+        .iter()
+        .map(|a| {
+            let health_class = match a.health_status {
+                crate::agent::HealthStatus::Healthy => "green",
+                crate::agent::HealthStatus::Degraded => "yellow",
+                crate::agent::HealthStatus::Unhealthy => "red",
+                crate::agent::HealthStatus::Unknown => "gray",
+            };
+            format!(
+                r#"<div class="stat-card">
+  <span class="stat-label">{}</span>
+  <span class="stat-detail">{}</span>
+  <span class="badge {}">{}</span>
+</div>"#,
+                a.name,
+                a.repo.as_deref().unwrap_or("—"),
+                health_class,
+                a.health_status,
+            )
+        })
+        .collect();
+
+    let claims_table: String = if claims.is_empty() {
+        r#"<p class="empty">No hardware claims.</p>"#.to_string()
+    } else {
+        let rows: String = claims
+            .iter()
+            .map(|(agent_id, content, captured_at)| {
+                format!(
+                    r#"<tr><td><code>{}</code></td><td>{}</td><td>{}</td></tr>"#,
+                    &agent_id[..8.min(agent_id.len())],
+                    content,
+                    captured_at,
+                )
+            })
+            .collect();
+        format!(
+            r#"<table class="data-table">
+  <thead><tr><th>Agent</th><th>Claim</th><th>Since</th></tr></thead>
+  <tbody>{}</tbody>
+</table>"#,
+            rows
+        )
+    };
+
+    let html = format!(
+        r#"<div class="resources-view">
+  <h2>Resources</h2>
+  <h3>Agents</h3>
+  <div class="stat-cards">{}</div>
+  <h3>Hardware Claims</h3>
+  {}
+  <p class="freshness">Last updated: {} <span class="freshness-badge green">fresh</span></p>
+</div>"#,
+        agent_cards,
+        claims_table,
+        chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC"),
+    );
+
+    Html(html).into_response()
+}
+
+/// HTMX partial: outages view (GitHub status, fleet health).
+pub async fn outages_partial(State(state): State<crate::server::AppState>) -> Response {
+    let agents = state.agents.list().await.unwrap_or_default();
+    let healthy = agents
+        .iter()
+        .filter(|a| a.health_status == crate::agent::HealthStatus::Healthy)
+        .count();
+    let unhealthy = agents
+        .iter()
+        .filter(|a| a.health_status == crate::agent::HealthStatus::Unhealthy)
+        .count();
+
+    let fleet_status = if unhealthy > 0 {
+        "degraded"
+    } else {
+        "operational"
+    };
+    let fleet_class = if unhealthy > 0 { "yellow" } else { "green" };
+
+    let html = format!(
+        r#"<div class="outages-view">
+  <h2>Outages & Health</h2>
+  <div class="stat-cards">
+    <div class="stat-card">
+      <span class="stat-label">Fleet Status</span>
+      <span class="badge {}">{}</span>
+      <span class="stat-detail">{} healthy, {} unhealthy</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">GitHub</span>
+      <span class="badge green">operational</span>
+      <span class="stat-detail">status.github.com</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Instance</span>
+      <span class="stat-detail">{}</span>
+    </div>
+  </div>
+  <p class="freshness">Last updated: {} <span class="freshness-badge green">fresh</span></p>
+</div>"#,
+        fleet_class,
+        fleet_status,
+        healthy,
+        unhealthy,
+        &state.config.instance_id()[..8.min(state.config.instance_id().len())],
+        chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC"),
+    );
+
+    Html(html).into_response()
+}
+
+/// HTMX partial: friction view (tool errors, workarounds).
+pub async fn friction_partial(State(state): State<crate::server::AppState>) -> Response {
+    let friction: Vec<(String, String, String)> = sqlx::query_as(
+        r#"
+        SELECT agent_id, content, captured_at FROM agent_data
+        WHERE data_type = 'friction'
+        ORDER BY captured_at DESC
+        LIMIT 20
+        "#,
+    )
+    .fetch_all(state.db.pool())
+    .await
+    .unwrap_or_default();
+
+    let table: String = if friction.is_empty() {
+        r#"<p class="empty">No friction reports. Tools are working well.</p>"#.to_string()
+    } else {
+        let rows: String = friction
+            .iter()
+            .map(|(agent_id, content, captured_at)| {
+                format!(
+                    r#"<tr><td><code>{}</code></td><td>{}</td><td>{}</td></tr>"#,
+                    &agent_id[..8.min(agent_id.len())],
+                    content,
+                    captured_at,
+                )
+            })
+            .collect();
+        format!(
+            r#"<table class="data-table">
+  <thead><tr><th>Agent</th><th>Friction</th><th>Reported</th></tr></thead>
+  <tbody>{}</tbody>
+</table>"#,
+            rows
+        )
+    };
+
+    let html = format!(
+        r#"<div class="friction-view">
+  <h2>Friction</h2>
+  {}
+  <p class="freshness">Last updated: {} <span class="freshness-badge green">fresh</span></p>
+</div>"#,
+        table,
+        chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC"),
+    );
+
+    Html(html).into_response()
+}
+
+/// HTMX partial: schedule view (weekly cron table).
+pub async fn schedule_partial(State(state): State<crate::server::AppState>) -> Response {
+    let schedules: Vec<(String, String, String)> = sqlx::query_as(
+        r#"
+        SELECT agent_id, content, captured_at FROM agent_data
+        WHERE data_type = 'schedule'
+        ORDER BY captured_at DESC
+        LIMIT 20
+        "#,
+    )
+    .fetch_all(state.db.pool())
+    .await
+    .unwrap_or_default();
+
+    let table: String = if schedules.is_empty() {
+        r#"<p class="empty">No schedules configured. Use the capture-session-learnings skill to record schedules.</p>"#.to_string()
+    } else {
+        let rows: String = schedules
+            .iter()
+            .map(|(agent_id, content, captured_at)| {
+                format!(
+                    r#"<tr><td><code>{}</code></td><td>{}</td><td>{}</td></tr>"#,
+                    &agent_id[..8.min(agent_id.len())],
+                    content,
+                    captured_at,
+                )
+            })
+            .collect();
+        format!(
+            r#"<table class="data-table">
+  <thead><tr><th>Agent</th><th>Schedule</th><th>Recorded</th></tr></thead>
+  <tbody>{}</tbody>
+</table>"#,
+            rows
+        )
+    };
+
+    let html = format!(
+        r#"<div class="schedule-view">
+  <h2>Schedule</h2>
+  {}
+  <p class="freshness">Last updated: {} <span class="freshness-badge green">fresh</span></p>
+</div>"#,
+        table,
+        chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC"),
+    );
+
+    Html(html).into_response()
+}
+
+/// HTMX partial: health view (factory-wide metrics).
+pub async fn health_partial(State(state): State<crate::server::AppState>) -> Response {
+    let agents = state.agents.list().await.unwrap_or_default();
+    let healthy = agents
+        .iter()
+        .filter(|a| a.health_status == crate::agent::HealthStatus::Healthy)
+        .count();
+    let unhealthy = agents
+        .iter()
+        .filter(|a| a.health_status == crate::agent::HealthStatus::Unhealthy)
+        .count();
+    let total = agents.len();
+
+    let ci_green: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM ci_status WHERE status = 'green'")
+        .fetch_one(state.db.pool())
+        .await
+        .unwrap_or((0,));
+    let ci_red: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM ci_status WHERE status = 'red'")
+        .fetch_one(state.db.pool())
+        .await
+        .unwrap_or((0,));
+
+    let html = format!(
+        r#"<div class="health-view">
+  <h2>Health</h2>
+  <div class="stat-cards">
+    <div class="stat-card">
+      <span class="stat-value">{}</span>
+      <span class="stat-label">Agents</span>
+      <span class="stat-detail">{} healthy, {} unhealthy</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-value">{}</span>
+      <span class="stat-label">CI Green</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-value">{}</span>
+      <span class="stat-label">CI Red</span>
+    </div>
+  </div>
+  <p class="freshness">Last updated: {} <span class="freshness-badge green">fresh</span></p>
+</div>"#,
+        total,
+        healthy,
+        unhealthy,
+        ci_green.0,
+        ci_red.0,
+        chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC"),
+    );
+
+    Html(html).into_response()
+}

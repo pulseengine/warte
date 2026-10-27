@@ -400,3 +400,15 @@ artifacts:
         target: REQ-DASH-005
       - type: verifies
         target: REQ-DASH-006
+
+  - id: TEST-DASH-006
+    type: verification
+    title: Dashboard resources + outages + friction + schedule + health views — complete dashboard
+    status: draft
+    release: v0.7.0
+    description: "Dashboard completion verification: resources_partial (agent cards, hardware claims table), outages_partial (fleet status, GitHub status, instance ID), friction_partial (friction reports from agent_data), schedule_partial (weekly cron table from agent_data), health_partial (factory-wide metrics: agents, CI green/red). All views are HTMX partials with freshness indicators, served at /api/dashboard/{view}-partial. Completes the dashboard views from the README: Overview, Ask, Queue, Critical Path, Resources, Outages, Friction, Schedule, Health, Agents, Artifacts."
+    links:
+      - type: verifies
+        target: REQ-DASH-007
+      - type: verifies
+        target: REQ-DASH-008
