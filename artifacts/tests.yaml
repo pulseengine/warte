@@ -504,3 +504,13 @@ artifacts:
     links:
       - type: verifies
         target: REQ-CRIT-002
+
+  - id: TEST-CRIT-003
+    type: verification
+    title: test_spdx_sbom_deserialization + test_integration_creation + test_integration_ghe — GitHub dependency graph API
+    status: draft
+    release: v1.3.0
+    description: "Unit tests verify: SpdxSbom JSON deserialization (SPDX 2.3 format with packages, externalRefs, relationships), GitHubDepGraphIntegration creation (github.com default, GHE custom API base), 5-minute cache TTL. The integration queries GET /repos/{owner}/{repo}/dependency-graph/sbom, parses the SPDX SBOM, extracts dependencies on other pulseengine repos, and feeds the graph into CriticalPathComputer."
+    links:
+      - type: verifies
+        target: REQ-CRIT-003
