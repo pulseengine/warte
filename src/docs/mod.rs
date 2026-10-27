@@ -61,6 +61,11 @@ const TOPICS: &[Topic] = &[
         title: "Migration guide",
         content: include_str!("../../docs/topics/migration.md"),
     },
+    Topic {
+        name: "ground-station",
+        title: "Ground station (absorbed smithy hub)",
+        content: include_str!("../../docs/topics/ground-station.md"),
+    },
 ];
 
 /// Get all topics as a sorted map.
@@ -110,11 +115,16 @@ pub fn print_topic(name: &str) -> bool {
 
 /// Check documentation coverage — assert every CLI subcommand has a topic.
 /// Returns the list of undocumented subcommands.
-pub fn check_coverage() -> Vec<&'static str> {
-    // Subcommands that should have docs
-    let expected_docs = [
-        "serve", "status", "agents", "schedule", "watch", "access", "migrate", "artifact", "docs",
-    ];
+pub fn check_coverage() -> Vec<String> {
+    // Every subcommand the CLI actually has, read from clap, so a new command
+    // cannot be added without being documented.
+    use clap::CommandFactory;
+    let cli = crate::cli::Cli::command();
+    let expected_docs: Vec<String> = cli
+        .get_subcommands()
+        .map(|c| c.get_name().to_string())
+        .filter(|n| n != "help")
+        .collect();
 
     // Topics that exist (broader than subcommands — includes architecture, security, etc.)
     let documented: Vec<&str> = list_topics().iter().map(|(name, _)| *name).collect();
@@ -131,20 +141,21 @@ pub fn check_coverage() -> Vec<&'static str> {
         "cli-reference",
         "api-reference",
         "migration",
+        "ground-station",
     ];
 
     let mut missing = Vec::new();
     for topic in required_topics {
         if !documented.contains(&topic) {
-            missing.push(topic);
+            missing.push(topic.to_string());
         }
     }
 
     // Also check that each subcommand is mentioned in the CLI reference
     let cli_ref = get_topic("cli-reference").unwrap_or("");
-    for cmd in expected_docs {
-        if !cli_ref.contains(cmd) {
-            missing.push(cmd);
+    for cmd in &expected_docs {
+        if !cli_ref.contains(cmd.as_str()) {
+            missing.push(cmd.clone());
         }
     }
 

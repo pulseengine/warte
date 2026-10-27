@@ -70,6 +70,27 @@ pub enum Commands {
         path: String,
     },
 
+    /// Run the ground station: CCSDS telemetry from the smithy agent in, hub API out
+    ///
+    /// Same flags and data-dir layout as `smithy hub`, so it replaces it in place.
+    Hub {
+        /// HTTP listen address (keep it on loopback behind Caddy)
+        #[arg(long, default_value = "0.0.0.0:8091")]
+        http: String,
+        /// UDP telemetry listen address
+        #[arg(long, default_value = "0.0.0.0:8092")]
+        udp: String,
+        /// Source address allowed to send telemetry (repeatable), e.g. the CI host's tunnel IP
+        #[arg(long, required = true)]
+        allow: Vec<std::net::IpAddr>,
+        /// Hub state directory (hub-state.json + ledger/)
+        #[arg(long, default_value = "/var/lib/smithy-hub")]
+        data_dir: String,
+        /// GitHub org the agent scans (qualifies repo names in /api/eta)
+        #[arg(long, default_value = "pulseengine")]
+        org: String,
+    },
+
     /// Manage artifacts
     Artifact {
         #[command(subcommand)]

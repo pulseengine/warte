@@ -224,6 +224,20 @@ async fn main() -> anyhow::Result<()> {
             }
         }
 
+        Commands::Hub {
+            http,
+            udp,
+            allow,
+            data_dir,
+            org,
+        } => {
+            let hub = warte::hub::Hub::open(&data_dir, &org).map_err(anyhow::Error::msg)?;
+            hub.spawn_ingest(&udp, allow).map_err(anyhow::Error::msg)?;
+            let listener = tokio::net::TcpListener::bind(&http).await?;
+            tracing::info!(%http, %udp, %data_dir, "ground station up");
+            axum::serve(listener, hub.router()).await?;
+        }
+
         Commands::Docs { topic, check } => {
             if check {
                 if !warte::docs::run_check() {
