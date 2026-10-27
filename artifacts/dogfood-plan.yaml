@@ -3,7 +3,7 @@ artifacts:
   - id: REQ-CI-001
     type: requirement
     title: CI installs rivet from pulseengine/rivet git at a pinned revision
-    status: approved
+    status: implemented
     release: v1.3.1
     description: Every CI and release job that runs rivet SHALL install it from github.com/pulseengine/rivet at a pinned revision matching the varve layer (rivet-cli package, rivet binary, locked). No job SHALL install a crate named rivet-cli or varve-cli from crates.io. A failed install SHALL fail the job.
     fields:
@@ -19,9 +19,9 @@ artifacts:
   - id: REQ-CI-002
     type: requirement
     title: Release gate evaluates the tag being cut and fails closed
-    status: approved
+    status: implemented
     release: v1.3.1
-    description: The release V-model gate SHALL run the pinned rivet's release status for the exact tag being released and SHALL fail the release when the verdict is not Cuttable or rivet exits non-zero. The main-branch readiness check SHALL NOT be masked by an always-true fallback.
+    description: The release V-model gate SHALL run the pinned rivet's release status for the exact tag being released and SHALL fail the release on rivet's exit code (non-zero unless Cuttable). No CI step SHALL mask a rivet or toolchain step with an always-true fallback; the former main-branch 'release status v0.1.0 || true' job is removed.
     fields:
       category: constraint
       corrective: true
@@ -34,10 +34,10 @@ artifacts:
 
   - id: REQ-CI-003
     type: requirement
-    title: Linux CI jobs run on the smithy self-hosted runner pools
-    status: approved
+    title: CI jobs run on smithy; fork PRs and release jobs run on GitHub-hosted runners
+    status: implemented
     release: v1.3.1
-    description: "warte's Linux CI jobs SHALL run on the smithy runners: build, test, clippy and rivet on [self-hosted, linux, x64, rust-cpu]; small glue jobs on [self-hosted, linux, x64, light]. macOS builds stay on GitHub-hosted runners."
+    description: warte's CI jobs (build, test, clippy, rivet) SHALL run on the smithy rust-cpu pool [self-hosted, linux, x64, rust-cpu]. Pull requests from forks SHALL run on GitHub-hosted runners, so untrusted code never executes on the shared persistent pool. Release jobs (gate, build, sign, publish) SHALL run on ephemeral GitHub-hosted runners. Tools a job relies on SHALL be installed job-scoped ($RUNNER_TEMP), never reused from a persistent $HOME, and third-party actions SHALL be pinned to a commit SHA.
     fields:
       category: non-functional
       priority: should
@@ -50,7 +50,7 @@ artifacts:
   - id: REQ-RELEASE-003
     type: requirement
     title: Release metadata lives in CHANGELOG and release assets, not the repo root
-    status: approved
+    status: implemented
     release: v1.3.1
     description: Release notes SHALL be kept in CHANGELOG.md and checksums SHALL ship only as release assets. Cargo.toml's version SHALL equal the release tag, and release CI SHALL assert that warte --version reports it.
     fields:
@@ -69,7 +69,7 @@ artifacts:
     release: v1.3.1
     description: Install rivet with cargo install --locked --git https://github.com/pulseengine/rivet --rev <rev> --bin rivet rivet-cli, cache the binary keyed on the rev (the spar/gale pattern), and run Linux jobs on the smithy pools.
     fields:
-      rationale: "The crates.io rivet-cli is a different project (panchenkoai/rivet), so every rivet gate ran a foreign binary and went red (#34). Pinning the git rev to the varve layer's rivet (v0.41.1) keeps CI and local runs on the same tool. Smithy runners are the org's CI fleet that warte monitors (#35). Rejected: varve in CI, because I couldn't find a CI install path for varve; revisit once one exists."
+      rationale: "The crates.io rivet-cli is a different project (panchenkoai/rivet), so every rivet gate ran a foreign binary and went red (#34). Pinning the git rev to the varve layer's rivet (v0.41.1) keeps CI and local runs on the same tool. CI runs on smithy, the fleet warte monitors (#35). Security: smithy runners are persistent and shared, so a tool left in $HOME by one job could be poisoned for the next. rivet is therefore installed into $RUNNER_TEMP from this repo's cache or the pinned rev; fork PRs go to GitHub-hosted runners; release jobs, which hold cosign OIDC and publish rights, stay on ephemeral GitHub-hosted runners; third-party actions are SHA-pinned. Rejected: varve in CI, because I found no CI install path for it; revisit once one exists."
     links:
       - type: satisfies
         target: REQ-CI-001

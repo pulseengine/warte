@@ -10,68 +10,96 @@ on:
         description: 'Version to release (e.g., 0.2.0)'
         required: true
 
+defaults:
+  run:
+    shell: bash
+
 env:
   CARGO_TERM_COLOR: always
+  # rivet v0.41.1 — must match ci.yml (tests/ci_workflows.rs checks this).
+  RIVET_REV: 29ca43828c8060af135fcd47ecff4c48662d1567
+  TAG: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', inputs.version) || github.ref_name }}
 
+# Release jobs sign (cosign/OIDC) and publish, so they run on ephemeral
+# GitHub-hosted runners, never on the shared smithy pool that also runs PR code.
 jobs:
   release-gate:
     name: V-model traceability gate
     runs-on: ubuntu-latest
-    outputs:
-      cuttable: ${{ steps.gate.outputs.cuttable }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install rivet
-        run: cargo install rivet-cli --locked 2>/dev/null || cargo install --git https://github.com/pulseengine/rivet --locked
-
-      - name: Check release readiness
-        id: gate
-        run: |
-          TAG="v${GITHUB_REF_NAME#v}"
-          if rivet release status "$TAG" 2>&1 | grep -q "Cuttable"; then
-            echo "cuttable=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "cuttable=false" >> "$GITHUB_OUTPUT"
-            echo "Release $TAG is not cuttable — V-model gate failed"
-            exit 1
-          fi
-
-  build:
-    name: Build release artifacts
-    needs: release-gate
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-        include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-          - os: macos-latest
-            target: aarch64-apple-darwin
     steps:
       - uses: actions/checkout@v4
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
+          toolchain: stable
+
+      - name: Cache rivet binary
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/rivet
+          key: rivet-${{ runner.os }}-${{ env.RIVET_REV }}
+
+      # Job-scoped install: never trust a rivet left in $HOME by an earlier job
+      # on a persistent runner. Restored from this repo's cache or rebuilt from
+      # the pinned rev, then checked before it goes on PATH.
+      - name: Install rivet (pinned rev, job-scoped)
+        run: |
+          ROOT="$RUNNER_TEMP/rivet"
+          if [ ! -x "$ROOT/bin/rivet" ]; then
+            cargo install --locked --git https://github.com/pulseengine/rivet \
+              --rev "$RIVET_REV" \
+              --root "$ROOT" \
+              --bin rivet \
+              rivet-cli
+          fi
+          "$ROOT/bin/rivet" --version | grep -q "^rivet 0.41.1 (${RIVET_REV:0:8}"
+          echo "$ROOT/bin" >> "$GITHUB_PATH"
+
+      # rivet exits non-zero unless every artifact scoped to this release is verified.
+      - name: Check release readiness
+        run: rivet release status "$TAG"
+
+  build:
+    name: Build release artifacts
+    needs: release-gate
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            asset: linux-amd64
+          - runner: macos-latest
+            target: aarch64-apple-darwin
+            asset: macos-arm64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
           targets: ${{ matrix.target }}
 
       - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
 
       - name: Build release
         run: cargo build --release --target ${{ matrix.target }}
 
+      - name: Check binary version equals tag
+        run: |
+          got="$("target/${{ matrix.target }}/release/warte" --version)"
+          if [ "$got" != "warte ${TAG#v}" ]; then
+            echo "warte --version reports '$got', expected 'warte ${TAG#v}'"
+            exit 1
+          fi
+
       - name: Package binary
         run: |
-          TAG="${GITHUB_REF_NAME#v}"
-          mkdir -p "dist/v${TAG}"
-          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
-            cp "target/${{ matrix.target }}/release/warte" "dist/v${TAG}/warte-${TAG}-linux-amd64"
-          else
-            cp "target/${{ matrix.target }}/release/warte" "dist/v${TAG}/warte-${TAG}-macos-arm64"
-          fi
+          mkdir -p dist
+          cp "target/${{ matrix.target }}/release/warte" "dist/warte-${TAG#v}-${{ matrix.asset }}"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -91,7 +119,7 @@ jobs:
 
       - name: Generate SHA256SUMS
         run: |
-          cd dist/*/
+          cd dist
           sha256sum warte-* > SHA256SUMS
           cat SHA256SUMS
 
@@ -99,7 +127,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: checksums
-          path: dist/*/SHA256SUMS
+          path: dist/SHA256SUMS
 
   sbom:
     name: Generate SBOM
@@ -109,7 +137,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
 
       - name: Install cargo-cyclonedx
         run: cargo install cargo-cyclonedx --locked
@@ -138,17 +168,17 @@ jobs:
           merge-multiple: true
 
       - name: Install cosign
-        uses: sigstore/cosign-installer@v3
+        uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
 
       - name: Sign SHA256SUMS
         run: |
-          cosign sign-blob --yes dist/*/SHA256SUMS > dist/SHA256SUMS.sig
+          cosign sign-blob --yes --bundle dist/SHA256SUMS.cosign.bundle dist/SHA256SUMS
 
       - name: Upload signature
         uses: actions/upload-artifact@v4
         with:
           name: signatures
-          path: dist/SHA256SUMS.sig
+          path: dist/SHA256SUMS.cosign.bundle
 
   release:
     name: Create GitHub release
@@ -163,11 +193,12 @@ jobs:
           merge-multiple: true
 
       - name: Create release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           files: |
             release-artifacts/warte-*
             release-artifacts/SHA256SUMS
             release-artifacts/sbom.json
-            release-artifacts/SHA256SUMS.sig
+            release-artifacts/SHA256SUMS.cosign.bundle
+          fail_on_unmatched_files: true
           generate_release_notes: true
