@@ -30,14 +30,23 @@ bin=target/$TARGET/release/warte
 ver=$("$bin" --version 2>/dev/null || true)
 echo "built $sha (${ver:-cross binary})"
 
-scp -q "$bin" "$HOST:/tmp/warte-$sha"
-ssh "$HOST" "sudo -n bash -s" -- "$sha" "$CI_HOST_IP" <<'REMOTE'
+want=$(shasum -a 256 "$bin" | cut -d' ' -f1)
+# Streamed over the sudo session into a root-owned directory: the binary never
+# sits in a world-writable place (no /tmp) between upload and install.
+ssh "$HOST" "sudo -n sh -c 'install -d -m 755 /usr/local/lib/warte && umask 022 && cat > /usr/local/lib/warte/.incoming-$sha'" < "$bin"
+ssh "$HOST" "sudo -n bash -s" -- "$sha" "$CI_HOST_IP" "$want" <<'REMOTE'
 set -euo pipefail
-sha=$1; ci_host_ip=$2
+sha=$1; ci_host_ip=$2; want=$3
 
-install -d -m 755 /usr/local/lib/warte
-install -m 755 "/tmp/warte-$sha" "/usr/local/lib/warte/warte-$sha"
-rm -f "/tmp/warte-$sha"
+incoming=/usr/local/lib/warte/.incoming-$sha
+got=$(sha256sum "$incoming" | cut -d' ' -f1)
+if [ "$got" != "$want" ]; then
+  rm -f "$incoming"
+  echo "sha256 mismatch: built $want, received $got" >&2
+  exit 1
+fi
+chmod 755 "$incoming"
+mv -f "$incoming" "/usr/local/lib/warte/warte-$sha"
 ln -sfn "/usr/local/lib/warte/warte-$sha" /usr/local/bin/warte
 
 # --- first-time setup -------------------------------------------------------
@@ -48,17 +57,23 @@ if [ ! -d /var/lib/warte/hub ]; then
   cp -a /var/lib/smithy-hub /var/lib/warte/hub
   chown -R warte:warte /var/lib/warte/hub
 fi
+lan_ip=$(ip -4 -o addr show dev eth0 | awk '{print $4}' | cut -d/ -f1 | head -1)
 if [ ! -f /var/lib/warte/warte.toml ]; then
   cat > /var/lib/warte/warte.toml <<EOF
 bind = "127.0.0.1:8080"
 
 [hub]
-# smithy-hub keeps :8092; warte listens on :8094 for the parallel run
-udp = "0.0.0.0:8094"
+# smithy-hub keeps :8092; warte listens on :8094 for the parallel run.
+# Source-IP allow-listing is spoofable (warte#41): LAN address only, not 0.0.0.0.
+udp = "$lan_ip:8094"
 allow = ["$ci_host_ip"]
 data_dir = "/var/lib/warte/hub"
 EOF
   chown warte:warte /var/lib/warte/warte.toml
+fi
+# migrate an earlier config that listened on every interface
+if grep -q '^udp = "0.0.0.0:8094"' /var/lib/warte/warte.toml; then
+  sed -i "s|^udp = \"0.0.0.0:8094\"|udp = \"$lan_ip:8094\"|" /var/lib/warte/warte.toml
 fi
 cat > /etc/systemd/system/warte.service <<'EOF'
 [Unit]
@@ -94,8 +109,12 @@ s = open(p).read()
 # drop the earlier :8443 site
 s = re.sub(r'\n# warte: PulseEngine control tower[^\n]*\nfourpi\.local:8443 \{.*?\n\}\n', '\n', s, flags=re.S)
 route = ('\t# warte: PulseEngine control tower (latest main)\n'
+         '\t# its read API is unauthenticated (agent data, access lists, downloads):\n'
+         '\t# private-network clients only\n'
          '\tredir /warte /warte/\n'
          '\thandle_path /warte/* {\n'
+         '\t\t@outside not remote_ip private_ranges\n'
+         '\t\trespond @outside "forbidden" 403\n'
          '\t\treverse_proxy localhost:8080\n'
          '\t}\n')
 if 'handle_path /warte/*' not in s:
