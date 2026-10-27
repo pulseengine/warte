@@ -266,8 +266,9 @@ fn runners(text: &str) -> Vec<String> {
         .collect()
 }
 
-/// smithy's rust-cpu pool, with fork PRs sent to a GitHub-hosted runner so
-/// untrusted code never runs on the shared persistent pool.
+/// smithy's rust-cpu pool, with fork PRs routed to a GitHub-hosted runner by
+/// default. Routing only: a fork PR can edit the workflow, so isolation itself
+/// is the org's runner-group policy and fork-PR approval, not this expression.
 const SMITHY_CPU_FORK_GUARDED: &str = "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || fromJSON('[\"self-hosted\",\"linux\",\"x64\",\"rust-cpu\"]') }}";
 
 // rivet: verifies REQ-CI-003
@@ -298,6 +299,13 @@ fn release_jobs_run_on_github_hosted_runners() {
         !text.contains("self-hosted"),
         "release.yml signs and publishes; it must not run on the shared self-hosted pool"
     );
+    for cache in ["actions/cache@", "Swatinem/rust-cache@"] {
+        assert!(
+            !text.contains(cache),
+            "release.yml must restore no caches ({cache}): main's smithy runs write \
+             caches a tag run could restore"
+        );
+    }
     assert!(!runners(&text).is_empty(), "release.yml has no runs-on");
 }
 

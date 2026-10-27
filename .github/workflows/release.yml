@@ -21,7 +21,8 @@ env:
   TAG: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', inputs.version) || github.ref_name }}
 
 # Release jobs sign (cosign/OIDC) and publish, so they run on ephemeral
-# GitHub-hosted runners, never on the shared smithy pool that also runs PR code.
+# GitHub-hosted runners, never on the shared smithy pool, and restore no caches
+# (a cache written by a smithy run on main would otherwise reach a tag run).
 jobs:
   release-gate:
     name: V-model traceability gate
@@ -34,25 +35,17 @@ jobs:
         with:
           toolchain: stable
 
-      - name: Cache rivet binary
-        uses: actions/cache@v4
-        with:
-          path: ${{ runner.temp }}/rivet
-          key: rivet-${{ runner.os }}-${{ env.RIVET_REV }}
-
-      # Job-scoped install: never trust a rivet left in $HOME by an earlier job
-      # on a persistent runner. Restored from this repo's cache or rebuilt from
-      # the pinned rev, then checked before it goes on PATH.
-      - name: Install rivet (pinned rev, job-scoped)
+      # No cache here: main's CI runs on the shared smithy pool and writes caches
+      # a tag run could restore. The release gate always builds rivet from the
+      # pinned rev.
+      - name: Install rivet (pinned rev, job-scoped, uncached)
         run: |
           ROOT="$RUNNER_TEMP/rivet"
-          if [ ! -x "$ROOT/bin/rivet" ]; then
-            cargo install --locked --git https://github.com/pulseengine/rivet \
-              --rev "$RIVET_REV" \
-              --root "$ROOT" \
-              --bin rivet \
-              rivet-cli
-          fi
+          cargo install --locked --git https://github.com/pulseengine/rivet \
+            --rev "$RIVET_REV" \
+            --root "$ROOT" \
+            --bin rivet \
+            rivet-cli
           "$ROOT/bin/rivet" --version | grep -q "^rivet 0.41.1 (${RIVET_REV:0:8}"
           echo "$ROOT/bin" >> "$GITHUB_PATH"
 
@@ -81,9 +74,6 @@ jobs:
         with:
           toolchain: stable
           targets: ${{ matrix.target }}
-
-      - name: Cache cargo
-        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
 
       - name: Build release
         run: cargo build --release --target ${{ matrix.target }}

@@ -37,7 +37,7 @@ artifacts:
     title: CI jobs run on smithy; fork PRs and release jobs run on GitHub-hosted runners
     status: implemented
     release: v1.3.1
-    description: warte's CI jobs (build, test, clippy, rivet) SHALL run on the smithy rust-cpu pool [self-hosted, linux, x64, rust-cpu]. Pull requests from forks SHALL run on GitHub-hosted runners, so untrusted code never executes on the shared persistent pool. Release jobs (gate, build, sign, publish) SHALL run on ephemeral GitHub-hosted runners. Tools a job relies on SHALL be installed job-scoped ($RUNNER_TEMP), never reused from a persistent $HOME, and third-party actions SHALL be pinned to a commit SHA.
+    description: "warte's CI jobs (build, test, clippy, rivet) SHALL run on the smithy rust-cpu pool [self-hosted, linux, x64, rust-cpu], with pull requests from forks routed to GitHub-hosted runners by default. Release jobs (gate, build, sign, publish) SHALL run on ephemeral GitHub-hosted runners and SHALL restore no caches. Tools a job relies on SHALL be installed job-scoped ($RUNNER_TEMP), never reused from a persistent $HOME, and third-party actions SHALL be pinned to a commit SHA. The fork routing is not a security boundary (a fork PR can edit the workflow): isolation of the smithy pool from untrusted code SHALL be enforced by the org runner-group policy and fork-PR approval."
     fields:
       category: non-functional
       priority: should
@@ -69,7 +69,7 @@ artifacts:
     release: v1.3.1
     description: Install rivet with cargo install --locked --git https://github.com/pulseengine/rivet --rev <rev> --bin rivet rivet-cli, cache the binary keyed on the rev (the spar/gale pattern), and run Linux jobs on the smithy pools.
     fields:
-      rationale: "The crates.io rivet-cli is a different project (panchenkoai/rivet), so every rivet gate ran a foreign binary and went red (#34). Pinning the git rev to the varve layer's rivet (v0.41.1) keeps CI and local runs on the same tool. CI runs on smithy, the fleet warte monitors (#35). Security: smithy runners are persistent and shared, so a tool left in $HOME by one job could be poisoned for the next. rivet is therefore installed into $RUNNER_TEMP from this repo's cache or the pinned rev; fork PRs go to GitHub-hosted runners; release jobs, which hold cosign OIDC and publish rights, stay on ephemeral GitHub-hosted runners; third-party actions are SHA-pinned. Rejected: varve in CI, because I found no CI install path for it; revisit once one exists."
+      rationale: "The crates.io rivet-cli is a different project (panchenkoai/rivet), so every rivet gate ran a foreign binary and went red (#34). Pinning the git rev to the varve layer's rivet (v0.41.1) keeps CI and local runs on the same tool. CI runs on smithy, the fleet warte monitors (#35). Security: smithy runners are persistent and shared. So rivet is installed into $RUNNER_TEMP, never from $HOME; release jobs (cosign OIDC, publish rights) run on ephemeral GitHub-hosted runners and restore no caches, because main's smithy runs write caches a tag run could restore; third-party actions are SHA-pinned. Fork PRs are routed to GitHub-hosted runners, but that is routing, not isolation: on pull_request a fork can edit the workflow, so the boundary is the org runner-group policy plus fork-PR approval (an org-admin setting outside this repo). Rejected: varve in CI, because I found no CI install path for it; revisit once one exists."
     links:
       - type: satisfies
         target: REQ-CI-001

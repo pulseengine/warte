@@ -6,7 +6,7 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 - CI installs rivet from `pulseengine/rivet` git at a pinned rev (v0.41.1, matching the varve layer). It used to install crates.io `rivet-cli`, which is a different project (#34).
 - The release gate runs `rivet release status` for the tag being cut and fails on rivet's exit code (#34).
-- CI jobs (build, test, clippy, rivet) run on the smithy `rust-cpu` pool. Pull requests from forks and all release jobs run on GitHub-hosted runners, because the smithy runners are persistent and shared (#35).
+- CI jobs (build, test, clippy, rivet) run on the smithy `rust-cpu` pool. Pull requests from forks are routed to GitHub-hosted runners. That is routing, not isolation: a fork PR can edit the workflow, so the smithy runner-group policy and fork-PR approval are the actual boundary. All release jobs run on GitHub-hosted runners and restore no caches (#35).
 - rivet is installed into a job-scoped `$RUNNER_TEMP` directory and never reused from `$HOME`; third-party actions are pinned to commit SHAs; workflows default to `bash`.
 - Release assets: binaries, `SHA256SUMS` and the cosign bundle are now laid out flat, so signing and the GitHub release find them. Before this, every Release workflow run (v1.0.0–v1.3.0) failed, and the published releases have no assets. A missing asset now fails the release (`fail_on_unmatched_files`).
 - `tests/ci_workflows.rs` checks all of the above from the parsed workflow YAML; each check was confirmed to fail on an injected violation.
