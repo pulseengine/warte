@@ -179,6 +179,59 @@ impl CiPoller {
             if let Err(e) = result {
                 tracing::warn!(repo = %repo.full_name, error = %e, "failed to update ci_status");
             }
+
+            // Track job state transitions for measured wait recording (REQ-POLLER-002)
+            let job_key = format!(
+                "{}:{}",
+                repo.full_name,
+                repo.run_url.as_deref().unwrap_or("")
+            );
+            let current_status = ci_status.to_string();
+            let now = Utc::now();
+
+            let mut states = self.last_states.write().await;
+            if let Some((prev_status, prev_time)) = states.get(&job_key) {
+                // Detect queued → in_progress transition
+                if prev_status == "pending" && current_status == "green" || current_status == "red"
+                {
+                    if let Some(queued_at) = prev_time {
+                        let wait_seconds = (now - *queued_at).num_seconds().max(0) as u64;
+                        let wait_id = uuid::Uuid::now_v7().to_string();
+                        let wait_result = sqlx::query(
+                            r#"
+                            INSERT INTO wait_history
+                                (id, repo, pr_number, runner_pool, queued_at, started_at, wait_seconds, recorded_at)
+                            VALUES (?, ?, NULL, 'polled', ?, ?, ?, ?)
+                            "#,
+                        )
+                        .bind(&wait_id)
+                        .bind(&repo.full_name)
+                        .bind(queued_at.to_rfc3339())
+                        .bind(now.to_rfc3339())
+                        .bind(wait_seconds as i64)
+                        .bind(now.to_rfc3339())
+                        .execute(&self.pool)
+                        .await;
+
+                        if let Err(e) = wait_result {
+                            tracing::warn!(repo = %repo.full_name, error = %e, "failed to record wait");
+                        } else {
+                            tracing::debug!(
+                                repo = %repo.full_name,
+                                wait_seconds = wait_seconds,
+                                "measured wait recorded from poller"
+                            );
+                        }
+                    }
+                }
+            }
+            // Update last known state
+            let timestamp = if current_status == "pending" {
+                Some(now)
+            } else {
+                None
+            };
+            states.insert(job_key, (current_status, timestamp));
         }
     }
 }

@@ -174,7 +174,7 @@ artifacts:
     type: requirement
     title: Mobile control uses mutual TLS with device-bound certificates
     status: draft
-    release: v1.0.0
+    release: v1.1.0
     description: >
       The mobile control channel (Android/iOS) SHALL use mutual TLS with
       device-bound client certificates. The client certificate SHALL be
@@ -190,7 +190,7 @@ artifacts:
     type: requirement
     title: Mobile commands require operator biometric authentication
     status: draft
-    release: v1.0.0
+    release: v1.1.0
     description: >
       Every control command issued via the mobile client SHALL require operator
       authentication via biometric (fingerprint/face) or hardware token (YubiKey).
@@ -205,7 +205,7 @@ artifacts:
     type: requirement
     title: Mobile client shows real-time system status
     status: draft
-    release: v1.0.0
+    release: v1.1.0
     description: >
       The mobile client SHALL display real-time system status (agent health,
       CI status, access rights, alerts) with freshness indicators. Status
@@ -525,6 +525,26 @@ artifacts:
     status: accepted
     release: v0.9.0
     description: "The dashboard navigation SHALL include buttons for all 11 views: Overview, Ask, Queue, Critical Path, Resources, Outages, Friction, Schedule, Health, Agents, Artifacts. Each button SHALL load the corresponding HTMX partial via hx-get. The active button SHALL be highlighted. The navigation SHALL be responsive (collapsible on mobile)."
+    links:
+      - type: satisfies
+        target: SC-006
+
+  - id: REQ-DASH-011
+    type: requirement
+    title: Hardware availability in queue view — boards free/claimed, by whom, since when
+    status: accepted
+    release: v1.0.0
+    description: "The queue view SHALL show hardware availability: which boards are free, which are claimed, by which agent, since when, for how long. Data source: agent_data where data_type = 'hardware-claim'. The view SHALL show a table of boards with status (FREE/CLAIMED), agent, and duration. The view SHALL use SSE for real-time updates and show freshness indicators."
+    links:
+      - type: satisfies
+        target: SC-006
+
+  - id: REQ-POLLER-002
+    type: requirement
+    title: Poller measured wait recording — record queued → started transitions from polling
+    status: accepted
+    release: v1.0.0
+    description: The CI status poller SHALL record measured waits (queued_at → started_at) in the wait_history table when it detects a job transitioning from queued to in_progress. The poller SHALL track the last known state of each job (by repo + run_id) and compute the wait time when the job starts. This complements the webhook-based wait recording (which is more precise but requires webhook configuration).
     links:
       - type: satisfies
         target: SC-006

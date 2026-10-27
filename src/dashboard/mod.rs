@@ -278,16 +278,62 @@ pub async fn queue_partial(State(state): State<crate::server::AppState>) -> Resp
         )
     };
 
+    // Get hardware claims from agent_data
+    let hw_claims: Vec<(String, String, String)> = sqlx::query_as(
+        r#"
+        SELECT agent_id, content, captured_at FROM agent_data
+        WHERE data_type = 'hardware-claim'
+        ORDER BY captured_at DESC
+        LIMIT 20
+        "#,
+    )
+    .fetch_all(state.db.pool())
+    .await
+    .unwrap_or_default();
+
+    let hw_table: String = if hw_claims.is_empty() {
+        r#"<p class="empty">No hardware claims. All boards available.</p>"#.to_string()
+    } else {
+        let rows: String = hw_claims
+            .iter()
+            .map(|(agent_id, content, captured_at)| {
+                let duration = chrono::DateTime::parse_from_rfc3339(captured_at)
+                    .ok()
+                    .map(|t| {
+                        let elapsed = chrono::Utc::now() - t.with_timezone(&chrono::Utc);
+                        format!("{}h {}m", elapsed.num_hours(), elapsed.num_minutes() % 60)
+                    })
+                    .unwrap_or_else(|| "unknown".to_string());
+                format!(
+                    r#"<tr><td><span class="badge red">CLAIMED</span></td><td><code>{}</code></td><td>{}</td><td>{}</td></tr>"#,
+                    content,
+                    &agent_id[..8.min(agent_id.len())],
+                    duration,
+                )
+            })
+            .collect();
+        format!(
+            r#"<table class="data-table">
+  <thead><tr><th>Status</th><th>Board</th><th>Agent</th><th>Duration</th></tr></thead>
+  <tbody>{}</tbody>
+</table>"#,
+            rows
+        )
+    };
+
     let html = format!(
         r#"<div class="queue-view">
   <h2>Queue</h2>
   <div class="stat-cards">{}</div>
   <h3>Waiting Jobs</h3>
   {}
+  <h3>Hardware Availability</h3>
+  {}
   <p class="freshness">Last updated: {} <span class="freshness-badge green">fresh</span></p>
 </div>"#,
         pool_cards,
         waiting_table,
+        hw_table,
         chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC"),
     );
 
