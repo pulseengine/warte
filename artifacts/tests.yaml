@@ -454,3 +454,13 @@ artifacts:
         target: REQ-DASH-009
       - type: verifies
         target: REQ-DASH-010
+
+  - id: TEST-DASH-008
+    type: verification
+    title: Hardware availability in queue view — boards CLAIMED/FREE, agent, duration
+    status: draft
+    release: v1.0.0
+    description: "Queue view verification: hardware availability table added to queue_partial. Shows boards with status (CLAIMED badge), board name (from agent_data content), agent ID, and duration (hours/minutes since claim). Data source: agent_data where data_type = 'hardware-claim'. Empty state: 'No hardware claims. All boards available.' Freshness indicator included."
+    links:
+      - type: verifies
+        target: REQ-DASH-011
