@@ -252,7 +252,7 @@ artifacts:
     release: v1.4.0
     description: "warte becomes the ground station. It receives the smithy agent's CCSDS telemetry over UDP (relay-ccsds), keeps the per-day JSONL ledger and hub state, computes ETA from measured waits, and serves the hub's API. The smithy agent stays on the CI host. warte's own poller, CI webhooks, eta module and SQLite telemetry tables are removed. Cut-over: run side by side (agent sends to both), compare /api/eta and /status.md, then retire smithy-hub.service on fourpi."
     fields:
-      rationale: "Decided by the project owner on 2026-10-27 (#36): one control tower instead of two dashboards. smithy hub is live and measured (14 runners, 35-day ledger, ETA from measured pool waits), while warte's copy was unit-tested only. Absorbing the hub's code and formats, instead of re-deriving them, keeps the measured behaviour. Its ledger also gives warte telemetry storage that needs no SQL. License note: smithy is Apache-2.0 and warte is MIT; code moved across needs Apache-2.0 attribution or an owner relicense."
+      rationale: "Decided by the project owner on 2026-10-27 (#36): one control tower instead of two dashboards. smithy hub is live and measured (14 runners, 35-day ledger, ETA from measured pool waits), while warte's copy was unit-tested only. Absorbing the hub's code and formats, instead of re-deriving them, keeps the measured behaviour. Its ledger also gives warte telemetry storage that needs no SQL. Licensing: both are PulseEngine-owned and Apache-2.0 (DD-LICENSE-001), so hub code moves across unchanged."
     links:
       - type: satisfies
         target: REQ-SMITHY-001
@@ -270,3 +270,35 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-10-27T19:36:18Z
+
+  - id: DD-LICENSE-001
+    type: design-decision
+    title: warte is licensed Apache-2.0, the PulseEngine default
+    status: approved
+    release: v1.3.1
+    description: "warte moves from MIT to Apache-2.0: LICENSE (the same text as pulseengine/relay), Cargo.toml license = \"Apache-2.0\", and README. tests/license.rs checks that the three agree."
+    fields:
+      rationale: "Project owner, 2026-10-27: everything is PulseEngine-owned and Apache-2.0 is the default for all repos. warte had declared MIT with no LICENSE file at all. Apache-2.0 matches smithy, relay, varve, rivet and the other core tools, so smithy hub's code can move into warte without a cross-license step (DD-SMITHY-001), and it adds an explicit patent grant."
+    links:
+      - type: traces-to
+        target: DD-SMITHY-001
+      - type: satisfies
+        target: REQ-RELEASE-004
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-27T19:41:10Z
+
+  - id: REQ-RELEASE-004
+    type: requirement
+    title: warte is distributed under Apache-2.0, declared consistently
+    status: implemented
+    release: v1.3.1
+    description: warte SHALL be licensed Apache-2.0, the PulseEngine default. The LICENSE file, the Cargo.toml license field and the README SHALL agree, and a test SHALL fail if they diverge.
+    fields:
+      category: constraint
+      priority: must
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-27T19:41:29Z

@@ -9,6 +9,7 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 - CI jobs (build, test, clippy, rivet) run on the smithy `rust-cpu` pool. Pull requests from forks are routed to GitHub-hosted runners. That is routing, not isolation: a fork PR can edit the workflow, so the smithy runner-group policy and fork-PR approval are the actual boundary. All release jobs run on GitHub-hosted runners and restore no caches (#35).
 - rivet is installed into a job-scoped `$RUNNER_TEMP` directory and never reused from `$HOME`; third-party actions are pinned to commit SHAs; workflows default to `bash`.
 - Release assets: binaries, `SHA256SUMS` and the cosign bundle are now laid out flat, so signing and the GitHub release find them. Before this, every Release workflow run (v1.0.0–v1.3.0) failed, and the published releases have no assets. A missing asset now fails the release (`fail_on_unmatched_files`).
+- License changed from MIT to **Apache-2.0**, the PulseEngine default; `LICENSE` added (there was none before). This also lets smithy hub's code move into warte unchanged (v1.4.0).
 - `tests/ci_workflows.rs` checks all of the above from the parsed workflow YAML; each check was confirmed to fail on an injected violation.
 - Release notes moved from 13 root `RELEASE_NOTES_*` files into this changelog; root `SHA256SUMS*` files removed (they ship as release assets). `Cargo.toml` version now follows the release, and release CI checks that `warte --version` reports the tag (#39).
 
