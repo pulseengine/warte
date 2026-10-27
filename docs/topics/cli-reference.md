@@ -38,6 +38,6 @@ warte status --format json
 warte agents --health unhealthy
 warte access grant <agent-id> --rights "artifacts:download"
 warte migrate smithy --path /data/smithy
-warte hub --http 127.0.0.1:8091 --udp 0.0.0.0:8092 --allow <ci-host-tunnel-ip> --data-dir /var/lib/smithy-hub
+warte hub --udp <wireguard-address>:8092 --allow <ci-host-tunnel-ip> --data-dir /var/lib/smithy-hub
 warte docs architecture
 ```

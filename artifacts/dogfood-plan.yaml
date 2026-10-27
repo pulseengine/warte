@@ -302,3 +302,43 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-10-27T19:41:29Z
+
+  - id: AST-007
+    type: asset
+    title: CI fleet telemetry and ledger (ground station state)
+    status: draft
+    description: hub-state.json (latest snapshot, per-minute history) and the per-day JSONL ledger of finished jobs, fed by the smithy agent's CCSDS telemetry. Agents schedule work on /api/eta answered from it; the monthly report is computed from it.
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-27T20:31:45Z
+
+  - id: TS-007
+    type: threat-scenario
+    title: Attacker spoofs the CI host's source address and injects telemetry
+    status: draft
+    description: "Anyone who can reach the ground station's UDP port forges datagrams with the allow-listed source address (UDP source addresses are not authenticated). Forged snapshots make /api/eta and status.md lie to agents; forged ledger records skew the monthly report or pre-empt real job ids. Inherited from smithy hub. Partial mitigations in place: ledger values bounded (belt::plausible), --udp has no default, docs require binding the WireGuard address. Full mitigation: packet authentication (#41)."
+    fields:
+      attack-feasibility: medium
+      attack-vector: adjacent
+      impact: moderate
+    links:
+      - type: threatens
+        target: AST-007
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-27T20:31:45Z
+
+  - id: CG-007
+    type: cybersecurity-goal
+    title: Ground-station telemetry is authenticated, not just source-filtered
+    status: draft
+    description: The ground station SHALL accept a telemetry packet only if it carries a valid MAC under a key shared with the CI host (#41). Until then, the UDP listener SHALL be bound to the WireGuard interface and firewalled to the tunnel.
+    links:
+      - type: mitigates
+        target: TS-007
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-27T20:31:45Z

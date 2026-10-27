@@ -22,16 +22,17 @@ pub mod parse;
 pub mod report;
 pub mod telemetry;
 
-use axum::extract::{RawQuery, State};
-use axum::http::{header, StatusCode};
+use axum::extract::{RawQuery, Request, State};
+use axum::http::{header, Method, StatusCode};
+use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::Router;
 use model::{Point, Snapshot};
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
-use std::net::{IpAddr, UdpSocket};
-use std::sync::{Arc, Mutex};
+use std::net::{IpAddr, SocketAddr, UdpSocket};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{SystemTime, UNIX_EPOCH};
 use telemetry::{apid_name, Assembler};
 
@@ -43,6 +44,18 @@ pub const UPSTREAM: &str =
 const HISTORY_MAX: usize = 7 * 24 * 60;
 pub const INDEX: &str = include_str!("web/index.html");
 pub const OPENAPI: &str = include_str!("web/openapi.json");
+
+/// Lock, or end the process if a panic poisoned the lock. smithy hub served
+/// HTTP on one thread, so any panic there ended the process and systemd
+/// restarted it with state from disk. Under axum a panic only ends one task;
+/// carrying on with a poisoned lock would leave ingest dead and every request
+/// failing, so restore smithy's behaviour: exit and let systemd restart us.
+fn lk<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(|_| {
+        tracing::error!("hub state lock poisoned by a panic; exiting for a clean restart");
+        std::process::exit(70)
+    })
+}
 
 pub fn now() -> i64 {
     SystemTime::now()
@@ -219,6 +232,14 @@ fn save(path: &str, p: &Persisted) {
     }
 }
 
+/// smithy hub refused to start without an allow-list before touching anything.
+pub fn check_allow(allow: &[IpAddr]) -> Result<(), String> {
+    if allow.is_empty() {
+        return Err("refusing to start: no --allow source address for telemetry".into());
+    }
+    Ok(())
+}
+
 /// Hub state shared by the UDP ingest thread and the HTTP handlers.
 #[derive(Clone)]
 pub struct Hub {
@@ -253,11 +274,11 @@ impl Hub {
     }
 
     /// Bind the telemetry socket and ingest on a dedicated thread.
-    pub fn spawn_ingest(&self, udp: &str, allow: Vec<IpAddr>) -> Result<(), String> {
-        if allow.is_empty() {
-            return Err("refusing to start: no --allow source address for telemetry".into());
-        }
+    /// Returns the bound address (useful with port 0).
+    pub fn spawn_ingest(&self, udp: &str, allow: Vec<IpAddr>) -> Result<SocketAddr, String> {
+        check_allow(&allow)?;
         let sock = UdpSocket::bind(udp).map_err(|e| format!("bind udp {udp}: {e}"))?;
+        let local = sock.local_addr().map_err(|e| format!("udp {udp}: {e}"))?;
         let hub = self.clone();
         std::thread::spawn(move || {
             let mut buf = [0u8; 2048];
@@ -268,12 +289,12 @@ impl Hub {
                 hub.ingest(&buf[..n], src.ip(), &allow);
             }
         });
-        Ok(())
+        Ok(local)
     }
 
     /// One datagram. Split out of the socket loop so tests can drive it.
     pub fn ingest(&self, datagram: &[u8], src: IpAddr, allow: &[IpAddr]) {
-        let mut g = self.shared.lock().unwrap();
+        let mut g = lk(&self.shared);
         if !allow.contains(&src) {
             g.foreign += 1;
             // log the first few, so a wrong --allow (e.g. the router NATs the
@@ -287,7 +308,7 @@ impl Hub {
         let snap = g.asm.ingest(datagram, t);
         if !g.asm.ledger_in.is_empty() {
             let recs = std::mem::take(&mut g.asm.ledger_in);
-            self.ledger.lock().unwrap().ingest(recs);
+            lk(&self.ledger).ingest(recs);
         }
         if let Some(snap) = snap {
             g.p.history.push_back(Point::from_snapshot(&snap));
@@ -320,8 +341,18 @@ impl Hub {
             .route("/index.html", get(index))
             .route("/healthz", get(|| async { text(200, "ok") }))
             .fallback(|| async { text(404, "not found") })
+            .layer(middleware::from_fn(get_only))
             .with_state(self.clone())
     }
+}
+
+/// smithy hub answered only GET; HEAD and every other method got its 404.
+/// axum would answer HEAD from the GET route and other methods with 405.
+async fn get_only(req: Request, next: Next) -> Response {
+    if req.method() != Method::GET {
+        return text(404, "not found");
+    }
+    next.run(req).await
 }
 
 fn body(code: u16, ctype: &'static str, b: Vec<u8>) -> Response {
@@ -354,7 +385,7 @@ async fn index() -> Response {
 }
 
 async fn api_state(State(h): State<Hub>) -> Response {
-    let g = h.shared.lock().unwrap();
+    let g = lk(&h.shared);
     let link = g
         .asm
         .link
@@ -388,14 +419,14 @@ async fn api_history(State(h): State<Hub>, RawQuery(q): RawQuery) -> Response {
         .unwrap_or(24)
         .clamp(1, 168);
     let since = now() - hours * 3600;
-    let g = h.shared.lock().unwrap();
+    let g = lk(&h.shared);
     let pts: Vec<&Point> = g.p.history.iter().filter(|p| p.t >= since).collect();
     json(&pts)
 }
 
 async fn status_md(State(h): State<Hub>, RawQuery(q): RawQuery) -> Response {
     let query = q.unwrap_or_default();
-    let g = h.shared.lock().unwrap();
+    let g = lk(&h.shared);
     match (&g.p.latest, query.contains("repo=")) {
         (None, _) => text(503, "no snapshot received yet"),
         (Some(s), true) => match eta_query(&query) {
@@ -419,7 +450,7 @@ async fn status_md(State(h): State<Hub>, RawQuery(q): RawQuery) -> Response {
 
 async fn api_eta(State(h): State<Hub>, RawQuery(q): RawQuery) -> Response {
     let query = q.unwrap_or_default();
-    let g = h.shared.lock().unwrap();
+    let g = lk(&h.shared);
     match (&g.p.latest, eta_query(&query)) {
         (None, _) => text(503, "no snapshot received yet"),
         (_, Err(e)) => text(400, e),
@@ -432,7 +463,7 @@ async fn api_eta(State(h): State<Hub>, RawQuery(q): RawQuery) -> Response {
 fn month_report(h: &Hub, query: &str) -> Result<belt::BeltReport, &'static str> {
     let month = month_query(query)?;
     let (manifests, labels) = {
-        let g = h.shared.lock().unwrap();
+        let g = lk(&h.shared);
         let labels =
             g.p.latest
                 .as_ref()
@@ -446,21 +477,32 @@ fn month_report(h: &Hub, query: &str) -> Result<belt::BeltReport, &'static str> 
         (g.asm.manifests.clone(), labels)
     };
     let (recs, stored) = {
-        let l = h.ledger.lock().unwrap();
+        let l = lk(&h.ledger);
         (l.month(&month), l.stored.clone())
     };
     Ok(belt::report(&month, &recs, &stored, &manifests, &labels))
 }
 
+/// Building a month report reads every day file of the month; keep that off
+/// the async workers so it cannot stall other requests.
+async fn month_report_blocking(
+    h: Hub,
+    q: Option<String>,
+) -> Result<belt::BeltReport, &'static str> {
+    tokio::task::spawn_blocking(move || month_report(&h, &q.unwrap_or_default()))
+        .await
+        .unwrap_or(Err("report failed"))
+}
+
 async fn report_md(State(h): State<Hub>, RawQuery(q): RawQuery) -> Response {
-    match month_report(&h, &q.unwrap_or_default()) {
+    match month_report_blocking(h, q).await {
         Ok(b) => markdown(belt::markdown(&b)),
         Err(e) => text(400, e),
     }
 }
 
 async fn api_report(State(h): State<Hub>, RawQuery(q): RawQuery) -> Response {
-    match month_report(&h, &q.unwrap_or_default()) {
+    match month_report_blocking(h, q).await {
         Ok(b) => json(&b),
         Err(e) => text(400, e),
     }

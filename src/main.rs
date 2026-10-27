@@ -231,6 +231,7 @@ async fn main() -> anyhow::Result<()> {
             data_dir,
             org,
         } => {
+            warte::hub::check_allow(&allow).map_err(anyhow::Error::msg)?;
             let hub = warte::hub::Hub::open(&data_dir, &org).map_err(anyhow::Error::msg)?;
             hub.spawn_ingest(&udp, allow).map_err(anyhow::Error::msg)?;
             let listener = tokio::net::TcpListener::bind(&http).await?;

@@ -64,6 +64,7 @@ impl HubLedger {
             // the day names a file: accept only a real date, never a path
             if day_start(&r.d).is_none()
                 || !r.d.bytes().all(|b| b.is_ascii_digit() || b == b'-')
+                || !plausible(&r)
                 || !self.ids.insert(r.id)
             {
                 continue;
@@ -105,7 +106,34 @@ fn read_day(dir: &std::path::Path, day: &str) -> Vec<JobRecord> {
         .unwrap_or_default()
         .lines()
         .filter_map(|l| serde_json::from_str(l).ok())
+        .filter(plausible)
         .collect()
+}
+
+/// warte addition (not in smithy hub): ledger records arrive over UDP whose
+/// only check is the source address, and the report walks every hour a job's
+/// wait and run cover. Reject values no real record has, so a forged record
+/// cannot overflow that arithmetic or make the walk unbounded.
+///
+/// Deliberately NOT required: `s >= c`. On a re-run, GitHub stamps a new
+/// `created_at` but keeps `started_at` of a job reused from the earlier
+/// attempt; 2223 of 112665 real records (all `att > 1`) start up to 10 days
+/// "before" they were created. smithy's ledger also writes `c = 0` when
+/// `created_at` is missing. Measured on fourpi's ledger, 2026-10-27: longest
+/// wait 0.77 d, longest run 0.25 d.
+const MAX_SPAN_S: i64 = 31 * 86_400;
+
+pub fn plausible(r: &JobRecord) -> bool {
+    let latest = crate::hub::now() + 86_400;
+    let sane = |t: i64| (0..=latest).contains(&t);
+    sane(r.c)
+        && r.s.is_none_or(sane)
+        && r.e.is_none_or(sane)
+        // a run never ends before it starts
+        && match (r.s, r.e) {
+            (Some(s), Some(e)) => e >= s,
+            _ => true,
+        }
 }
 
 #[derive(Serialize, Debug, Default)]
@@ -308,6 +336,8 @@ pub fn report(
     let mut active_days: BTreeMap<&str, BTreeSet<String>> = BTreeMap::new(); // runner -> days it ran a job
     let mut busy: BTreeMap<&str, [f64; 24]> = BTreeMap::new();
     let spread = |s: i64, e: i64, f: &mut dyn FnMut(usize, f64)| {
+        // records are bounded by `plausible`; cap the walk anyway (warte addition)
+        let e = e.min(s.saturating_add(MAX_SPAN_S));
         let mut h = s - s.rem_euclid(3600);
         while h < e {
             let ov = (e.min(h + 3600) - s.max(h)).max(0) as f64;

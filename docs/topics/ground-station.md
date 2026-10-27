@@ -38,13 +38,29 @@ Unchanged from smithy hub; the contract is `/api/openapi.json`.
 `repo` is the name without the org. Answers carry `recheck_after_s`; agents use it to
 schedule their next look instead of polling GitHub (see the `ci-status` skill).
 
+## Security
+
+- **Telemetry is authenticated only by source address.** UDP source addresses can be
+  spoofed, so anything that can reach `--udp` could inject a fake snapshot or ledger
+  records. Bind `--udp` to the WireGuard interface address and firewall it to the
+  tunnel. Packet authentication is tracked separately.
+- Ledger records with impossible values (outside `[0, now + 1 day]`, or a run that ends
+  before it starts) are rejected on ingest and when the ledger is read from disk, and
+  the report caps how far one record is spread. Records where `started_at` precedes
+  `created_at` are kept: GitHub produces them for re-run attempts.
+- HTTP defaults to loopback (`127.0.0.1:8091`); publish it through Caddy. Only `GET` is
+  served, as in smithy hub; any other method gets a 404.
+- If a panic poisons the hub's state lock, the process exits so systemd restarts it from
+  disk, as smithy hub's single-threaded server did, rather than serving half-dead.
+
 ## Running
 
 ```bash
-warte hub --http 127.0.0.1:8091 --udp 0.0.0.0:8092 \
+warte hub --udp <wireguard-address>:8092 \
   --allow <ci-host-tunnel-ip> --data-dir /var/lib/smithy-hub
 ```
 
 The flags and the data directory are smithy hub's, so `warte hub` reads an existing
-`/var/lib/smithy-hub` as-is and replaces `smithy hub` in its systemd unit. Keep HTTP on
+`/var/lib/smithy-hub` as-is and replaces `smithy hub` in its systemd unit. Unlike smithy,
+`--udp` has no default and `--http` defaults to loopback. Keep HTTP on
 loopback and publish it through Caddy (`https://fourpi.local/ci/`).

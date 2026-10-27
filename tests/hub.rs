@@ -342,3 +342,262 @@ async fn hub_state_survives_a_restart() {
         .unwrap();
     assert_eq!(h.len(), 5, "history not restored");
 }
+
+/// Check a JSON value against one OpenAPI property schema (type, nullable, enum).
+fn conforms(v: &serde_json::Value, schema: &serde_json::Value) -> Result<(), String> {
+    if v.is_null() {
+        return if schema["nullable"] == true {
+            Ok(())
+        } else {
+            Err("null for a non-nullable field".into())
+        };
+    }
+    let ok = match schema["type"].as_str() {
+        Some("string") => v.is_string(),
+        Some("integer") => v.is_i64() || v.is_u64(),
+        Some("boolean") => v.is_boolean(),
+        Some("array") => v.is_array(),
+        Some("object") => v.is_object(),
+        Some(t) => return Err(format!("schema type {t} not handled by this check")),
+        None => true,
+    };
+    if !ok {
+        return Err(format!("{v} is not a {}", schema["type"]));
+    }
+    if let Some(allowed) = schema["enum"].as_array() {
+        if !allowed.contains(v) {
+            return Err(format!("{v} not in {allowed:?}"));
+        }
+    }
+    Ok(())
+}
+
+fn eta_schema() -> serde_json::Value {
+    let doc: serde_json::Value = serde_json::from_str(OPENAPI).unwrap();
+    doc["components"]["schemas"]["Eta"].clone()
+}
+
+// rivet: verifies REQ-SMITHY-002
+#[tokio::test]
+async fn eta_answers_match_the_contract_schema() {
+    let dir = tempfile::tempdir().unwrap();
+    let hub = Hub::open(dir.path().to_str().unwrap(), "pulseengine").unwrap();
+    let base = serve(&hub).await;
+    let props = eta_schema()["properties"].clone();
+    let props = props.as_object().expect("Eta has properties");
+    assert!(!props.is_empty());
+
+    let mut seq = SeqCounters::default();
+    let mut s = snapshot("ci-test");
+    s.queue = Some(Queue {
+        scanned_at: now(),
+        queued_complete: true,
+        queued: vec![warte::hub::model::QueuedEntry {
+            repo: "warte".into(),
+            run_id: 7,
+            workflow: "CI".into(),
+            event: "pull_request".into(),
+            branch: "feat/x".into(),
+            pr: Some(41),
+            pool: "rust-cpu".into(),
+            jobs: 3,
+            since: now() - 120,
+        }],
+        ..Default::default()
+    });
+    send(&hub, encode_snapshot(&s, &mut seq), CI_HOST);
+
+    // queued (by PR and by branch) and not queued
+    let mut statuses = vec![];
+    for q in [
+        "repo=warte&pr=41",
+        "repo=warte&branch=feat%2Fx",
+        "repo=warte&pr=999",
+    ] {
+        let r = reqwest::get(format!("{base}/api/eta?{q}")).await.unwrap();
+        assert_eq!(r.status(), 200);
+        let v: serde_json::Value = r.json().await.unwrap();
+        for (k, val) in v.as_object().unwrap() {
+            let schema = props
+                .get(k)
+                .unwrap_or_else(|| panic!("/api/eta?{q}: field `{k}` is not in the contract"));
+            conforms(val, schema).unwrap_or_else(|e| panic!("/api/eta?{q}: `{k}`: {e}"));
+        }
+        statuses.push(v["status"].as_str().unwrap().to_string());
+    }
+    assert_eq!(statuses, ["queued", "queued", "not_queued"]);
+}
+
+// rivet: verifies REQ-SMITHY-002
+#[tokio::test]
+async fn every_declared_status_code_is_produced() {
+    let dir = tempfile::tempdir().unwrap();
+    let hub = Hub::open(dir.path().to_str().unwrap(), "pulseengine").unwrap();
+    let base = serve(&hub).await;
+    let get = |p: &'static str| {
+        let base = base.clone();
+        async move {
+            reqwest::get(format!("{base}{p}"))
+                .await
+                .unwrap()
+                .status()
+                .as_u16()
+        }
+    };
+    // before the first snapshot
+    let eta_503 = get("/api/eta?repo=warte&pr=1").await;
+    let status_503 = get("/status.md").await;
+
+    let mut seq = SeqCounters::default();
+    send(
+        &hub,
+        encode_snapshot(&snapshot("ci-test"), &mut seq),
+        CI_HOST,
+    );
+    let produced = [
+        ("/api/eta", 503, eta_503),
+        // not declared in the contract (inherited from upstream), but smithy does it
+        ("/status.md", 503, status_503),
+        ("/api/eta", 200, get("/api/eta?repo=warte&pr=1").await),
+        ("/api/eta", 400, get("/api/eta?repo=warte").await),
+        ("/report.md", 200, get("/report.md?month=2026-10").await),
+        ("/report.md", 400, get("/report.md?month=bad").await),
+        ("/api/report", 200, get("/api/report?month=2026-10").await),
+        ("/api/report", 400, get("/api/report?month=2026/10").await),
+        ("/api/history", 200, get("/api/history?hours=500").await),
+        (
+            "/status.md",
+            200,
+            get("/status.md?repo=warte&branch=main").await,
+        ),
+    ];
+    for (p, want, got) in produced {
+        assert_eq!(got, want, "{p}: expected {want}");
+    }
+    // every code the contract declares is one this test produces
+    let doc: serde_json::Value = serde_json::from_str(OPENAPI).unwrap();
+    for (p, ops) in doc["paths"].as_object().unwrap() {
+        for code in ops["get"]["responses"].as_object().unwrap().keys() {
+            let c: u16 = code.parse().unwrap();
+            let covered = c == 200 || produced.iter().any(|(q, w, _)| q == p && *w == c);
+            assert!(
+                covered,
+                "contract declares {c} for {p}; no test produces it"
+            );
+        }
+    }
+}
+
+// rivet: verifies REQ-SMITHY-002
+#[tokio::test]
+async fn only_get_is_served_like_smithy() {
+    let dir = tempfile::tempdir().unwrap();
+    let hub = Hub::open(dir.path().to_str().unwrap(), "pulseengine").unwrap();
+    let base = serve(&hub).await;
+    let c = reqwest::Client::new();
+    for m in [
+        reqwest::Method::HEAD,
+        reqwest::Method::POST,
+        reqwest::Method::DELETE,
+    ] {
+        let r = c
+            .request(m.clone(), format!("{base}/healthz"))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(r.status(), 404, "{m} /healthz");
+        assert_eq!(r.headers()["cache-control"], "no-store", "{m} /healthz");
+    }
+    for p in ["/", "/index.html"] {
+        let r = reqwest::get(format!("{base}{p}")).await.unwrap();
+        assert_eq!(r.status(), 200, "{p}");
+        assert!(
+            r.text().await.unwrap().contains("SMITHY"),
+            "{p} serves the web view"
+        );
+    }
+}
+
+// rivet: verifies REQ-SMITHY-001
+#[tokio::test]
+async fn ingest_over_a_real_udp_socket() {
+    let dir = tempfile::tempdir().unwrap();
+    let hub = Hub::open(dir.path().to_str().unwrap(), "pulseengine").unwrap();
+    let base = serve(&hub).await;
+    let loopback: IpAddr = Ipv4Addr::LOCALHOST.into();
+    let addr = hub.spawn_ingest("127.0.0.1:0", vec![loopback]).unwrap();
+    assert!(
+        hub.spawn_ingest("127.0.0.1:0", vec![]).is_err(),
+        "an empty allow-list must refuse to start"
+    );
+
+    let sock = std::net::UdpSocket::bind("127.0.0.1:0").unwrap();
+    let mut seq = SeqCounters::default();
+    for f in encode_snapshot(&snapshot("over-udp"), &mut seq) {
+        sock.send_to(&f, addr).unwrap();
+    }
+    let mut host = serde_json::Value::Null;
+    for _ in 0..50 {
+        let v: serde_json::Value = reqwest::get(format!("{base}/api/state"))
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        host = v["snapshot"]["host"].clone();
+        if host == "over-udp" {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    }
+    assert_eq!(host, "over-udp");
+}
+
+// rivet: verifies REQ-SMITHY-003
+#[tokio::test]
+async fn implausible_ledger_records_are_rejected() {
+    let dir = tempfile::tempdir().unwrap();
+    let hub = Hub::open(dir.path().to_str().unwrap(), "pulseengine").unwrap();
+    let base = serve(&hub).await;
+    let day = "2026-10-27";
+    let mut bad = vec![];
+    // ends before it starts; ends ~290 billion years out; overflows; negative
+    for (i, (c, s, e)) in [
+        (1_793_000_000, 1_793_000_060, 1_793_000_000),
+        (0, 0, i64::MAX),
+        (i64::MIN, i64::MAX, i64::MAX),
+        (-5, 0, 10),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let mut r = job(100 + i as u64, day);
+        (r.c, r.s, r.e) = (c, Some(s), Some(e));
+        bad.push(r);
+    }
+    let mut seq = SeqCounters::default();
+    send(&hub, encode_ledger(&bad, &[], &mut seq), CI_HOST);
+    let f = dir.path().join("ledger").join(format!("{day}.jsonl"));
+    assert!(!f.exists(), "an implausible record was stored");
+
+    // a re-run attempt legitimately starts before its run was created (GitHub
+    // keeps started_at of a reused job); it must be kept, as smithy keeps it
+    let mut rerun = job(200, day);
+    (rerun.att, rerun.c, rerun.s, rerun.e) =
+        (2, 1_793_000_000, Some(1_792_990_000), Some(1_792_990_300));
+    send(&hub, encode_ledger(&[rerun], &[], &mut seq), CI_HOST);
+    assert!(f.exists(), "a real re-run record was rejected");
+    std::fs::remove_file(&f).unwrap();
+
+    // a forged file on disk is filtered on open too, and the report stays fast
+    std::fs::write(&f, serde_json::to_string(&bad[1]).unwrap() + "\n").unwrap();
+    let hub = Hub::open(dir.path().to_str().unwrap(), "pulseengine").unwrap();
+    let base2 = serve(&hub).await;
+    let t = std::time::Instant::now();
+    let r = reqwest::get(format!("{base2}/api/report?month=2026-10"))
+        .await
+        .unwrap();
+    assert_eq!(r.status(), 200);
+    assert!(t.elapsed().as_secs() < 5, "report took {:?}", t.elapsed());
+    drop(base);
+}

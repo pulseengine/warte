@@ -74,11 +74,12 @@ pub enum Commands {
     ///
     /// Same flags and data-dir layout as `smithy hub`, so it replaces it in place.
     Hub {
-        /// HTTP listen address (keep it on loopback behind Caddy)
-        #[arg(long, default_value = "0.0.0.0:8091")]
+        /// HTTP listen address. Loopback by default: publish it through Caddy.
+        #[arg(long, default_value = "127.0.0.1:8091")]
         http: String,
-        /// UDP telemetry listen address
-        #[arg(long, default_value = "0.0.0.0:8092")]
+        /// UDP telemetry listen address. Required, so the exposure is a deliberate
+        /// choice: bind the WireGuard interface address where possible.
+        #[arg(long)]
         udp: String,
         /// Source address allowed to send telemetry (repeatable), e.g. the CI host's tunnel IP
         #[arg(long, required = true)]
