@@ -568,3 +568,13 @@ artifacts:
     links:
       - type: satisfies
         target: SC-006
+
+  - id: REQ-CRIT-002
+    type: requirement
+    title: Rivet externals integration — auto-discover cross-repo dependencies for critical path
+    status: draft
+    release: v1.2.0
+    description: "The critical path computer SHALL auto-discover cross-repo dependencies from rivet externals (rivet sync / rivet externals) instead of requiring manual dependency declaration. The integration SHALL: (a) run 'rivet externals' in each repo to discover external dependencies, (b) parse the output to build the dependency graph, (c) feed the graph into CriticalPathComputer. The integration SHALL be optional — manual dependency declaration (warte.toml repo_dependencies) SHALL remain as a fallback. The integration SHALL cache the discovered graph (5-minute TTL)."
+    links:
+      - type: satisfies
+        target: SC-006

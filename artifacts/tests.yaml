@@ -494,3 +494,13 @@ artifacts:
     links:
       - type: verifies
         target: REQ-DASH-012
+
+  - id: TEST-CRIT-002
+    type: verification
+    title: test_rivet_externals_deserialization + test_integration_creation + test_build_computer_with_manual_deps — rivet externals integration
+    status: draft
+    release: v1.2.0
+    description: "Unit tests verify: RivetExternals JSON deserialization (externals with name, url, commit), RivetExternalsIntegration creation (repo paths, 5-min cache TTL), build_computer with manual deps (fallback when rivet externals discovery fails). The integration runs 'rivet externals discover --format json' in each repo, parses the output, and feeds the dependency graph into CriticalPathComputer."
+    links:
+      - type: verifies
+        target: REQ-CRIT-002
