@@ -278,38 +278,73 @@ pub async fn queue_partial(State(state): State<crate::server::AppState>) -> Resp
         )
     };
 
-    // Get hardware claims from agent_data
-    let hw_claims: Vec<(String, String, String)> = sqlx::query_as(
+    // Get hardware catalog (all known boards) and claims
+    let hw_catalog: Vec<(String,)> = sqlx::query_as(
         r#"
-        SELECT agent_id, content, captured_at FROM agent_data
-        WHERE data_type = 'hardware-claim'
-        ORDER BY captured_at DESC
-        LIMIT 20
+        SELECT DISTINCT content FROM agent_data
+        WHERE data_type = 'hardware-catalog'
+        ORDER BY content
         "#,
     )
     .fetch_all(state.db.pool())
     .await
     .unwrap_or_default();
 
-    let hw_table: String = if hw_claims.is_empty() {
-        r#"<p class="empty">No hardware claims. All boards available.</p>"#.to_string()
+    let hw_claims: Vec<(String, String, String)> = sqlx::query_as(
+        r#"
+        SELECT agent_id, content, captured_at FROM agent_data
+        WHERE data_type = 'hardware-claim'
+        ORDER BY captured_at DESC
+        LIMIT 50
+        "#,
+    )
+    .fetch_all(state.db.pool())
+    .await
+    .unwrap_or_default();
+
+    // Build a map of claimed boards
+    let claimed: std::collections::HashMap<String, (String, String)> = hw_claims
+        .iter()
+        .map(|(agent_id, board, captured_at)| {
+            (board.clone(), (agent_id.clone(), captured_at.clone()))
+        })
+        .collect();
+
+    let hw_table: String = if hw_catalog.is_empty() && hw_claims.is_empty() {
+        r#"<p class="empty">No hardware catalog or claims. Agents can report boards via agent_data with data_type='hardware-catalog' or 'hardware-claim'.</p>"#.to_string()
     } else {
-        let rows: String = hw_claims
+        // Show all boards from catalog + any claimed boards not in catalog
+        let mut all_boards: Vec<String> = hw_catalog.iter().map(|(b,)| b.clone()).collect();
+        for board in claimed.keys() {
+            if !all_boards.contains(board) {
+                all_boards.push(board.clone());
+            }
+        }
+        all_boards.sort();
+
+        let rows: String = all_boards
             .iter()
-            .map(|(agent_id, content, captured_at)| {
-                let duration = chrono::DateTime::parse_from_rfc3339(captured_at)
-                    .ok()
-                    .map(|t| {
-                        let elapsed = chrono::Utc::now() - t.with_timezone(&chrono::Utc);
-                        format!("{}h {}m", elapsed.num_hours(), elapsed.num_minutes() % 60)
-                    })
-                    .unwrap_or_else(|| "unknown".to_string());
-                format!(
-                    r#"<tr><td><span class="badge red">CLAIMED</span></td><td><code>{}</code></td><td>{}</td><td>{}</td></tr>"#,
-                    content,
-                    &agent_id[..8.min(agent_id.len())],
-                    duration,
-                )
+            .map(|board| {
+                if let Some((agent_id, captured_at)) = claimed.get(board) {
+                    let duration = chrono::DateTime::parse_from_rfc3339(captured_at)
+                        .ok()
+                        .map(|t| {
+                            let elapsed = chrono::Utc::now() - t.with_timezone(&chrono::Utc);
+                            format!("{}h {}m", elapsed.num_hours(), elapsed.num_minutes() % 60)
+                        })
+                        .unwrap_or_else(|| "unknown".to_string());
+                    format!(
+                        r#"<tr><td><span class="badge red">CLAIMED</span></td><td><code>{}</code></td><td>{}</td><td>{}</td></tr>"#,
+                        board,
+                        &agent_id[..8.min(agent_id.len())],
+                        duration,
+                    )
+                } else {
+                    format!(
+                        r#"<tr><td><span class="badge green">FREE</span></td><td><code>{}</code></td><td>—</td><td>—</td></tr>"#,
+                        board,
+                    )
+                }
             })
             .collect();
         format!(

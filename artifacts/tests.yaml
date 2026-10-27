@@ -484,3 +484,13 @@ artifacts:
     links:
       - type: verifies
         target: REQ-CRIT-001
+
+  - id: TEST-DASH-009
+    type: verification
+    title: FREE board listing in hardware availability — all boards from catalog + claims, FREE/CLAIMED status
+    status: draft
+    release: v1.1.0
+    description: "Hardware availability verification: queue view now shows all known boards (from agent_data data_type='hardware-catalog') plus any claimed boards not in catalog. Each board shows status (FREE with green badge, CLAIMED with red badge), board name, agent ID (if claimed), duration (if claimed). Empty state explains how agents report boards. Boards sorted alphabetically."
+    links:
+      - type: verifies
+        target: REQ-DASH-012
