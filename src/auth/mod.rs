@@ -141,6 +141,12 @@ pub async fn auth_middleware(
         return Ok(next.run(req).await);
     }
 
+    // Skip webhook endpoints (they use HMAC signature verification, not bearer tokens)
+    let path = req.uri().path();
+    if path.starts_with("/api/webhooks/") {
+        return Ok(next.run(req).await);
+    }
+
     // Extract Authorization header
     let auth_header = req
         .headers()

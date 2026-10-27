@@ -23,6 +23,9 @@ pub fn build_routes() -> Router<AppState> {
         .route("/access/revoke", post(revoke_access))
         .route("/sync/update", post(sync_update));
 
+    // Webhook routes — HMAC signature verified (not bearer token)
+    let webhook_routes = Router::new().route("/webhooks/github", post(github_webhook));
+
     // Read-only routes — public (rate-limited at edge proxy)
     let read_routes = Router::new()
         .route("/health", get(health))
@@ -40,7 +43,10 @@ pub fn build_routes() -> Router<AppState> {
         .route("/events", get(crate::realtime::sse_handler));
 
     Router::new()
-        .nest("/api", read_routes.merge(mutating_routes))
+        .nest(
+            "/api",
+            read_routes.merge(mutating_routes).merge(webhook_routes),
+        )
         // Dashboard HTML frontend
         .route("/", get(crate::dashboard::dashboard_page))
         .route("/dashboard.css", get(crate::dashboard::dashboard_css))
@@ -394,6 +400,82 @@ async fn sync_update(
         Err(e) => {
             tracing::error!(error = %e, "failed to apply sync update");
             StatusCode::INTERNAL_SERVER_ERROR
+        }
+    }
+}
+
+// ── GitHub webhook ──────────────────────────────────────────────────
+
+/// GitHub webhook handler — receives workflow_run events.
+///
+/// Verifies the X-Hub-Signature-256 header (HMAC-SHA256) before processing.
+async fn github_webhook(
+    State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
+    body: axum::body::Bytes,
+) -> impl IntoResponse {
+    use hmac::{Hmac, Mac};
+    use sha2::Sha256;
+
+    type HmacSha256 = Hmac<Sha256>;
+
+    // Get the signature from the header
+    let signature = match headers
+        .get("x-hub-signature-256")
+        .and_then(|v| v.to_str().ok())
+    {
+        Some(s) => s,
+        None => {
+            tracing::warn!("webhook: missing X-Hub-Signature-256 header");
+            return (StatusCode::UNAUTHORIZED, "missing signature").into_response();
+        }
+    };
+
+    // Get the webhook secret from config
+    let secret = match std::env::var("WARTE_GITHUB_WEBHOOK_SECRET") {
+        Ok(s) => s,
+        Err(_) => {
+            tracing::warn!("webhook: WARTE_GITHUB_WEBHOOK_SECRET not configured");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "webhook secret not configured",
+            )
+                .into_response();
+        }
+    };
+
+    // Verify the HMAC signature
+    let mut mac = match HmacSha256::new_from_slice(secret.as_bytes()) {
+        Ok(m) => m,
+        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "invalid secret").into_response(),
+    };
+    mac.update(&body);
+    let expected = format!("sha256={}", hex::encode(mac.finalize().into_bytes()));
+
+    if !signature.starts_with("sha256=") || signature != expected {
+        tracing::warn!(provided = %signature, "webhook: invalid signature");
+        return (StatusCode::UNAUTHORIZED, "invalid signature").into_response();
+    }
+
+    // Parse the event
+    let event: crate::ci::WorkflowRunEvent = match serde_json::from_slice(&body) {
+        Ok(e) => e,
+        Err(e) => {
+            tracing::warn!(error = %e, "webhook: invalid payload");
+            return (StatusCode::BAD_REQUEST, "invalid payload").into_response();
+        }
+    };
+
+    // Process the event
+    let collector = crate::ci::CiDataCollector::new(state.db.pool().clone());
+    match collector.process_webhook(&event).await {
+        Ok(()) => {
+            tracing::debug!(repo = %event.repository.full_name, action = %event.action, "webhook processed");
+            (StatusCode::ACCEPTED, "accepted").into_response()
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "webhook: processing failed");
+            (StatusCode::INTERNAL_SERVER_ERROR, "processing failed").into_response()
         }
     }
 }

@@ -174,7 +174,7 @@ artifacts:
     type: requirement
     title: Mobile control uses mutual TLS with device-bound certificates
     status: draft
-    release: v0.5.0
+    release: v0.6.0
     description: >
       The mobile control channel (Android/iOS) SHALL use mutual TLS with
       device-bound client certificates. The client certificate SHALL be
@@ -190,7 +190,7 @@ artifacts:
     type: requirement
     title: Mobile commands require operator biometric authentication
     status: draft
-    release: v0.5.0
+    release: v0.6.0
     description: >
       Every control command issued via the mobile client SHALL require operator
       authentication via biometric (fingerprint/face) or hardware token (YubiKey).
@@ -205,7 +205,7 @@ artifacts:
     type: requirement
     title: Mobile client shows real-time system status
     status: draft
-    release: v0.5.0
+    release: v0.6.0
     description: >
       The mobile client SHALL display real-time system status (agent health,
       CI status, access rights, alerts) with freshness indicators. Status
@@ -415,6 +415,26 @@ artifacts:
     status: accepted
     release: v0.4.0
     description: "The system SHALL serve an HTML dashboard frontend (HTMX-based, like rivet serve) with views: (a) Overview — all repos, all gates, green/red/pending, (b) Ask — ETA query form with results, (c) Queue — runner pool, waiting jobs, hardware availability, (d) Agents — agent registry with health status, (e) Artifacts — artifact list with download links. The frontend SHALL use SSE (/api/events) for real-time updates. The frontend SHALL show freshness indicators for all data."
+    links:
+      - type: satisfies
+        target: SC-006
+
+  - id: REQ-WEBHOOK-001
+    type: requirement
+    title: GitHub webhook HTTP endpoint — receive workflow_run events
+    status: accepted
+    release: v0.5.0
+    description: The system SHALL expose POST /api/webhooks/github to receive GitHub Actions workflow_run webhook events. The endpoint SHALL verify the X-Hub-Signature-256 header (HMAC-SHA256 with the configured webhook secret) before processing. Events SHALL be forwarded to the CiDataCollector for storage. The endpoint SHALL return 202 Accepted on success, 401 on invalid signature, 400 on invalid payload. The webhook secret SHALL be configured via warte.toml (github_webhook_secret) or environment variable (WARTE_GITHUB_WEBHOOK_SECRET).
+    links:
+      - type: satisfies
+        target: SC-006
+
+  - id: REQ-POLLER-001
+    type: requirement
+    title: Periodic CI status poller — fallback when webhooks are not configured
+    status: accepted
+    release: v0.5.0
+    description: The system SHALL provide a periodic CI status poller that queries the GitHub/GitLab API every 60 seconds (configurable) to collect CI status for all repos. The poller SHALL be the fallback when webhooks are not configured. The poller SHALL record measured waits (queued_at → started_at) in the wait_history table. The poller SHALL update the ci_status cache for the dashboard. The poller SHALL run as a background task started by warte serve.
     links:
       - type: satisfies
         target: SC-006
