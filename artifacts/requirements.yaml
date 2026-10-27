@@ -174,7 +174,7 @@ artifacts:
     type: requirement
     title: Mobile control uses mutual TLS with device-bound certificates
     status: draft
-    release: v1.1.0
+    release: v1.2.0
     description: >
       The mobile control channel (Android/iOS) SHALL use mutual TLS with
       device-bound client certificates. The client certificate SHALL be
@@ -190,7 +190,7 @@ artifacts:
     type: requirement
     title: Mobile commands require operator biometric authentication
     status: draft
-    release: v1.1.0
+    release: v1.2.0
     description: >
       Every control command issued via the mobile client SHALL require operator
       authentication via biometric (fingerprint/face) or hardware token (YubiKey).
@@ -205,7 +205,7 @@ artifacts:
     type: requirement
     title: Mobile client shows real-time system status
     status: draft
-    release: v1.1.0
+    release: v1.2.0
     description: >
       The mobile client SHALL display real-time system status (agent health,
       CI status, access rights, alerts) with freshness indicators. Status
@@ -552,7 +552,7 @@ artifacts:
   - id: REQ-CRIT-001
     type: requirement
     title: Critical path dependency graph — real repo dependencies from rivet/GitHub
-    status: draft
+    status: accepted
     release: v1.1.0
     description: "The critical path view SHALL compute the real dependency graph between repos, not just ci_status heuristics. Data sources: (a) rivet externals (rivet sync / rivet externals shows cross-repo dependencies), (b) GitHub dependency graph API (dependabot alerts show dependencies), (c) manual dependency declaration in warte.toml (repo_dependencies = [{repo='jess', depends_on=['relay','gale']}]). The critical path SHALL be the longest chain of repos where each depends on the next and at least one gate is not green. The view SHALL show: the chain (repo → repo → repo), the bottleneck repo, the estimated minimum release time."
     links:
@@ -562,7 +562,7 @@ artifacts:
   - id: REQ-DASH-012
     type: requirement
     title: FREE board listing in hardware availability — show all boards, not just claimed
-    status: draft
+    status: accepted
     release: v1.1.0
     description: "The hardware availability view SHALL show all known boards, not just claimed ones. Data source: agent_data where data_type = 'hardware-catalog' (list of all boards) + agent_data where data_type = 'hardware-claim' (claimed boards). The view SHALL show: board name, status (FREE/CLAIMED), agent (if claimed), duration (if claimed). FREE boards SHALL be shown with a green badge, CLAIMED boards with a red badge."
     links:
