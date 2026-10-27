@@ -392,7 +392,7 @@ artifacts:
   - id: TEST-DASH-005
     type: verification
     title: Dashboard queue + critical path views — runner pools, waiting jobs, bottlenecks, ETA pool stats
-    status: draft
+    status: accepted
     release: v0.6.0
     description: "Dashboard view verification: queue_partial (runner pool cards with running/queued counts, waiting jobs table with wait times), critical_path_partial (bottleneck cards for red/high-queue repos, runner pool wait time table from ETA estimator). Both views query ci_jobs and ci_status tables, show freshness indicators, and are served as HTMX partials at /api/dashboard/queue-partial and /api/dashboard/critical-path-partial."
     links:
