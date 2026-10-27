@@ -378,3 +378,13 @@ artifacts:
     links:
       - type: verifies
         target: REQ-WEBHOOK-001
+
+  - id: TEST-POLLER-001
+    type: verification
+    title: test_poller_config_default + test_poller_config_custom + test_poller_creation — periodic CI status poller
+    status: draft
+    release: v0.5.0
+    description: "Unit tests verify: PollerConfig defaults (60s interval, no platforms), custom config (GitHub org + token + GHE URL), CiPoller creation with database. The poller runs as a background task, queries GitHub/GitLab APIs via FleetAggregator, updates ci_status cache for the dashboard. Configurable interval (default 60s)."
+    links:
+      - type: verifies
+        target: REQ-POLLER-001
