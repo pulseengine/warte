@@ -25,6 +25,7 @@ pub mod poller;
 pub mod realtime;
 pub mod server;
 pub mod sigil;
+pub mod status;
 pub mod sync;
 pub mod temper;
 

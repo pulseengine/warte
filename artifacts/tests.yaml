@@ -422,3 +422,13 @@ artifacts:
     links:
       - type: verifies
         target: REQ-WEBHOOK-002
+
+  - id: TEST-STATUS-001
+    type: verification
+    title: test_status_client_creation + test_status_client_custom + test_status_serialization + test_incident_serialization — GitHub status API
+    status: draft
+    release: v0.8.0
+    description: "Unit tests verify: StatusClient creation (github.com default, custom GHE URL), GitHubStatus serialization (status, incidents, fetched_at, source), Incident serialization (title, status, started_at, url). The status client queries status.github.com/api/v2 (status.json + incidents.json) with 5-minute cache TTL. Supports custom status pages for GHE."
+    links:
+      - type: verifies
+        target: REQ-STATUS-001
