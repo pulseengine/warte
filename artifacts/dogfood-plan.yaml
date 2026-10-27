@@ -19,7 +19,7 @@ artifacts:
   - id: REQ-CI-002
     type: requirement
     title: Release gate evaluates the tag being cut and fails closed
-    status: implemented
+    status: verified
     release: v1.3.1
     description: The release V-model gate SHALL run the pinned rivet's release status for the exact tag being released and SHALL fail the release on rivet's exit code (non-zero unless Cuttable). No CI step SHALL mask a rivet or toolchain step with an always-true fallback; the former main-branch 'release status v0.1.0 || true' job is removed.
     fields:
@@ -50,7 +50,7 @@ artifacts:
   - id: REQ-RELEASE-003
     type: requirement
     title: Release metadata lives in CHANGELOG and release assets, not the repo root
-    status: implemented
+    status: verified
     release: v1.3.1
     description: Release notes SHALL be kept in CHANGELOG.md and checksums SHALL ship only as release assets. Cargo.toml's version SHALL equal the release tag, and release CI SHALL assert that warte --version reports it.
     fields:
@@ -65,7 +65,7 @@ artifacts:
   - id: DD-CI-001
     type: design-decision
     title: "CI dogfoods the PulseEngine toolchain: rivet from git at a pinned rev, smithy runners"
-    status: approved
+    status: verified
     release: v1.3.1
     description: Install rivet with cargo install --locked --git https://github.com/pulseengine/rivet --rev <rev> --bin rivet rivet-cli, cache the binary keyed on the rev (the spar/gale pattern), and run Linux jobs on the smithy pools.
     fields:
@@ -276,7 +276,7 @@ artifacts:
   - id: DD-LICENSE-001
     type: design-decision
     title: warte is licensed Apache-2.0, the PulseEngine default
-    status: approved
+    status: verified
     release: v1.3.1
     description: "warte moves from MIT to Apache-2.0: LICENSE (the same text as pulseengine/relay), Cargo.toml license = \"Apache-2.0\", and README. tests/license.rs checks that the three agree."
     fields:

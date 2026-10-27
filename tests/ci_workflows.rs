@@ -80,6 +80,7 @@ fn is_toolchain(cmd: &str) -> bool {
     cmd.contains("rivet") || cmd.contains("varve") || cmd.contains("cargo install")
 }
 
+// rivet: verifies DD-CI-001
 // rivet: verifies REQ-CI-001
 #[test]
 fn rivet_is_installed_from_pulseengine_git_only() {
@@ -271,6 +272,7 @@ fn runners(text: &str) -> Vec<String> {
 /// is the org's runner-group policy and fork-PR approval, not this expression.
 const SMITHY_CPU_FORK_GUARDED: &str = "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || fromJSON('[\"self-hosted\",\"linux\",\"x64\",\"rust-cpu\"]') }}";
 
+// rivet: verifies DD-CI-001
 // rivet: verifies REQ-CI-003
 #[test]
 fn ci_jobs_run_on_smithy_with_forks_guarded() {
@@ -288,6 +290,7 @@ fn ci_jobs_run_on_smithy_with_forks_guarded() {
     }
 }
 
+// rivet: verifies DD-CI-001
 // rivet: verifies REQ-CI-003
 #[test]
 fn release_jobs_run_on_github_hosted_runners() {
@@ -309,6 +312,7 @@ fn release_jobs_run_on_github_hosted_runners() {
     assert!(!runners(&text).is_empty(), "release.yml has no runs-on");
 }
 
+// rivet: verifies DD-CI-001
 // rivet: verifies REQ-CI-001
 #[test]
 fn rivet_is_never_trusted_from_home() {

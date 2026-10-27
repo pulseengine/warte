@@ -4,6 +4,7 @@ use std::fs;
 use std::path::Path;
 
 // rivet: verifies REQ-RELEASE-004
+// rivet: verifies DD-LICENSE-001
 #[test]
 fn license_declarations_agree_on_apache_2() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
