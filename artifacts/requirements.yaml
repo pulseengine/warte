@@ -174,7 +174,7 @@ artifacts:
     type: requirement
     title: Mobile control uses mutual TLS with device-bound certificates
     status: draft
-    release: v1.3.0
+    release: v1.4.0
     description: >
       The mobile control channel (Android/iOS) SHALL use mutual TLS with
       device-bound client certificates. The client certificate SHALL be
@@ -190,7 +190,7 @@ artifacts:
     type: requirement
     title: Mobile commands require operator biometric authentication
     status: draft
-    release: v1.3.0
+    release: v1.4.0
     description: >
       Every control command issued via the mobile client SHALL require operator
       authentication via biometric (fingerprint/face) or hardware token (YubiKey).
@@ -205,7 +205,7 @@ artifacts:
     type: requirement
     title: Mobile client shows real-time system status
     status: draft
-    release: v1.3.0
+    release: v1.4.0
     description: >
       The mobile client SHALL display real-time system status (agent health,
       CI status, access rights, alerts) with freshness indicators. Status
@@ -582,7 +582,7 @@ artifacts:
   - id: REQ-CRIT-003
     type: requirement
     title: GitHub dependency graph API integration — auto-discover dependencies from GitHub
-    status: draft
+    status: accepted
     release: v1.3.0
     description: "The critical path computer SHALL auto-discover cross-repo dependencies from the GitHub dependency graph API (GET /repos/{owner}/{repo}/dependency-graph/sbom) in addition to rivet externals. The integration SHALL: (a) query the GitHub dependency graph API for each repo, (b) parse the SBOM to extract dependencies on other pulseengine repos, (c) feed the graph into CriticalPathComputer. The integration SHALL be optional — rivet externals and manual declaration SHALL remain as fallbacks. The integration SHALL cache the discovered graph (5-minute TTL)."
     links:
