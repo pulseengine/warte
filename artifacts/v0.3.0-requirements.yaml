@@ -7,7 +7,7 @@ artifacts:
   - id: REQ-ASK-001
     type: requirement
     title: "ETA estimation from measured waits (the ask feature)"
-    status: accepted
+    status: deprecated
     release: v0.3.0
     description: >
       The dashboard SHALL provide an "ask" feature: "when will this PR run?"
@@ -17,38 +17,47 @@ artifacts:
       samples). A pool with fewer than 5 recent jobs in the last 3 hours
       SHALL return "no estimate" rather than a guess. The estimate SHALL NOT
       be based on queue position (GitHub does not start jobs in creation order).
+    tags: [superseded-by-ground-station]
     links:
       - type: satisfies
         target: SC-006
 
+      - type: traces-to
+        target: DD-SMITHY-001
   - id: REQ-ASK-002
     type: requirement
     title: "ETA estimation API endpoint"
-    status: accepted
+    status: deprecated
     release: v0.3.0
     description: >
       The API SHALL expose GET /api/dashboard/ask?repo=<repo>&pr=<number>
       returning JSON with: estimate_seconds, confidence, basis (sample count,
       time window), running jobs, queued jobs. The response SHALL include
       freshness metadata (last_updated timestamp).
+    tags: [superseded-by-ground-station]
     links:
       - type: satisfies
         target: SC-006
 
+      - type: traces-to
+        target: DD-SMITHY-001
   - id: REQ-ASK-003
     type: requirement
     title: "Measured wait history storage"
-    status: accepted
+    status: deprecated
     release: v0.3.0
     description: >
       The system SHALL store measured wait times for CI jobs: when a job
       entered the queue, when it started running, which runner pool it ran on.
       History SHALL be retained for at least 7 days. The ETA estimator SHALL
       use this history to compute percentiles (p50, p90) per runner pool.
+    tags: [superseded-by-ground-station]
     links:
       - type: satisfies
         target: SC-006
 
+      - type: traces-to
+        target: DD-SMITHY-001
   # --- Sigil/wsc signatures ---
   - id: REQ-SIGIL-001
     type: requirement

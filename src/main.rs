@@ -139,13 +139,6 @@ async fn main() -> anyhow::Result<()> {
             let path = std::path::PathBuf::from(&path);
 
             let result = match source.as_str() {
-                "smithy" => {
-                    println!(
-                        "Migrating agent fleet data from smithy ({})...",
-                        path.display()
-                    );
-                    warte::migrate::migrate_smithy(db.pool(), &path).await?
-                }
                 "temper" => {
                     println!(
                         "Migrating repo hardening config from temper ({})...",
@@ -153,9 +146,15 @@ async fn main() -> anyhow::Result<()> {
                     );
                     warte::migrate::migrate_temper(db.pool(), &path).await?
                 }
+                "smithy" => {
+                    eprintln!(
+                        "smithy needs no import: run `warte hub --data-dir <smithy-hub dir>`, which reads it as-is (see `warte docs ground-station`)."
+                    );
+                    std::process::exit(2);
+                }
                 _ => {
-                    eprintln!("Unknown source: {}. Expected 'smithy' or 'temper'.", source);
-                    std::process::exit(1);
+                    eprintln!("Unknown source: {}. Expected 'temper'.", source);
+                    std::process::exit(2);
                 }
             };
 

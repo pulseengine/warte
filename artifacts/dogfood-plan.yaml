@@ -103,7 +103,7 @@ artifacts:
   - id: REQ-STORE-002
     type: requirement
     title: CI telemetry lives in a disposable cache rebuildable from the source APIs
-    status: approved
+    status: implemented
     release: v1.4.0
     description: ci_jobs, wait_history, ci_status and heartbeat data SHALL be kept in a local cache that warte can rebuild from the GitHub/GitLab APIs. It SHALL NOT be committed to git, and losing it SHALL NOT lose any record of truth.
     fields:
@@ -139,7 +139,7 @@ artifacts:
   - id: REQ-SMITHY-001
     type: requirement
     title: warte ingests the smithy agent's CCSDS telemetry
-    status: implemented
+    status: verified
     release: v1.4.0
     description: warte SHALL receive the smithy agent's CCSDS space packets over UDP using relay-ccsds (same APIDs and framing as smithy hub), accept them only from allow-listed source addresses (the CI host's WireGuard tunnel IP), count rejected packets, and serve HTTP on loopback behind Caddy. Runner, queue, machine and automation state for the Queue, Resources and Overview views come from this telemetry.
     fields:
@@ -195,7 +195,7 @@ artifacts:
   - id: REQ-SMITHY-002
     type: requirement
     title: warte serves smithy hub's API contract unchanged
-    status: implemented
+    status: verified
     release: v1.4.0
     description: warte SHALL serve the endpoints of smithy hub's OpenAPI document (/api/eta, /api/state, /api/history, /api/report, /status.md, /report.md, /healthz, /api/openapi.json) with compatible request parameters and response shapes, so agents following the ci-status skill keep working when fourpi switches from smithy-hub to warte. A test SHALL check warte's OpenAPI document against smithy's.
     fields:
@@ -213,7 +213,7 @@ artifacts:
   - id: REQ-SMITHY-003
     type: requirement
     title: Finished-job ledger kept as per-day JSONL with GitHub as store of record
-    status: implemented
+    status: verified
     release: v1.4.0
     description: warte SHALL keep finished CI jobs as one JSONL file per UTC day in smithy's ledger record format (d, id, run, att, repo, wf, job, pool, runner, ev, c, s, e, r). Days are re-read on the next two days and then closed; GitHub remains the store of record. This replaces the SQLite ci_jobs and wait_history tables, and ETA SHALL be computed from measured pool waits in this ledger, not from queue position.
     fields:
@@ -292,7 +292,7 @@ artifacts:
   - id: REQ-RELEASE-004
     type: requirement
     title: warte is distributed under Apache-2.0, declared consistently
-    status: implemented
+    status: verified
     release: v1.3.1
     description: warte SHALL be licensed Apache-2.0, the PulseEngine default. The LICENSE file, the Cargo.toml license field and the README SHALL agree, and a test SHALL fail if they diverge.
     fields:

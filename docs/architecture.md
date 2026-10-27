@@ -97,7 +97,7 @@ bearer token). Endpoints:
 | `/api/access/revoke` | POST | operator | Revoke access rights |
 | `/api/access/list` | GET | operator | List access rights |
 | `/api/dashboard/overview` | GET | operator | Dashboard overview data |
-| `/api/dashboard/ask` | GET | operator | ETA query ("when will this PR run?") |
+| `/ci/api/eta` | GET | public (read-only) | ETA query ("when will this PR run?"), from the ground station |
 | `/api/sync/state` | GET | instance | Get sync state |
 | `/api/sync/update` | POST | instance | Push state update |
 | `/api/ws` | WS | agent/operator | WebSocket for real-time updates |
@@ -212,14 +212,11 @@ See `artifacts/security.yaml` for the full TARA. Key threats:
 
 ## Migration
 
-### From smithy (internal dashboard on fourpi.local)
+### From smithy hub (fourpi.local)
 
-Import:
-- Agent registrations (name, repo, last heartbeat, health)
-- Captured session data (working context, learnings, friction reports)
-- CI status history (for ETA estimation)
-
-Command: `warte migrate smithy --source /path/to/smithy/data`
+smithy hub was absorbed as warte's ground station (DD-SMITHY-001): `warte hub`
+reads its data directory as-is. See `warte docs migration` for the parallel run
+and cut-over, and `warte docs ground-station` for the data path.
 
 ### From temper (GitHub App)
 
@@ -247,9 +244,8 @@ Command: `warte migrate temper --config /path/to/temper/config.yml`
 - WireGuard VPN between edge and internal instances
 
 ### fourpi.local (Raspberry Pi, to be replaced)
-- Currently runs the internal dashboard (smithy)
-- Will be replaced by warte instance after migration
-- Data migrated via `warte migrate smithy`
+- Runs smithy hub (the CI fleet ground station) behind Caddy at `/ci/`
+- `warte hub` replaces it in place after the parallel run; no data import
 
 ## Release Plan
 

@@ -41,7 +41,19 @@ GET /api/artifacts/{id}/download    # download artifact (integrity-verified)
 
 ```
 GET /api/dashboard/overview         # dashboard overview data
-GET /api/dashboard/ask?repo=X&pr=Y  # ETA query
+```
+
+## Ground station (`/ci`, when `[hub]` is configured)
+
+The absorbed smithy hub API, unchanged; the contract is `/ci/api/openapi.json`.
+See `warte docs ground-station`.
+
+```
+GET /ci/api/eta?repo=X&pr=N         # when does PR N's next job start (or branch=)
+GET /ci/status.md                   # fleet status as Markdown
+GET /ci/api/state                   # latest snapshot + telemetry link stats
+GET /ci/api/history?hours=H         # per-minute trend points
+GET /ci/report.md?month=YYYY-MM     # monthly conveyor-belt report
 ```
 
 ## Sync

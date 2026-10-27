@@ -324,6 +324,21 @@ impl Hub {
         }
     }
 
+    /// Latest snapshot and when it was received (unix seconds), for the
+    /// dashboard. `None` until the first complete frame arrives.
+    pub fn snapshot(&self) -> Option<(Snapshot, i64)> {
+        let g = lk(&self.shared);
+        g.p.latest.clone().map(|s| (s, g.p.received_at))
+    }
+
+    /// The same answer `/api/eta` gives; `None` before the first snapshot.
+    pub fn eta(&self, repo: &str, pr: Option<u32>, branch: Option<&str>) -> Option<eta::Answer> {
+        let g = lk(&self.shared);
+        g.p.latest
+            .as_ref()
+            .map(|s| eta::answer(s, &self.org, repo, pr, branch, now()))
+    }
+
     /// The hub's HTTP API, same paths and responses as smithy hub.
     pub fn router(&self) -> Router {
         Router::new()

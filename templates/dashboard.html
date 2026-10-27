@@ -34,16 +34,17 @@
 
   <div id="ask-form" style="display:none" class="ask-form">
     <h2>Ask — when will this PR run?</h2>
-    <form hx-post="/api/dashboard/ask-partial" hx-target="#ask-result" hx-swap="innerHTML">
-      <label>Repo: <input type="text" name="repo" placeholder="pulseengine/rivet" required></label>
+    <form hx-get="/api/dashboard/ask-partial" hx-target="#ask-result" hx-swap="innerHTML">
+      <label>Repo: <input type="text" name="repo" placeholder="rivet" required></label>
       <label>PR: <input type="number" name="pr" placeholder="511"></label>
+      <label>or branch: <input type="text" name="branch" placeholder="main"></label>
       <button type="submit" class="btn">Estimate</button>
     </form>
     <div id="ask-result"></div>
   </div>
 
   <footer class="footer">
-    <span>warte v0.1.0</span>
+    <span>warte v{{VERSION}}</span>
     <span id="sse-status" class="sse-status">SSE: connecting...</span>
   </footer>
 

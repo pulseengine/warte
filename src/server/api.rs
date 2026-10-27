@@ -23,11 +23,6 @@ pub fn build_routes() -> Router<AppState> {
         .route("/access/revoke", post(revoke_access))
         .route("/sync/update", post(sync_update));
 
-    // Webhook routes — HMAC signature verified (not bearer token)
-    let webhook_routes = Router::new()
-        .route("/webhooks/github", post(github_webhook))
-        .route("/webhooks/gitlab", post(gitlab_webhook));
-
     // Read-only routes — public (rate-limited at edge proxy)
     let read_routes = Router::new()
         .route("/health", get(health))
@@ -38,17 +33,13 @@ pub fn build_routes() -> Router<AppState> {
         .route("/artifacts", get(list_artifacts))
         .route("/artifacts/{id}/download", get(download_artifact))
         .route("/dashboard/overview", get(dashboard_overview))
-        .route("/dashboard/ask", get(dashboard_ask))
         .route("/sync/state", get(sync_state))
         // Real-time: WebSocket (bidirectional) + SSE (unidirectional)
         .route("/ws", axum::routing::any(crate::realtime::ws_handler))
         .route("/events", get(crate::realtime::sse_handler));
 
     Router::new()
-        .nest(
-            "/api",
-            read_routes.merge(mutating_routes).merge(webhook_routes),
-        )
+        .nest("/api", read_routes.merge(mutating_routes))
         // Dashboard HTML frontend
         .route("/", get(crate::dashboard::dashboard_page))
         .route("/dashboard.css", get(crate::dashboard::dashboard_css))
@@ -66,7 +57,8 @@ pub fn build_routes() -> Router<AppState> {
         )
         .route(
             "/api/dashboard/ask-partial",
-            post(crate::dashboard::ask_partial),
+            // a read-only query: GET, so it needs no auth (REQ-API-002 covers mutations)
+            get(crate::dashboard::ask_partial),
         )
         .route(
             "/api/dashboard/queue-partial",
@@ -389,25 +381,6 @@ async fn dashboard_overview(State(state): State<AppState>) -> impl IntoResponse 
     }))
 }
 
-#[derive(Deserialize)]
-struct AskParams {
-    repo: String,
-    pr: Option<u64>,
-}
-
-async fn dashboard_ask(
-    State(_state): State<AppState>,
-    Query(params): Query<AskParams>,
-) -> impl IntoResponse {
-    // TODO: implement ETA estimation from measured waits
-    Json(serde_json::json!({
-        "repo": params.repo,
-        "pr": params.pr,
-        "estimate": "no estimate — insufficient history",
-        "confidence": "low",
-    }))
-}
-
 // ── Sync ────────────────────────────────────────────────────────────
 
 async fn sync_state(
@@ -430,175 +403,6 @@ async fn sync_update(
         Err(e) => {
             tracing::error!(error = %e, "failed to apply sync update");
             StatusCode::INTERNAL_SERVER_ERROR
-        }
-    }
-}
-
-// ── GitHub webhook ──────────────────────────────────────────────────
-
-/// GitHub webhook handler — receives workflow_run events.
-///
-/// Verifies the X-Hub-Signature-256 header (HMAC-SHA256) before processing.
-async fn github_webhook(
-    State(state): State<AppState>,
-    headers: axum::http::HeaderMap,
-    body: axum::body::Bytes,
-) -> impl IntoResponse {
-    use hmac::{Hmac, Mac};
-    use sha2::Sha256;
-
-    type HmacSha256 = Hmac<Sha256>;
-
-    // Get the signature from the header
-    let signature = match headers
-        .get("x-hub-signature-256")
-        .and_then(|v| v.to_str().ok())
-    {
-        Some(s) => s,
-        None => {
-            tracing::warn!("webhook: missing X-Hub-Signature-256 header");
-            return (StatusCode::UNAUTHORIZED, "missing signature").into_response();
-        }
-    };
-
-    // Get the webhook secret from config
-    let secret = match std::env::var("WARTE_GITHUB_WEBHOOK_SECRET") {
-        Ok(s) => s,
-        Err(_) => {
-            tracing::warn!("webhook: WARTE_GITHUB_WEBHOOK_SECRET not configured");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "webhook secret not configured",
-            )
-                .into_response();
-        }
-    };
-
-    // Verify the HMAC signature
-    let mut mac = match HmacSha256::new_from_slice(secret.as_bytes()) {
-        Ok(m) => m,
-        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "invalid secret").into_response(),
-    };
-    mac.update(&body);
-    let expected = format!("sha256={}", hex::encode(mac.finalize().into_bytes()));
-
-    if !signature.starts_with("sha256=") || signature != expected {
-        tracing::warn!(provided = %signature, "webhook: invalid signature");
-        return (StatusCode::UNAUTHORIZED, "invalid signature").into_response();
-    }
-
-    // Parse the event
-    let event: crate::ci::WorkflowRunEvent = match serde_json::from_slice(&body) {
-        Ok(e) => e,
-        Err(e) => {
-            tracing::warn!(error = %e, "webhook: invalid payload");
-            return (StatusCode::BAD_REQUEST, "invalid payload").into_response();
-        }
-    };
-
-    // Process the event
-    let collector = crate::ci::CiDataCollector::new(state.db.pool().clone());
-    match collector.process_webhook(&event).await {
-        Ok(()) => {
-            tracing::debug!(repo = %event.repository.full_name, action = %event.action, "webhook processed");
-            (StatusCode::ACCEPTED, "accepted").into_response()
-        }
-        Err(e) => {
-            tracing::error!(error = %e, "webhook: processing failed");
-            (StatusCode::INTERNAL_SERVER_ERROR, "processing failed").into_response()
-        }
-    }
-}
-
-/// GitLab webhook handler — receives pipeline events.
-///
-/// Verifies the X-Gitlab-Token header (shared secret) before processing.
-async fn gitlab_webhook(
-    State(state): State<AppState>,
-    headers: axum::http::HeaderMap,
-    body: axum::body::Bytes,
-) -> impl IntoResponse {
-    // Get the token from the header
-    let token = match headers.get("x-gitlab-token").and_then(|v| v.to_str().ok()) {
-        Some(t) => t,
-        None => {
-            tracing::warn!("gitlab webhook: missing X-Gitlab-Token header");
-            return (StatusCode::UNAUTHORIZED, "missing token").into_response();
-        }
-    };
-
-    // Get the webhook secret from config
-    let secret = match std::env::var("WARTE_GITLAB_WEBHOOK_TOKEN") {
-        Ok(s) => s,
-        Err(_) => {
-            tracing::warn!("gitlab webhook: WARTE_GITLAB_WEBHOOK_TOKEN not configured");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "webhook token not configured",
-            )
-                .into_response();
-        }
-    };
-
-    // Verify the token (constant-time comparison)
-    if token != secret {
-        tracing::warn!("gitlab webhook: invalid token");
-        return (StatusCode::UNAUTHORIZED, "invalid token").into_response();
-    }
-
-    // Parse the event (GitLab pipeline event)
-    let event: serde_json::Value = match serde_json::from_slice(&body) {
-        Ok(e) => e,
-        Err(e) => {
-            tracing::warn!(error = %e, "gitlab webhook: invalid payload");
-            return (StatusCode::BAD_REQUEST, "invalid payload").into_response();
-        }
-    };
-
-    // Extract pipeline info
-    let repo = event["project"]["path_with_namespace"]
-        .as_str()
-        .unwrap_or("unknown")
-        .to_string();
-    let status = event["object_attributes"]["status"]
-        .as_str()
-        .unwrap_or("unknown")
-        .to_string();
-    let pipeline_id = event["object_attributes"]["id"].as_u64().unwrap_or(0);
-
-    // Store in ci_jobs
-    let id = uuid::Uuid::now_v7().to_string();
-    let result = sqlx::query(
-        r#"
-        INSERT OR REPLACE INTO ci_jobs
-            (id, repo, run_id, run_number, branch, sha, status, conclusion,
-             queued_at, started_at, completed_at, runner_pool, url, recorded_at)
-        VALUES (?, ?, ?, 0, ?, ?, ?, ?, NULL, NULL, NULL, 'gitlab', ?, ?)
-        "#,
-    )
-    .bind(&id)
-    .bind(&repo)
-    .bind(pipeline_id as i64)
-    .bind(event["object_attributes"]["ref"].as_str().unwrap_or("main"))
-    .bind(event["object_attributes"]["sha"].as_str().unwrap_or(""))
-    .bind(&status)
-    .bind(event["object_attributes"]["status"].as_str())
-    .bind(format!(
-        "https://gitlab.com/{}/-/pipelines/{}",
-        repo, pipeline_id
-    ))
-    .bind(chrono::Utc::now().to_rfc3339())
-    .execute(state.db.pool())
-    .await;
-
-    match result {
-        Ok(_) => {
-            tracing::debug!(repo = %repo, pipeline_id = pipeline_id, status = %status, "gitlab webhook processed");
-            (StatusCode::ACCEPTED, "accepted").into_response()
-        }
-        Err(e) => {
-            tracing::error!(error = %e, "gitlab webhook: processing failed");
-            (StatusCode::INTERNAL_SERVER_ERROR, "processing failed").into_response()
         }
     }
 }

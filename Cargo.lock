@@ -3109,7 +3109,6 @@ dependencies = [
  "ed25519-dalek",
  "futures",
  "hex",
- "hmac",
  "mdns-sd",
  "rand 0.8.8",
  "rcgen",
