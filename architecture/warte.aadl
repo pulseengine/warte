@@ -102,6 +102,8 @@ public
       api_req : in data port Message;
       api_resp : out data port Message;
       sync : in out data port Message;
+      -- CCSDS space packets from the smithy agent (UDP over WireGuard), DD-SMITHY-001
+      telemetry : in data port Telemetry;
   end WarteInstance;
 
   system implementation WarteInstance.impl
@@ -111,6 +113,7 @@ public
       access_control : process AccessControl.impl;
       artifact_store : process ArtifactStore.impl;
       sync_service : process SyncService.impl;
+      ground_station : process GroundStation.impl;
       db : data SqliteDB.impl;
     connections
       c_api_in : port api_req -> api_server.api_in;
@@ -120,7 +123,65 @@ public
       c_acc_db : port access_control.db_port <-> db.access_port;
       c_art_db : port artifact_store.db_port <-> db.access_port;
       c_sync_db : port sync_service.db_port <-> db.access_port;
+      c_telemetry : port telemetry -> ground_station.telemetry_in;
   end WarteInstance.impl;
+
+  -----------------------------------------------------------------------
+  -- Ground station (DD-SMITHY-001) — absorbed from smithy hub.
+  -- Ingests the smithy agent's CCSDS telemetry (relay-ccsds), keeps hub
+  -- state and the per-day JSONL ledger (GitHub is the store of record),
+  -- answers ETA from measured pool waits, serves the hub API.
+  -----------------------------------------------------------------------
+
+  data Telemetry
+    properties
+      Data_Model::Data_Representation => Struct;
+  end Telemetry;
+
+  data implementation Telemetry.impl
+  end Telemetry.impl;
+
+  process GroundStation
+    features
+      telemetry_in : in data port Telemetry;
+  end GroundStation;
+
+  process implementation GroundStation.impl
+    subcomponents
+      hub_state : data HubState.impl;
+      ledger : data BeltLedger.impl;
+  end GroundStation.impl;
+
+  -- hub-state.json: latest snapshot + per-minute history (7 days)
+  data HubState
+    properties
+      Data_Model::Data_Representation => Struct;
+  end HubState;
+
+  data implementation HubState.impl
+  end HubState.impl;
+
+  -- ledger/YYYY-MM-DD.jsonl: every finished org job, one file per UTC day
+  data BeltLedger
+    properties
+      Data_Model::Data_Representation => Array;
+  end BeltLedger;
+
+  data implementation BeltLedger.impl
+  end BeltLedger.impl;
+
+  -----------------------------------------------------------------------
+  -- smithy agent on the CI host (pulseengine-ci-01). Read-only observer;
+  -- dials OUT to the ground station, so the CI host exposes nothing.
+  -----------------------------------------------------------------------
+
+  system SmithyAgent
+    features
+      telemetry_out : out data port Telemetry;
+  end SmithyAgent;
+
+  system implementation SmithyAgent.impl
+  end SmithyAgent.impl;
 
   process APIServer
     features
@@ -273,6 +334,7 @@ public
       mobile : system MobileClient.impl;
       agent1 : system AgentRuntime.impl;
       agent2 : system AgentRuntime.impl;
+      ci_host : system SmithyAgent.impl;
     connections
       -- Internet ↔ Edge Proxy
       c_internet_edge : port internet <-> edge.ext_in;
@@ -292,6 +354,8 @@ public
       c_edge_agent1 : port edge.ext_out -> agent1.msg_in;
       c_agent2_edge : port agent2.msg_out -> edge.ext_in;
       c_edge_agent2 : port edge.ext_out -> agent2.msg_in;
+      -- CI host → primary instance: CCSDS telemetry over WireGuard, not via the edge
+      c_ci_telemetry : port ci_host.telemetry_out -> instance1.telemetry;
   end WarteSystem.impl;
 
 end Warte;

@@ -1943,6 +1943,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 
 [[package]]
+name = "relay-ccsds"
+version = "0.1.0"
+source = "git+https://github.com/pulseengine/relay?rev=4cc48b7577432d2403d50f8e961d5c1281e44fa8#4cc48b7577432d2403d50f8e961d5c1281e44fa8"
+dependencies = [
+ "wit-bindgen 0.62.0",
+]
+
+[[package]]
 name = "reqwest"
 version = "0.12.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3105,6 +3113,7 @@ dependencies = [
  "mdns-sd",
  "rand 0.8.8",
  "rcgen",
+ "relay-ccsds",
  "reqwest",
  "rustls",
  "serde",
@@ -3139,7 +3148,7 @@ version = "1.0.4+wasi-0.2.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b67efb37e106e55ce722a510d6b5f9c17f083e5fc79afc2badeb12cc313d9487"
 dependencies = [
- "wit-bindgen",
+ "wit-bindgen 0.57.1",
 ]
 
 [[package]]
@@ -3464,6 +3473,12 @@ name = "wit-bindgen"
 version = "0.57.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1ebf944e87a7c253233ad6766e082e3cd714b5d03812acc24c318f549614536e"
+
+[[package]]
+name = "wit-bindgen"
+version = "0.62.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "53cb4b5556c3a791e86838ea287782bdafa704d55b0e68b5b81a3a16b9ea5f4b"
 
 [[package]]
 name = "writeable"

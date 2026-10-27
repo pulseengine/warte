@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SMITHY · CI fleet</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚒️</text></svg>">
+<style>
+/* Visual language borrowed from pulseengine/temper's dashboard (MIT), so the
+   two read as one family: same palette, monospace type, tracked labels. */
+:root{--bg:#0a0a0f;--surface:#111118;--raise:#1a1a25;--border:#1e1e2a;--text:#c8ccd0;--dim:#6b7078;--accent:#c8ff00;--accent-dim:#7a9900;--ok:#00ff66;--warn:#ffaa00;--err:#ff3333;--info:#6c8cff;
+  --mono:'SF Mono','Fira Code','Cascadia Code','JetBrains Mono',monospace}
+*{box-sizing:border-box}
+html{color-scheme:dark}
+body{margin:0;background:var(--bg);color:var(--text);font:13px/1.5 var(--mono)}
+nav{display:flex;align-items:center;gap:26px;padding:16px 24px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.logo{color:var(--accent);font-weight:800;font-style:italic;letter-spacing:.18em;font-size:20px;text-decoration:none}
+nav a.t{color:var(--dim);text-decoration:none;letter-spacing:.14em;font-size:12px;text-transform:uppercase}
+nav a.t:hover{color:var(--accent)}nav a.t.on{color:var(--accent);border-bottom:2px solid var(--accent);padding-bottom:4px}nav a.t.ext{margin-left:auto}
+.askf{display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-bottom:14px}.askf label{display:flex;flex-direction:column;gap:4px;font-size:10px;color:var(--dim);letter-spacing:.1em;text-transform:uppercase}
+.askf input{background:var(--raise);border:1px solid var(--border);color:var(--text);font:inherit;font-size:13px;padding:6px 8px;border-radius:4px;width:150px}.askf input:focus{outline:none;border-color:var(--accent-dim)}
+.askf button{background:var(--accent);color:#000;border:0;border-radius:4px;font:inherit;font-weight:700;letter-spacing:.1em;padding:7px 16px;cursor:pointer;text-transform:uppercase;font-size:12px}
+.ans{border:1px solid var(--border);border-radius:6px;padding:12px 14px;margin-bottom:12px}.ans .s{font-size:16px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.08em}.ans .s.unknown{color:var(--warn)}.ans .s.not_queued{color:var(--dim)}
+.ans ul{margin:8px 0 0;padding-left:18px;font-size:12px;line-height:1.7}.ans .over{color:var(--warn)}
+tr.pick{cursor:pointer}tr.pick:hover td{color:var(--accent)}
+.rgs{display:flex;gap:6px;margin-bottom:10px}.rg{background:none;border:1px solid var(--border);color:var(--dim);border-radius:4px;font:inherit;font-size:11px;padding:2px 10px;cursor:pointer}.rg.on{color:#000;background:var(--accent);border-color:var(--accent)}
+.spark.axis{margin-top:2px}.ax{display:flex;justify-content:space-between;font-size:10px;color:var(--dim)}
+.tg{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin:12px 0 2px;border-top:1px solid var(--border);padding-top:8px}.tg:first-of-type{border-top:0;margin-top:0}
+.tab:not(.on){display:none!important}.tab.on{display:block}.tab.two.on{display:grid}
+/* forge mode (easter egg) */
+body.forge .hero .big{transition:color .6s}body.forge .r.busy{box-shadow:0 0 calc(var(--heat,0)*22px) calc(var(--heat,0)*2px) var(--glow,transparent);border-left-color:var(--glow)}
+.spark-p{position:fixed;width:4px;height:4px;border-radius:50%;pointer-events:none;z-index:99;background:#ffd27a;box-shadow:0 0 6px #ff9a1f;animation:fly .7s ease-out forwards}
+@keyframes fly{to{transform:translate(var(--dx),var(--dy));opacity:0}}
+.clang{position:fixed;pointer-events:none;z-index:99;color:#ffcf6b;font-weight:700;letter-spacing:.1em;animation:up .8s ease-out forwards}@keyframes up{to{transform:translateY(-30px);opacity:0}}
+.right{margin-left:auto;display:flex;gap:12px;align-items:center;font-size:11px;color:var(--dim)}
+.pill{padding:4px 10px;border:1px solid var(--accent-dim);color:var(--accent);border-radius:4px;letter-spacing:.06em}
+.pill.stale{border-color:var(--err);color:var(--err)}
+main{padding:20px 24px 32px;display:grid;grid-template-columns:minmax(0,1fr);gap:18px;max-width:1500px}.tab{min-width:0}
+.hero{border:1px solid var(--accent);border-radius:6px;padding:20px 26px;display:grid;grid-template-columns:auto auto 1fr auto;align-items:center;gap:24px;box-shadow:0 0 24px rgba(200,255,0,.06)}
+.hero .l{letter-spacing:.18em;color:var(--dim);font-size:12px}
+.hero .big{font-size:56px;font-weight:800;color:var(--accent);line-height:1}
+.hero .big small{font-size:18px;color:var(--dim)}
+.hero .track{height:5px;background:var(--border);border-radius:3px;overflow:hidden}.hero .track>i{display:block;height:100%;background:var(--accent)}
+.hero .r{color:var(--dim);font-size:12px;text-align:right}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.kpi,.panel{background:var(--surface);border:1px solid var(--border);border-radius:6px}
+.kpi{padding:12px 14px}
+.kpi .l{font-size:11px;color:var(--dim);letter-spacing:.14em;text-transform:uppercase}
+.kpi .v{font-size:26px;font-weight:700;color:var(--accent);margin-top:4px;font-variant-numeric:tabular-nums}
+.kpi .v.warn{color:var(--warn)}.kpi .v.err{color:var(--err)}
+.kpi .s{font-size:11px;color:var(--dim)}
+.panel{padding:14px 16px;scroll-margin-top:12px}
+.panel h2{font-size:12px;margin:0 0 12px;color:var(--dim);font-weight:600;letter-spacing:.16em;text-transform:uppercase}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+.r{background:var(--raise);border:1px solid var(--border);border-left:3px solid var(--border);border-radius:5px;padding:9px 11px;min-height:78px}
+.r.busy{border-left-color:var(--ok)}.r.gh{border-left-color:var(--info);cursor:default}.r.gh.q{border-left-color:var(--warn)}.st.run{background:rgba(0,170,255,.12);color:var(--info)}.st.wait{background:rgba(255,170,0,.14);color:var(--warn)}.r .links{font-size:11px;margin-top:4px}.r.off{border-left-color:var(--err)}
+.r .top{display:flex;gap:7px;align-items:center}
+.r .n{color:var(--accent);font-weight:700}
+.st{font-size:10px;padding:1px 6px;border-radius:3px;letter-spacing:.1em;text-transform:uppercase;font-weight:700}
+.st.busy{background:rgba(0,255,102,.12);color:var(--ok)}.st.idle{background:var(--border);color:var(--dim)}.st.off{background:rgba(255,51,51,.15);color:var(--err)}
+.dis{font-size:10px;padding:1px 6px;border-radius:3px;background:rgba(255,170,0,.14);color:var(--warn);letter-spacing:.06em}
+.job{font-size:12px;margin-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.meta{font-size:10px;color:var(--dim);margin-top:6px;display:flex;gap:5px;flex-wrap:wrap}
+.res{display:grid;grid-template-columns:auto 1fr;gap:3px 8px;align-items:center;font-size:10px;color:var(--dim);margin-top:6px}.res .bar{height:3px}.res .hot{color:var(--warn)}.res .bar>i.hot{background:var(--warn)}
+.kv .spark{margin:2px 0;grid-template-columns:1fr 90px}
+.chip{border:1px solid var(--border);border-radius:3px;padding:0 5px;letter-spacing:.06em;text-transform:uppercase}
+.chip.ok{border-color:var(--accent-dim);color:var(--accent)}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:18px}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+th{font-size:10px;color:var(--dim);text-align:left;font-weight:600;padding:6px 8px;border-bottom:1px solid var(--border);letter-spacing:.14em;text-transform:uppercase}
+td{padding:7px 8px;border-bottom:1px solid var(--border);font-size:12px}
+td.n,th.n{text-align:right}
+td.lost{color:var(--err);font-weight:700}
+.note{font-size:11px;color:var(--dim);margin-top:10px}
+.note b{color:var(--text)}
+.spark{display:grid;grid-template-columns:140px 1fr 80px;align-items:center;gap:12px;margin:8px 0}
+.spark .l{font-size:11px;color:var(--dim);letter-spacing:.06em}.spark .x{font-size:12px;text-align:right;color:var(--accent)}
+svg.sl{width:100%;height:34px}svg.sl polyline,svg.sl path{fill:none;stroke:var(--accent);stroke-width:1.5}
+.bar{height:5px;border-radius:3px;background:var(--border);overflow:hidden}.bar>i{display:block;height:100%;background:var(--accent)}
+pre{font:11px/1.55 var(--mono);margin:0;white-space:pre-wrap;word-break:break-word;color:var(--text);background:var(--raise);border:1px solid var(--border);border-radius:4px;padding:8px 10px}
+.auto h3{font-size:11px;margin:14px 0 6px;color:var(--dim);font-weight:600;letter-spacing:.12em;text-transform:uppercase}
+.err{border:1px solid var(--warn);color:var(--warn);border-radius:5px;padding:9px 12px;font-size:12px}
+code{color:var(--accent)}
+.r{cursor:pointer;transition:border-color .1s}.r:hover,.r:focus{border-color:var(--accent-dim);outline:none}.r.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.hint{font-size:11px;color:var(--info);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kv{display:grid;grid-template-columns:150px 1fr;gap:7px 16px;font-size:12px}.kv dt{color:var(--dim);letter-spacing:.08em;text-transform:uppercase;font-size:10px;padding-top:2px}.kv dd{margin:0;word-break:break-word}
+a{color:var(--accent)}a:hover{color:var(--ok)}
+.dhead{display:flex;align-items:center;gap:10px;margin-bottom:12px}.dhead .n{color:var(--accent);font-weight:700;font-size:15px}
+.x{margin-left:auto;background:none;border:1px solid var(--border);color:var(--dim);border-radius:4px;font:inherit;font-size:11px;padding:2px 8px;cursor:pointer}.x:hover{color:var(--accent);border-color:var(--accent-dim)}
+.panel{min-width:0;overflow-x:auto}.ans li{overflow-wrap:anywhere}
+@media (max-width:640px){nav{flex-wrap:nowrap;overflow-x:auto;gap:18px;scrollbar-width:none}nav .right{display:none}nav a.t.ext{margin-left:0}
+  .askf input{width:100%}.askf label{flex:1 1 40%}main{overflow-x:hidden}.two{grid-template-columns:minmax(0,1fr)!important}.grid{grid-template-columns:minmax(0,1fr)}
+  .kv{grid-template-columns:96px minmax(0,1fr)}.spark{grid-template-columns:96px minmax(0,1fr) 60px}
+  nav,main{padding-left:16px;padding-right:16px}.hero{grid-template-columns:1fr;text-align:left}.hero .r{text-align:left}.two{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<nav><a class="logo" href="#">SMITHY</a>
+  <a class="t" href="#t-overview">Runners</a><a class="t" href="#t-hosted">Hosted</a><a class="t" href="#t-queue">Queue</a><a class="t" href="#t-ask">Ask</a><a class="t" href="#t-trends">Trends</a><a class="t" href="#t-link">Link</a><a class="t" href="#t-automation">Automation</a><a class="t ext" href="report.md" target="_blank" rel="noopener" title="monthly conveyor-belt report: work vs wait per pool, and whether the runner pool is the bottleneck">Belt ↗</a><a class="t" href="status.md" target="_blank" rel="noopener" title="the same status as Markdown, for terminals and agents">.md ↗</a><a class="t" href="api/openapi.json" target="_blank" rel="noopener" title="OpenAPI 3 description of the read-only API">API ↗</a>
+  <span class="right"><span id="host">—</span><span class="pill" id="fresh">CONNECTING</span></span></nav>
+<main>
+  <section class="hero"><span class="l" id="herol">FLEET BUSY</span><span class="big" id="herov">—</span><div class="track"><i id="herob" style="width:0"></i></div><span class="r" id="heror">—</span></section>
+  <section class="kpis" id="kpis"></section>
+  <div id="errs"></div>
+  <div class="tab" data-tab="overview">
+  <section class="panel" id="runners-p"><h2>Runners</h2><div class="grid" id="runners"></div>
+    <div class="note">Click a runner for details (repo, PR, run, branch, commit, CPU/memory history). CPU and memory come from each runner's own cgroup; amber = stalling, near its cap, or OOM-killed. Busy/idle is the host's own view (a <code>Runner.Worker</code> process). GitHub's busy flag lags in both directions; an amber badge marks where it disagrees.</div></section>
+  <section class="panel" id="detail-p" hidden></section>
+  </div>
+  <div class="tab" data-tab="hosted">
+  <section class="panel" id="hosted-p"><h2>GitHub-hosted</h2><div id="hosted-g"></div>
+    <details id="hosted-d"><summary class="note" style="cursor:pointer">individual jobs</summary><div class="grid" id="hosted"></div></details>
+    <div class="note" id="hosted-note"></div></section>
+  </div>
+  <div class="tab two" data-tab="queue">
+    <section class="panel" id="queue-p"><h2>Queue by pool</h2><div id="queue"></div></section>
+    <section class="panel"><h2>Biggest queued runs</h2><div id="runs"></div></section>
+  </div>
+  <div class="tab" data-tab="ask">
+  <section class="panel" id="ask-p"><h2>When will it run?</h2>
+    <form id="askf" class="askf" autocomplete="off"><label>repo <input id="ask-repo" placeholder="spar" maxlength="100" pattern="[A-Za-z0-9_.\-]{1,100}" required></label><label>PR <input id="ask-pr" placeholder="511" inputmode="numeric" pattern="[0-9]{1,9}"></label><label>or branch <input id="ask-branch" placeholder="main" maxlength="200"></label><button type="submit">ask</button></form>
+    <div id="ask-out"></div>
+    <div class="note">Estimated from <b>measured</b> waits: how long jobs in the same pool actually waited before starting over the last 3 hours. Not from queue position, because GitHub does not start jobs in creation order. Covers the <i>next</i> job only; jobs behind <code>needs:</code> do not exist yet. Agents: <code>GET api/eta?repo=spar&amp;pr=511</code> (JSON) or <code>status.md?repo=spar&amp;pr=511</code> (Markdown); see <a href="api/openapi.json" target="_blank" rel="noopener">openapi.json</a>.</div></section>
+  <section class="panel"><h2>Queued right now</h2><div id="queued-l"></div></section>
+  </div>
+  <div class="tab two" data-tab="trends">
+    <section class="panel" id="trends-p"><h2>Trends</h2><div id="trends"></div></section>
+    <section class="panel"><h2>Host</h2><div id="hostp"></div></section>
+  </div>
+  <div class="tab" data-tab="link"><section class="panel" id="link-p"><h2>Telemetry link · CCSDS</h2><div id="link"></div></section></div>
+  <div class="tab" data-tab="automation"><section class="panel auto" id="auto-p"><h2>Automation</h2><div id="auto"></div></section></div>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const GENERIC=new Set(["self-hosted","linux","x64","hetzner"]);
+function dur(s){if(s==null||s<0)return"—";if(s<90)return Math.round(s)+"s";if(s<5400)return Math.round(s/60)+"m";if(s<172800)return(s/3600).toFixed(1)+"h";return(s/86400).toFixed(1)+"d"}
+function kpi(l,v,s){return`<div class="kpi"><div class="l">${esc(l)}</div><div class="v">${esc(v)}</div><div class="s">${esc(s||"")}</div></div>`}
+// Sparkline. With timestamps the x axis is TIME, spanning exactly [t0, t1]: a range
+// longer than the history shows the data where it really is, not stretched over the
+// whole width. A gap of more than 5 minutes (hub or agent down) breaks the line.
+function spark(vals,ts,t0,t1){const v=vals.filter(x=>x!=null);if(v.length<2)return'<svg class="sl"></svg>';const mx=Math.max(...v,1),n=vals.length,span=ts?Math.max(1,t1-t0):1;
+  let d="",prev=null;vals.forEach((x,i)=>{if(x==null){prev=null;return}const xp=ts?((ts[i]-t0)/span)*100:(i/(n-1))*100;if(xp<0)return;const yp=32-(x/mx)*30;
+    d+=(prev==null||(ts&&ts[i]-prev>300)?"M":"L")+xp.toFixed(2)+","+yp.toFixed(2)+" ";prev=ts?ts[i]:i});
+  return`<svg class="sl" viewBox="0 0 100 34" preserveAspectRatio="none"><path fill="none" vector-effect="non-scaling-stroke" d="${d.trim()}"/></svg>`}
+
+async function state(){
+  let d;try{d=await (await fetch("api/state",{cache:"no-store"})).json()}catch(e){$("fresh").textContent="hub unreachable";$("fresh").className="pill stale";return}
+  LAST=d;
+  const s=d.snapshot;if(!s){$("fresh").textContent="waiting for first snapshot";$("fresh").className="pill stale";return}
+  const age=d.hub_now-s.taken_at, now=d.hub_now;
+  $("host").textContent=s.host+" · agent "+s.agent_version;
+  $("fresh").textContent=age>180?`STALE · ${dur(age)}`:`LIVE · ${dur(age)} AGO`;
+  $("fresh").className="pill"+(age>180?" stale":"");
+  const R=s.runners, m=s.machine, q=s.queue;
+  const online=R.filter(r=>r.gh_status==="online").length, busy=R.filter(r=>r.local_busy).length;
+  const rd=(m.disks||[]).find(x=>x.mount==="/var/lib/runners");
+  // self-hosted only: a slow GitHub-hosted job must not show up as OUR wait time
+  let oldest=0;if(q)for(const [k,p] of Object.entries(q.pools))if(k!=="hosted")oldest=Math.max(oldest,p.oldest_s);
+  const shq=q?Object.entries(q.pools).filter(([k])=>k!=="hosted").reduce((a,[,p])=>a+p.jobs_queued,0):null;
+  const H=(q&&q.hosted)||[], HR=H.filter(j=>j.status==="in_progress"), HQ=H.filter(j=>j.status!=="in_progress");
+  $("kpis").innerHTML=
+    kpi("Runners online",`${online}/${R.length}`,R.some(r=>r.gh_status==="offline")?"some offline on GitHub":"all online")+
+    kpi("Busy (host view)",`${busy}/${R.length}`,`GitHub says ${R.filter(r=>r.gh_busy).length}`)+
+    kpi("Queued jobs · self-hosted",shq??"—",q?`oldest ${dur(oldest)} · ${q.runs_queued} runs`:"no scan yet")+
+    kpi("GitHub-hosted",q?`${q.hosted_running??HR.length}`:"—",q?`running · ${q.hosted_queued??HQ.length} queued`:"no scan yet")+
+    kpi("CPU pressure",m.psi.cpu.avg60.toFixed(1)+"%",`load ${m.load[0].toFixed(0)} on ${m.ncpu} cores`)+
+    kpi("Memory pressure",m.psi.memory.avg60.toFixed(1)+"%",`${(m.mem_avail_mb/1024).toFixed(0)} GB free`)+
+    kpi("Runner disk",rd?rd.used_pct.toFixed(0)+"%":"—",rd?`${(rd.size_gb-rd.used_gb).toFixed(0)} GB free`:"");
+  const pct=R.length?Math.round(100*busy/R.length):0;
+  $("herov").innerHTML=`${busy}<small>/${R.length}</small>`;$("herob").style.width=pct+"%";
+  $("heror").textContent=`${online} online · ${pct}% busy · host load ${m.load[0].toFixed(0)}/${m.ncpu}`;
+  const L=d.link||[], lost=L.reduce((a,r)=>a+r.lost,0);
+  $("link").innerHTML=`<table><tr><th>APID</th><th>stream</th><th class="n">received</th><th class="n">lost</th><th class="n">restarts</th><th class="n">last</th></tr>${L.map(r=>`<tr><td>${esc(r.apid)}</td><td>${esc(r.stream)}</td><td class="n">${r.received}</td><td class="n${r.lost?" lost":""}">${r.lost}</td><td class="n">${r.restarts}</td><td class="n">${dur(now-r.last_seen)}</td></tr>`).join("")}</table><div class="note">${d.frames} complete frames since hub start · <b>${lost}</b> packets lost (per-APID 14-bit sequence counters) · ${d.rejected} rejected (bad length/checksum) · ${d.foreign} from non-allowed addresses · codec: <code>relay-ccsds</code></div>`;
+  $("errs").innerHTML=(s.errors||[]).length?`<div class="err">Collection problems: ${s.errors.map(esc).join(" · ")}</div>`:"";
+  $("runners").innerHTML=R.map(r=>{
+    const off=!r.active||r.gh_status==="offline", cls=off?"off":r.local_busy?"busy":"idle";
+    const word=off?(r.active?"offline on GitHub":"service down"):r.local_busy?"busy":"idle";
+    const dis=(r.gh_busy!=null&&!off&&r.gh_busy!==r.local_busy)?`<span class="dis">GitHub: ${r.gh_busy?"busy":"idle"}</span>`:"";
+    const job=r.local_busy&&r.job?`<div class="job" title="${esc(r.job)}">${esc(r.job)} · ${dur(r.job_started?now-r.job_started:null)}</div>`:`<div class="job" style="color:var(--mut)">${r.last_result?"last: "+esc(r.last_result):"&nbsp;"}</div>`;
+    const chips=(r.labels||[]).filter(l=>!GENERIC.has(l.toLowerCase())).map(l=>`<span class="chip">${esc(l)}</span>`).join("");
+    const tr=r.trace==="relatime"?`<span class="chip" title="rustup usage trace active">trace ✓</span>`:"";
+    const c=r.local_busy?r.ctx:null;
+    const hint=c?`<div class="hint">${esc(c.repo.split("/").pop())}${c.pr?" #"+c.pr:(c.branch?" · "+esc(c.branch):"")} · ${esc(c.workflow)}</div>`:"";
+    const st=r.stats, gb=mb=>(mb/1024).toFixed(1);
+    const res=st?(()=>{const mp=st.mem_max_mb?Math.min(100,100*st.mem_mb/st.mem_max_mb):0, hotm=st.psi_mem>=10||st.oom_kills>0||mp>=85, hotc=st.psi_cpu>=25;
+      return`<div class="res"><span class="${hotc?"hot":""}">cpu ${st.cpu_cores!=null?st.cpu_cores.toFixed(1)+" cores":"…"}${st.psi_cpu>=1?" · stall "+st.psi_cpu.toFixed(0)+"%":""}</span><span></span><span class="${hotm?"hot":""}">mem ${gb(st.mem_mb)}${st.mem_max_mb?"/"+gb(st.mem_max_mb):""} GB${st.oom_kills?" · "+st.oom_kills+" OOM":""}</span><div class="bar"><i class="${hotm?"hot":""}" style="width:${mp.toFixed(0)}%"></i></div></div>`})():"";
+    return`<div class="r ${cls}${SELECTED===r.id?" sel":""}" tabindex="0" role="button" aria-label="runner${r.id} details" onclick="sel(${r.id})" onkeydown="if(event.key==='Enter')sel(${r.id})"><div class="top"><span class="n">runner${r.id}</span><span class="st ${cls}">${word}</span>${dis}</div>${job}${hint}${res}<div class="meta">${chips}${tr}</div></div>`}).join("");
+  renderDetail();
+  if(FORGE)forgePaint();else{$("herol").textContent="FLEET BUSY";$("herov").style.color=""}
+  $("hosted").innerHTML=H.length?H.map(j=>{
+    const run=j.status==="in_progress", Rp=okRepo(j.repo);
+    const links=Rp?[okNum(j.run_id)?link(gh(j.repo,"actions","runs",j.run_id),"run ↗"):"", j.pr&&okNum(j.pr)?link(gh(j.repo,"pull",j.pr),"PR #"+j.pr):""].filter(Boolean).join(" · "):"";
+    return`<div class="r gh${run?"":" q"}"><div class="top"><span class="n">${esc(j.runner||"waiting")}</span><span class="st ${run?"run":"wait"}">${run?"running":"queued"} ${dur(now-j.since)}</span></div><div class="job" title="${esc(j.job)}">${esc(j.job)}</div><div class="hint">${esc(j.repo.split("/").pop())}${j.pr?" #"+j.pr:(j.branch?" · "+esc(j.branch):"")} · ${esc(j.workflow)} · ${esc(j.event)}</div><div class="meta"><span class="chip">${esc(j.labels)}</span></div>${links?`<div class="links">${links}</div>`:""}</div>`}).join(""):`<div class="note">${q?"Nothing running or queued on GitHub-hosted runners.":"No queue scan yet."}</div>`;
+  const QL=((q&&q.queued)||[]).slice().sort((a,b)=>a.since-b.since);
+  $("queued-l").innerHTML=QL.length?`<table><tr><th>repo</th><th>PR / branch</th><th>workflow</th><th>pool</th><th class="n">jobs</th><th class="n">waiting</th></tr>${QL.map(e=>`<tr class="pick" title="ask when it runs" data-repo="${esc(e.repo)}" data-pr="${e.pr||""}" data-branch="${esc(e.branch)}"><td>${esc(e.repo)}</td><td>${e.pr?"#"+e.pr:esc(e.branch)}</td><td>${esc(e.workflow)}</td><td>${esc(e.pool)}</td><td class="n">${e.jobs}</td><td class="n">${dur(now-e.since)}</td></tr>`).join("")}</table><div class="note">${q.queued_complete?"Complete list":"<b>Incomplete</b> (scan budget or a lost chunk)"} · click a row to ask.</div>`:`<div class="note">${q?(q.queued_complete?"Nothing queued.":"Nothing in the list, but the scan was incomplete."):"No scan yet."}</div>`;
+  const G=(q&&q.hosted_groups)||[];
+  $("hosted-g").innerHTML=G.length?`<table><tr><th>repo</th><th>runs-on</th><th class="n">running</th><th class="n">queued</th><th class="n">oldest</th></tr>${G.map(g=>`<tr><td>${okRepo(g.repo)?link(gh(g.repo,"actions"),g.repo.split("/").pop()):esc(g.repo)}</td><td>${esc(g.labels)}</td><td class="n">${g.running}</td><td class="n">${g.queued}</td><td class="n">${dur(now-g.since)}</td></tr>`).join("")}</table>`:"";
+  $("hosted-note").innerHTML=q?`From the org queue scan ${dur(now-q.scanned_at)} ago (every ~5 min) over ${q.repos_scanned} active repos${q.truncated?", scan capped so this is a lower bound":""}. Jobs whose <code>runs-on</code> has no <code>self-hosted</code> label; times are since start (running) or since creation (queued).${q.hosted_total>H.length?` Showing ${H.length} of ${q.hosted_total}.`:""}`:"";
+  if(q){
+    const rows=Object.entries(q.pools).sort((a,b)=>b[1].jobs_queued-a[1].jobs_queued).map(([k,p])=>`<tr><td>${esc(k)}</td><td class="n">${p.jobs_queued}</td><td class="n">${dur(p.oldest_s)}</td><td class="n">${dur(p.median_s)}</td></tr>`).join("");
+    $("queue").innerHTML=`<table><tr><th>pool (from labels)</th><th class="n">jobs</th><th class="n">oldest</th><th class="n">median</th></tr>${rows||'<tr><td colspan=4 style="color:var(--mut)">nothing queued</td></tr>'}</table><div class="note">${q.jobs_queued} queued <b>jobs</b> across ${q.runs_queued} workflow <b>runs</b> in ${q.repos_scanned} active repos · scanned ${dur(now-q.scanned_at)} ago${q.truncated?" · <b>lower bound</b> (scan cap reached)":""}</div>`;
+    $("runs").innerHTML=`<table><tr><th>repo / workflow</th><th>event</th><th class="n">jobs</th><th class="n">oldest</th></tr>${q.top_runs.map(r=>`<tr><td>${esc(r.repo)} / ${esc(r.workflow)}</td><td>${esc(r.event)}</td><td class="n">${r.jobs_queued}</td><td class="n">${dur(r.oldest_s)}</td></tr>`).join("")||'<tr><td colspan=4 style="color:var(--mut)">nothing queued</td></tr>'}</table>`;
+  } else {$("queue").innerHTML=$("runs").innerHTML='<div class="note">first queue scan pending</div>'}
+  const sw=(m.swap_used_mb/1024).toFixed(1);
+  $("hostp").innerHTML=[["CPU",m.psi.cpu.avg60],["Memory",m.psi.memory.avg60],["I/O",m.psi.io.avg60]].map(([l,v])=>`<div class="spark"><span class="l">${l} pressure (60s)</span><div class="bar"><i style="width:${Math.min(v,100)}%"></i></div><span class="x">${v.toFixed(1)}%</span></div>`).join("")+
+    (m.disks||[]).map(x=>`<div class="spark"><span class="l">disk ${esc(x.mount)}</span><div class="bar"><i style="width:${Math.min(x.used_pct,100)}%"></i></div><span class="x">${x.used_pct.toFixed(0)}%</span></div>`).join("")+
+    `<div class="note">load ${m.load.map(x=>x.toFixed(1)).join(" / ")} on ${m.ncpu} cores · ${(m.mem_avail_mb/1024).toFixed(0)} of ${(m.mem_total_mb/1024).toFixed(0)} GB free · swap ${sw} GB used</div>`;
+  const a=s.automation, blk=(t,l)=>`<h3>${esc(t)}</h3><pre>${(l&&l.length)?l.map(esc).join("\n"):"—"}</pre>`;
+  $("auto").innerHTML=`<table><tr><th>timer</th><th>state</th><th>next run</th></tr>${a.timers.map(t=>`<tr><td>${esc(t.unit)}</td><td>${t.active?"active":"inactive"}</td><td>${esc(t.next||"—")}</td></tr>`).join("")}</table>`+
+    blk("Downtime dispatcher",a.dispatcher)+blk("Runner watchdog",a.watchdog)+blk("Bazel sweep",a.bazel_sweep)+blk("Trace rollout",a.trace_rollout);
+}
+let SELECTED=null, LAST=null, HIST=[];
+function sel(id){SELECTED=SELECTED===id?null:id;state()}
+// Links are only built from VALIDATED components (values come from GitHub and repo authors).
+const okRepo=s=>/^[A-Za-z0-9_.-]{1,100}\/[A-Za-z0-9_.-]{1,100}$/.test(s||""), okSha=s=>/^[0-9a-f]{7,40}$/.test(s||""), okNum=n=>Number.isInteger(n)&&n>0;
+const gh=(repo,...p)=>"https://github.com/"+repo.split("/").map(encodeURIComponent).join("/")+(p.length?"/"+p.map(x=>encodeURIComponent(String(x))).join("/"):"");
+const link=(href,text)=>`<a href="${esc(href)}" target="_blank" rel="noopener noreferrer">${esc(text)}</a>`;
+function renderDetail(){
+  const box=$("detail-p"); const s=LAST&&LAST.snapshot; const r=s&&s.runners.find(x=>x.id===SELECTED);
+  if(!r){box.hidden=true;box.innerHTML="";return}
+  const now=LAST.hub_now, c=r.local_busy?r.ctx:null, rows=[];
+  const add=(k,v)=>{if(v!=null&&v!=="")rows.push(`<dt>${esc(k)}</dt><dd>${v}</dd>`)};
+  const off=!r.active||r.gh_status==="offline";
+  add("state",esc(off?(r.active?"offline on GitHub":"service down"):r.local_busy?"busy":"idle")+` <span style="color:var(--dim)">· GitHub: ${esc(r.gh_status||"?")}${r.gh_busy!=null?(r.gh_busy?", busy":", idle"):""}</span>`);
+  if(r.local_busy&&r.job) add("job",esc(r.job)+(r.job_started?` <span style="color:var(--dim)">· running ${dur(now-r.job_started)} (since ${esc(new Date(r.job_started*1000).toLocaleTimeString())})</span>`:""));
+  if(c){
+    const R=okRepo(c.repo);
+    add("repository",R?link(gh(c.repo),c.repo):esc(c.repo));
+    add("workflow",esc(c.workflow)+(c.run_number?` · run #${c.run_number}${c.run_attempt>1?" (attempt "+c.run_attempt+")":""}`:"")+(R&&okNum(c.run_id)?" · "+link(gh(c.repo,"actions","runs",c.run_id),"open run ↗"):""));
+    add("event",esc(c.event));
+    if(c.pr) add("pull request",(R&&okNum(c.pr)?link(gh(c.repo,"pull",c.pr),"#"+c.pr):esc("#"+c.pr))+(c.pr_title?" "+esc(c.pr_title):""));
+    if(c.branch) add("branch",esc(c.branch)+(c.base?` <span style="color:var(--dim)">→ ${esc(c.base)}</span>`:""));
+    if(c.sha) add("commit",R&&okSha(c.sha)?link(gh(c.repo,"commit",c.sha),c.sha.slice(0,12)):esc(c.sha.slice(0,12)));
+    add("actor",esc(c.actor));
+  } else if(r.local_busy){ add("context",'<span style="color:var(--dim)">no job context found in the worker log yet</span>') }
+  const st=r.stats;
+  if(st){
+    const gb=mb=>(mb/1024).toFixed(1)+" GB", hc=HIST.map(x=>(x.runner_cpu||{})[r.id]??null), hm=HIST.map(x=>{const v=(x.runner_mem||{})[r.id];return v==null?null:v/1024});
+    add("cpu",`${st.cpu_cores!=null?st.cpu_cores.toFixed(2)+" cores":"measuring (needs two samples)"} <span style="color:var(--dim)">· stalled ${st.psi_cpu.toFixed(1)}% of the last 60s</span>`+(hc.some(v=>v!=null)?`<div class="spark"><span>${spark(hc,HIST.map(x=>x.t),LAST.hub_now-86400,LAST.hub_now)}</span><span class="x">24h peak ${Math.max(...hc.filter(v=>v!=null)).toFixed(1)}</span></div>`:""));
+    add("memory",`${gb(st.mem_mb)} now · peak ${gb(st.mem_peak_mb)} · cap ${st.mem_max_mb?gb(st.mem_max_mb):"none"} <span style="color:var(--dim)">· stalled ${st.psi_mem.toFixed(1)}%</span>`+(hm.some(v=>v!=null)?`<div class="spark"><span>${spark(hm,HIST.map(x=>x.t),LAST.hub_now-86400,LAST.hub_now)}</span><span class="x">24h peak ${Math.max(...hm.filter(v=>v!=null)).toFixed(1)} GB</span></div>`:""));
+    add("processes",String(st.pids));
+    add("OOM kills",st.oom_kills?`<span style="color:var(--warn)">${st.oom_kills} since service start</span>`:"0");
+  }
+  add("last result",esc(r.last_result||""));
+  add("labels",(r.labels||[]).map(esc).join(", "));
+  add("rustup trace",esc(r.trace||"—"));
+  add("process",`${esc(r.unit)} · pid ${r.pid||"—"}`);
+  box.hidden=false;
+  box.innerHTML=`<div class="dhead"><span class="n">runner${r.id}</span><span style="color:var(--dim)">details</span><button class="x" onclick="sel(${r.id})">close ✕</button></div><dl class="kv">${rows.join("")}</dl>`;
+}
+let RANGE=24;try{RANGE=+localStorage.getItem("smithy.range")||24}catch(e){}
+function setRange(h){RANGE=h;try{localStorage.setItem("smithy.range",h)}catch(e){}history.replaceState(null,"","#t-trends/"+h);trends()}
+async function trends(){
+  // the runner detail sparklines always use the last 24h; the Trends tab uses the chosen range
+  let p,d;try{[p,d]=await Promise.all([fetch("api/history?hours="+RANGE,{cache:"no-store"}).then(r=>r.json()),RANGE===24?null:fetch("api/history?hours=24",{cache:"no-store"}).then(r=>r.json())])}catch(e){return}
+  HIST=d||p;renderDetail();
+  // thin to <=300 points so a 7-day line stays readable and cheap
+  const step=Math.max(1,Math.ceil(p.length/300)), P=p.filter((_,i)=>i%step===0||i===p.length-1);
+  const t1=(LAST&&LAST.hub_now)||Math.floor(Date.now()/1000), t0=t1-RANGE*3600, T=P.map(x=>x.t);
+  const row=(l,vals,fmt)=>{const v=vals.filter(x=>x!=null);return`<div class="spark"><span class="l">${l}</span>${spark(vals,T,t0,t1)}<span class="x" title="peak ${v.length?fmt(Math.max(...v)):"—"}">${v.length?fmt(v[v.length-1]):"—"}</span></div>`};
+  const pools=[...new Set(P.flatMap(x=>Object.keys(x.wait_p50||{})))].sort();
+  const sel=[2,6,24,72,168].map(h=>`<button class="rg${RANGE===h?" on":""}" onclick="setRange(${h})">${h<72?h+"h":h/24+"d"}</button>`).join("");
+  const when=s=>RANGE<=24?new Date(s*1000).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}):new Date(s*1000).toLocaleString([], {weekday:"short",hour:"2-digit",minute:"2-digit"});
+  const axis=`<div class="spark axis"><span class="l"></span><div class="ax"><span>${when(t0)}</span><span>${when(t0+(t1-t0)/2)}</span><span>now</span></div><span></span></div>`;
+  const short=P.length&&P[0].t>t0+RANGE*36;  // history begins later than the range start (beyond 1%)
+  $("trends").innerHTML=`<div class="rgs">${sel}</div>`+(P.length<2?'<div class="note">collecting history…</div>':
+    `<div class="tg">fleet</div>`+row("busy runners",P.map(x=>x.local_busy),v=>v)+row("CPU pressure",P.map(x=>x.psi_cpu),v=>v.toFixed(1)+"%")+row("memory pressure",P.map(x=>x.psi_mem),v=>v.toFixed(1)+"%")+
+    `<div class="tg">queue</div>`+row("queued · self-hosted",P.map(x=>x.sh_queued??null),v=>v)+row("queued · GitHub-hosted",P.map(x=>x.hosted_queued??null),v=>v)+row("running · GitHub-hosted",P.map(x=>x.hosted_running??null),v=>v)+row("PRs waiting",P.map(x=>x.prs_waiting??null),v=>v)+
+    `<div class="tg">waiting time</div>`+row("oldest self-hosted wait",P.map(x=>x.sh_oldest_s??null),dur)+pools.map(k=>row("p50 wait · "+esc(k),P.map(x=>(x.wait_p50||{})[k]??null),dur)).join("")+axis+
+    `<div class="note">${p.length} points over the last ${RANGE<72?RANGE+" h":RANGE/24+" days"}${short?` · <b>history only starts ${new Date(p[0].t*1000).toLocaleString()}</b>, so the left part of this range is empty`:""} · a break in a line = the hub or agent was down · hover a value for its peak</div>`);
+}
+// ---- tabs (hash-routed so a tab can be linked and survives reload) ----
+const TABS=["overview","hosted","queue","ask","trends","link","automation"];
+// #t-ask/<repo>/<pr> deep-links straight to an answer (shareable, works on a phone)
+function tab(){const deep=(location.hash||"").match(/^#t-ask\/([A-Za-z0-9_.-]{1,100})\/(\d{1,9})$/);
+  if(deep)setTimeout(()=>pick(deep[1],deep[2],""),0);
+  const rg=(location.hash||"").match(/^#t-trends\/(2|6|24|72|168)$/);
+  if(rg&&+rg[1]!==RANGE){RANGE=+rg[1];if(typeof trends==="function")setTimeout(trends,0)}
+  const want=deep?"ask":(location.hash||"#t-overview").replace(/^#t-/,"").split("/")[0], cur=TABS.includes(want)?want:"overview";
+  document.querySelectorAll(".tab").forEach(e=>e.classList.toggle("on",e.dataset.tab===cur));
+  document.querySelectorAll("nav a.t").forEach(a=>a.classList.toggle("on",a.getAttribute("href")==="#t-"+cur));
+  const showHero=cur==="overview";document.querySelector(".hero").style.display=showHero?"":"none";$("kpis").style.display=showHero?"":"none"}
+addEventListener("hashchange",tab);tab();
+
+// ---- ask: /api/eta ----
+function renderAnswer(a){
+  const st=`<div class="s ${esc(a.status)}">${esc(a.status.replace("_"," "))}</div>`, items=[];
+  for(const r of a.running)items.push(`running on <b>${esc(r.on)}</b>${r.hosted?" (GitHub-hosted)":""}: ${esc(r.workflow)} · ${esc(r.job)}${r.for_s!=null?" for "+dur(r.for_s):""}`);
+  for(const q of a.queued){const e=q.estimate;
+    const est=!e?"no estimate (fewer than 5 recent jobs in this pool)":e.overdue?`<span class="over">overdue: already waited longer than 90% of recent jobs. Starved, stuck, or unservable labels</span>`:`likely starts in <b>${dur(e.start_in_low_s)}–${e.start_in_high_s!=null?dur(e.start_in_high_s):"?"}</b>`;
+    items.push(`queued: ${q.jobs} job(s) of ${esc(q.workflow)} on <code>${esc(q.pool)}</code>, waiting ${dur(q.waited_s)} · ${est}${e?` <span style="color:var(--dim)">· ${esc(e.basis)} · ${esc(q.model)}</span>`:""}${okRepo(a.repo)&&okNum(q.run_id)?" · "+link(gh(a.repo,"actions","runs",q.run_id),"run ↗"):""}`)}
+  if(a.status==="unknown")items.push(`<span class="over">not found, but the scan was incomplete (budget or a lost telemetry chunk). This does not prove it isn't queued.</span>`);
+  if(a.status==="not_queued")items.push("nothing running or queued for it (complete scan)");
+  return`<div class="ans">${st}<div style="color:var(--dim);font-size:11px;margin-top:2px">${esc(a.repo)} ${a.pr?"#"+a.pr:esc(a.branch||"")} · scan ${dur(a.scan_age_s)} old</div><ul>${items.map(i=>"<li>"+i+"</li>").join("")}</ul></div>`}
+async function ask(repo,pr,branch){
+  const qs=new URLSearchParams({repo});if(pr)qs.set("pr",pr);else if(branch)qs.set("branch",branch);
+  $("ask-out").innerHTML='<div class="note">asking…</div>';
+  if(pr&&/^\d+$/.test(pr)&&okRepo("x/"+repo))history.replaceState(null,"","#t-ask/"+repo+"/"+pr);
+  try{const r=await fetch("api/eta?"+qs.toString(),{cache:"no-store"});
+    $("ask-out").innerHTML=r.ok?renderAnswer(await r.json()):`<div class="err">${esc(await r.text())}</div>`}catch(e){$("ask-out").innerHTML='<div class="err">hub unreachable</div>'}}
+$("askf").addEventListener("submit",e=>{e.preventDefault();ask($("ask-repo").value.trim(),$("ask-pr").value.trim(),$("ask-branch").value.trim())});
+function pick(repo,pr,branch){$("ask-repo").value=repo;$("ask-pr").value=pr||"";$("ask-branch").value=pr?"":branch;ask(repo,pr,branch)}
+document.addEventListener("click",e=>{const tr=e.target.closest&&e.target.closest("tr.pick");if(tr&&!e.target.closest("a"))pick(tr.dataset.repo,tr.dataset.pr,tr.dataset.branch)});
+
+// ---- forge mode: the easter egg. A smithy is a forge, so the fleet becomes one. ----
+// Trigger: type "anvil", the Konami code, or tap the SMITHY logo five times.
+// Heat colours are the ones smiths read off hot steel.
+const HEAT=[[0,"cold iron","#5a5f66",20],[.15,"black heat","#4a1a10",480],[.3,"dull red","#8b1a0a",650],[.45,"cherry red","#c4210c",800],[.6,"bright cherry","#e8400f",900],[.75,"orange","#ff7a1a",1000],[.88,"yellow","#ffc23a",1100],[1,"white heat","#fff4d6",1300]];
+const heatAt=f=>{let a=HEAT[0];for(const h of HEAT)if(f>=h[0])a=h;return a};
+let FORGE=false;try{FORGE=localStorage.getItem("smithy.forge")==="1"}catch(e){}
+function forge(on){FORGE=on;document.body.classList.toggle("forge",on);try{localStorage.setItem("smithy.forge",on?"1":"0")}catch(e){}if(on){strike(innerWidth/2,90,"THE FORGE IS LIT",.8);setTimeout(()=>clang(.8),260)}state()}
+// ---- the sound of the anvil: synthesized, no audio files ----
+// A struck metal block = a short noise burst (hammer contact) + inharmonic partials
+// (bar/plate mode ratios, not musical overtones) that decay at different rates.
+let AC=null, HUSH=false;try{HUSH=localStorage.getItem("smithy.forge.hush")==="1"}catch(e){}
+function clang(pitch=1){
+  if(HUSH||document.hidden)return;
+  try{AC=AC||new (window.AudioContext||window.webkitAudioContext)()}catch(e){return}
+  if(AC.state==="suspended")AC.resume();
+  const t=AC.currentTime, out=AC.createGain();out.gain.value=.22;out.connect(AC.destination);
+  const base=(560+Math.random()*60)*pitch;
+  [[1,1,1.6],[2.76,.55,1.1],[5.40,.3,.7],[8.93,.18,.4],[13.3,.08,.25]].forEach(([ratio,amp,decay])=>{
+    const o=AC.createOscillator(),g=AC.createGain();o.type="sine";o.frequency.value=base*ratio*(1+(Math.random()-.5)*.004);
+    g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(amp,t+.002);g.gain.exponentialRampToValueAtTime(.0001,t+decay);
+    o.connect(g).connect(out);o.start(t);o.stop(t+decay+.05)});
+  const n=AC.createBufferSource(),b=AC.createBuffer(1,AC.sampleRate*.03,AC.sampleRate),d=b.getChannelData(0);
+  for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*(1-i/d.length)**3;
+  const hp=AC.createBiquadFilter();hp.type="highpass";hp.frequency.value=2500;const ng=AC.createGain();ng.gain.value=.5;
+  n.buffer=b;n.connect(hp).connect(ng).connect(out);n.start(t);
+}
+function strike(x,y,word,pitch){
+  clang(pitch);
+  if(word){const c=document.createElement("div");c.className="clang";c.textContent=word;c.style.left=(x-40)+"px";c.style.top=(y-20)+"px";document.body.appendChild(c);setTimeout(()=>c.remove(),800)}
+  if(matchMedia("(prefers-reduced-motion: reduce)").matches)return;
+  for(let i=0;i<14;i++){const s=document.createElement("i");s.className="spark-p";const a=Math.random()*Math.PI*2,d=30+Math.random()*70;
+    s.style.left=x+"px";s.style.top=y+"px";s.style.setProperty("--dx",Math.cos(a)*d+"px");s.style.setProperty("--dy",(Math.sin(a)*d-20)+"px");document.body.appendChild(s);setTimeout(()=>s.remove(),700)}}
+function forgePaint(){
+  if(!FORGE||!LAST||!LAST.snapshot)return;
+  const R=LAST.snapshot.runners, f=R.length?R.filter(r=>r.local_busy).length/R.length:0, h=heatAt(f);
+  $("herol").textContent="FORGE TEMPERATURE";$("herov").innerHTML=`${h[3]}<small>°C</small>`;$("herov").style.color=h[2];
+  $("heror").textContent=`${h[1]} · ${Math.round(f*100)}% of the anvils struck · type "anvil" to bank the fire, "hush" to ${HUSH?"unmute":"mute"}`;
+  document.querySelectorAll("#runners .r.busy").forEach(el=>{const id=+el.getAttribute("onclick").match(/\d+/)[0], r=R.find(x=>x.id===id), c=(r&&r.stats&&r.stats.cpu_cores)||0, k=heatAt(Math.min(1,c/4));
+    el.style.setProperty("--heat",Math.min(1,c/4).toFixed(2));el.style.setProperty("--glow",k[2]);el.title=`${k[1]} · ${c.toFixed(1)} cores`})}
+let KEYS="";const KONAMI="ArrowUpArrowUpArrowDownArrowDownArrowLeftArrowRightArrowLeftArrowRightba";
+addEventListener("keydown",e=>{if(e.target.closest&&e.target.closest("input,textarea"))return;KEYS=(KEYS+e.key).slice(-80);if(KEYS.endsWith("anvil")||KEYS.endsWith(KONAMI)){KEYS="";forge(!FORGE)}
+  if(FORGE&&KEYS.endsWith("hush")){KEYS="";HUSH=!HUSH;try{localStorage.setItem("smithy.forge.hush",HUSH?"1":"0")}catch(e){}strike(innerWidth/2,90,HUSH?"HUSHED":"RINGING")}});
+let TAPS=[];document.querySelector("nav .logo").addEventListener("click",e=>{e.preventDefault();const t=Date.now();TAPS=TAPS.filter(x=>t-x<2000);TAPS.push(t);if(TAPS.length>=5){TAPS=[];forge(!FORGE)}});
+document.addEventListener("click",e=>{if(!FORGE)return;const card=e.target.closest&&e.target.closest("#runners .r");if(card){const id=+(card.getAttribute("onclick").match(/\d+/)||[0])[0], r=LAST&&LAST.snapshot.runners.find(x=>x.id===id), c=(r&&r.stats&&r.stats.cpu_cores)||0;
+  strike(e.clientX,e.clientY,["CLANG","TING","KLONK"][Math.floor(Math.random()*3)],.75+Math.min(1,c/4)*.6)}});
+if(FORGE)document.body.classList.add("forge");
+
+state();trends();setInterval(state,15000);setInterval(trends,60000);
+</script>
+</body>
+</html>

@@ -375,7 +375,7 @@ artifacts:
   - id: REQ-MIGRATE-001
     type: requirement
     title: Migrate smithy hub state and ledger into warte, then retire smithy-hub
-    status: proposed
+    status: approved
     release: v1.4.0
     description: warte SHALL import smithy hub's /var/lib/smithy-hub/hub-state.json (latest snapshot and per-minute history) and ledger/*.jsonl, report imported, skipped and malformed records with a checksum per source file, and be idempotent. After a parallel run in which warte's /api/eta and /status.md agree with smithy-hub's, warte SHALL replace smithy-hub.service on fourpi.
     links:

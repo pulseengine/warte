@@ -20,6 +20,7 @@ pub mod db;
 pub mod discovery;
 pub mod docs;
 pub mod eta;
+pub mod hub;
 pub mod migrate;
 pub mod platform;
 pub mod poller;

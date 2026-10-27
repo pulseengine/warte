@@ -103,7 +103,7 @@ artifacts:
   - id: REQ-STORE-002
     type: requirement
     title: CI telemetry lives in a disposable cache rebuildable from the source APIs
-    status: proposed
+    status: approved
     release: v1.4.0
     description: ci_jobs, wait_history, ci_status and heartbeat data SHALL be kept in a local cache that warte can rebuild from the GitHub/GitLab APIs. It SHALL NOT be committed to git, and losing it SHALL NOT lose any record of truth.
     fields:
@@ -139,7 +139,7 @@ artifacts:
   - id: REQ-SMITHY-001
     type: requirement
     title: warte ingests the smithy agent's CCSDS telemetry
-    status: proposed
+    status: implemented
     release: v1.4.0
     description: warte SHALL receive the smithy agent's CCSDS space packets over UDP using relay-ccsds (same APIDs and framing as smithy hub), accept them only from allow-listed source addresses (the CI host's WireGuard tunnel IP), count rejected packets, and serve HTTP on loopback behind Caddy. Runner, queue, machine and automation state for the Queue, Resources and Overview views come from this telemetry.
     fields:
@@ -195,7 +195,7 @@ artifacts:
   - id: REQ-SMITHY-002
     type: requirement
     title: warte serves smithy hub's API contract unchanged
-    status: proposed
+    status: implemented
     release: v1.4.0
     description: warte SHALL serve the endpoints of smithy hub's OpenAPI document (/api/eta, /api/state, /api/history, /api/report, /status.md, /report.md, /healthz, /api/openapi.json) with compatible request parameters and response shapes, so agents following the ci-status skill keep working when fourpi switches from smithy-hub to warte. A test SHALL check warte's OpenAPI document against smithy's.
     fields:
@@ -213,7 +213,7 @@ artifacts:
   - id: REQ-SMITHY-003
     type: requirement
     title: Finished-job ledger kept as per-day JSONL with GitHub as store of record
-    status: proposed
+    status: implemented
     release: v1.4.0
     description: warte SHALL keep finished CI jobs as one JSONL file per UTC day in smithy's ledger record format (d, id, run, att, repo, wf, job, pool, runner, ev, c, s, e, r). Days are re-read on the next two days and then closed; GitHub remains the store of record. This replaces the SQLite ci_jobs and wait_history tables, and ETA SHALL be computed from measured pool waits in this ledger, not from queue position.
     fields:
@@ -302,3 +302,43 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-10-27T19:41:29Z
+
+  - id: AST-007
+    type: asset
+    title: CI fleet telemetry and ledger (ground station state)
+    status: draft
+    description: hub-state.json (latest snapshot, per-minute history) and the per-day JSONL ledger of finished jobs, fed by the smithy agent's CCSDS telemetry. Agents schedule work on /api/eta answered from it; the monthly report is computed from it.
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-27T20:31:45Z
+
+  - id: TS-007
+    type: threat-scenario
+    title: Attacker spoofs the CI host's source address and injects telemetry
+    status: draft
+    description: "Anyone who can reach the ground station's UDP port forges datagrams with the allow-listed source address (UDP source addresses are not authenticated). Forged snapshots make /api/eta and status.md lie to agents; forged ledger records skew the monthly report or pre-empt real job ids. Inherited from smithy hub. Partial mitigations in place: ledger values bounded (belt::plausible), --udp has no default, docs require binding the WireGuard address. Full mitigation: packet authentication (#41)."
+    fields:
+      attack-feasibility: medium
+      attack-vector: adjacent
+      impact: moderate
+    links:
+      - type: threatens
+        target: AST-007
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-27T20:31:45Z
+
+  - id: CG-007
+    type: cybersecurity-goal
+    title: Ground-station telemetry is authenticated, not just source-filtered
+    status: draft
+    description: The ground station SHALL accept a telemetry packet only if it carries a valid MAC under a key shared with the CI host (#41). Until then, the UDP listener SHALL be bound to the WireGuard interface and firewalled to the tunnel.
+    links:
+      - type: mitigates
+        target: TS-007
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-27T20:31:45Z

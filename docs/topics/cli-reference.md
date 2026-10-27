@@ -28,7 +28,7 @@ Options:
 - Unknown flags exit 2
 - Structured output via `--format json`
 - Subcommands: `serve`, `status`, `agents`, `schedule`, `watch`,
-  `access`, `migrate`, `artifact`, `docs`
+  `access`, `migrate`, `hub`, `artifact`, `docs`
 
 ## Examples
 
@@ -38,5 +38,6 @@ warte status --format json
 warte agents --health unhealthy
 warte access grant <agent-id> --rights "artifacts:download"
 warte migrate smithy --path /data/smithy
+warte hub --udp <wireguard-address>:8092 --allow <ci-host-tunnel-ip> --data-dir /var/lib/smithy-hub
 warte docs architecture
 ```
