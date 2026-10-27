@@ -41,6 +41,9 @@ pub fn build_router(state: AppState) -> Router {
     // (Before v1.4.0 this nested it a second time: /api/api/..., no dashboard.)
     let app = Router::new()
         .merge(api::build_routes())
+        // a real text 404: an empty body with no content type is saved as
+        // "document.txt" by browsers instead of being shown
+        .fallback(|| async { (axum::http::StatusCode::NOT_FOUND, "not found") })
         .layer(middleware::from_fn_with_state(
             state.clone(),
             crate::auth::auth_middleware,

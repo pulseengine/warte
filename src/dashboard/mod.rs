@@ -134,7 +134,7 @@ pub async fn artifacts_partial(State(state): State<crate::server::AppState>) -> 
   <td>{}</td>
   <td>{}</td>
   <td><code>{}</code></td>
-  <td><a href="/api/artifacts/{}/download" class="btn-small">Download</a></td>
+  <td><a href="api/artifacts/{}/download" class="btn-small">Download</a></td>
 </tr>"#,
                 fleet::esc(&a.id[..8]),
                 fleet::esc(&a.name),

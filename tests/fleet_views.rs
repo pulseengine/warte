@@ -226,6 +226,47 @@ async fn the_router_serves_api_and_dashboard_where_documented() {
     let page = reqwest::get(format!("{base}/")).await.unwrap();
     assert_eq!(page.status(), 200);
     let page = page.text().await.unwrap();
+    // every same-origin URL in the page is relative, so the dashboard also works
+    // behind a path prefix (Caddy `handle_path /warte/*` on fourpi)
+    let refs: Vec<String> = [
+        "href=\"",
+        "hx-get=\"",
+        "hx-post=\"",
+        "sse-connect=\"",
+        "src=\"",
+    ]
+    .iter()
+    .flat_map(|attr| {
+        page.split(attr)
+            .skip(1)
+            .map(|r| r.split('"').next().unwrap().to_string())
+    })
+    .collect();
+    assert!(refs.len() >= 10, "found only {refs:?}");
+    for r in &refs {
+        assert!(
+            !r.starts_with('/') || r.starts_with("//"),
+            "absolute same-origin URL {r:?} escapes a path prefix"
+        );
+    }
+    // and each relative target resolves
+    for r in refs
+        .iter()
+        .filter(|r| r.starts_with("api/dashboard/") || r.ends_with(".css"))
+    {
+        assert_eq!(status(format!("{base}/{r}")).await, 200, "{r}");
+    }
+    // unknown paths get a readable 404, not an empty body a browser saves as a file
+    let nf = reqwest::get(format!("{base}/no-such-page")).await.unwrap();
+    assert_eq!(nf.status(), 404);
+    assert!(
+        nf.headers()["content-type"]
+            .to_str()
+            .unwrap()
+            .starts_with("text/plain"),
+        "404 without a text content type"
+    );
+    assert_eq!(nf.text().await.unwrap(), "not found");
     assert!(
         page.contains(&format!("warte v{}", env!("CARGO_PKG_VERSION"))),
         "footer version"
