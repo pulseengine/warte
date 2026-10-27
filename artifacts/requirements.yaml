@@ -174,7 +174,7 @@ artifacts:
     type: requirement
     title: Mobile control uses mutual TLS with device-bound certificates
     status: draft
-    release: v0.8.0
+    release: v0.9.0
     description: >
       The mobile control channel (Android/iOS) SHALL use mutual TLS with
       device-bound client certificates. The client certificate SHALL be
@@ -190,7 +190,7 @@ artifacts:
     type: requirement
     title: Mobile commands require operator biometric authentication
     status: draft
-    release: v0.8.0
+    release: v0.9.0
     description: >
       Every control command issued via the mobile client SHALL require operator
       authentication via biometric (fingerprint/face) or hardware token (YubiKey).
@@ -205,7 +205,7 @@ artifacts:
     type: requirement
     title: Mobile client shows real-time system status
     status: draft
-    release: v0.8.0
+    release: v0.9.0
     description: >
       The mobile client SHALL display real-time system status (agent health,
       CI status, access rights, alerts) with freshness indicators. Status
@@ -482,7 +482,7 @@ artifacts:
   - id: REQ-WEBHOOK-002
     type: requirement
     title: GitLab webhook endpoint — receive pipeline events
-    status: draft
+    status: accepted
     release: v0.8.0
     description: The system SHALL expose POST /api/webhooks/gitlab to receive GitLab CI pipeline webhook events. The endpoint SHALL verify the X-Gitlab-Token header (shared secret token) before processing. Events SHALL be forwarded to the CiDataCollector for storage. The endpoint SHALL return 202 Accepted on success, 401 on invalid token, 400 on invalid payload. The token SHALL be configured via warte.toml (gitlab_webhook_token) or environment variable (WARTE_GITLAB_WEBHOOK_TOKEN).
     links:
@@ -492,7 +492,7 @@ artifacts:
   - id: REQ-STATUS-001
     type: requirement
     title: GitHub status API integration — real status from status.github.com
-    status: draft
+    status: accepted
     release: v0.8.0
     description: "The outages view SHALL query the real GitHub status from status.github.com (or GHE status page) instead of hardcoded 'operational'. The status SHALL be cached (5-minute TTL) and shown in the outages view with freshness indicator. The status SHALL include: overall status (operational/degraded/outage), active incidents (title, status, started_at)."
     links:
@@ -502,7 +502,7 @@ artifacts:
   - id: REQ-DEPLOY-001
     type: requirement
     title: Edge proxy deployment automation — Terraform for Hetzner/Netcup
-    status: draft
+    status: accepted
     release: v0.8.0
     description: "The system SHALL provide Terraform configuration for automated edge proxy deployment on Hetzner (edge) and Netcup (secondary instance). The Terraform config SHALL provision: (a) Hetzner Cloud server (edge proxy, Caddy, WireGuard, ufw, unattended-upgrades), (b) Netcup VPS (secondary warte instance, WireGuard), (c) WireGuard VPN mesh between edge and instances, (d) DNS records (warte.pulseengine.eu → edge IP). The config SHALL be in terraform/ directory with variables for API tokens, IPs, and domain."
     links:
