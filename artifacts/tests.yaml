@@ -446,7 +446,7 @@ artifacts:
   - id: TEST-DASH-007
     type: verification
     title: StatusClient wired into outages view + nav buttons for all 11 dashboard views
-    status: draft
+    status: accepted
     release: v0.9.0
     description: "Dashboard integration verification: (1) outages_partial now queries real GitHub status via StatusClient (status.github.com, 5-min cache) instead of hardcoded 'operational' — shows overall status badge, active incidents table, fetched timestamp. (2) Dashboard navigation includes buttons for all 11 views: Overview, Ask, Queue, Critical Path, Resources, Outages, Friction, Schedule, Health, Agents, Artifacts. Each button loads the corresponding HTMX partial. Active button highlighted."
     links:

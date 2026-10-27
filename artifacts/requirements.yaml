@@ -174,7 +174,7 @@ artifacts:
     type: requirement
     title: Mobile control uses mutual TLS with device-bound certificates
     status: draft
-    release: v0.9.0
+    release: v1.0.0
     description: >
       The mobile control channel (Android/iOS) SHALL use mutual TLS with
       device-bound client certificates. The client certificate SHALL be
@@ -190,7 +190,7 @@ artifacts:
     type: requirement
     title: Mobile commands require operator biometric authentication
     status: draft
-    release: v0.9.0
+    release: v1.0.0
     description: >
       Every control command issued via the mobile client SHALL require operator
       authentication via biometric (fingerprint/face) or hardware token (YubiKey).
@@ -205,7 +205,7 @@ artifacts:
     type: requirement
     title: Mobile client shows real-time system status
     status: draft
-    release: v0.9.0
+    release: v1.0.0
     description: >
       The mobile client SHALL display real-time system status (agent health,
       CI status, access rights, alerts) with freshness indicators. Status
@@ -512,7 +512,7 @@ artifacts:
   - id: REQ-DASH-009
     type: requirement
     title: Wire StatusClient into outages view — real GitHub status in dashboard
-    status: draft
+    status: accepted
     release: v0.9.0
     description: "The outages view SHALL use the StatusClient to query real GitHub status (status.github.com) instead of hardcoded 'operational'. The view SHALL show: overall status (operational/degraded/outage), active incidents (title, status, started_at), last fetched timestamp with freshness indicator. The StatusClient SHALL be initialized in AppState and shared across requests (5-minute cache TTL)."
     links:
@@ -522,7 +522,7 @@ artifacts:
   - id: REQ-DASH-010
     type: requirement
     title: Dashboard navigation — add buttons for queue, critical path, resources, outages, friction, schedule, health views
-    status: draft
+    status: accepted
     release: v0.9.0
     description: "The dashboard navigation SHALL include buttons for all 11 views: Overview, Ask, Queue, Critical Path, Resources, Outages, Friction, Schedule, Health, Agents, Artifacts. Each button SHALL load the corresponding HTMX partial via hx-get. The active button SHALL be highlighted. The navigation SHALL be responsive (collapsible on mobile)."
     links:
