@@ -358,3 +358,13 @@ artifacts:
     links:
       - type: verifies
         target: REQ-CI-DATA-001
+
+  - id: TEST-DASH-004
+    type: verification
+    title: Dashboard HTML frontend — HTMX-based overview, ask, agents, artifacts views with SSE
+    status: draft
+    release: v0.4.0
+    description: "Dashboard frontend verification: templates/dashboard.html (HTMX-based SPA with SSE connection), templates/dashboard.css (dark theme, PulseEngine colors), src/dashboard/mod.rs (5 handlers: page, overview partial, agents partial, artifacts partial, ask partial). Views: Overview (stat cards with agent/artifact counts), Agents (table with health badges), Artifacts (table with download links), Ask (ETA query form). SSE (/api/events) for real-time updates. Freshness indicators on all data."
+    links:
+      - type: verifies
+        target: REQ-DASH-004

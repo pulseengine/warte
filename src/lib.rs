@@ -14,6 +14,7 @@ pub mod ci;
 pub mod cli;
 pub mod config;
 pub mod contract;
+pub mod dashboard;
 pub mod db;
 pub mod discovery;
 pub mod docs;
