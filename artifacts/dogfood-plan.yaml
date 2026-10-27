@@ -1,0 +1,304 @@
+artifacts:
+
+  - id: REQ-CI-001
+    type: requirement
+    title: CI installs rivet from pulseengine/rivet git at a pinned revision
+    status: verified
+    release: v1.3.1
+    description: Every CI and release job that runs rivet SHALL install it from github.com/pulseengine/rivet at a pinned revision matching the varve layer (rivet-cli package, rivet binary, locked). No job SHALL install a crate named rivet-cli or varve-cli from crates.io. A failed install SHALL fail the job.
+    fields:
+      category: constraint
+      corrective: true
+      priority: must
+      upstream-ref: https://github.com/pulseengine/warte/issues/34
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-27T19:13:42Z
+
+  - id: REQ-CI-002
+    type: requirement
+    title: Release gate evaluates the tag being cut and fails closed
+    status: implemented
+    release: v1.3.1
+    description: The release V-model gate SHALL run the pinned rivet's release status for the exact tag being released and SHALL fail the release on rivet's exit code (non-zero unless Cuttable). No CI step SHALL mask a rivet or toolchain step with an always-true fallback; the former main-branch 'release status v0.1.0 || true' job is removed.
+    fields:
+      category: constraint
+      corrective: true
+      priority: must
+      upstream-ref: https://github.com/pulseengine/warte/issues/34
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-27T19:13:42Z
+
+  - id: REQ-CI-003
+    type: requirement
+    title: CI jobs run on smithy; fork PRs and release jobs run on GitHub-hosted runners
+    status: verified
+    release: v1.3.1
+    description: "warte's CI jobs (build, test, clippy, rivet) SHALL run on the smithy rust-cpu pool [self-hosted, linux, x64, rust-cpu], with pull requests from forks routed to GitHub-hosted runners by default. Release jobs (gate, build, sign, publish) SHALL run on ephemeral GitHub-hosted runners and SHALL restore no caches. Tools a job relies on SHALL be installed job-scoped ($RUNNER_TEMP), never reused from a persistent $HOME, and third-party actions SHALL be pinned to a commit SHA. The fork routing is not a security boundary (a fork PR can edit the workflow): isolation of the smithy pool from untrusted code SHALL be enforced by the org runner-group policy and fork-PR approval."
+    fields:
+      category: non-functional
+      priority: should
+      upstream-ref: https://github.com/pulseengine/warte/issues/35
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-27T19:13:42Z
+
+  - id: REQ-RELEASE-003
+    type: requirement
+    title: Release metadata lives in CHANGELOG and release assets, not the repo root
+    status: implemented
+    release: v1.3.1
+    description: Release notes SHALL be kept in CHANGELOG.md and checksums SHALL ship only as release assets. Cargo.toml's version SHALL equal the release tag, and release CI SHALL assert that warte --version reports it.
+    fields:
+      category: constraint
+      priority: should
+      upstream-ref: https://github.com/pulseengine/warte/issues/39
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-27T19:13:42Z
+
+  - id: DD-CI-001
+    type: design-decision
+    title: "CI dogfoods the PulseEngine toolchain: rivet from git at a pinned rev, smithy runners"
+    status: approved
+    release: v1.3.1
+    description: Install rivet with cargo install --locked --git https://github.com/pulseengine/rivet --rev <rev> --bin rivet rivet-cli, cache the binary keyed on the rev (the spar/gale pattern), and run Linux jobs on the smithy pools.
+    fields:
+      rationale: "The crates.io rivet-cli is a different project (panchenkoai/rivet), so every rivet gate ran a foreign binary and went red (#34). Pinning the git rev to the varve layer's rivet (v0.41.1) keeps CI and local runs on the same tool. CI runs on smithy, the fleet warte monitors (#35). Security: smithy runners are persistent and shared. So rivet is installed into $RUNNER_TEMP, never from $HOME; release jobs (cosign OIDC, publish rights) run on ephemeral GitHub-hosted runners and restore no caches, because main's smithy runs write caches a tag run could restore; third-party actions are SHA-pinned. Fork PRs are routed to GitHub-hosted runners, but that is routing, not isolation: on pull_request a fork can edit the workflow, so the boundary is the org runner-group policy plus fork-PR approval (an org-admin setting outside this repo). Rejected: varve in CI, because I found no CI install path for it; revisit once one exists."
+    links:
+      - type: satisfies
+        target: REQ-CI-001
+      - type: satisfies
+        target: REQ-CI-002
+      - type: satisfies
+        target: REQ-CI-003
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-27T19:13:50Z
+
+  - id: REQ-STORE-001
+    type: requirement
+    title: Agent registry and access policies are stored as rivet artifacts
+    status: proposed
+    release: v1.5.0
+    description: Agent registrations and access-policy grants and revocations SHALL be stored as rivet artifacts under a warte schema, validated by rivet validate, and read and written only through the pinned rivet. A revocation SHALL be a status change visible in git history.
+    fields:
+      category: functional
+      priority: must
+      upstream-ref: https://github.com/pulseengine/warte/issues/37
+    links:
+      - type: satisfies
+        target: SC-003
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-27T19:14:03Z
+
+  - id: REQ-STORE-002
+    type: requirement
+    title: CI telemetry lives in a disposable cache rebuildable from the source APIs
+    status: proposed
+    release: v1.4.0
+    description: ci_jobs, wait_history, ci_status and heartbeat data SHALL be kept in a local cache that warte can rebuild from the GitHub/GitLab APIs. It SHALL NOT be committed to git, and losing it SHALL NOT lose any record of truth.
+    fields:
+      category: non-functional
+      priority: must
+      upstream-ref: https://github.com/pulseengine/warte/issues/37
+    links:
+      - type: satisfies
+        target: SC-006
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-27T19:14:03Z
+
+  - id: REQ-LAYER-002
+    type: requirement
+    title: Artifacts are distributed via varve/OCI, not stored as blobs in warte
+    status: proposed
+    release: v1.5.0
+    description: warte SHALL NOT store artifact bytes. It SHALL reference artifacts by varve layer and OCI digest and SHALL show their verification state as reported by varve (verify, inspect, status).
+    fields:
+      category: functional
+      priority: should
+      upstream-ref: https://github.com/pulseengine/warte/issues/38
+    links:
+      - type: satisfies
+        target: SC-002
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-27T19:14:03Z
+
+  - id: REQ-SMITHY-001
+    type: requirement
+    title: warte ingests the smithy agent's CCSDS telemetry
+    status: proposed
+    release: v1.4.0
+    description: warte SHALL receive the smithy agent's CCSDS space packets over UDP using relay-ccsds (same APIDs and framing as smithy hub), accept them only from allow-listed source addresses (the CI host's WireGuard tunnel IP), count rejected packets, and serve HTTP on loopback behind Caddy. Runner, queue, machine and automation state for the Queue, Resources and Overview views come from this telemetry.
+    fields:
+      category: interface
+      priority: should
+      upstream-ref: https://github.com/pulseengine/warte/issues/36
+    links:
+      - type: satisfies
+        target: SC-006
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-27T19:14:03Z
+
+  - id: DD-STORE-001
+    type: design-decision
+    title: Durable state in rivet YAML; CI telemetry in a disposable cache
+    status: proposed
+    release: v1.5.0
+    description: Agents/registry, access policies, schedule, friction and captured sessions are stored as rivet artifacts under a warte schema and read and written through the pinned rivet. ci_jobs, wait_history, ci_status and heartbeats stay in a cache that can be rebuilt from the GitHub API. Supersedes DD-ARCH-002.
+    fields:
+      rationale: Dogfoods rivet as the backend (#37). Git history replaces the hand-rolled CRDT/OR-Set tombstones as the audit and sync trail. High-frequency telemetry doesn't belong in git commits.
+    links:
+      - type: satisfies
+        target: REQ-STORE-001
+      - type: satisfies
+        target: REQ-STORE-002
+      - type: traces-to
+        target: DD-ARCH-002
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-27T19:14:03Z
+
+  - id: DD-LAYER-002
+    type: design-decision
+    title: varve is warte's artifact distribution backend
+    status: proposed
+    release: v1.5.0
+    description: Drop the SQLite artifact blob store and the integrity code that re-implements varve. Resolve and verify artifacts through varve layers on ghcr.io/pulseengine.
+    fields:
+      rationale: varve already provides signed, digest-pinned OCI distribution with attestations and SBOMs (#38). Keeping a second store means two trust paths to audit.
+    links:
+      - type: satisfies
+        target: REQ-LAYER-002
+      - type: traces-to
+        target: DD-ARCH-004
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-27T19:14:03Z
+
+  - id: REQ-SMITHY-002
+    type: requirement
+    title: warte serves smithy hub's API contract unchanged
+    status: proposed
+    release: v1.4.0
+    description: warte SHALL serve the endpoints of smithy hub's OpenAPI document (/api/eta, /api/state, /api/history, /api/report, /status.md, /report.md, /healthz, /api/openapi.json) with compatible request parameters and response shapes, so agents following the ci-status skill keep working when fourpi switches from smithy-hub to warte. A test SHALL check warte's OpenAPI document against smithy's.
+    fields:
+      category: interface
+      priority: must
+      upstream-ref: https://github.com/pulseengine/warte/issues/36
+    links:
+      - type: satisfies
+        target: SC-006
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-27T19:36:18Z
+
+  - id: REQ-SMITHY-003
+    type: requirement
+    title: Finished-job ledger kept as per-day JSONL with GitHub as store of record
+    status: proposed
+    release: v1.4.0
+    description: warte SHALL keep finished CI jobs as one JSONL file per UTC day in smithy's ledger record format (d, id, run, att, repo, wf, job, pool, runner, ev, c, s, e, r). Days are re-read on the next two days and then closed; GitHub remains the store of record. This replaces the SQLite ci_jobs and wait_history tables, and ETA SHALL be computed from measured pool waits in this ledger, not from queue position.
+    fields:
+      category: functional
+      priority: must
+      upstream-ref: https://github.com/pulseengine/warte/issues/36
+    links:
+      - type: satisfies
+        target: REQ-STORE-002
+      - type: satisfies
+        target: SC-006
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-27T19:36:18Z
+
+  - id: REQ-SMITHY-004
+    type: requirement
+    title: smithy agent can send telemetry to more than one hub (parallel run)
+    status: proposed
+    release: v1.4.0
+    description: The smithy agent on the CI host SHALL accept a repeatable --hub, so the same snapshots and ledger frames reach both smithy-hub and warte during the parallel run, without doubling GitHub API calls. Owned by pulseengine/smithy; held at implemented here until smithy ships it.
+    fields:
+      category: interface
+      priority: should
+      upstream-ref: https://github.com/pulseengine/warte/issues/36
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-27T19:36:18Z
+
+  - id: DD-SMITHY-001
+    type: design-decision
+    title: "warte absorbs smithy hub: CCSDS ingest, ledger, ETA and the hub API move into warte"
+    status: approved
+    release: v1.4.0
+    description: "warte becomes the ground station. It receives the smithy agent's CCSDS telemetry over UDP (relay-ccsds), keeps the per-day JSONL ledger and hub state, computes ETA from measured waits, and serves the hub's API. The smithy agent stays on the CI host. warte's own poller, CI webhooks, eta module and SQLite telemetry tables are removed. Cut-over: run side by side (agent sends to both), compare /api/eta and /status.md, then retire smithy-hub.service on fourpi."
+    fields:
+      rationale: "Decided by the project owner on 2026-10-27 (#36): one control tower instead of two dashboards. smithy hub is live and measured (14 runners, 35-day ledger, ETA from measured pool waits), while warte's copy was unit-tested only. Absorbing the hub's code and formats, instead of re-deriving them, keeps the measured behaviour. Its ledger also gives warte telemetry storage that needs no SQL. Licensing: both are PulseEngine-owned and Apache-2.0 (DD-LICENSE-001), so hub code moves across unchanged."
+    links:
+      - type: satisfies
+        target: REQ-SMITHY-001
+      - type: satisfies
+        target: REQ-SMITHY-002
+      - type: satisfies
+        target: REQ-SMITHY-003
+      - type: satisfies
+        target: REQ-SMITHY-004
+      - type: satisfies
+        target: REQ-MIGRATE-001
+      - type: traces-to
+        target: DD-ARCH-009
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-27T19:36:18Z
+
+  - id: DD-LICENSE-001
+    type: design-decision
+    title: warte is licensed Apache-2.0, the PulseEngine default
+    status: approved
+    release: v1.3.1
+    description: "warte moves from MIT to Apache-2.0: LICENSE (the same text as pulseengine/relay), Cargo.toml license = \"Apache-2.0\", and README. tests/license.rs checks that the three agree."
+    fields:
+      rationale: "Project owner, 2026-10-27: everything is PulseEngine-owned and Apache-2.0 is the default for all repos. warte had declared MIT with no LICENSE file at all. Apache-2.0 matches smithy, relay, varve, rivet and the other core tools, so smithy hub's code can move into warte without a cross-license step (DD-SMITHY-001), and it adds an explicit patent grant."
+    links:
+      - type: traces-to
+        target: DD-SMITHY-001
+      - type: satisfies
+        target: REQ-RELEASE-004
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-27T19:41:10Z
+
+  - id: REQ-RELEASE-004
+    type: requirement
+    title: warte is distributed under Apache-2.0, declared consistently
+    status: implemented
+    release: v1.3.1
+    description: warte SHALL be licensed Apache-2.0, the PulseEngine default. The LICENSE file, the Cargo.toml license field and the README SHALL agree, and a test SHALL fail if they diverge.
+    fields:
+      category: constraint
+      priority: must
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-27T19:41:29Z

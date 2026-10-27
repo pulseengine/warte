@@ -6,24 +6,35 @@ on:
   pull_request:
     branches: [main]
 
+defaults:
+  run:
+    shell: bash
+
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -D warnings
+  # rivet v0.41.1 — the rivet in the varve layer pinned by varve.toml (2026.10.30).
+  # Must match release.yml (tests/ci_workflows.rs checks this).
+  RIVET_REV: 29ca43828c8060af135fcd47ecff4c48662d1567
 
 jobs:
   build:
     name: Build
-    runs-on: ubuntu-latest
+    # Routes fork PRs to GitHub-hosted runners by default. This is NOT a security
+    # boundary: a fork PR can edit this file. Isolation is enforced by the org's
+    # smithy runner-group policy and fork-PR approval (#35).
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","rust-cpu"]') }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
+          toolchain: stable
           components: clippy, rustfmt
 
       - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
 
       - name: Check formatting
         run: cargo fmt --check
@@ -36,50 +47,57 @@ jobs:
 
   clippy:
     name: Clippy
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","rust-cpu"]') }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
+          toolchain: stable
           components: clippy
 
       - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
 
       - name: Run clippy
         run: cargo clippy --all-targets -- -D warnings
 
   rivet:
     name: Rivet traceability check
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","rust-cpu"]') }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install varve
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          cargo install varve-cli --locked 2>/dev/null || true
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
 
-      - name: Install rivet
-        run: cargo install rivet-cli --locked 2>/dev/null || cargo install --git https://github.com/pulseengine/rivet --locked
+      - name: Cache rivet binary
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/rivet
+          key: rivet-${{ runner.os }}-${{ env.RIVET_REV }}
+
+      # Job-scoped install: never trust a rivet left in $HOME by an earlier job
+      # on a persistent runner. Restored from this repo's cache or rebuilt from
+      # the pinned rev, then checked before it goes on PATH.
+      - name: Install rivet (pinned rev, job-scoped)
+        run: |
+          ROOT="$RUNNER_TEMP/rivet"
+          if [ ! -x "$ROOT/bin/rivet" ]; then
+            cargo install --locked --git https://github.com/pulseengine/rivet \
+              --rev "$RIVET_REV" \
+              --root "$ROOT" \
+              --bin rivet \
+              rivet-cli
+          fi
+          "$ROOT/bin/rivet" --version | grep -q "^rivet 0.41.1 (${RIVET_REV:0:8}"
+          echo "$ROOT/bin" >> "$GITHUB_PATH"
 
       - name: Validate rivet artifacts
         run: rivet validate
 
       - name: Check traceability coverage
         run: rivet coverage
-
-  release-check:
-    name: Release readiness
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install rivet
-        run: cargo install rivet-cli --locked 2>/dev/null || cargo install --git https://github.com/pulseengine/rivet --locked
-
-      - name: Check release readiness
-        run: rivet release status v0.1.0 || true

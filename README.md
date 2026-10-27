@@ -33,4 +33,4 @@ See [issues](https://github.com/pulseengine/warte/issues) for the full roadmap.
 
 ## License
 
-MIT
+Apache-2.0. See [LICENSE](LICENSE).
