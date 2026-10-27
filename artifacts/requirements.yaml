@@ -174,7 +174,7 @@ artifacts:
     type: requirement
     title: Mobile control uses mutual TLS with device-bound certificates
     status: draft
-    release: v0.6.0
+    release: v0.7.0
     description: >
       The mobile control channel (Android/iOS) SHALL use mutual TLS with
       device-bound client certificates. The client certificate SHALL be
@@ -190,7 +190,7 @@ artifacts:
     type: requirement
     title: Mobile commands require operator biometric authentication
     status: draft
-    release: v0.6.0
+    release: v0.7.0
     description: >
       Every control command issued via the mobile client SHALL require operator
       authentication via biometric (fingerprint/face) or hardware token (YubiKey).
@@ -205,7 +205,7 @@ artifacts:
     type: requirement
     title: Mobile client shows real-time system status
     status: draft
-    release: v0.6.0
+    release: v0.7.0
     description: >
       The mobile client SHALL display real-time system status (agent health,
       CI status, access rights, alerts) with freshness indicators. Status
@@ -435,6 +435,26 @@ artifacts:
     status: accepted
     release: v0.5.0
     description: The system SHALL provide a periodic CI status poller that queries the GitHub/GitLab API every 60 seconds (configurable) to collect CI status for all repos. The poller SHALL be the fallback when webhooks are not configured. The poller SHALL record measured waits (queued_at → started_at) in the wait_history table. The poller SHALL update the ci_status cache for the dashboard. The poller SHALL run as a background task started by warte serve.
+    links:
+      - type: satisfies
+        target: SC-006
+
+  - id: REQ-DASH-005
+    type: requirement
+    title: Dashboard queue view — runner pool, waiting jobs, hardware availability
+    status: accepted
+    release: v0.6.0
+    description: "The dashboard SHALL provide a Queue view showing: (a) runner pool status — which pools are busy/free, how many jobs running/queued per pool, (b) waiting jobs — list of queued jobs with repo, PR, wait time, (c) hardware availability — which boards are free/claimed, by whom, since when. The view SHALL use SSE for real-time updates and show freshness indicators. Data sources: ci_jobs table (queued jobs), ci_status cache (pool status), agent registry (hardware claims via agent data)."
+    links:
+      - type: satisfies
+        target: SC-006
+
+  - id: REQ-DASH-006
+    type: requirement
+    title: Dashboard critical path view — longest chain of dependent gates
+    status: accepted
+    release: v0.6.0
+    description: "The dashboard SHALL provide a Critical Path view showing the longest chain of dependent gates across all repos. The view SHALL compute the critical path from: (a) repo dependency graph (which repos depend on which), (b) CI gate status per repo (green/red/pending), (c) queue depth per repo. The critical path is the longest chain of repos where each depends on the next and at least one gate is not green. The view SHALL show: the chain (repo → repo → repo), the bottleneck repo, the estimated minimum release time (from ETA estimates). The view SHALL use SSE for real-time updates."
     links:
       - type: satisfies
         target: SC-006
