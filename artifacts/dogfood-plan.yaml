@@ -1,0 +1,193 @@
+artifacts:
+
+  - id: REQ-CI-001
+    type: requirement
+    title: CI installs rivet from pulseengine/rivet git at a pinned revision
+    status: approved
+    release: v1.3.1
+    description: Every CI and release job that runs rivet SHALL install it from github.com/pulseengine/rivet at a pinned revision matching the varve layer (rivet-cli package, rivet binary, locked). No job SHALL install a crate named rivet-cli or varve-cli from crates.io. A failed install SHALL fail the job.
+    fields:
+      category: constraint
+      corrective: true
+      priority: must
+      upstream-ref: https://github.com/pulseengine/warte/issues/34
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-27T19:13:42Z
+
+  - id: REQ-CI-002
+    type: requirement
+    title: Release gate evaluates the tag being cut and fails closed
+    status: approved
+    release: v1.3.1
+    description: The release V-model gate SHALL run the pinned rivet's release status for the exact tag being released and SHALL fail the release when the verdict is not Cuttable or rivet exits non-zero. The main-branch readiness check SHALL NOT be masked by an always-true fallback.
+    fields:
+      category: constraint
+      corrective: true
+      priority: must
+      upstream-ref: https://github.com/pulseengine/warte/issues/34
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-27T19:13:42Z
+
+  - id: REQ-CI-003
+    type: requirement
+    title: Linux CI jobs run on the smithy self-hosted runner pools
+    status: approved
+    release: v1.3.1
+    description: "warte's Linux CI jobs SHALL run on the smithy runners: build, test, clippy and rivet on [self-hosted, linux, x64, rust-cpu]; small glue jobs on [self-hosted, linux, x64, light]. macOS builds stay on GitHub-hosted runners."
+    fields:
+      category: non-functional
+      priority: should
+      upstream-ref: https://github.com/pulseengine/warte/issues/35
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-27T19:13:42Z
+
+  - id: REQ-RELEASE-003
+    type: requirement
+    title: Release metadata lives in CHANGELOG and release assets, not the repo root
+    status: approved
+    release: v1.3.1
+    description: Release notes SHALL be kept in CHANGELOG.md and checksums SHALL ship only as release assets. Cargo.toml's version SHALL equal the release tag, and release CI SHALL assert that warte --version reports it.
+    fields:
+      category: constraint
+      priority: should
+      upstream-ref: https://github.com/pulseengine/warte/issues/39
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-27T19:13:42Z
+
+  - id: DD-CI-001
+    type: design-decision
+    title: "CI dogfoods the PulseEngine toolchain: rivet from git at a pinned rev, smithy runners"
+    status: approved
+    release: v1.3.1
+    description: Install rivet with cargo install --locked --git https://github.com/pulseengine/rivet --rev <rev> --bin rivet rivet-cli, cache the binary keyed on the rev (the spar/gale pattern), and run Linux jobs on the smithy pools.
+    fields:
+      rationale: "The crates.io rivet-cli is a different project (panchenkoai/rivet), so every rivet gate ran a foreign binary and went red (#34). Pinning the git rev to the varve layer's rivet (v0.41.1) keeps CI and local runs on the same tool. Smithy runners are the org's CI fleet that warte monitors (#35). Rejected: varve in CI, because I couldn't find a CI install path for varve; revisit once one exists."
+    links:
+      - type: satisfies
+        target: REQ-CI-001
+      - type: satisfies
+        target: REQ-CI-002
+      - type: satisfies
+        target: REQ-CI-003
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-27T19:13:50Z
+
+  - id: REQ-STORE-001
+    type: requirement
+    title: Agent registry and access policies are stored as rivet artifacts
+    status: proposed
+    release: v1.4.0
+    description: Agent registrations and access-policy grants and revocations SHALL be stored as rivet artifacts under a warte schema, validated by rivet validate, and read and written only through the pinned rivet. A revocation SHALL be a status change visible in git history.
+    fields:
+      category: functional
+      priority: must
+      upstream-ref: https://github.com/pulseengine/warte/issues/37
+    links:
+      - type: satisfies
+        target: SC-003
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-27T19:14:03Z
+
+  - id: REQ-STORE-002
+    type: requirement
+    title: CI telemetry lives in a disposable cache rebuildable from the source APIs
+    status: proposed
+    release: v1.4.0
+    description: ci_jobs, wait_history, ci_status and heartbeat data SHALL be kept in a local cache that warte can rebuild from the GitHub/GitLab APIs. It SHALL NOT be committed to git, and losing it SHALL NOT lose any record of truth.
+    fields:
+      category: non-functional
+      priority: must
+      upstream-ref: https://github.com/pulseengine/warte/issues/37
+    links:
+      - type: satisfies
+        target: SC-006
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-27T19:14:03Z
+
+  - id: REQ-LAYER-002
+    type: requirement
+    title: Artifacts are distributed via varve/OCI, not stored as blobs in warte
+    status: proposed
+    release: v1.4.0
+    description: warte SHALL NOT store artifact bytes. It SHALL reference artifacts by varve layer and OCI digest and SHALL show their verification state as reported by varve (verify, inspect, status).
+    fields:
+      category: functional
+      priority: should
+      upstream-ref: https://github.com/pulseengine/warte/issues/38
+    links:
+      - type: satisfies
+        target: SC-002
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-27T19:14:03Z
+
+  - id: REQ-SMITHY-001
+    type: requirement
+    title: Runner-pool state comes from smithy
+    status: proposed
+    release: v1.4.0
+    description: The Queue, Resources and ETA views SHALL take runner-pool membership and capacity (rust-cpu, light, lean-mem) from smithy, the Ansible-managed CI host, in addition to GitHub's runner API.
+    fields:
+      category: interface
+      priority: should
+      upstream-ref: https://github.com/pulseengine/warte/issues/36
+    links:
+      - type: satisfies
+        target: SC-006
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-27T19:14:03Z
+
+  - id: DD-STORE-001
+    type: design-decision
+    title: Durable state in rivet YAML; CI telemetry in a disposable cache
+    status: proposed
+    release: v1.4.0
+    description: Agents/registry, access policies, schedule, friction and captured sessions are stored as rivet artifacts under a warte schema and read and written through the pinned rivet. ci_jobs, wait_history, ci_status and heartbeats stay in a cache that can be rebuilt from the GitHub API. Supersedes DD-ARCH-002.
+    fields:
+      rationale: Dogfoods rivet as the backend (#37). Git history replaces the hand-rolled CRDT/OR-Set tombstones as the audit and sync trail. High-frequency telemetry doesn't belong in git commits.
+    links:
+      - type: satisfies
+        target: REQ-STORE-001
+      - type: satisfies
+        target: REQ-STORE-002
+      - type: traces-to
+        target: DD-ARCH-002
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-27T19:14:03Z
+
+  - id: DD-LAYER-002
+    type: design-decision
+    title: varve is warte's artifact distribution backend
+    status: proposed
+    release: v1.4.0
+    description: Drop the SQLite artifact blob store and the integrity code that re-implements varve. Resolve and verify artifacts through varve layers on ghcr.io/pulseengine.
+    fields:
+      rationale: varve already provides signed, digest-pinned OCI distribution with attestations and SBOMs (#38). Keeping a second store means two trust paths to audit.
+    links:
+      - type: satisfies
+        target: REQ-LAYER-002
+      - type: traces-to
+        target: DD-ARCH-004
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-27T19:14:03Z
