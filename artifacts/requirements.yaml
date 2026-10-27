@@ -174,7 +174,7 @@ artifacts:
     type: requirement
     title: Mobile control uses mutual TLS with device-bound certificates
     status: draft
-    release: v1.2.0
+    release: v1.3.0
     description: >
       The mobile control channel (Android/iOS) SHALL use mutual TLS with
       device-bound client certificates. The client certificate SHALL be
@@ -190,7 +190,7 @@ artifacts:
     type: requirement
     title: Mobile commands require operator biometric authentication
     status: draft
-    release: v1.2.0
+    release: v1.3.0
     description: >
       Every control command issued via the mobile client SHALL require operator
       authentication via biometric (fingerprint/face) or hardware token (YubiKey).
@@ -205,7 +205,7 @@ artifacts:
     type: requirement
     title: Mobile client shows real-time system status
     status: draft
-    release: v1.2.0
+    release: v1.3.0
     description: >
       The mobile client SHALL display real-time system status (agent health,
       CI status, access rights, alerts) with freshness indicators. Status
@@ -565,6 +565,16 @@ artifacts:
     status: accepted
     release: v1.1.0
     description: "The hardware availability view SHALL show all known boards, not just claimed ones. Data source: agent_data where data_type = 'hardware-catalog' (list of all boards) + agent_data where data_type = 'hardware-claim' (claimed boards). The view SHALL show: board name, status (FREE/CLAIMED), agent (if claimed), duration (if claimed). FREE boards SHALL be shown with a green badge, CLAIMED boards with a red badge."
+    links:
+      - type: satisfies
+        target: SC-006
+
+  - id: REQ-CRIT-002
+    type: requirement
+    title: Rivet externals integration — auto-discover cross-repo dependencies for critical path
+    status: accepted
+    release: v1.2.0
+    description: "The critical path computer SHALL auto-discover cross-repo dependencies from rivet externals (rivet sync / rivet externals) instead of requiring manual dependency declaration. The integration SHALL: (a) run 'rivet externals' in each repo to discover external dependencies, (b) parse the output to build the dependency graph, (c) feed the graph into CriticalPathComputer. The integration SHALL be optional — manual dependency declaration (warte.toml repo_dependencies) SHALL remain as a fallback. The integration SHALL cache the discovered graph (5-minute TTL)."
     links:
       - type: satisfies
         target: SC-006

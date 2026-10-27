@@ -24,6 +24,7 @@ pub mod migrate;
 pub mod platform;
 pub mod poller;
 pub mod realtime;
+pub mod rivetext;
 pub mod server;
 pub mod sigil;
 pub mod status;
