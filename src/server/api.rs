@@ -66,6 +66,14 @@ pub fn build_routes() -> Router<AppState> {
             "/api/dashboard/ask-partial",
             post(crate::dashboard::ask_partial),
         )
+        .route(
+            "/api/dashboard/queue-partial",
+            get(crate::dashboard::queue_partial),
+        )
+        .route(
+            "/api/dashboard/critical-path-partial",
+            get(crate::dashboard::critical_path_partial),
+        )
 }
 
 // ── Health ──────────────────────────────────────────────────────────
