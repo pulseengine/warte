@@ -24,7 +24,9 @@ pub fn build_routes() -> Router<AppState> {
         .route("/sync/update", post(sync_update));
 
     // Webhook routes — HMAC signature verified (not bearer token)
-    let webhook_routes = Router::new().route("/webhooks/github", post(github_webhook));
+    let webhook_routes = Router::new()
+        .route("/webhooks/github", post(github_webhook))
+        .route("/webhooks/gitlab", post(gitlab_webhook));
 
     // Read-only routes — public (rate-limited at edge proxy)
     let read_routes = Router::new()
@@ -503,6 +505,99 @@ async fn github_webhook(
         }
         Err(e) => {
             tracing::error!(error = %e, "webhook: processing failed");
+            (StatusCode::INTERNAL_SERVER_ERROR, "processing failed").into_response()
+        }
+    }
+}
+
+/// GitLab webhook handler — receives pipeline events.
+///
+/// Verifies the X-Gitlab-Token header (shared secret) before processing.
+async fn gitlab_webhook(
+    State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
+    body: axum::body::Bytes,
+) -> impl IntoResponse {
+    // Get the token from the header
+    let token = match headers.get("x-gitlab-token").and_then(|v| v.to_str().ok()) {
+        Some(t) => t,
+        None => {
+            tracing::warn!("gitlab webhook: missing X-Gitlab-Token header");
+            return (StatusCode::UNAUTHORIZED, "missing token").into_response();
+        }
+    };
+
+    // Get the webhook secret from config
+    let secret = match std::env::var("WARTE_GITLAB_WEBHOOK_TOKEN") {
+        Ok(s) => s,
+        Err(_) => {
+            tracing::warn!("gitlab webhook: WARTE_GITLAB_WEBHOOK_TOKEN not configured");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "webhook token not configured",
+            )
+                .into_response();
+        }
+    };
+
+    // Verify the token (constant-time comparison)
+    if token != secret {
+        tracing::warn!("gitlab webhook: invalid token");
+        return (StatusCode::UNAUTHORIZED, "invalid token").into_response();
+    }
+
+    // Parse the event (GitLab pipeline event)
+    let event: serde_json::Value = match serde_json::from_slice(&body) {
+        Ok(e) => e,
+        Err(e) => {
+            tracing::warn!(error = %e, "gitlab webhook: invalid payload");
+            return (StatusCode::BAD_REQUEST, "invalid payload").into_response();
+        }
+    };
+
+    // Extract pipeline info
+    let repo = event["project"]["path_with_namespace"]
+        .as_str()
+        .unwrap_or("unknown")
+        .to_string();
+    let status = event["object_attributes"]["status"]
+        .as_str()
+        .unwrap_or("unknown")
+        .to_string();
+    let pipeline_id = event["object_attributes"]["id"].as_u64().unwrap_or(0);
+
+    // Store in ci_jobs
+    let id = uuid::Uuid::now_v7().to_string();
+    let result = sqlx::query(
+        r#"
+        INSERT OR REPLACE INTO ci_jobs
+            (id, repo, run_id, run_number, branch, sha, status, conclusion,
+             queued_at, started_at, completed_at, runner_pool, url, recorded_at)
+        VALUES (?, ?, ?, 0, ?, ?, ?, ?, NULL, NULL, NULL, 'gitlab', ?, ?)
+        "#,
+    )
+    .bind(&id)
+    .bind(&repo)
+    .bind(pipeline_id as i64)
+    .bind(event["object_attributes"]["ref"].as_str().unwrap_or("main"))
+    .bind(event["object_attributes"]["sha"].as_str().unwrap_or(""))
+    .bind(&status)
+    .bind(event["object_attributes"]["status"].as_str())
+    .bind(format!(
+        "https://gitlab.com/{}/-/pipelines/{}",
+        repo, pipeline_id
+    ))
+    .bind(chrono::Utc::now().to_rfc3339())
+    .execute(state.db.pool())
+    .await;
+
+    match result {
+        Ok(_) => {
+            tracing::debug!(repo = %repo, pipeline_id = pipeline_id, status = %status, "gitlab webhook processed");
+            (StatusCode::ACCEPTED, "accepted").into_response()
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "gitlab webhook: processing failed");
             (StatusCode::INTERNAL_SERVER_ERROR, "processing failed").into_response()
         }
     }

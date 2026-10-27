@@ -412,3 +412,13 @@ artifacts:
         target: REQ-DASH-007
       - type: verifies
         target: REQ-DASH-008
+
+  - id: TEST-WEBHOOK-002
+    type: verification
+    title: GitLab webhook endpoint — X-Gitlab-Token verification + pipeline event processing
+    status: draft
+    release: v0.8.0
+    description: "GitLab webhook verification: POST /api/webhooks/gitlab receives GitLab CI pipeline events. Verifies X-Gitlab-Token header (shared secret via WARTE_GITLAB_WEBHOOK_TOKEN). Returns 202 on success, 401 on invalid token, 400 on invalid payload, 500 if token not configured. Events stored in ci_jobs with runner_pool='gitlab'. Auth middleware skips /api/webhooks/ paths."
+    links:
+      - type: verifies
+        target: REQ-WEBHOOK-002
