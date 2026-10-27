@@ -352,7 +352,7 @@ artifacts:
   - id: TEST-CI-DATA-001
     type: verification
     title: test_parse_datetime + test_infer_runner_pool + test_webhook_deserialization + test_process_webhook — GitHub CI data collection
-    status: draft
+    status: accepted
     release: v0.4.0
     description: "Unit tests verify: datetime parsing (RFC3339 + GitHub format), runner pool inference (hardware/wasm/proof/default), webhook payload deserialization (GitHub Actions workflow_run event), webhook processing (stores ci_jobs record, updates wait_history with measured wait, updates ci_status cache)."
     links:
@@ -362,7 +362,7 @@ artifacts:
   - id: TEST-DASH-004
     type: verification
     title: Dashboard HTML frontend — HTMX-based overview, ask, agents, artifacts views with SSE
-    status: draft
+    status: accepted
     release: v0.4.0
     description: "Dashboard frontend verification: templates/dashboard.html (HTMX-based SPA with SSE connection), templates/dashboard.css (dark theme, PulseEngine colors), src/dashboard/mod.rs (5 handlers: page, overview partial, agents partial, artifacts partial, ask partial). Views: Overview (stat cards with agent/artifact counts), Agents (table with health badges), Artifacts (table with download links), Ask (ETA query form). SSE (/api/events) for real-time updates. Freshness indicators on all data."
     links:
