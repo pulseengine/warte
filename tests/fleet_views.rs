@@ -106,6 +106,7 @@ async fn ci_telemetry_tables_are_gone_after_migration() {
     }
 }
 
+// rivet: verifies REQ-DASH-005
 // rivet: verifies REQ-STORE-002
 #[test]
 fn queue_view_shows_the_hubs_queue_escaped() {
@@ -141,6 +142,7 @@ fn critical_path_uses_measured_waits_from_the_hub() {
     );
 }
 
+// rivet: verifies REQ-ASK-004
 // rivet: verifies REQ-STORE-002
 #[test]
 fn ask_gives_the_hubs_eta_answer() {
@@ -184,6 +186,13 @@ fn stale_or_missing_data_is_said_not_hidden() {
 
 /// Serve the full warte router (as `warte serve` builds it) on an ephemeral port.
 async fn serve_app(hub: Option<warte::config::HubConfig>) -> (tempfile::TempDir, String) {
+    let (d, base, _db) = serve_app_db(hub).await;
+    (d, base)
+}
+
+async fn serve_app_db(
+    hub: Option<warte::config::HubConfig>,
+) -> (tempfile::TempDir, String, warte::db::Database) {
     let dir = tempfile::tempdir().unwrap();
     let config = warte::config::Config {
         db_path: dir.path().join("state.db"),
@@ -193,18 +202,19 @@ async fn serve_app(hub: Option<warte::config::HubConfig>) -> (tempfile::TempDir,
         ..Default::default()
     };
     let db = warte::db::Database::connect(&config.db_path).await.unwrap();
-    let state = warte::server::build_state(config, db).unwrap();
+    let state = warte::server::build_state(config, db.clone()).unwrap();
     let app = warte::server::build_router(state);
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
-    (dir, format!("http://{addr}"))
+    (dir, format!("http://{addr}"), db)
 }
 
 async fn status(url: String) -> u16 {
     reqwest::get(url).await.unwrap().status().as_u16()
 }
 
+// rivet: verifies REQ-ASK-004
 // rivet: verifies REQ-STORE-002
 #[tokio::test]
 async fn the_router_serves_api_and_dashboard_where_documented() {
@@ -235,11 +245,12 @@ async fn the_router_serves_api_and_dashboard_where_documented() {
             "{p}"
         );
     }
-    // removed endpoints stay removed
+    // removed endpoints stay removed, and the old auth exemption for them is gone:
+    // an unauthenticated POST is refused before routing
     let c = reqwest::Client::new();
     for p in ["/api/webhooks/github", "/api/webhooks/gitlab"] {
         let r = c.post(format!("{base}{p}")).send().await.unwrap();
-        assert_eq!(r.status(), 404, "{p}");
+        assert_eq!(r.status(), 401, "{p}");
     }
     assert_eq!(
         status(format!("{base}/api/dashboard/ask?repo=x&pr=1")).await,
@@ -302,4 +313,145 @@ async fn serve_with_a_hub_mounts_the_ground_station_at_ci() {
         .await
         .unwrap();
     assert!(q.contains("no telemetry has arrived"), "{q}");
+}
+
+const HOSTILE: &str = "<script>alert(1)</script>";
+
+fn assert_escaped(html: &str, what: &str) {
+    assert!(
+        !html.contains("<script>alert(1)</script>"),
+        "{what}: author-controlled text reached the page unescaped"
+    );
+}
+
+// rivet: verifies REQ-DASH-005
+// rivet: verifies REQ-ASK-004
+// rivet: verifies REQ-STORE-002
+#[tokio::test]
+async fn every_view_escapes_author_controlled_text() {
+    // hub snapshot whose repo/branch/pool are hostile and the entry has no PR
+    let mut s = fleet_snapshot();
+    if let Some(q) = s.queue.as_mut() {
+        q.queued[0].repo = HOSTILE.into();
+        q.queued[0].branch = HOSTILE.into();
+        q.queued[0].pool = HOSTILE.into();
+        q.queued[0].pr = None;
+        q.pools.insert(HOSTILE.into(), Default::default());
+        q.waits.insert(HOSTILE.into(), Default::default());
+    }
+    let hub_dir = tempfile::tempdir().unwrap();
+    {
+        let (_d, hub) = hub_with(&s);
+        // persist it into hub_dir for the served instance
+        drop(hub);
+    }
+    std::fs::write(
+        hub_dir.path().join("hub-state.json"),
+        serde_json::json!({"latest": s, "received_at": now(), "history": []}).to_string(),
+    )
+    .unwrap();
+    let cfg = warte::config::HubConfig {
+        udp: "127.0.0.1:0".into(),
+        allow: vec![Ipv4Addr::LOCALHOST.into()],
+        data_dir: hub_dir.path().to_str().unwrap().into(),
+        org: "pulseengine".into(),
+    };
+    let (_d, base, db) = serve_app_db(Some(cfg)).await;
+
+    // agent name/repo and agent_data rows are written by agents
+    sqlx::query("INSERT INTO agents (id, name, repo, identity_type, public_key, instance_id) VALUES (?, ?, ?, 'test', x'00', 'i')")
+        .bind(HOSTILE)
+        .bind(HOSTILE)
+        .bind(HOSTILE)
+        .execute(db.pool())
+        .await
+        .unwrap();
+    for dt in ["hardware-catalog", "hardware-claim", "friction", "schedule"] {
+        sqlx::query("INSERT INTO agent_data (id, agent_id, data_type, content, instance_id) VALUES (?, ?, ?, ?, 'i')")
+            .bind(format!("d-{dt}"))
+            .bind(HOSTILE)
+            .bind(dt)
+            .bind(HOSTILE)
+            .execute(db.pool())
+            .await
+            .unwrap();
+    }
+
+    let mut checked = 0;
+    for p in [
+        "overview-partial",
+        "agents-partial",
+        "artifacts-partial",
+        "queue-partial",
+        "critical-path-partial",
+        "resources-partial",
+        "friction-partial",
+        "schedule-partial",
+        "health-partial",
+    ] {
+        let r = reqwest::get(format!("{base}/api/dashboard/{p}"))
+            .await
+            .unwrap();
+        if r.status() == 404 {
+            continue;
+        }
+        let t = r.text().await.unwrap();
+        assert_escaped(&t, p);
+        checked += 1;
+    }
+    assert!(checked >= 8, "only {checked} views answered");
+    // the queue view did receive the hostile names, escaped
+    let q = reqwest::get(format!("{base}/api/dashboard/queue-partial"))
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    assert!(q.contains("&lt;script&gt;"), "{q}");
+    // Ask echoes its input back
+    let a = reqwest::get(format!(
+        "{base}/api/dashboard/ask-partial?repo=%3Cscript%3Ealert(1)%3C%2Fscript%3E&branch=%3Cscript%3Ealert(1)%3C%2Fscript%3E"
+    ))
+    .await
+    .unwrap()
+    .text()
+    .await
+    .unwrap();
+    assert_escaped(&a, "ask-partial");
+}
+
+// rivet: verifies REQ-DASH-005
+// rivet: verifies REQ-STORE-002
+#[tokio::test]
+async fn with_a_hub_stale_data_is_shown_as_stale() {
+    let hub_dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        hub_dir.path().join("hub-state.json"),
+        serde_json::json!({"latest": fleet_snapshot(), "received_at": now() - 3600, "history": []})
+            .to_string(),
+    )
+    .unwrap();
+    let cfg = warte::config::HubConfig {
+        udp: "127.0.0.1:0".into(),
+        allow: vec![Ipv4Addr::LOCALHOST.into()],
+        data_dir: hub_dir.path().to_str().unwrap().into(),
+        org: "pulseengine".into(),
+    };
+    let (_d, base) = serve_app(Some(cfg)).await;
+    for p in ["queue-partial", "critical-path-partial", "health-partial"] {
+        let t = reqwest::get(format!("{base}/api/dashboard/{p}"))
+            .await
+            .unwrap()
+            .text()
+            .await
+            .unwrap();
+        assert!(
+            !t.contains(">fresh<"),
+            "{p} claims fresh on hour-old data: {t}"
+        );
+        assert!(
+            t.contains("stale"),
+            "{p} does not say the data is stale: {t}"
+        );
+    }
 }

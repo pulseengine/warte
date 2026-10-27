@@ -49,7 +49,8 @@ pub fn build_router(state: AppState) -> Router {
         .layer(TraceLayer::new_for_http())
         .with_state(state);
     match hub_api {
-        Some(hub) => app.nest("/ci", hub),
+        // logged like the rest; no CORS (smithy hub had none, and it is GET-only)
+        Some(hub) => app.nest("/ci", hub.layer(TraceLayer::new_for_http())),
         None => app,
     }
 }

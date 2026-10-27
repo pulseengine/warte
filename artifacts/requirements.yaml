@@ -374,10 +374,10 @@ artifacts:
   # --- Migration ---
   - id: REQ-MIGRATE-001
     type: requirement
-    title: Migrate smithy hub state and ledger into warte, then retire smithy-hub
+    title: Replace smithy-hub with warte hub in place, after a parallel run
     status: approved
     release: v1.4.0
-    description: warte SHALL import smithy hub's /var/lib/smithy-hub/hub-state.json (latest snapshot and per-minute history) and ledger/*.jsonl, report imported, skipped and malformed records with a checksum per source file, and be idempotent. After a parallel run in which warte's /api/eta and /status.md agree with smithy-hub's, warte SHALL replace smithy-hub.service on fourpi.
+    description: "There SHALL be no data import: warte hub SHALL read smithy hub's data directory (hub-state.json, ledger/*.jsonl) in place, with smithy hub's flags. Cut-over SHALL follow a parallel run in which the smithy agent feeds both hubs and scripts/hub-parity.sh reports zero differences, after which smithy-hub.service on fourpi runs warte hub instead."
     links:
       - type: satisfies
         target: SC-005
@@ -450,9 +450,9 @@ artifacts:
   - id: REQ-DASH-005
     type: requirement
     title: Dashboard queue view — runner pool, waiting jobs, hardware availability
-    status: accepted
-    release: v0.6.0
-    description: "The dashboard SHALL provide a Queue view showing: (a) runner pool status — which pools are busy/free, how many jobs running/queued per pool, (b) waiting jobs — list of queued jobs with repo, PR, wait time, (c) hardware availability — which boards are free/claimed, by whom, since when. The view SHALL use SSE for real-time updates and show freshness indicators. Data sources: ci_jobs table (queued jobs), ci_status cache (pool status), agent registry (hardware claims via agent data)."
+    status: implemented
+    release: v1.4.0
+    description: "The dashboard SHALL provide a Queue view showing: (a) runner pools from the ground station's latest snapshot, with jobs queued and oldest/median wait per pool, and self-hosted runners busy/total; (b) every queued run with repo, PR or branch, workflow, pool, job count and time waiting; (c) hardware availability (free/claimed boards, by whom, since when) from agent data. Author-controlled names SHALL be HTML-escaped. Freshness SHALL be the snapshot's real age, shown as stale beyond 5 minutes; with no ground station or no telemetry the view SHALL say so."
     links:
       - type: satisfies
         target: SC-006
@@ -460,12 +460,14 @@ artifacts:
   - id: REQ-DASH-006
     type: requirement
     title: Dashboard critical path view — longest chain of dependent gates
-    status: accepted
-    release: v0.6.0
+    status: approved
+    release: v1.5.0
     description: "The dashboard SHALL provide a Critical Path view showing the longest chain of dependent gates across all repos. The view SHALL compute the critical path from: (a) repo dependency graph (which repos depend on which), (b) CI gate status per repo (green/red/pending), (c) queue depth per repo. The critical path is the longest chain of repos where each depends on the next and at least one gate is not green. The view SHALL show: the chain (repo → repo → repo), the bottleneck repo, the estimated minimum release time (from ETA estimates). The view SHALL use SSE for real-time updates."
     links:
       - type: satisfies
         target: SC-006
+    fields:
+      upstream-ref: https://github.com/pulseengine/warte/issues/44
 
   - id: REQ-DASH-007
     type: requirement
@@ -566,12 +568,14 @@ artifacts:
   - id: REQ-CRIT-001
     type: requirement
     title: Critical path dependency graph — real repo dependencies from rivet/GitHub
-    status: accepted
-    release: v1.1.0
+    status: approved
+    release: v1.5.0
     description: "The critical path view SHALL compute the real dependency graph between repos, not just ci_status heuristics. Data sources: (a) rivet externals (rivet sync / rivet externals shows cross-repo dependencies), (b) GitHub dependency graph API (dependabot alerts show dependencies), (c) manual dependency declaration in warte.toml (repo_dependencies = [{repo='jess', depends_on=['relay','gale']}]). The critical path SHALL be the longest chain of repos where each depends on the next and at least one gate is not green. The view SHALL show: the chain (repo → repo → repo), the bottleneck repo, the estimated minimum release time."
     links:
       - type: satisfies
         target: SC-006
+    fields:
+      upstream-ref: https://github.com/pulseengine/warte/issues/44
 
   - id: REQ-DASH-012
     type: requirement

@@ -220,7 +220,7 @@ artifacts:
     title: test_migrate_temper — temper migration imports branch protection config and issue labels
     status: accepted
     release: v0.1.0
-    description: "Integration tests verify: smithy migration imports agent fleet data (JSON array format), temper migration imports branch protection config + issue labels from config.yml. Both produce MigrationResult with imported/skipped/errors/checksum."
+    description: "Unit test test_migrate_temper: the temper migration imports branch protection config and issue labels from config.yml and produces a MigrationResult with imported/skipped/errors/checksum. (Its former smithy half tested a format smithy never had and was removed in v1.4.0.)"
     links:
       - type: verifies
         target: REQ-MIGRATE-002
@@ -402,14 +402,12 @@ artifacts:
   - id: TEST-DASH-005
     type: verification
     title: Dashboard queue + critical path views — runner pools, waiting jobs, bottlenecks, ETA pool stats
-    status: accepted
-    release: v0.6.0
-    description: "Dashboard view verification: queue_partial (runner pool cards with running/queued counts, waiting jobs table with wait times), critical_path_partial (bottleneck cards for red/high-queue repos, runner pool wait time table from ETA estimator). Both views query ci_jobs and ci_status tables, show freshness indicators, and are served as HTMX partials at /api/dashboard/queue-partial and /api/dashboard/critical-path-partial."
+    status: implemented
+    release: v1.4.0
+    description: "tests/fleet_views.rs: the Queue view renders the hub's pools, runners and queued runs; author-controlled text in every dashboard view is escaped (router-level, hostile DB rows and hub snapshot); stale data is shown as stale; missing hub or telemetry is stated. Served through the real router at /api/dashboard/queue-partial."
     links:
       - type: verifies
         target: REQ-DASH-005
-      - type: verifies
-        target: REQ-DASH-006
 
   - id: TEST-DASH-006
     type: verification

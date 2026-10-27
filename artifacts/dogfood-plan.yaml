@@ -102,10 +102,10 @@ artifacts:
 
   - id: REQ-STORE-002
     type: requirement
-    title: CI telemetry lives in a disposable cache rebuildable from the source APIs
+    title: CI telemetry is not stored in warte's database
     status: implemented
     release: v1.4.0
-    description: ci_jobs, wait_history, ci_status and heartbeat data SHALL be kept in a local cache that warte can rebuild from the GitHub/GitLab APIs. It SHALL NOT be committed to git, and losing it SHALL NOT lose any record of truth.
+    description: "CI job, wait and status data SHALL NOT be kept in warte's SQLite database. It lives in the ground station: hub-state.json and the per-day JSONL ledger, which can be rebuilt from GitHub, the store of record. The ci_jobs, wait_history and ci_status tables SHALL be dropped, and no code SHALL read or write them."
     fields:
       category: non-functional
       priority: must
@@ -159,7 +159,7 @@ artifacts:
     title: Durable state in rivet YAML; CI telemetry in a disposable cache
     status: proposed
     release: v1.5.0
-    description: Agents/registry, access policies, schedule, friction and captured sessions are stored as rivet artifacts under a warte schema and read and written through the pinned rivet. ci_jobs, wait_history, ci_status and heartbeats stay in a cache that can be rebuilt from the GitHub API. Supersedes DD-ARCH-002.
+    description: Agents/registry, access policies, schedule, friction and captured sessions are stored as rivet artifacts under a warte schema and read and written through the pinned rivet. CI telemetry is already out of warte's database since v1.4.0 (ground station ledger, REQ-STORE-002). Supersedes DD-ARCH-002.
     fields:
       rationale: Dogfoods rivet as the backend (#37). Git history replaces the hand-rolled CRDT/OR-Set tombstones as the audit and sync trail. High-frequency telemetry doesn't belong in git commits.
     links:
@@ -266,6 +266,8 @@ artifacts:
         target: REQ-MIGRATE-001
       - type: traces-to
         target: DD-ARCH-009
+      - type: satisfies
+        target: REQ-ASK-004
     provenance:
       created-by: ai-assisted
       model: claude-opus-5-5
@@ -342,3 +344,20 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-10-27T20:31:45Z
+
+  - id: REQ-ASK-004
+    type: requirement
+    title: Dashboard Ask shows the ground station's ETA
+    status: implemented
+    release: v1.4.0
+    description: The dashboard Ask view SHALL answer for a repo and a PR number or branch with the same answer as the ground station's /api/eta (status, running jobs, queued parts with measured-wait estimate or the reason there is none). It SHALL be a read-only GET usable without authentication, accept the repo with or without the org, and HTML-escape its input and all author-controlled names.
+    fields:
+      category: functional
+      priority: should
+    links:
+      - type: satisfies
+        target: SC-006
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-27T21:48:57Z

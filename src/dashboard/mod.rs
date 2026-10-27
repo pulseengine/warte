@@ -98,12 +98,12 @@ pub async fn agents_partial(State(state): State<crate::server::AppState>) -> Res
   <td><span class="badge {}">{}</span></td>
   <td>{}</td>
 </tr>"#,
-                &a.id[..8],
-                a.name,
-                a.repo.as_deref().unwrap_or("—"),
+                fleet::esc(&a.id[..8]),
+                fleet::esc(&a.name),
+                fleet::esc(a.repo.as_deref().unwrap_or("—")),
                 health_class,
                 a.health_status,
-                last_seen,
+                fleet::esc(&last_seen),
             )
         })
         .collect();
@@ -136,11 +136,11 @@ pub async fn artifacts_partial(State(state): State<crate::server::AppState>) -> 
   <td><code>{}</code></td>
   <td><a href="/api/artifacts/{}/download" class="btn-small">Download</a></td>
 </tr>"#,
-                &a.id[..8],
-                a.name,
-                a.version,
-                &a.content_hash[..12],
-                a.id,
+                fleet::esc(&a.id[..8]),
+                fleet::esc(&a.name),
+                fleet::esc(&a.version),
+                fleet::esc(&a.content_hash[..12]),
+                fleet::esc(&a.id),
             )
         })
         .collect();
@@ -246,14 +246,14 @@ pub async fn queue_partial(State(state): State<crate::server::AppState>) -> Resp
                         .unwrap_or_else(|| "unknown".to_string());
                     format!(
                         r#"<tr><td><span class="badge red">CLAIMED</span></td><td><code>{}</code></td><td>{}</td><td>{}</td></tr>"#,
-                        board,
-                        &agent_id[..8.min(agent_id.len())],
-                        duration,
+                        fleet::esc(board),
+                        fleet::esc(&agent_id.chars().take(8).collect::<String>()),
+                        fleet::esc(&duration),
                     )
                 } else {
                     format!(
                         r#"<tr><td><span class="badge green">FREE</span></td><td><code>{}</code></td><td>—</td><td>—</td></tr>"#,
-                        board,
+                        fleet::esc(board),
                     )
                 }
             })
@@ -324,8 +324,8 @@ pub async fn resources_partial(State(state): State<crate::server::AppState>) -> 
   <span class="stat-detail">{}</span>
   <span class="badge {}">{}</span>
 </div>"#,
-                a.name,
-                a.repo.as_deref().unwrap_or("—"),
+                fleet::esc(&a.name),
+                fleet::esc(a.repo.as_deref().unwrap_or("—")),
                 health_class,
                 a.health_status,
             )
@@ -340,9 +340,9 @@ pub async fn resources_partial(State(state): State<crate::server::AppState>) -> 
             .map(|(agent_id, content, captured_at)| {
                 format!(
                     r#"<tr><td><code>{}</code></td><td>{}</td><td>{}</td></tr>"#,
-                    &agent_id[..8.min(agent_id.len())],
-                    content,
-                    captured_at,
+                    fleet::esc(&agent_id.chars().take(8).collect::<String>()),
+                    fleet::esc(content),
+                    fleet::esc(captured_at),
                 )
             })
             .collect();
@@ -445,9 +445,9 @@ pub async fn friction_partial(State(state): State<crate::server::AppState>) -> R
             .map(|(agent_id, content, captured_at)| {
                 format!(
                     r#"<tr><td><code>{}</code></td><td>{}</td><td>{}</td></tr>"#,
-                    &agent_id[..8.min(agent_id.len())],
-                    content,
-                    captured_at,
+                    fleet::esc(&agent_id.chars().take(8).collect::<String>()),
+                    fleet::esc(content),
+                    fleet::esc(captured_at),
                 )
             })
             .collect();
@@ -495,9 +495,9 @@ pub async fn schedule_partial(State(state): State<crate::server::AppState>) -> R
             .map(|(agent_id, content, captured_at)| {
                 format!(
                     r#"<tr><td><code>{}</code></td><td>{}</td><td>{}</td></tr>"#,
-                    &agent_id[..8.min(agent_id.len())],
-                    content,
-                    captured_at,
+                    fleet::esc(&agent_id.chars().take(8).collect::<String>()),
+                    fleet::esc(content),
+                    fleet::esc(captured_at),
                 )
             })
             .collect();

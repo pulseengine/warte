@@ -16,6 +16,9 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
   - Routing: since at least v1.0.0 every API route was mounted at `/api/api/...`, so `/api/health` returned 404 and the dashboard page was unreachable. The API is now at `/api` and the dashboard at `/`.
   - The dashboard Ask form posted to a route that requires auth (401). Ask is now a read-only GET.
   - Views no longer show a hardcoded "fresh" badge, and the footer shows the real version.
+  - Every dashboard view now HTML-escapes agent- and author-controlled text: agent names and repos, artifact fields, hardware boards, friction and schedule entries, and Ask input. Before, an agent could put script into the page for every dashboard viewer.
+  - The leftover authentication exemption for `/api/webhooks/*` is removed together with the webhooks.
+- **Traceability corrected:** REQ-CRIT-001 and REQ-DASH-006 had been `accepted`, but the Critical Path view never showed the dependency chain they describe (`CriticalPathComputer` is not called by any view). Both are back to `approved` for v1.5.0 (#44).
 
 ## v1.3.1 — unreleased
 
