@@ -432,3 +432,13 @@ artifacts:
     links:
       - type: verifies
         target: REQ-STATUS-001
+
+  - id: TEST-DEPLOY-001
+    type: verification
+    title: Terraform configuration — Hetzner edge + Netcup secondary + WireGuard mesh + DNS
+    status: draft
+    release: v0.8.0
+    description: "Terraform verification: terraform/main.tf provisions Hetzner Cloud server (edge proxy: Caddy, WireGuard, ufw, unattended-upgrades), Netcup secondary instance (cloud-init template with WireGuard), WireGuard VPN mesh (10.0.0.0/24), and outputs for DNS configuration. Variables for API tokens, SSH keys, WireGuard keys, domain. Outputs: edge IP, WireGuard IPs, deployment notes. Terraform not installed in dev environment — syntax validated by review."
+    links:
+      - type: verifies
+        target: REQ-DEPLOY-001
