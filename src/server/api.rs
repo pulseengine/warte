@@ -39,7 +39,27 @@ pub fn build_routes() -> Router<AppState> {
         .route("/ws", axum::routing::any(crate::realtime::ws_handler))
         .route("/events", get(crate::realtime::sse_handler));
 
-    Router::new().nest("/api", read_routes.merge(mutating_routes))
+    Router::new()
+        .nest("/api", read_routes.merge(mutating_routes))
+        // Dashboard HTML frontend
+        .route("/", get(crate::dashboard::dashboard_page))
+        .route("/dashboard.css", get(crate::dashboard::dashboard_css))
+        .route(
+            "/api/dashboard/overview-partial",
+            get(crate::dashboard::overview_partial),
+        )
+        .route(
+            "/api/dashboard/agents-partial",
+            get(crate::dashboard::agents_partial),
+        )
+        .route(
+            "/api/dashboard/artifacts-partial",
+            get(crate::dashboard::artifacts_partial),
+        )
+        .route(
+            "/api/dashboard/ask-partial",
+            post(crate::dashboard::ask_partial),
+        )
 }
 
 // ── Health ──────────────────────────────────────────────────────────

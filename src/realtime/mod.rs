@@ -168,7 +168,6 @@ pub async fn sse_handler(State(state): State<crate::server::AppState>) -> Respon
     use axum::response::IntoResponse;
     use std::convert::Infallible;
     use std::time::Duration;
-    use tokio_stream::StreamExt;
 
     let event_rx = state.realtime.subscribe();
     let stream = tokio_stream::wrappers::BroadcastStream::new(event_rx);
