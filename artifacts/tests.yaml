@@ -304,3 +304,47 @@ artifacts:
     links:
       - type: verifies
         target: REQ-LAYER-001
+
+  - id: TEST-ASK-001
+    type: verification
+    title: test_eta_estimator_no_samples + test_eta_estimator_with_samples + test_percentile — ETA estimation from measured waits
+    status: accepted
+    release: v0.3.0
+    description: "Unit tests verify: ETA estimator returns 'no estimate' with < 5 samples, computes p50/p90 from 10 measured waits with medium confidence, percentile function computes correct index-based percentiles. The ask feature computes ETA from measured waits (not queue position) — warte's unique selling point per docs/research/similar-tools.md."
+    links:
+      - type: verifies
+        target: REQ-ASK-001
+      - type: verifies
+        target: REQ-ASK-002
+      - type: verifies
+        target: REQ-ASK-003
+
+  - id: TEST-SIGIL-001
+    type: verification
+    title: test_sigil_verifier_creation + test_sha256_fallback_sign + test_sha256_fallback_verify + test_wsc_signature_serialization — sigil/wsc signatures
+    status: accepted
+    release: v0.3.0
+    description: "Unit tests verify: SigilVerifier creation (resolves wsc through varve), SHA-256 fallback signing (when wsc unavailable), SHA-256 fallback verification (tampered content rejected), WscSignature serialization. The sigil module wraps wsc for signing and verification, with SHA-256 fallback. wsc is resolved through the varve layer (varve which wsc)."
+    links:
+      - type: verifies
+        target: REQ-SIGIL-001
+
+  - id: TEST-REALTIME-001
+    type: verification
+    title: test_event_broadcaster + test_event_serialization + test_all_event_types — WebSocket/SSE real-time updates
+    status: accepted
+    release: v0.3.0
+    description: "Unit tests verify: EventBroadcaster broadcasts events to subscribers, RealtimeEvent serialization (all 9 event types), event JSON structure with timestamp. The realtime module provides WebSocket (/api/ws) for bidirectional updates and SSE (/api/events) for unidirectional dashboard updates. Events: agent heartbeat, registration, health change, CI status, access grant/revoke, divergence, artifact upload, dashboard update."
+    links:
+      - type: verifies
+        target: REQ-REALTIME-001
+
+  - id: TEST-DISCOVERY-002
+    type: verification
+    title: Full mDNS wire protocol via mdns-sd ServiceDaemon — register, browse, goodbye, TTL expiry
+    status: accepted
+    release: v0.3.0
+    description: "Discovery service now uses mdns-sd ServiceDaemon for the full wire protocol: register (announce _warte-sync._tcp.local with TXT id|wg|lan|vv|ts), browse (discover peers via ServiceEvent::ServiceResolved), goodbye (ServiceEvent::ServiceRemoved), TTL-based expiry (2-minute cutoff). Static peer fallback via add_static_peer()."
+    links:
+      - type: verifies
+        target: REQ-DISCOVERY-003

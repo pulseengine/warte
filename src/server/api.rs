@@ -34,7 +34,10 @@ pub fn build_routes() -> Router<AppState> {
         .route("/artifacts/{id}/download", get(download_artifact))
         .route("/dashboard/overview", get(dashboard_overview))
         .route("/dashboard/ask", get(dashboard_ask))
-        .route("/sync/state", get(sync_state));
+        .route("/sync/state", get(sync_state))
+        // Real-time: WebSocket (bidirectional) + SSE (unidirectional)
+        .route("/ws", axum::routing::any(crate::realtime::ws_handler))
+        .route("/events", get(crate::realtime::sse_handler));
 
     Router::new().nest("/api", read_routes.merge(mutating_routes))
 }
