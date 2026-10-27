@@ -174,7 +174,7 @@ artifacts:
     type: requirement
     title: Mobile control uses mutual TLS with device-bound certificates
     status: draft
-    release: v0.7.0
+    release: v0.8.0
     description: >
       The mobile control channel (Android/iOS) SHALL use mutual TLS with
       device-bound client certificates. The client certificate SHALL be
@@ -190,7 +190,7 @@ artifacts:
     type: requirement
     title: Mobile commands require operator biometric authentication
     status: draft
-    release: v0.7.0
+    release: v0.8.0
     description: >
       Every control command issued via the mobile client SHALL require operator
       authentication via biometric (fingerprint/face) or hardware token (YubiKey).
@@ -205,7 +205,7 @@ artifacts:
     type: requirement
     title: Mobile client shows real-time system status
     status: draft
-    release: v0.7.0
+    release: v0.8.0
     description: >
       The mobile client SHALL display real-time system status (agent health,
       CI status, access rights, alerts) with freshness indicators. Status
@@ -455,6 +455,26 @@ artifacts:
     status: accepted
     release: v0.6.0
     description: "The dashboard SHALL provide a Critical Path view showing the longest chain of dependent gates across all repos. The view SHALL compute the critical path from: (a) repo dependency graph (which repos depend on which), (b) CI gate status per repo (green/red/pending), (c) queue depth per repo. The critical path is the longest chain of repos where each depends on the next and at least one gate is not green. The view SHALL show: the chain (repo → repo → repo), the bottleneck repo, the estimated minimum release time (from ETA estimates). The view SHALL use SSE for real-time updates."
+    links:
+      - type: satisfies
+        target: SC-006
+
+  - id: REQ-DASH-007
+    type: requirement
+    title: Dashboard resources view — who needs what (RAM, disk, runners, boards)
+    status: accepted
+    release: v0.7.0
+    description: "The dashboard SHALL provide a Resources view showing: (a) agent resource needs — which agents need which resources (RAM, disk, runners, boards), (b) resource utilization — how much of each resource is in use vs available, (c) hardware claims — which boards are claimed by which agents, since when, for how long. Data sources: agent registry (agent metadata), agent_data (resource claims, hardware claims). The view SHALL use SSE for real-time updates and show freshness indicators."
+    links:
+      - type: satisfies
+        target: SC-006
+
+  - id: REQ-DASH-008
+    type: requirement
+    title: Dashboard outages + friction views — GitHub status, fleet health, tool errors
+    status: accepted
+    release: v0.7.0
+    description: "The dashboard SHALL provide: (a) Outages view — GitHub status (from status.github.com API), fleet health (agent heartbeat status, instance sync status), (b) Friction view — tool errors, workarounds, build decisions (from agent_data where data_type = 'friction'), (c) Schedule view — weekly cron table, who runs what when (from agent_data where data_type = 'schedule'), (d) Health view — factory-wide metrics from agent heartbeats (agents healthy/unhealthy, CI green/red, queue depth). All views SHALL use SSE for real-time updates and show freshness indicators."
     links:
       - type: satisfies
         target: SC-006

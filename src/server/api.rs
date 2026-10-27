@@ -74,6 +74,26 @@ pub fn build_routes() -> Router<AppState> {
             "/api/dashboard/critical-path-partial",
             get(crate::dashboard::critical_path_partial),
         )
+        .route(
+            "/api/dashboard/resources-partial",
+            get(crate::dashboard::resources_partial),
+        )
+        .route(
+            "/api/dashboard/outages-partial",
+            get(crate::dashboard::outages_partial),
+        )
+        .route(
+            "/api/dashboard/friction-partial",
+            get(crate::dashboard::friction_partial),
+        )
+        .route(
+            "/api/dashboard/schedule-partial",
+            get(crate::dashboard::schedule_partial),
+        )
+        .route(
+            "/api/dashboard/health-partial",
+            get(crate::dashboard::health_partial),
+        )
 }
 
 // ── Health ──────────────────────────────────────────────────────────
