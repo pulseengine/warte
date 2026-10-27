@@ -464,3 +464,13 @@ artifacts:
     links:
       - type: verifies
         target: REQ-DASH-011
+
+  - id: TEST-POLLER-002
+    type: verification
+    title: Poller measured wait recording — queued → started transitions tracked, waits recorded in wait_history
+    status: draft
+    release: v1.0.0
+    description: "Poller wait recording verification: CiPoller.poll_once now tracks job state transitions using last_states map (job_key → (status, timestamp)). When a job transitions from pending to green/red, the poller records the measured wait (queued_at → started_at) in the wait_history table with runner_pool='polled'. This complements webhook-based wait recording (more precise but requires webhook configuration). The poller-based recording works without webhooks configured."
+    links:
+      - type: verifies
+        target: REQ-POLLER-002
