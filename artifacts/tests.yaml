@@ -474,3 +474,13 @@ artifacts:
     links:
       - type: verifies
         target: REQ-POLLER-002
+
+  - id: TEST-CRIT-001
+    type: verification
+    title: test_critical_path_simple_chain + test_critical_path_with_blocking + test_critical_path_no_dependencies + test_repo_node_is_blocking — dependency graph critical path
+    status: draft
+    release: v1.1.0
+    description: "Unit tests verify: CriticalPathComputer computes the longest dependency chain (jess → relay → gale), identifies blocking repos (red/pending/high-queue), finds the bottleneck (first blocking repo on the chain), estimates total wait (sum of queue depths × 60s). DFS-based longest path algorithm with cycle detection. RepoNode.is_blocking() checks status (red/pending) and queue depth (>5)."
+    links:
+      - type: verifies
+        target: REQ-CRIT-001
