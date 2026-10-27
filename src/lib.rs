@@ -10,6 +10,7 @@ pub mod agent;
 pub mod artifact;
 pub mod auth;
 pub mod ca;
+pub mod ci;
 pub mod cli;
 pub mod config;
 pub mod contract;

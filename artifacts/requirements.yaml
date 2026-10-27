@@ -398,3 +398,23 @@ artifacts:
     links:
       - type: satisfies
         target: SC-007
+
+  - id: REQ-CI-DATA-001
+    type: requirement
+    title: GitHub CI data collection — webhook receiver + status poller for ETA estimation
+    status: draft
+    release: v0.4.0
+    description: "The system SHALL collect CI data from GitHub (and GitLab) to feed the ETA estimator and dashboard. Collection methods: (a) GitHub Actions webhook receiver (workflow_run events: queued, in_progress, completed), (b) periodic status poller (fallback when webhooks are not configured), (c) manual CLI import. Collected data: job queued_at, started_at, completed_at, runner pool, repo, PR number. This data feeds the wait_history table (for ETA estimation) and ci_status cache (for dashboard)."
+    links:
+      - type: satisfies
+        target: SC-006
+
+  - id: REQ-DASH-004
+    type: requirement
+    title: Dashboard HTML frontend — HTMX-based overview, ask, queue views
+    status: draft
+    release: v0.4.0
+    description: "The system SHALL serve an HTML dashboard frontend (HTMX-based, like rivet serve) with views: (a) Overview — all repos, all gates, green/red/pending, (b) Ask — ETA query form with results, (c) Queue — runner pool, waiting jobs, hardware availability, (d) Agents — agent registry with health status, (e) Artifacts — artifact list with download links. The frontend SHALL use SSE (/api/events) for real-time updates. The frontend SHALL show freshness indicators for all data."
+    links:
+      - type: satisfies
+        target: SC-006

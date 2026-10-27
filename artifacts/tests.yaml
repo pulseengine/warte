@@ -348,3 +348,13 @@ artifacts:
     links:
       - type: verifies
         target: REQ-DISCOVERY-003
+
+  - id: TEST-CI-DATA-001
+    type: verification
+    title: test_parse_datetime + test_infer_runner_pool + test_webhook_deserialization + test_process_webhook — GitHub CI data collection
+    status: draft
+    release: v0.4.0
+    description: "Unit tests verify: datetime parsing (RFC3339 + GitHub format), runner pool inference (hardware/wasm/proof/default), webhook payload deserialization (GitHub Actions workflow_run event), webhook processing (stores ci_jobs record, updates wait_history with measured wait, updates ci_status cache)."
+    links:
+      - type: verifies
+        target: REQ-CI-DATA-001
