@@ -9,6 +9,7 @@ use crate::artifact::ArtifactStore;
 use crate::config::Config;
 use crate::db::Database;
 use crate::sync::SyncService;
+use axum::response::IntoResponse;
 use axum::Router;
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
@@ -53,7 +54,17 @@ pub fn build_router(state: AppState) -> Router {
         .with_state(state);
     match hub_api {
         // logged like the rest; no CORS (smithy hub had none, and it is GET-only)
-        Some(hub) => app.nest("/ci", hub.layer(TraceLayer::new_for_http())),
+        // axum's nest matches "/ci" and "/ci/<path>" but not "/ci/" itself,
+        // which is where a browser lands for the hub's web view (and where
+        // Caddy forwards ".../ci/"): serve the same index there.
+        Some(hub) => app
+            .route(
+                "/ci/",
+                axum::routing::get(|| async {
+                    axum::response::Html(crate::hub::INDEX).into_response()
+                }),
+            )
+            .nest("/ci", hub.layer(TraceLayer::new_for_http())),
         None => app,
     }
 }
