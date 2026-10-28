@@ -100,11 +100,18 @@ EOF
 # Caddy: serve warte at https://fourpi.local/warte/ like /photos and /ci.
 # The dashboard uses relative URLs, so it works under the stripped prefix.
 caddyfile=/opt/caddy-compose/Caddyfile
-if ! grep -q 'handle_path /warte/\*' "$caddyfile" || grep -q 'fourpi.local:8443' "$caddyfile"; then
+# LAN clients may come over the ISP-delegated global IPv6 prefix, which
+# private_ranges doesn't cover: allow this host's own /64 (recomputed on every
+# deploy, since the delegated prefix can change).
+lan6=$(ip -6 -o addr show dev eth0 scope global | awk '{print $4}' | grep -v '^fd' | head -1 \
+  | python3 -c "import ipaddress,sys; v=sys.stdin.read().strip(); print(ipaddress.ip_interface(v).network.supernet(new_prefix=64) if v else '')")
+want_matcher="@outside not remote_ip private_ranges${lan6:+ $lan6}"
+if ! grep -q 'handle_path /warte/\*' "$caddyfile" || grep -q 'fourpi.local:8443' "$caddyfile" \
+   || ! grep -qF "$want_matcher" "$caddyfile"; then
   cp "$caddyfile" "$caddyfile.bak.$(date +%Y%m%d-%H%M%S)"
-  python3 - "$caddyfile" <<'PY'
+  python3 - "$caddyfile" "$want_matcher" <<'PY'
 import re, sys
-p = sys.argv[1]
+p, matcher = sys.argv[1], sys.argv[2]
 s = open(p).read()
 # drop the earlier :8443 site
 s = re.sub(r'\n# warte: PulseEngine control tower[^\n]*\nfourpi\.local:8443 \{.*?\n\}\n', '\n', s, flags=re.S)
@@ -113,10 +120,12 @@ route = ('\t# warte: PulseEngine control tower (latest main)\n'
          '\t# private-network clients only\n'
          '\tredir /warte /warte/\n'
          '\thandle_path /warte/* {\n'
-         '\t\t@outside not remote_ip private_ranges\n'
+         '\t\t' + matcher + '\n'
          '\t\trespond @outside "forbidden" 403\n'
          '\t\treverse_proxy localhost:8080\n'
          '\t}\n')
+# keep the matcher current (the LAN's IPv6 prefix can change)
+s = re.sub(r'@outside not remote_ip private_ranges[^\n]*', matcher, s)
 if 'handle_path /warte/*' not in s:
     anchor = '\thandle {\n\t\troot * /srv'
     assert anchor in s, 'catch-all handle block not found'
