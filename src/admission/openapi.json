@@ -1,0 +1,62 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "warte agent API",
+    "version": "1",
+    "description": "Machine-readable answers for agents, from the ground station's latest snapshot. Read-only. The ground station's own API (ETA, state, history, reports) is under /ci; see /ci/api/openapi.json."
+  },
+  "paths": {
+    "/api/queue": {
+      "get": {
+        "summary": "Fleet queue: self-hosted runners, hosted pool, and optionally one repo",
+        "parameters": [
+          {"name": "repo", "in": "query", "required": false, "description": "Repository name without the org, e.g. spar", "schema": {"type": "string"}}
+        ],
+        "responses": {
+          "200": {"description": "Queue summary", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Queue"}}}},
+          "400": {"description": "repo is not a bare repository name"},
+          "503": {"description": "no ground station configured, or no snapshot received yet"}
+        }
+      }
+    },
+    "/api/admission": {
+      "get": {
+        "summary": "Should an agent open a PR of this kind in this repo now?",
+        "description": "security and red-main are always open. docs batch whenever the repo has CI in flight. fix and feature use thresholds kept in warte. Stale data (snapshot older than 5 minutes) never gates: the verdict is open and the reason says so.",
+        "parameters": [
+          {"name": "repo", "in": "query", "required": true, "description": "Repository name without the org", "schema": {"type": "string"}},
+          {"name": "kind", "in": "query", "required": true, "schema": {"type": "string", "enum": ["docs", "fix", "feature", "security", "red-main"]}}
+        ],
+        "responses": {
+          "200": {"description": "Admission verdict", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Admission"}}}},
+          "400": {"description": "missing or invalid repo or kind"},
+          "503": {"description": "no ground station configured, or no snapshot received yet"}
+        }
+      }
+    },
+    "/api/openapi.json": {
+      "get": {"summary": "This document", "responses": {"200": {"description": "OpenAPI 3 document"}}}
+    }
+  },
+  "components": {
+    "schemas": {
+      "Queue": {
+        "type": "object",
+        "properties": {
+          "self_hosted": {"type": "object", "properties": {"busy": {"type": "integer"}, "total": {"type": "integer"}, "queued_jobs": {"type": "integer"}}},
+          "hosted": {"type": "object", "properties": {"queued_jobs": {"type": "integer"}, "oldest_wait_s": {"type": "integer"}, "median_wait_s": {"type": "integer"}}},
+          "repo": {"type": "object", "properties": {"queued_runs": {"type": "integer"}, "running_runs": {"type": "integer"}}},
+          "as_of": {"type": "object", "properties": {"taken_at": {"type": "integer"}, "age_s": {"type": "integer"}, "stale": {"type": "boolean"}}}
+        }
+      },
+      "Admission": {
+        "type": "object",
+        "properties": {
+          "verdict": {"type": "string", "enum": ["open", "batch", "hold"]},
+          "reason": {"type": "string"},
+          "recheck_s": {"type": "integer", "description": "Seconds until asking again is worthwhile; absent for open"}
+        }
+      }
+    }
+  }
+}

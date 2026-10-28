@@ -487,3 +487,39 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-10-28T04:59:06Z
+
+  - id: REQ-QUEUE-001
+    type: requirement
+    title: "GET /api/queue: machine-readable fleet queue for agents"
+    status: implemented
+    release: v1.4.1
+    description: "warte SHALL serve GET /api/queue[?repo=<name>] as JSON from the ground station's latest snapshot: self_hosted {busy, total, queued_jobs}, hosted {queued_jobs, oldest_wait_s, median_wait_s}, repo {queued_runs, running_runs} when repo is given, and as_of with the snapshot age and a stale flag. It SHALL answer 503 when no ground station or snapshot exists and 400 for an invalid repo, and SHALL be described in /api/openapi.json."
+    fields:
+      category: interface
+      priority: must
+      upstream-ref: https://github.com/pulseengine/warte/issues/55
+    links:
+      - type: satisfies
+        target: SC-006
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T07:15:26Z
+
+  - id: REQ-QUEUE-002
+    type: requirement
+    title: "GET /api/admission: open | batch | hold verdict before an agent opens a PR"
+    status: implemented
+    release: v1.4.1
+    description: "warte SHALL serve GET /api/admission?repo=<name>&kind=<docs|fix|feature|security|red-main> returning {verdict: open|batch|hold, reason, recheck_s}. security and red-main SHALL always be open. docs SHALL be batch whenever the repo has runs queued or running. The thresholds for fix and feature SHALL live in warte as named constants. Stale or missing queue data SHALL never produce batch or hold (the verdict is open, with the reason saying so). Unknown kinds SHALL be rejected with 400."
+    fields:
+      category: interface
+      priority: must
+      upstream-ref: https://github.com/pulseengine/warte/issues/55
+    links:
+      - type: satisfies
+        target: SC-006
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T07:15:26Z
