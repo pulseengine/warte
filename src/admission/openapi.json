@@ -34,6 +34,24 @@
         }
       }
     },
+    "/api/watch": {
+      "get": {
+        "summary": "Long-poll: hold until a PR's or branch's CI runs start or finish",
+        "description": "Answers at once when the CI state differs from the cursor in since; otherwise holds until a snapshot changes it or timeout passes (changed: false). Without since, the state at the call is the baseline. Pass the returned cursor as since on the next call so no change is missed. Resolution is one snapshot (about a minute). The CLI is warte watch --ci.",
+        "parameters": [
+          {"name": "repo", "in": "query", "required": true, "description": "Repository name without the org", "schema": {"type": "string"}},
+          {"name": "pr", "in": "query", "required": false, "description": "PR number; give exactly one of pr or branch", "schema": {"type": "integer"}},
+          {"name": "branch", "in": "query", "required": false, "schema": {"type": "string", "maxLength": 255}},
+          {"name": "since", "in": "query", "required": false, "description": "Cursor from a previous answer", "schema": {"type": "string", "pattern": "^(running|queued|running-queued|not_queued|unknown)\\.[0-9a-f]{16}$"}},
+          {"name": "timeout", "in": "query", "required": false, "description": "Seconds to hold, default 300, at most 900", "schema": {"type": "integer", "minimum": 0}}
+        ],
+        "responses": {
+          "200": {"description": "Changed, or held until the timeout", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Watch"}}}},
+          "400": {"description": "missing or invalid repo, pr/branch, since or timeout"},
+          "503": {"description": "no ground station, no snapshot yet, or too many watchers"}
+        }
+      }
+    },
     "/api/openapi.json": {
       "get": {"summary": "This document", "responses": {"200": {"description": "OpenAPI 3 document"}}}
     }
@@ -47,6 +65,18 @@
           "hosted": {"type": "object", "properties": {"queued_jobs": {"type": "integer"}, "oldest_wait_s": {"type": "integer"}, "median_wait_s": {"type": "integer"}}},
           "repo": {"type": "object", "properties": {"queued_runs": {"type": "integer"}, "running_runs": {"type": "integer"}}},
           "as_of": {"type": "object", "properties": {"taken_at": {"type": "integer"}, "age_s": {"type": "integer"}, "stale": {"type": "boolean"}}}
+        }
+      },
+      "Watch": {
+        "type": "object",
+        "properties": {
+          "changed": {"type": "boolean"},
+          "from": {"type": "string", "description": "Status the since cursor described"},
+          "status": {"type": "string", "enum": ["running", "queued", "running+queued", "not_queued", "unknown"]},
+          "cursor": {"type": "string"},
+          "runs": {"type": "array", "items": {"type": "object", "properties": {"run_id": {"type": "integer"}, "state": {"type": "string", "enum": ["queued", "running"]}}}},
+          "queued_complete": {"type": "boolean", "description": "False: the queue scan was incomplete, so a missing run may still be queued"},
+          "as_of": {"type": "object", "properties": {"taken_at": {"type": "integer"}, "age_s": {"type": "integer"}}}
         }
       },
       "Admission": {

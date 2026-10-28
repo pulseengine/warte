@@ -37,6 +37,7 @@ pub fn build_routes() -> Router<AppState> {
         // Agents: machine-readable queue and PR admission (#55)
         .route("/queue", get(api_queue))
         .route("/admission", get(api_admission))
+        .route("/watch", get(api_watch))
         .route("/openapi.json", get(api_openapi))
         // Real-time: WebSocket (bidirectional) + SSE (unidirectional)
         .route("/ws", axum::routing::any(crate::realtime::ws_handler))
@@ -167,6 +168,80 @@ async fn api_admission(
         ))
         .into_response(),
         Err(why) => plain(StatusCode::SERVICE_UNAVAILABLE, why),
+    }
+}
+
+/// Held `/api/watch` requests (REQ-WATCH-002).
+static WATCHERS: tokio::sync::Semaphore =
+    tokio::sync::Semaphore::const_new(crate::watch::MAX_WATCHERS);
+
+/// Long-poll: hold until the PR's or branch's CI state differs from `since`,
+/// or `timeout` seconds pass. Without `since`, the state at the call is the
+/// baseline.
+async fn api_watch(
+    State(state): State<AppState>,
+    Query(q): Query<std::collections::HashMap<String, String>>,
+) -> axum::response::Response {
+    use crate::watch;
+    let Some(repo) = q.get("repo").filter(|r| crate::admission::valid_repo(r)) else {
+        return plain(
+            StatusCode::BAD_REQUEST,
+            "repo is required: a repository name without the org",
+        );
+    };
+    let pr = match q.get("pr").map(|p| p.parse::<u32>()) {
+        None => None,
+        Some(Ok(n)) => Some(n),
+        Some(Err(_)) => return plain(StatusCode::BAD_REQUEST, "pr must be a number"),
+    };
+    let branch = q.get("branch").map(String::as_str);
+    if pr.is_some() == branch.is_some() || branch.is_some_and(|b| b.is_empty() || b.len() > 255) {
+        return plain(
+            StatusCode::BAD_REQUEST,
+            "give exactly one of pr or branch (at most 255 bytes)",
+        );
+    }
+    let since = q.get("since").map(String::as_str);
+    if since.is_some_and(|c| !watch::valid_cursor(c)) {
+        return plain(
+            StatusCode::BAD_REQUEST,
+            "since must be a cursor from a previous answer",
+        );
+    }
+    let hold = match q.get("timeout").map(|t| t.parse::<u64>()) {
+        None => watch::DEFAULT_HOLD_S,
+        Some(Ok(t)) => t.min(watch::MAX_HOLD_S),
+        Some(Err(_)) => return plain(StatusCode::BAD_REQUEST, "timeout must be seconds"),
+    };
+    let Some(hub) = state.hub.as_ref() else {
+        return plain(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "no ground station configured",
+        );
+    };
+    let Ok(_permit) = WATCHERS.try_acquire() else {
+        return plain(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "too many watchers; retry later",
+        );
+    };
+    let mut tick = hub.subscribe();
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(hold);
+    let mut baseline = since.map(String::from);
+    loop {
+        let Some((s, received)) = hub.snapshot() else {
+            return plain(StatusCode::SERVICE_UNAVAILABLE, "no snapshot received yet");
+        };
+        let p = watch::picture(&s, hub.org(), repo, pr, branch);
+        let since = baseline.get_or_insert_with(|| p.cursor()).clone();
+        let a = watch::answer(&p, &since, received, s.taken_at, crate::hub::now());
+        if a.changed {
+            return Json(a).into_response();
+        }
+        tokio::select! {
+            r = tick.changed() => if r.is_err() { return Json(a).into_response() },
+            _ = tokio::time::sleep_until(deadline) => return Json(a).into_response(),
+        }
     }
 }
 

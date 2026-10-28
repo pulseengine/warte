@@ -51,8 +51,33 @@ pub enum Commands {
     /// Show the weekly cron schedule
     Schedule,
 
-    /// Open the dashboard in the browser
-    Watch,
+    /// Block until a PR's or branch's CI changes, then print JSON and exit
+    ///
+    /// Exits 0 on a change, 3 when --timeout passes with none, 1 on error.
+    /// Pass the printed cursor back as --since so nothing is missed between
+    /// two calls. Meant to run as an agent's background command.
+    #[command(group(clap::ArgGroup::new("target").required(true).args(["pr", "branch"])))]
+    Watch {
+        /// Watch CI runs (the only condition so far)
+        #[arg(long, required = true)]
+        ci: bool,
+        /// Repository name without the org, e.g. spar
+        #[arg(long)]
+        repo: String,
+        #[arg(long)]
+        pr: Option<u32>,
+        #[arg(long)]
+        branch: Option<String>,
+        /// Cursor from a previous answer
+        #[arg(long)]
+        since: Option<String>,
+        /// Give up after this many seconds (exit 3)
+        #[arg(long, default_value_t = 3600)]
+        timeout: u64,
+        /// warte's base URL, e.g. https://host/warte (default: the configured bind)
+        #[arg(long, env = "WARTE_URL")]
+        url: Option<String>,
+    },
 
     /// Manage access rights
     Access {

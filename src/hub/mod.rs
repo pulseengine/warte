@@ -249,6 +249,8 @@ pub struct Hub {
     ledger: Arc<Mutex<belt::HubLedger>>,
     org: Arc<str>,
     state_path: Arc<str>,
+    /// Counts complete snapshots; long-polls (`/api/watch`) wait on it.
+    tick: Arc<tokio::sync::watch::Sender<u64>>,
 }
 
 impl Hub {
@@ -270,6 +272,7 @@ impl Hub {
             ledger: Arc::new(Mutex::new(belt::HubLedger::open(data_dir)?)),
             org: org.into(),
             state_path: path.into(),
+            tick: Arc::new(tokio::sync::watch::channel(0).0),
         })
     }
 
@@ -321,6 +324,8 @@ impl Hub {
             if g.frames.is_multiple_of(5) {
                 save(&self.state_path, &g.p);
             }
+            drop(g);
+            self.tick.send_modify(|n| *n += 1);
         }
     }
 
@@ -329,6 +334,16 @@ impl Hub {
     pub fn snapshot(&self) -> Option<(Snapshot, i64)> {
         let g = lk(&self.shared);
         g.p.latest.clone().map(|s| (s, g.p.received_at))
+    }
+
+    /// Wakes on every complete snapshot.
+    pub fn subscribe(&self) -> tokio::sync::watch::Receiver<u64> {
+        self.tick.subscribe()
+    }
+
+    /// The GitHub org repo names are relative to.
+    pub fn org(&self) -> &str {
+        &self.org
     }
 
     /// The same answer `/api/eta` gives; `None` before the first snapshot.
