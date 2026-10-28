@@ -43,6 +43,26 @@ GET /api/artifacts/{id}/download    # download artifact (integrity-verified)
 GET /api/dashboard/overview         # dashboard overview data
 ```
 
+## Agents: queue and PR admission
+
+Read-only JSON from the ground station's latest snapshot; the contract is
+`/api/openapi.json`. Ask before opening a PR, so small changes don't pile onto a
+saturated fleet.
+
+```
+GET /api/queue[?repo=spar]                       # self_hosted, hosted, repo, as_of
+GET /api/admission?repo=spar&kind=docs           # {verdict: open|batch|hold, reason, recheck_s}
+    kind: docs | fix | feature | security | red-main
+```
+
+- `security` and `red-main` are always `open`.
+- `docs` batch whenever the repo has CI queued or running.
+- `feature` holds when every self-hosted runner is busy and 50+ self-hosted jobs wait,
+  and batches when the repo already has 2+ runs queued. `fix` batches at 2+.
+- Stale data (snapshot older than 5 minutes) never gates: the verdict is `open` and
+  the reason says the data is stale.
+- `503` when no ground station is configured or no snapshot has arrived.
+
 ## Ground station (`/ci`, when `[hub]` is configured)
 
 The absorbed smithy hub API, unchanged; the contract is `/ci/api/openapi.json`.
