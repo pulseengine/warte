@@ -5,7 +5,7 @@
 
 ## Data path
 
-The smithy agent runs on the CI host (`pulseengine-ci-01`). Once a minute it collects
+The smithy agent runs on the CI host. Once a minute it collects
 a snapshot (machine load and PSI, disks, every runner with its job and labels, the
 org-wide queue scan, automation timers), and it reads finished jobs back from GitHub
 per UTC day. It **dials out** to the ground station with CCSDS space packets over UDP
@@ -56,7 +56,7 @@ schedule their next look instead of polling GitHub (see the `ci-status` skill).
 ## Inside `warte serve`
 
 With a `[hub]` section in warte.toml, `warte serve` runs the ground station in-process,
-mounts the hub API under `/ci` (read-only, outside warte's auth, as on fourpi), and the
+mounts the hub API under `/ci` (read-only, outside warte's auth, as smithy hub was served), and the
 dashboard's Queue, Critical Path, Ask and Health views read from it:
 
 ```toml
@@ -79,4 +79,4 @@ warte hub --udp <wireguard-address>:8092 \
 The flags and the data directory are smithy hub's, so `warte hub` reads an existing
 `/var/lib/smithy-hub` as-is and replaces `smithy hub` in its systemd unit. Unlike smithy,
 `--udp` has no default and `--http` defaults to loopback. Keep HTTP on
-loopback and publish it through Caddy (`https://fourpi.local/ci/`).
+loopback and publish it through Caddy (`https://<host>/ci/`).

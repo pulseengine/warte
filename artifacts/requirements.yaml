@@ -377,7 +377,7 @@ artifacts:
     title: Replace smithy-hub with warte hub in place, after a parallel run
     status: approved
     release: v1.4.0
-    description: "There SHALL be no data import: warte hub SHALL read smithy hub's data directory (hub-state.json, ledger/*.jsonl) in place, with smithy hub's flags. Cut-over SHALL follow a parallel run in which the smithy agent feeds both hubs and scripts/hub-parity.sh reports zero differences, after which smithy-hub.service on fourpi runs warte hub instead."
+    description: "There SHALL be no data import: warte hub SHALL read smithy hub's data directory (hub-state.json, ledger/*.jsonl) in place, with smithy hub's flags. Cut-over SHALL follow a parallel run in which the smithy agent feeds both hubs and scripts/hub-parity.sh reports zero differences, after which smithy-hub.service on the ground-station host runs warte hub instead."
     links:
       - type: satisfies
         target: SC-005

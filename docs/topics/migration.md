@@ -1,6 +1,6 @@
 # Migration guide
 
-## From smithy hub (fourpi.local)
+## From smithy hub
 
 smithy hub is now warte's ground station (`warte hub`, DD-SMITHY-001). There is
 **nothing to import**: `warte hub` uses smithy hub's flags and reads its data
@@ -9,7 +9,7 @@ directory (`hub-state.json` + `ledger/`) as-is.
 1. **Run side by side.** Start `warte hub` on another port pair with its own copy of
    the data directory, and have the smithy agent send to both hubs (needs a
    repeatable `--hub` in the agent: pulseengine/smithy#19).
-2. **Compare.** `scripts/hub-parity.sh https://fourpi.local/ci http://<warte-hub>`
+2. **Compare.** `scripts/hub-parity.sh https://<host>/ci/ http://<warte-hub>`
    checks every endpoint, ETA for every queued PR, and the monthly reports.
    Require zero differences, re-running once to rule out a frame landing between
    the two requests.

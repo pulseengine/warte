@@ -212,7 +212,7 @@ See `artifacts/security.yaml` for the full TARA. Key threats:
 
 ## Migration
 
-### From smithy hub (fourpi.local)
+### From smithy hub
 
 smithy hub was absorbed as warte's ground station (DD-SMITHY-001): `warte hub`
 reads its data directory as-is. See `warte docs migration` for the parallel run
@@ -243,7 +243,7 @@ Command: `warte migrate temper --config /path/to/temper/config.yml`
 - Secondary instance: 2 vCPU, 4 GB RAM (warte instance 2)
 - WireGuard VPN between edge and internal instances
 
-### fourpi.local (Raspberry Pi, to be replaced)
+### Home-LAN host (small ARM board)
 - Runs smithy hub (the CI fleet ground station) behind Caddy at `/ci/`
 - `warte hub` replaces it in place after the parallel run; no data import
 
