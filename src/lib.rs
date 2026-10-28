@@ -6,6 +6,7 @@
 //! German: "watchtower" — and "bitte warte auf mich", "please wait for me".
 
 pub mod access;
+pub mod admission;
 pub mod agent;
 pub mod artifact;
 pub mod auth;

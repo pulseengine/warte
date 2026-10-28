@@ -34,6 +34,10 @@ pub fn build_routes() -> Router<AppState> {
         .route("/artifacts/{id}/download", get(download_artifact))
         .route("/dashboard/overview", get(dashboard_overview))
         .route("/sync/state", get(sync_state))
+        // Agents: machine-readable queue and PR admission (#55)
+        .route("/queue", get(api_queue))
+        .route("/admission", get(api_admission))
+        .route("/openapi.json", get(api_openapi))
         // Real-time: WebSocket (bidirectional) + SSE (unidirectional)
         .route("/ws", axum::routing::any(crate::realtime::ws_handler))
         .route("/events", get(crate::realtime::sse_handler));
@@ -100,6 +104,78 @@ struct HealthResponse {
     version: String,
     uptime_secs: u64,
     timestamp: DateTime<Utc>,
+}
+
+// ── Agents: queue and admission (#55) ─────────────────────────────
+
+fn plain(code: StatusCode, msg: &str) -> axum::response::Response {
+    (code, msg.to_string()).into_response()
+}
+
+/// The hub's latest snapshot and when it arrived, or why there is none (a 503).
+fn fleet(state: &AppState) -> Result<(crate::hub::model::Snapshot, i64), &'static str> {
+    let hub = state.hub.as_ref().ok_or("no ground station configured")?;
+    hub.snapshot().ok_or("no snapshot received yet")
+}
+
+async fn api_queue(
+    State(state): State<AppState>,
+    Query(q): Query<std::collections::HashMap<String, String>>,
+) -> axum::response::Response {
+    let repo = q.get("repo").map(String::as_str);
+    if repo.is_some_and(|r| !crate::admission::valid_repo(r)) {
+        return plain(
+            StatusCode::BAD_REQUEST,
+            "repo must be a repository name without the org, e.g. spar",
+        );
+    }
+    match fleet(&state) {
+        Ok((s, received)) => Json(crate::admission::queue(
+            &s,
+            received,
+            crate::hub::now(),
+            repo,
+        ))
+        .into_response(),
+        Err(why) => plain(StatusCode::SERVICE_UNAVAILABLE, why),
+    }
+}
+
+async fn api_admission(
+    State(state): State<AppState>,
+    Query(q): Query<std::collections::HashMap<String, String>>,
+) -> axum::response::Response {
+    let Some(repo) = q.get("repo").filter(|r| crate::admission::valid_repo(r)) else {
+        return plain(
+            StatusCode::BAD_REQUEST,
+            "repo is required: a repository name without the org",
+        );
+    };
+    let Some(kind) = q.get("kind").and_then(|k| crate::admission::Kind::parse(k)) else {
+        return plain(
+            StatusCode::BAD_REQUEST,
+            "kind must be one of docs, fix, feature, security, red-main",
+        );
+    };
+    match fleet(&state) {
+        Ok((s, received)) => Json(crate::admission::admit(
+            &s,
+            received,
+            crate::hub::now(),
+            repo,
+            kind,
+        ))
+        .into_response(),
+        Err(why) => plain(StatusCode::SERVICE_UNAVAILABLE, why),
+    }
+}
+
+async fn api_openapi() -> axum::response::Response {
+    (
+        [(axum::http::header::CONTENT_TYPE, "application/json")],
+        include_str!("../admission/openapi.json"),
+    )
+        .into_response()
 }
 
 async fn health(State(state): State<AppState>) -> impl IntoResponse {
