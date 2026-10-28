@@ -64,5 +64,5 @@ call and no change between the two calls is missed. `status` is one of
 `queued`, `running`, `running+queued`, `not_queued` (the PR has nothing in
 flight) or `unknown` (nothing seen, but the queue scan was incomplete).
 The resolution is one ground-station snapshot, about a minute. `--url`
-defaults to `WARTE_URL`, then to the configured bind address. The server
+defaults to `WARTE_URL`, then to the configured bind address. Behind a reverse proxy with its own local CA (e.g. Caddy's `tls internal`), pass that CA with `--ca-cert <pem>` or `WARTE_CA_CERT`; it is trusted in addition to the built-in roots. There is no switch to skip certificate checks. The server
 side is `GET /api/watch`; see `/api/openapi.json`.
