@@ -110,6 +110,28 @@ fn rivet_is_installed_from_pulseengine_git_only() {
     );
 }
 
+// rivet: verifies REQ-RELEASE-005
+#[test]
+fn every_cargo_install_is_pinned() {
+    let mut installs = 0;
+    for (name, _) in workflows() {
+        for cmd in commands(&workflow(&name)) {
+            if !cmd.contains("cargo install") {
+                continue;
+            }
+            installs += 1;
+            assert!(
+                cmd.contains("--version ") || cmd.contains("--rev "),
+                "{name}: unpinned `cargo install` picks up whatever was published last: {cmd}"
+            );
+        }
+    }
+    assert!(
+        installs > 0,
+        "no cargo install found — oracle checked nothing"
+    );
+}
+
 // rivet: verifies REQ-CI-001
 #[test]
 fn rivet_rev_is_one_full_sha_across_workflows() {
