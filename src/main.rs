@@ -102,6 +102,16 @@ async fn main() -> anyhow::Result<()> {
             // TODO: open browser
         }
 
+        Commands::Probe { action } => match action {
+            warte::cli::ProbeCommands::Report => {
+                let r = warte::probe::collect().await;
+                match cli.format {
+                    OutputFormat::Json => println!("{}", serde_json::to_string_pretty(&r)?),
+                    OutputFormat::Text => print!("{}", warte::probe::text(&r)),
+                }
+            }
+        },
+
         Commands::Access { action } => {
             use warte::cli::AccessCommands;
             match action {

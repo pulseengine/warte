@@ -70,6 +70,12 @@ pub enum Commands {
         path: String,
     },
 
+    /// What this machine is and runs: hardware, disks, agent CLIs, sessions
+    Probe {
+        #[command(subcommand)]
+        action: ProbeCommands,
+    },
+
     /// Run the ground station: CCSDS telemetry from the smithy agent in, hub API out
     ///
     /// Same flags and data-dir layout as `smithy hub`, so it replaces it in place.
@@ -107,6 +113,12 @@ pub enum Commands {
         #[arg(long)]
         check: bool,
     },
+}
+
+#[derive(Subcommand)]
+pub enum ProbeCommands {
+    /// Collect once and print (read-only; nothing is sent)
+    Report,
 }
 
 #[derive(Subcommand)]

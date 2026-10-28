@@ -2,6 +2,10 @@
 
 Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red (#34); their "Cuttable" claims were checked only by a local rivet.
 
+## Unreleased — v1.5.0
+
+- **`warte probe report`** (REQ-PROBE-001, first part) prints what a machine is and runs: OS, kernel and architecture, CPU and load, memory and swap, disks, the agent CLIs and tools on PATH with their versions (`claude`, `copilot`, `codex`, `gh`, `varve`), and the agent sessions running now. It is read-only and sends nothing yet. For agent processes it reports the agent, pid, start time and working-directory name, never command lines. Sending (QUIC + mTLS + relay-sec), one-time-token enrollment (DD-PROBE-002) and hook-based agent state (DD-PROBE-003) build on it.
+
 ## Unreleased — v1.4.1
 
 - `GET /api/queue` and `GET /api/admission` give agents a machine-readable queue and an `open | batch | hold` verdict before they open a PR (#55). The verdicts come from the ground station's snapshot, the thresholds live in warte, and stale data never gates. Documented in the new `/api/openapi.json`.
