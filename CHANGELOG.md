@@ -2,6 +2,10 @@
 
 Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red (#34); their "Cuttable" claims were checked only by a local rivet.
 
+## Unreleased — v1.5.0
+
+- **`warte probe report`** (REQ-PROBE-001, first part) prints what a machine is and runs: OS, kernel and architecture, CPU and load, memory and swap, disks, the agent CLIs and tools on PATH with their versions (`claude`, `copilot`, `codex`, `gh`, `varve`), and the agent sessions running now. It is read-only and sends nothing yet. For agent processes it reports the agent, pid, start time and working-directory name, never command lines. Sending (QUIC + mTLS + relay-sec), one-time-token enrollment (DD-PROBE-002) and hook-based agent state (DD-PROBE-003) build on it.
+
 ## Unreleased — v1.4.1
 
 - **`warte watch --ci`** (REQ-WATCH-001/002, DD-WATCH-001) blocks until a PR's or branch's CI runs start or finish, then prints JSON and exits: 0 on a change, 3 on timeout, 2 on usage errors, 1 on errors. Agents run it as a background command instead of polling. The server side is the long-poll `GET /api/watch`. Its cursor is the CI state itself, so a caller resuming with `--since` cannot miss a change and the server keeps no event log. Holds are capped at 900 s, 8 per client and 1024 in total.

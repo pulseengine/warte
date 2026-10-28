@@ -11,6 +11,7 @@ Commands:
   watch     Block until a PR's or branch's CI changes, then print JSON and exit
   access    Manage access rights
   migrate   Migrate data from an existing system
+  probe     What this machine is and runs: hardware, disks, agent CLIs, sessions
   artifact  Manage artifacts
   docs      Show embedded documentation
 
@@ -28,7 +29,7 @@ Options:
 - Unknown flags exit 2
 - Structured output via `--format json`
 - Subcommands: `serve`, `status`, `agents`, `schedule`, `watch`,
-  `access`, `migrate`, `hub`, `artifact`, `docs`
+  `access`, `migrate`, `probe`, `hub`, `artifact`, `docs`
 
 ## Examples
 
@@ -66,3 +67,22 @@ flight) or `unknown` (nothing seen, but the queue scan was incomplete).
 The resolution is one ground-station snapshot, about a minute. `--url`
 defaults to `WARTE_URL`, then to the configured bind address. The server
 side is `GET /api/watch`; see `/api/openapi.json`.
+
+## warte probe
+
+`warte probe report` collects once and prints what this machine is and
+runs: OS, kernel and architecture, CPU and load, memory and swap, disks,
+the agent CLIs and tools on PATH (`claude`, `copilot`, `codex`, `gh`,
+`varve`) with their versions, and the agent sessions running now. It is
+read-only and sends nothing. For agent processes it reports the agent, pid,
+start time and working-directory name, never command lines, which can
+carry prompts and tokens.
+
+```bash
+warte probe report
+warte --format json probe report
+```
+
+Sending to the ground station (QUIC, mutual TLS, relay-sec), enrollment
+with a one-time token, and agent working/waiting state from hooks you
+install are the next steps (DD-TRANSPORT-001, DD-PROBE-002, DD-PROBE-003).
