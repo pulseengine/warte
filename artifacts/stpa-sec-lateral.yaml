@@ -1,0 +1,614 @@
+artifacts:
+
+  - id: SL-006
+    type: sec-loss
+    title: Integrity loss of the org's code and releases
+    status: draft
+    description: "Code, workflows, tags or releases are changed or published under the PulseEngine name by someone other than the maintainers: a malicious commit, a merge that skipped its gates, a signed release built from attacker input. Downstream users (varve layers, crates, the toolchain) inherit it."
+    fields:
+      cia-impact:
+        - integrity
+      stakeholders:
+        - maintainers
+        - downstream users of PulseEngine tools and layers
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:48:47Z
+
+  - id: SL-007
+    type: sec-loss
+    title: Compromise of operator infrastructure beyond warte
+    status: draft
+    description: "An attacker who entered through one PulseEngine component gains control of other operator systems: the CI host (root, runners, caches), the ground-station host and its co-tenant services (personal photo library, monitoring), the home LAN behind it, or operator workstations."
+    fields:
+      cia-impact:
+        - confidentiality
+        - integrity
+        - availability
+      stakeholders:
+        - operators
+        - owner of the home LAN and its data
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:49:12Z
+
+  - id: SL-008
+    type: sec-loss
+    title: Agent fleet acts on attacker intent
+    status: draft
+    description: "AI coding agents across many repositories take actions an attacker chose: opening, merging or holding PRs, editing code or workflows, filing or closing issues. They do so because content that reached their context was attacker-controlled."
+    fields:
+      cia-impact:
+        - integrity
+        - availability
+      stakeholders:
+        - maintainers
+        - every repository the agents work in
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:49:12Z
+
+  - id: CTRL-006
+    type: controller
+    title: Ground-station host (home LAN)
+    status: draft
+    description: Small ARM host on the home LAN. Runs Caddy (Docker, host network) in front of warte (dashboard + ground station), smithy-hub, a photo library (Photoprism) and the Beszel monitoring hub. Reachable from the LAN over IPv4 and the ISP-delegated IPv6 prefix; connected to the CI host through the router's WireGuard tunnel. Deployed by an operator with passwordless sudo over SSH.
+    fields:
+      controller-type: automated
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:49:12Z
+
+  - id: CTRL-007
+    type: controller
+    title: CI host with self-hosted runners and the smithy agent
+    status: draft
+    description: Hetzner host running 14 GitHub Actions runners that execute repository workflows (including pull-request code), and the smithy agent as root, which reads every runner's /proc and the journal and calls GitHub with the pulseengine-smithy app token (Actions r/w, Issues r/w, runners read). Reaches the home LAN through WireGuard.
+    fields:
+      controller-type: automated
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:49:12Z
+
+  - id: CTRL-008
+    type: controller
+    title: Operator workstation and AI agent sessions
+    status: draft
+    description: Maintainer machines and the Claude Code / Copilot CLI sessions running on them, often with permission prompts bypassed. They hold SSH access with passwordless sudo to the ground-station host, an authenticated gh CLI with org-admin rights, and deploy and release authority.
+    fields:
+      controller-type: human-and-automated
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:49:12Z
+
+  - id: CTRL-009
+    type: controller
+    title: GitHub organisation (Actions, branch protection, tokens)
+    status: draft
+    description: Hosts all repositories, workflows, secrets and the app installations; decides what runs where (runner groups) and what may be merged (branch protection, required checks).
+    fields:
+      controller-type: automated
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:49:12Z
+
+  - id: SH-007
+    type: sec-hazard
+    title: A component holds credentials or network reach beyond its own role
+    status: draft
+    description: "Compromising one component gives access to another trust zone. Examples: the root smithy agent with an org-wide GitHub app token on the same host as untrusted CI jobs; the ground-station host bridging the home LAN and the CI host's WireGuard tunnel; an operator session with standing root on hosts."
+    fields:
+      cia-impact:
+        - confidentiality
+        - integrity
+        - availability
+      severity: critical
+    links:
+      - type: leads-to-sec-loss
+        target: SL-006
+      - type: leads-to-sec-loss
+        target: SL-007
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:49:12Z
+
+  - id: SH-008
+    type: sec-hazard
+    title: Untrusted code runs where standing credentials or inner networks are reachable
+    status: draft
+    description: "Pull-request code, agent-authored changes or unpinned third-party tools execute on a persistent host that also holds tokens, caches shared across jobs, or a route into the LAN/WireGuard. Routing fork PRs to hosted runners is not a boundary: a PR can edit the workflow."
+    fields:
+      cia-impact:
+        - confidentiality
+        - integrity
+      severity: critical
+    links:
+      - type: leads-to-sec-loss
+        target: SL-006
+      - type: leads-to-sec-loss
+        target: SL-007
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:49:12Z
+
+  - id: SH-009
+    type: sec-hazard
+    title: Unrelated services share one host and one root
+    status: draft
+    description: The ground-station host runs warte and smithy-hub next to a personal photo library and the monitoring hub, behind one Caddy container on the host network with one root. A foothold in any of them is a foothold next to all of them.
+    fields:
+      cia-impact:
+        - confidentiality
+        - integrity
+        - availability
+      severity: high
+    links:
+      - type: leads-to-sec-loss
+        target: SL-007
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:49:12Z
+
+  - id: SH-010
+    type: sec-hazard
+    title: Content reaching agents' context is writable by a component an attacker can control
+    status: draft
+    description: Status, ETA and admission answers, dashboard text, hook-injected context and (planned) operator inbox messages flow into agents. Repo, branch, job and workflow names inside them are author-controlled. If the producing component is compromised or the text is passed verbatim, the attacker writes into every agent's context at once; hook-injected text even outranks tool output.
+    fields:
+      cia-impact:
+        - integrity
+        - availability
+      severity: critical
+    links:
+      - type: leads-to-sec-loss
+        target: SL-008
+      - type: leads-to-sec-loss
+        target: SL-006
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:49:12Z
+
+  - id: SH-011
+    type: sec-hazard
+    title: Fleet layout readable without authentication
+    status: draft
+    description: warte publishes hosts, runner pools, labels, tool and agent versions, drift and (planned) disk/driver inventory. Its read API is unauthenticated (#46); the route is limited to private networks, which includes every device on the LAN. That is a precise target list for whoever is already inside.
+    fields:
+      cia-impact:
+        - confidentiality
+      severity: medium
+    links:
+      - type: leads-to-sec-loss
+        target: SL-007
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:49:12Z
+
+  - id: SH-012
+    type: sec-hazard
+    title: Operations act with root on paths or hosts a compromised service controls
+    status: draft
+    description: Deploys and maintenance run as root against hosts and directories that services write to (recursive chown over the warte state directory; sudo over SSH from interactive or agent sessions). A compromised service or session turns the operator's own tooling into its privilege escalation.
+    fields:
+      cia-impact:
+        - integrity
+        - confidentiality
+      severity: high
+    links:
+      - type: leads-to-sec-loss
+        target: SL-007
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:49:12Z
+
+  - id: SUCA-001
+    type: sec-uca
+    title: Runner executes pull-request code on the shared persistent host
+    status: draft
+    description: CTRL-007 runs a job whose code came from a PR, on the host that also runs the root smithy agent and has a WireGuard route to the home LAN.
+    fields:
+      adversarial-causation: "Inject: a contributor (or a compromised dependency the PR pulls in) supplies code that the runner executes. The fork-routing expression in the workflow is editable by the PR itself, so it does not keep the code off the pool; only runner-group policy and approval of outside-contributor runs do."
+      attacker-type: supply-chain
+      uca-type: providing
+    links:
+      - type: issued-by
+        target: CTRL-007
+      - type: leads-to-sec-hazard
+        target: SH-008
+      - type: leads-to-sec-hazard
+        target: SH-007
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:49:46Z
+
+  - id: SUCA-002
+    type: sec-uca
+    title: Agent uses an org-wide app token from a host that runs untrusted jobs
+    status: draft
+    description: CTRL-007's smithy agent holds and uses the pulseengine-smithy app token (Actions r/w, Issues r/w) as root on the runner host.
+    fields:
+      adversarial-causation: "Tamper/intercept: a job that escapes its runner user (or any root-level foothold on the CI host) reads the token helper's output and uses Actions write to dispatch or re-run workflows org-wide, including release and signing workflows that hold secrets."
+      attacker-type: supply-chain
+      uca-type: providing
+    links:
+      - type: issued-by
+        target: CTRL-007
+      - type: leads-to-sec-hazard
+        target: SH-007
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:49:46Z
+
+  - id: SUCA-003
+    type: sec-uca
+    title: Ground station serves attacker-shaped answers to every agent
+    status: draft
+    description: CTRL-001 (warte) answers /ci/api/eta, /api/admission, status.md and dashboard partials that agents read and act on.
+    fields:
+      adversarial-causation: "Spoof/tamper: with a foothold on the ground-station host, or via forged telemetry (TS-007), the attacker makes warte tell agents to hold or open PRs, and plants instruction-shaped text in repo/branch/job names that agents read verbatim."
+      attacker-type: external-network
+      uca-type: providing
+    links:
+      - type: issued-by
+        target: CTRL-001
+      - type: leads-to-sec-hazard
+        target: SH-010
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:49:46Z
+
+  - id: SUCA-004
+    type: sec-uca
+    title: Operator or agent session deploys with standing root
+    status: draft
+    description: CTRL-008 runs deploys (Ansible, scripts) with passwordless sudo on hosts, and agent sessions do so with permission prompts bypassed.
+    fields:
+      adversarial-causation: "Inject: a prompt-injected agent session (content from an issue, a log, a fetched page) or a compromised workstation runs the deploy path or arbitrary sudo against the hosts; nothing distinguishes it from a legitimate deploy."
+      attacker-type: insider
+      uca-type: providing
+    links:
+      - type: issued-by
+        target: CTRL-008
+      - type: leads-to-sec-hazard
+        target: SH-012
+      - type: leads-to-sec-hazard
+        target: SH-007
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:49:46Z
+
+  - id: SUCA-005
+    type: sec-uca
+    title: Organisation merges without the required gates
+    status: draft
+    description: CTRL-009 allows a merge to the default branch while the required checks are red, absent or not required.
+    fields:
+      adversarial-causation: "Tamper: an attacker who controls an agent or a maintainer session merges a change that never passed its gates (as warte #21-#33 did before branch protection; smithy still cannot have protection as a private repo without GitHub Pro)."
+      attacker-type: insider
+      uca-type: providing
+    links:
+      - type: issued-by
+        target: CTRL-009
+      - type: leads-to-sec-hazard
+        target: SH-008
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:49:46Z
+
+  - id: SUCA-006
+    type: sec-uca
+    title: Fleet data served to the whole LAN without authentication
+    status: draft
+    description: CTRL-006's Caddy route forwards /warte/ (and /ci/) to anyone with a private or LAN-prefix address.
+    fields:
+      adversarial-causation: "Intercept: any compromised LAN device (an IoT device, a guest laptop) reads the full fleet map, versions and drift, then picks the weakest host."
+      attacker-type: external-network
+      uca-type: providing
+    links:
+      - type: issued-by
+        target: CTRL-006
+      - type: leads-to-sec-hazard
+        target: SH-011
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:49:46Z
+
+  - id: SS-001
+    type: sec-scenario
+    title: Malicious PR → shared runner → root agent's app token → org-wide workflows
+    status: draft
+    description: A PR runs on the smithy pool, escapes its runner user (or abuses a shared cache), reaches the root agent's token on the same host, and uses Actions write to dispatch release or signing workflows across the org.
+    fields:
+      attack-vector: network
+      attacker-type: supply-chain
+    links:
+      - type: caused-by-sec-uca
+        target: SUCA-001
+      - type: caused-by-sec-uca
+        target: SUCA-002
+      - type: leads-to-sec-hazard
+        target: SH-008
+      - type: leads-to-sec-hazard
+        target: SH-007
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:49:46Z
+
+  - id: SS-002
+    type: sec-scenario
+    title: warte RCE → ground-station host → co-tenants and the home LAN → WireGuard to the CI host
+    status: draft
+    description: "A bug in warte's HTTP or UDP parsing gives code execution as the warte user. From there: the photo library and the monitoring hub on the same host, the home LAN, and the WireGuard tunnel to the CI host's agent and Beszel ports. A root-level operation over warte-writable paths would hand over root."
+    fields:
+      attack-vector: adjacent
+      attacker-type: external-network
+    links:
+      - type: caused-by-sec-uca
+        target: SUCA-003
+      - type: leads-to-sec-hazard
+        target: SH-009
+      - type: leads-to-sec-hazard
+        target: SH-012
+      - type: leads-to-sec-hazard
+        target: SH-007
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:49:46Z
+
+  - id: SS-003
+    type: sec-scenario
+    title: Compromised ground station → instructions injected into the whole agent fleet
+    status: draft
+    description: With control of warte (or forged telemetry), the attacker shapes ETA/admission answers and plants instruction-shaped text in names that agents read; every agent that checks the queue before opening a PR takes it into its context.
+    fields:
+      attack-vector: network
+      attacker-type: external-network
+    links:
+      - type: caused-by-sec-uca
+        target: SUCA-003
+      - type: leads-to-sec-hazard
+        target: SH-010
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:49:46Z
+
+  - id: SS-004
+    type: sec-scenario
+    title: Prompt-injected agent session → passwordless sudo on hosts → everything the operator can reach
+    status: draft
+    description: An agent session running with bypassed permissions reads attacker content (an issue body, a CI log, a fetched page) and runs commands with the operator's SSH access, sudo on the ground-station host and org-admin gh token.
+    fields:
+      attack-vector: network
+      attacker-type: insider
+    links:
+      - type: caused-by-sec-uca
+        target: SUCA-004
+      - type: leads-to-sec-hazard
+        target: SH-012
+      - type: leads-to-sec-hazard
+        target: SH-007
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:49:46Z
+
+  - id: SS-005
+    type: sec-scenario
+    title: LAN foothold reads the fleet map, then picks the target
+    status: draft
+    description: Any compromised device on the LAN queries warte's unauthenticated read API and learns hosts, versions, drift and runner layout, then targets the weakest component on the paths above.
+    fields:
+      attack-vector: adjacent
+      attacker-type: external-network
+    links:
+      - type: caused-by-sec-uca
+        target: SUCA-006
+      - type: leads-to-sec-hazard
+        target: SH-011
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:49:46Z
+
+  - id: SC-SEC-001
+    type: sec-constraint
+    title: Each component holds credentials for its own zone only
+    status: draft
+    description: "No standing org-wide credential on a host that runs untrusted code: the agent's GitHub token is scoped to what observation needs (read), or the agent runs off the runner host. Deploy credentials are per host and per purpose."
+    links:
+      - type: prevents-sec-hazard
+        target: SH-007
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:49:46Z
+
+  - id: SC-SEC-002
+    type: sec-constraint
+    title: Untrusted code runs only where nothing worth stealing is reachable
+    status: draft
+    description: PR jobs run on ephemeral or network-isolated runners with no route into WireGuard or the LAN, enforced by runner-group policy and approval of outside-contributor runs, not by workflow expressions. Tools are pinned (no unpinned cargo install).
+    links:
+      - type: prevents-sec-hazard
+        target: SH-008
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:49:46Z
+
+  - id: SC-SEC-003
+    type: sec-constraint
+    title: The ground-station host runs nothing unrelated, or each service is isolated
+    status: draft
+    description: Personal services (photo library) do not share a host, container runtime and root with fleet infrastructure; where they must, each runs as its own user without access to the others' data or to the Docker socket.
+    links:
+      - type: prevents-sec-hazard
+        target: SH-009
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:49:46Z
+
+  - id: SC-SEC-004
+    type: sec-constraint
+    title: Only verified operator content enters agents' context
+    status: draft
+    description: Operator messages are signed and verified before a hook injects them; author-controlled names are escaped and never injected as instructions; agents treat warte answers as data. Telemetry is authenticated per probe (REQ-SEC-001), so a forged snapshot cannot shape the answers.
+    links:
+      - type: prevents-sec-hazard
+        target: SH-010
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:49:46Z
+
+  - id: SC-SEC-005
+    type: sec-constraint
+    title: Fleet data requires authentication beyond liveness
+    status: draft
+    description: warte's read API answers health and coarse status without authentication; inventory, versions and drift require an authenticated operator or agent (#46).
+    links:
+      - type: prevents-sec-hazard
+        target: SH-011
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:49:46Z
+
+  - id: SC-SEC-006
+    type: sec-constraint
+    title: Root never acts on what a service controls; deploys run under a scoped identity
+    status: draft
+    description: No root operation follows paths a service can write (chown -h, no recursive root over service state). Deploys run as a dedicated deploy identity with sudo limited to the deploy steps, not from interactive or agent sessions with standing root.
+    links:
+      - type: prevents-sec-hazard
+        target: SH-012
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:49:46Z
+
+  - id: SC-SEC-007
+    type: sec-constraint
+    title: Every merge to a default branch passes its required gates
+    status: draft
+    description: Branch protection with required checks on every repository that produces releases; where GitHub cannot enforce it (private repos without Pro), the gate is a required CI check plus merge only by the merge-when-green rule.
+    links:
+      - type: prevents-sec-hazard
+        target: SH-008
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:49:46Z
+
+  - id: SC-SEC-008
+    type: sec-constraint
+    title: Agent identity is cryptographically verified
+    status: draft
+    description: Mirror of cybersecurity goal CG-001 as the STPA-Sec constraint on SH-001. All agent registrations and ongoing communications must use cryptographic identity verification (mTLS, signed challenges, or hardware-backed attestation) to prevent impersonation.
+    links:
+      - type: prevents-sec-hazard
+        target: SH-001
+      - type: traces-to
+        target: CG-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:50:10Z
+
+  - id: SC-SEC-009
+    type: sec-constraint
+    title: Artifact integrity is verified end-to-end
+    status: draft
+    description: Mirror of cybersecurity goal CG-002 as the STPA-Sec constraint on SH-002. All artifacts distributed to agents must carry verifiable integrity proofs (sigil/wsc signatures or signed hash manifests) verified at both the server and the agent.
+    links:
+      - type: prevents-sec-hazard
+        target: SH-002
+      - type: traces-to
+        target: CG-002
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:50:10Z
+
+  - id: SC-SEC-010
+    type: sec-constraint
+    title: Access revocations propagate within bounded time
+    status: draft
+    description: Mirror of cybersecurity goal CG-003 as the STPA-Sec constraint on SH-003. Access revocations must propagate to all instances and services within 5 seconds, with active disconnection of the revoked agent.
+    links:
+      - type: prevents-sec-hazard
+        target: SH-003
+      - type: traces-to
+        target: CG-003
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:50:10Z
+
+  - id: SC-SEC-011
+    type: sec-constraint
+    title: Mobile control channel is mutually authenticated
+    status: draft
+    description: Mirror of cybersecurity goal CG-004 as the STPA-Sec constraint on SH-004. The mobile control channel must use mutual TLS with operator authentication (biometric or hardware token) and per-command authorization.
+    links:
+      - type: prevents-sec-hazard
+        target: SH-004
+      - type: traces-to
+        target: CG-004
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:50:10Z
+
+  - id: SC-SEC-012
+    type: sec-constraint
+    title: Edge proxy enforces defense-in-depth
+    status: draft
+    description: Mirror of cybersecurity goal CG-005 as the STPA-Sec constraint on SH-005. The edge proxy must enforce TLS 1.3, rate limiting, request validation, attack pattern detection, and automatic IP blocking. All edge software must be auto-patched with a maximum 24h patch window.
+    links:
+      - type: prevents-sec-hazard
+        target: SH-005
+      - type: traces-to
+        target: CG-005
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:50:10Z
+
+  - id: SC-SEC-013
+    type: sec-constraint
+    title: Inter-instance sync is authenticated and integrity-protected
+    status: draft
+    description: Mirror of cybersecurity goal CG-006 as the STPA-Sec constraint on SH-006. All inter-instance sync communication must use mutual TLS with per-instance certificates, and all state updates must carry integrity proofs (signatures or CRDT with authenticated merge).
+    links:
+      - type: prevents-sec-hazard
+        target: SH-006
+      - type: traces-to
+        target: CG-006
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:50:10Z
