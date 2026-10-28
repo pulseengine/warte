@@ -1,7 +1,7 @@
 import { test, expect, Page } from "@playwright/test";
 import { collectErrors, waitForHtmx } from "./helpers";
 
-// rivet: verifies REQ-DASH-007
+// rivet: verifies REQ-DASH-013
 // The dashboard as a browser sees it. These exist because HTTP-level tests
 // passed while, in a browser, Overview and Ask stayed empty (an out-of-band
 // swap into a missing element, and an Ask button that fetched the whole
