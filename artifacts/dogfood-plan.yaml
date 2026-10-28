@@ -493,7 +493,7 @@ artifacts:
     title: Ground-station telemetry is authenticated and replay-proof per probe (relay-sec)
     status: approved
     release: v1.5.0
-    description: Every telemetry packet SHALL be wrapped by the sending probe with a relay-sec SecurityChannel (Ascon tag, anti-replay counter) under that probe's own security association (SPI), and verified by the ground station before ingest. Frames with a bad tag, a replayed counter or an unknown SPI SHALL be rejected and counted by kind. The source-IP allow-list stays as a second filter only.
+    description: Every probe SHALL connect to the ground station over QUIC with mutual TLS 1.3 under its own identity, and every telemetry packet SHALL additionally be sealed with relay-sec (Ascon tag, anti-replay counter) under that probe's own security association (SPI), verified before ingest. Frames failing either check SHALL be rejected and counted by kind (TLS identity, bad tag, replay, unknown SPI). The source-IP allow-list stays as an extra filter only.
     fields:
       category: constraint
       priority: must
@@ -593,3 +593,21 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-10-28T06:15:13Z
+
+  - id: DD-TRANSPORT-001
+    type: design-decision
+    title: "Probe telemetry: CCSDS packets over QUIC, sealed per packet with relay-sec"
+    status: approved
+    release: v1.5.0
+    description: Probes dial out to the ground station over QUIC (quinn) with mutual TLS 1.3, one identity per probe. Housekeeping telemetry (relay-ccsds/relay-hk packets) goes in QUIC DATAGRAM frames (RFC 9221, unreliable, no head-of-line blocking); the job ledger, inventory snapshots and later operator commands go on reliable streams. Every packet is also sealed with relay-sec (per-probe SPI, anti-replay), so authenticity survives storage and forwarding beyond the connection. The interface is described in WIT (spar-generated from the AADL model per the feature loop), keeping wRPC's QUIC transport an option. Interoperability with SDLS, Yamcs or CryptoLib is explicitly not a goal.
+    fields:
+      rationale: "Owner decision, 2026-10-28: CCSDS over QUIC, interoperability with other ground systems not required. Raw UDP authenticates by source IP only (#41) and loses ledger frames silently; QUIC adds mutual authentication, encryption, replay protection, congestion control, connection migration for laptops, and a reliable channel without a CFDP implementation. quinn is already in our audited dependency trees (kiln, sigil), and wRPC's QUIC transport is already in rules_wasm_component. relay-sec stays as the per-packet seal: QUIC protects the link, relay-sec protects the packet after it leaves the link."
+    links:
+      - type: satisfies
+        target: REQ-SEC-001
+      - type: satisfies
+        target: REQ-PROBE-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T06:33:43Z
