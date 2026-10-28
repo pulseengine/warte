@@ -2,13 +2,21 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # release/** too: a release commit gets CI on its exact SHA (a PR from a
+    # release branch cut from an older tag conflicts with main and never runs)
+    branches: [main, 'release/**']
   pull_request:
     branches: [main]
 
 defaults:
   run:
     shell: bash
+
+# A new push to a PR cancels that PR's older runs, so stale commits don't hold
+# scarce smithy runners. Pushes to main and release/** are never cancelled.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   CARGO_TERM_COLOR: always
