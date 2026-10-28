@@ -319,18 +319,26 @@ const SMITHY_CPU_FORK_GUARDED: &str = "${{ github.event.pull_request.head.repo.f
 // rivet: verifies REQ-CI-003
 #[test]
 fn ci_jobs_run_on_smithy_with_forks_guarded() {
-    let (_, text) = workflows()
-        .into_iter()
-        .find(|(n, _)| n == "ci.yml")
-        .expect("ci.yml");
-    let rs = runners(&text);
-    assert!(
-        !rs.is_empty(),
-        "ci.yml has no runs-on — oracle checked nothing"
-    );
-    for r in rs {
-        assert_eq!(r, SMITHY_CPU_FORK_GUARDED, "ci.yml: unexpected runner");
+    // Jobs that must run hosted, each with its reason. Every other job runs on smithy.
+    const HOSTED: &[(&str, &str, &str)] = &[(
+        "playwright",
+        "ubuntu-24.04",
+        "playwright install --with-deps needs apt-get (sudo); smithy runners have none",
+    )];
+    let wf = workflow("ci.yml");
+    let mut checked = 0;
+    for (job, def) in jobs(&wf) {
+        checked += 1;
+        let runner = def["runs-on"].as_str().unwrap_or_default();
+        match HOSTED.iter().find(|(j, _, _)| *j == job) {
+            Some((_, want, why)) => assert_eq!(runner, *want, "ci.yml job {job} ({why})"),
+            None => assert_eq!(
+                runner, SMITHY_CPU_FORK_GUARDED,
+                "ci.yml job {job}: unexpected runner"
+            ),
+        }
     }
+    assert!(checked > 0, "ci.yml has no jobs — oracle checked nothing");
 }
 
 // rivet: verifies DD-CI-001

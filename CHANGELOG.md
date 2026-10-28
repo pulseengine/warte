@@ -19,6 +19,13 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
   - Every dashboard view now HTML-escapes agent- and author-controlled text: agent names and repos, artifact fields, hardware boards, friction and schedule entries, and Ask input. Before, an agent could put script into the page for every dashboard viewer.
   - The leftover authentication exemption for `/api/webhooks/*` is removed together with the webhooks.
   - The dashboard uses relative URLs, so it works behind a path prefix (fourpi: `https://fourpi.local/warte/`). Unknown paths return a text 404; before, browsers saved the empty 404 response as `document.txt`.
+- **Dashboard in a browser** (found on fourpi; HTTP-level tests had passed):
+  - Overview was always empty: its response was an out-of-band swap into an element that didn't exist.
+  - Ask fetched the whole page into the content area. Ask is now a view with its own form.
+  - The footer claimed an SSE connection that never existed (no extension loaded, nothing publishing). It is replaced by a 30-second refresh of the current view until `warte watch` brings live updates.
+  - htmx is vendored and served by warte (2.0.4, Zero-Clause BSD) instead of loaded from unpkg.com.
+  - Overview now shows the fleet (runners, queue, freshness).
+  - New Playwright suite (`tests/playwright`, modelled on rivet's) with a CI job; on the old dashboard 8 of its 18 tests fail.
 - `scripts/deploy-fourpi.sh` deploys the current `origin/main` to fourpi: a static aarch64 build, the `warte.service` unit, the Caddy route `/warte/` and a link on fourpi's landing page. smithy-hub is not touched. The binary is streamed into a root-owned directory and its sha256 checked before it is activated (no `/tmp`). The route answers private-network clients only, because warte's read API is unauthenticated (#46). Telemetry listens on the LAN address, not `0.0.0.0` (#41).
 - **Traceability corrected:** REQ-CRIT-001 and REQ-DASH-006 had been `accepted`, but the Critical Path view never showed the dependency chain they describe (`CriticalPathComputer` is not called by any view). Both are back to `approved` for v1.5.0 (#44).
 

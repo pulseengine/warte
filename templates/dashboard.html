@@ -4,7 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>warte — the PulseEngine control tower</title>
-  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+  <!-- htmx 2.0.4, vendored (0BSD): no CDN, works on an offline LAN -->
+  <script src="htmx.min.js"></script>
   <link rel="stylesheet" href="dashboard.css">
 </head>
 <body>
@@ -13,7 +14,7 @@
     <span class="subtitle">the PulseEngine control tower</span>
     <nav class="nav">
       <button hx-get="api/dashboard/overview-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn active">Overview</button>
-      <button hx-get="#ask-form" hx-target="#content" hx-swap="innerHTML" class="nav-btn" onclick="document.getElementById('ask-form').style.display='block'">Ask</button>
+      <button hx-get="api/dashboard/ask-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn" data-no-refresh>Ask</button>
       <button hx-get="api/dashboard/queue-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Queue</button>
       <button hx-get="api/dashboard/critical-path-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Critical Path</button>
       <button hx-get="api/dashboard/resources-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Resources</button>
@@ -26,46 +27,34 @@
     </nav>
   </header>
 
-  <main id="content" hx-ext="sse" sse-connect="api/events" sse-swap="message">
+  <main id="content">
     <div hx-get="api/dashboard/overview-partial" hx-trigger="load" hx-target="#content" hx-swap="innerHTML">
       <p class="loading">Loading...</p>
     </div>
   </main>
 
-  <div id="ask-form" style="display:none" class="ask-form">
-    <h2>Ask — when will this PR run?</h2>
-    <form hx-get="api/dashboard/ask-partial" hx-target="#ask-result" hx-swap="innerHTML">
-      <label>Repo: <input type="text" name="repo" placeholder="rivet" required></label>
-      <label>PR: <input type="number" name="pr" placeholder="511"></label>
-      <label>or branch: <input type="text" name="branch" placeholder="main"></label>
-      <button type="submit" class="btn">Estimate</button>
-    </form>
-    <div id="ask-result"></div>
-  </div>
-
   <footer class="footer">
     <span>warte v{{VERSION}}</span>
-    <span id="sse-status" class="sse-status">SSE: connecting...</span>
+    <span id="refresh-status" class="sse-status">refreshes every 30 s</span>
   </footer>
 
   <script>
-    // SSE connection status
-    document.body.addEventListener('htmx:sseOpen', function() {
-      document.getElementById('sse-status').textContent = 'SSE: connected';
-      document.getElementById('sse-status').className = 'sse-status green';
-    });
-    document.body.addEventListener('htmx:sseClose', function() {
-      document.getElementById('sse-status').textContent = 'SSE: disconnected';
-      document.getElementById('sse-status').className = 'sse-status red';
-    });
-    // Nav button active state
-    document.querySelectorAll('.nav-btn').forEach(function(btn) {
-      btn.addEventListener('click', function() {
-        document.querySelectorAll('.nav-btn').forEach(function(b) { b.classList.remove('active'); });
+    // Active nav button, and a periodic refresh of the current view. Live push
+    // (warte watch / long-poll, v1.4.1) replaces the timer later. Ask is not
+    // refreshed: it would wipe what you typed.
+    var current = document.querySelector('.nav-btn.active');
+    document.querySelectorAll('.nav-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        document.querySelectorAll('.nav-btn').forEach(function (b) { b.classList.remove('active'); });
         btn.classList.add('active');
-        document.getElementById('ask-form').style.display = 'none';
+        current = btn;
       });
     });
+    setInterval(function () {
+      if (current && !current.hasAttribute('data-no-refresh') && !document.hidden) {
+        htmx.trigger(current, 'click');
+      }
+    }, 30000);
   </script>
 </body>
 </html>

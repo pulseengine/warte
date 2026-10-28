@@ -496,3 +496,42 @@ async fn with_a_hub_stale_data_is_shown_as_stale() {
         );
     }
 }
+
+const PLAYWRIGHT_FIXTURE: &str =
+    concat!(env!("CARGO_MANIFEST_DIR"), "/tests/playwright/fixture/hub");
+
+/// Regenerate the Playwright fixture's hub state from the real model types:
+/// `cargo test --test fleet_views -- --ignored regenerate_playwright_fixture`
+#[test]
+#[ignore]
+fn regenerate_playwright_fixture() {
+    let state = serde_json::json!({
+        "latest": fleet_snapshot(),
+        // fixed receive time: the dashboard must show this data as stale
+        "received_at": 1_793_000_000,
+        "history": [],
+    });
+    std::fs::write(
+        format!("{PLAYWRIGHT_FIXTURE}/hub-state.json"),
+        serde_json::to_string_pretty(&state).unwrap() + "\n",
+    )
+    .unwrap();
+}
+
+// The committed fixture and the hub's model must not drift apart: if the
+// model changes, this fails until the fixture is regenerated.
+#[test]
+fn playwright_fixture_loads_into_the_hub() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::copy(
+        format!("{PLAYWRIGHT_FIXTURE}/hub-state.json"),
+        dir.path().join("hub-state.json"),
+    )
+    .expect("tests/playwright/fixture/hub/hub-state.json is missing");
+    let hub = Hub::open(dir.path().to_str().unwrap(), "pulseengine").unwrap();
+    let (s, _) = hub.snapshot().expect("fixture has no snapshot");
+    assert!(
+        s.queue.as_ref().is_some_and(|q| !q.queued.is_empty()),
+        "fixture must have queued runs for the browser tests"
+    );
+}

@@ -78,8 +78,8 @@ artifacts:
   - id: REQ-REALTIME-001
     type: requirement
     title: "WebSocket for real-time dashboard and mobile updates"
-    status: accepted
-    release: v0.3.0
+    status: approved
+    release: v1.4.1
     description: >
       The API SHALL expose a WebSocket endpoint (/api/ws) for real-time
       updates: agent heartbeats, CI status changes, access revocations,
@@ -89,6 +89,10 @@ artifacts:
     links:
       - type: satisfies
         target: SC-006
+      - type: traces-to
+        target: REQ-WATCH-002
+    fields:
+      upstream-ref: https://github.com/pulseengine/warte/issues/50
 
   # --- Full mDNS wire protocol ---
   - id: REQ-DISCOVERY-003

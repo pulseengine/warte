@@ -42,7 +42,9 @@ pub async fn overview_partial(State(state): State<crate::server::AppState>) -> R
         .count();
 
     let html = format!(
-        r#"<div class="overview" hx-swap-oob="true" id="overview-data">
+        r#"<div class="overview">
+  <h2>Overview</h2>
+  <div class="stat-cards">{}</div>
   <div class="stat-cards">
     <div class="stat-card">
       <span class="stat-value">{}</span>
@@ -61,6 +63,7 @@ pub async fn overview_partial(State(state): State<crate::server::AppState>) -> R
   </div>
   <p class="freshness">Rendered {}</p>
 </div>"#,
+        fleet::health_cards(state.hub.as_ref()),
         agents.len(),
         healthy,
         unhealthy,
@@ -172,7 +175,40 @@ pub async fn ask_partial(
         .get("branch")
         .map(|b| b.trim())
         .filter(|b| !b.is_empty());
-    Html(fleet::ask(state.hub.as_ref(), repo, pr, branch)).into_response()
+    let result = if repo.is_empty() {
+        String::new()
+    } else {
+        fleet::ask(state.hub.as_ref(), repo, pr, branch)
+    };
+    let v = |k: &str| fleet::esc(form.get(k).map(|s| s.trim()).unwrap_or_default());
+    Html(format!(
+        r##"<div class="ask-form">
+  <h2>Ask — when will this PR run?</h2>
+  <form hx-get="api/dashboard/ask-partial" hx-target="#content" hx-swap="innerHTML">
+    <label>Repo: <input type="text" name="repo" placeholder="rivet" value="{}" required></label>
+    <label>PR: <input type="number" name="pr" placeholder="511" value="{}"></label>
+    <label>or branch: <input type="text" name="branch" placeholder="main" value="{}"></label>
+    <button type="submit" class="btn">Estimate</button>
+  </form>
+  <div id="ask-result">{result}</div>
+</div>"##,
+        v("repo"),
+        v("pr"),
+        v("branch"),
+    ))
+    .into_response()
+}
+
+/// Serve the vendored htmx (2.0.4, Zero-Clause BSD; templates/vendor/).
+pub async fn htmx_js() -> Response {
+    (
+        [
+            (header::CONTENT_TYPE, "text/javascript; charset=utf-8"),
+            (header::CACHE_CONTROL, "public, max-age=86400"),
+        ],
+        include_str!("../../templates/vendor/htmx-2.0.4.min.js"),
+    )
+        .into_response()
 }
 
 /// Serve static CSS.

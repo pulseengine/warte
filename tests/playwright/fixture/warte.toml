@@ -1,0 +1,9 @@
+# warte serve for the Playwright suite: a ground station loaded from the
+# synthetic hub-state.json (regenerate: cargo test --test fleet_views --
+# --ignored regenerate_playwright_fixture). No telemetry arrives.
+bind = "127.0.0.1:3013"
+
+[hub]
+udp = "127.0.0.1:0"
+allow = ["127.0.0.1"]
+data_dir = "hub"
