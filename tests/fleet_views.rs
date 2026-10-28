@@ -227,7 +227,7 @@ async fn the_router_serves_api_and_dashboard_where_documented() {
     assert_eq!(page.status(), 200);
     let page = page.text().await.unwrap();
     // every same-origin URL in the page is relative, so the dashboard also works
-    // behind a path prefix (Caddy `handle_path /warte/*` on fourpi)
+    // behind a path prefix (Caddy `handle_path /warte/*`)
     let refs: Vec<String> = [
         "href=\"",
         "hx-get=\"",

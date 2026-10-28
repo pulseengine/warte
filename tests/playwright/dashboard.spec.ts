@@ -102,7 +102,7 @@ test.describe("honesty", () => {
   });
 });
 
-test.describe("behind a path prefix (fourpi: https://fourpi.local/warte/)", () => {
+test.describe("behind a path prefix (the ground-station host: https://<host>/warte/)", () => {
   test("every view works under /warte/", async ({ page, baseURL }) => {
     // Act as Caddy's `handle_path /warte/*`: strip the prefix and proxy.
     const outside: string[] = [];

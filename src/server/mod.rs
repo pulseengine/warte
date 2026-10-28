@@ -35,7 +35,7 @@ pub fn build_router(state: AppState) -> Router {
     use axum::middleware;
 
     // The hub API is read-only and served without warte's auth, exactly as on
-    // fourpi today (https://fourpi.local/ci/ behind Caddy).
+    // smithy hub today (https://<host>/ci/ behind Caddy).
     let hub_api = state.hub.as_ref().map(|h| h.router());
     // build_routes() already places the API under /api and the dashboard at /.
     // (Before v1.4.0 this nested it a second time: /api/api/..., no dashboard.)

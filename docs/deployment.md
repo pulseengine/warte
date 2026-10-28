@@ -11,7 +11,7 @@
 #
 #   Internet → Edge Proxy (Hetzner, public IP)
 #                  │ WireGuard VPN (10.0.0.0/24)
-#                  ├──→ warte instance 1 (fourpi.local replacement, internal)
+#                  ├──→ warte instance 1 (home-LAN instance, internal)
 #                  └──→ warte instance 2 (Netcup, internal)
 #
 #   Mobile (iOS/Android) ──mTLS──→ Edge Proxy ──→ warte instances
@@ -77,7 +77,7 @@ Address = 10.0.0.1/24
 ListenPort = 51820
 PrivateKey = <EDGE_PRIVATE_KEY>
 
-# Internal instance 1 (fourpi.local replacement)
+# Internal instance 1 (home-LAN instance)
 [Peer]
 PublicKey = <INSTANCE1_PUBLIC_KEY>
 AllowedIPs = 10.0.0.2/32
@@ -128,7 +128,7 @@ ufw enable
 
 ## warte instance configuration (warte.toml on internal instances)
 
-# Instance 1 (fourpi.local replacement)
+# Instance 1 (home-LAN instance)
 # bind = "10.0.0.2:8080"
 # tls_enabled = false  # TLS terminated at edge proxy
 # sync_peers = ["https://10.0.0.3:8080"]
