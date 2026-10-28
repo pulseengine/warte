@@ -1,0 +1,322 @@
+artifacts:
+
+  - id: SL-006
+    type: sec-loss
+    title: Integrity loss of the code an agent fleet works on
+    status: draft
+    description: Code, workflows or releases of the repositories warte's agents work in are changed in a way their maintainers did not intend, because warte's answers or text steered the agents.
+    fields:
+      cia-impact:
+        - integrity
+      stakeholders:
+        - maintainers of the repositories the agents work in
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T09:04:46Z
+
+  - id: SL-008
+    type: sec-loss
+    title: Agent fleet acts on attacker intent
+    status: draft
+    description: AI coding agents take actions an attacker chose (opening, merging or holding PRs, editing code or workflows, filing or closing issues) because content that reached their context through warte was attacker-controlled.
+    fields:
+      cia-impact:
+        - integrity
+        - availability
+      stakeholders:
+        - maintainers
+        - every repository the agents work in
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T09:04:46Z
+
+  - id: SH-010
+    type: sec-hazard
+    title: Content reaching agents' context is shaped by an attacker
+    status: draft
+    description: "System state: text that warte hands to agents (ETA, admission and status answers, dashboard text, hook-injected context, planned operator messages) is controlled by an attacker, either because warte or its telemetry is compromised or because author-controlled names (repo, branch, job, workflow) pass through verbatim. Hook-injected text can outrank tool output in an agent harness."
+    fields:
+      cia-impact:
+        - integrity
+        - availability
+      severity: critical
+    links:
+      - type: leads-to-sec-loss
+        target: SL-008
+      - type: leads-to-sec-loss
+        target: SL-006
+      - type: traces-to
+        target: H-006
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T09:04:46Z
+
+  - id: SH-011
+    type: sec-hazard
+    title: The fleet layout is readable without authentication
+    status: draft
+    description: "System state: warte publishes hosts, runner pools, labels, tool and agent versions and drift through an unauthenticated read API (#46), and answers Access-Control-Allow-Origin: *, so any web page opened in a browser that can reach warte can read it. A precise target list for an attacker."
+    fields:
+      cia-impact:
+        - confidentiality
+      severity: high
+    links:
+      - type: leads-to-sec-loss
+        target: SL-008
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T09:04:46Z
+
+  - id: SUCA-003
+    type: sec-uca
+    title: warte serves attacker-shaped answers to agents
+    status: draft
+    description: CTRL-001 answers /ci/api/eta, /api/admission, status.md and dashboard partials that agents read and act on.
+    fields:
+      adversarial-causation: "Spoof/tamper: with control of warte's host or forged telemetry (TS-007), an attacker makes warte tell agents to hold or open PRs, and plants instruction-shaped text in repo, branch or job names that agents read verbatim."
+      attacker-type: external-network
+      uca-type: providing
+    links:
+      - type: issued-by
+        target: CTRL-001
+      - type: leads-to-sec-hazard
+        target: SH-010
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T09:04:46Z
+
+  - id: SUCA-009
+    type: sec-uca
+    title: Agent acts on a stale admission or ETA answer
+    status: draft
+    description: CTRL-001's answer is used after the fleet state it described has changed.
+    fields:
+      adversarial-causation: "Spoof: an attacker who can cut, delay or replay telemetry freezes warte's view, so agents keep acting on answers chosen at a time of the attacker's choosing."
+      attacker-type: external-network
+      uca-type: too-early-too-late
+    links:
+      - type: issued-by
+        target: CTRL-001
+      - type: leads-to-sec-hazard
+        target: SH-010
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T09:04:46Z
+
+  - id: SUCA-012
+    type: sec-uca
+    title: warte parses unauthenticated UDP and HTTP input
+    status: draft
+    description: CTRL-001 decodes CCSDS datagrams from any allow-listed source address and HTTP from whoever can reach it, with no per-probe authentication yet (REQ-SEC-001 open).
+    fields:
+      adversarial-causation: "Inject/spoof: a crafted datagram with a spoofed source address, or a crafted HTTP request, reaches the parser; a memory-safety or logic bug there gives code execution as the warte user, and with it control over every answer warte gives agents."
+      attacker-type: external-network
+      uca-type: providing
+    links:
+      - type: issued-by
+        target: CTRL-001
+      - type: leads-to-sec-hazard
+        target: SH-010
+      - type: leads-to-sec-hazard
+        target: SH-011
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T09:04:46Z
+
+  - id: SUCA-013
+    type: sec-uca
+    title: warte answers cross-origin reads from any web page
+    status: draft
+    description: "CTRL-001 sends Access-Control-Allow-Origin: * (CorsLayer::permissive)."
+    fields:
+      adversarial-causation: "Intercept: a user who can reach warte opens a malicious or compromised page; its script reads warte's API through that user's browser, from inside whatever network restriction protects warte."
+      attacker-type: external-network
+      uca-type: providing
+    links:
+      - type: issued-by
+        target: CTRL-001
+      - type: leads-to-sec-hazard
+        target: SH-011
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T09:04:46Z
+
+  - id: SS-003
+    type: sec-scenario
+    title: Compromised ground station injects instructions into the agent fleet
+    status: draft
+    description: "Chain: (1) the attacker controls warte (SUCA-012) or its telemetry (SS-011); (2) warte reports a fleet the attacker chose: admission 'open' for some repositories, 'hold' for others; (3) workflow, branch and job names carry instruction-shaped text; (4) every agent that checks the queue before opening a PR takes that text into its context, and agents running without confirmation act on it."
+    fields:
+      attack-vector: network
+      attacker-type: external-network
+    links:
+      - type: caused-by-sec-uca
+        target: SUCA-003
+      - type: caused-by-sec-uca
+        target: SUCA-012
+      - type: leads-to-sec-hazard
+        target: SH-010
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T09:04:46Z
+
+  - id: SS-006
+    type: sec-scenario
+    title: Malicious web page reads the fleet map through a user's browser
+    status: draft
+    description: "Chain: a user who can reach warte visits a malicious or compromised page; its script calls warte's API cross-origin; Access-Control-Allow-Origin: * lets the browser hand the answers to the script; the attacker learns the fleet layout without network access of its own."
+    fields:
+      attack-vector: network
+      attacker-type: external-network
+    links:
+      - type: caused-by-sec-uca
+        target: SUCA-013
+      - type: leads-to-sec-hazard
+        target: SH-011
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T09:04:46Z
+
+  - id: SS-011
+    type: sec-scenario
+    title: A compromised process on the telemetry source host forges telemetry
+    status: draft
+    description: "Chain: an attacker gets code execution on the host whose address the ground station allow-lists (or anywhere that can spoof it); datagrams it sends carry that source address; with no per-probe authentication warte ingests forged snapshots and ledger records and serves them to agents (SS-003)."
+    fields:
+      attack-vector: adjacent
+      attacker-type: external-network
+    links:
+      - type: caused-by-sec-uca
+        target: SUCA-012
+      - type: leads-to-sec-hazard
+        target: SH-010
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T09:04:47Z
+
+  - id: SC-SEC-004
+    type: sec-constraint
+    title: Only verified operator content enters agents' context
+    status: draft
+    description: "Enforcement points: (a) the hook that injects operator messages verifies the signature and refuses anything unsigned; (b) author-controlled names in warte answers pass a charset/length allow-list and are never placed where an agent harness treats text as instructions; (c) telemetry is authenticated per probe (REQ-SEC-001: relay-sec + QUIC), so a forged snapshot cannot shape answers; (d) answers carry their snapshot age and stale ones are refused."
+    links:
+      - type: prevents-sec-hazard
+        target: SH-010
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T09:04:47Z
+
+  - id: SC-SEC-005
+    type: sec-constraint
+    title: Fleet data requires authentication beyond liveness; CORS is an allow-list
+    status: draft
+    description: "Mitigates: warte's read API answers health and coarse status without authentication; inventory, versions and drift need an authenticated operator or agent (#46). CORS is an explicit allow-list (none by default), so a web page in a user's browser cannot read the API."
+    links:
+      - type: prevents-sec-hazard
+        target: SH-011
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T09:04:47Z
+
+  - id: SC-SEC-008
+    type: sec-constraint
+    title: Agent identity is cryptographically verified
+    status: draft
+    description: "Mirror of cybersecurity goal CG-001 as the STPA-Sec constraint on SH-001. All agent registrations and ongoing communications must use cryptographic identity verification (mTLS, signed challenges, or hardware-backed attestation) to prevent impersonation. Implementation status (2026-10-28): mTLS agent identity is not implemented (src/server/auth.rs is an unmounted placeholder, #60); mutating endpoints require a bearer token, but no code path issues tokens yet, so agents cannot register (#12)."
+    links:
+      - type: prevents-sec-hazard
+        target: SH-001
+      - type: traces-to
+        target: CG-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T09:04:47Z
+
+  - id: SC-SEC-009
+    type: sec-constraint
+    title: Artifact integrity is verified end-to-end
+    status: draft
+    description: Mirror of cybersecurity goal CG-002 as the STPA-Sec constraint on SH-002. All artifacts distributed to agents must carry verifiable integrity proofs (sigil/wsc signatures or signed hash manifests) verified at both the server and the agent.
+    links:
+      - type: prevents-sec-hazard
+        target: SH-002
+      - type: traces-to
+        target: CG-002
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T09:04:47Z
+
+  - id: SC-SEC-010
+    type: sec-constraint
+    title: Access revocations propagate within bounded time
+    status: draft
+    description: Mirror of cybersecurity goal CG-003 as the STPA-Sec constraint on SH-003. Access revocations must propagate to all instances and services within 5 seconds, with active disconnection of the revoked agent.
+    links:
+      - type: prevents-sec-hazard
+        target: SH-003
+      - type: traces-to
+        target: CG-003
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T09:04:47Z
+
+  - id: SC-SEC-011
+    type: sec-constraint
+    title: Mobile control channel is mutually authenticated
+    status: draft
+    description: Mirror of cybersecurity goal CG-004 as the STPA-Sec constraint on SH-004. The mobile control channel must use mutual TLS with operator authentication (biometric or hardware token) and per-command authorization.
+    links:
+      - type: prevents-sec-hazard
+        target: SH-004
+      - type: traces-to
+        target: CG-004
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T09:04:47Z
+
+  - id: SC-SEC-012
+    type: sec-constraint
+    title: Edge proxy enforces defense-in-depth
+    status: draft
+    description: Mirror of cybersecurity goal CG-005 as the STPA-Sec constraint on SH-005. The edge proxy must enforce TLS 1.3, rate limiting, request validation, attack pattern detection, and automatic IP blocking. All edge software must be auto-patched with a maximum 24h patch window.
+    links:
+      - type: prevents-sec-hazard
+        target: SH-005
+      - type: traces-to
+        target: CG-005
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T09:04:47Z
+
+  - id: SC-SEC-013
+    type: sec-constraint
+    title: Inter-instance sync is authenticated and integrity-protected
+    status: draft
+    description: Mirror of cybersecurity goal CG-006 as the STPA-Sec constraint on SH-006. All inter-instance sync communication must use mutual TLS with per-instance certificates, and all state updates must carry integrity proofs (signatures or CRDT with authenticated merge).
+    links:
+      - type: prevents-sec-hazard
+        target: SH-006
+      - type: traces-to
+        target: CG-006
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T09:04:47Z

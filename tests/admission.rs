@@ -269,10 +269,10 @@ async fn endpoints_answer_as_documented() {
     let paths = doc["paths"].as_object().expect("openapi lists paths");
     assert!(paths.contains_key("/api/queue") && paths.contains_key("/api/admission"));
     for p in paths.keys() {
-        let q = if p == "/api/admission" {
-            "?repo=spar&kind=docs"
-        } else {
-            ""
+        let q = match p.as_str() {
+            "/api/admission" => "?repo=spar&kind=docs",
+            "/api/watch" => "?repo=spar&pr=1&timeout=0",
+            _ => "",
         };
         assert_eq!(get(&format!("{p}{q}")).await.unwrap().status(), 200, "{p}");
     }

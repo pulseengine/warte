@@ -44,32 +44,21 @@ pub async fn overview_partial(State(state): State<crate::server::AppState>) -> R
     let html = format!(
         r#"<div class="overview">
   <h2>Overview</h2>
-  <div class="stat-cards">{}</div>
-  <div class="stat-cards">
-    <div class="stat-card">
-      <span class="stat-value">{}</span>
-      <span class="stat-label">Agents</span>
-      <span class="stat-detail">{} healthy, {} unhealthy</span>
-    </div>
-    <div class="stat-card">
-      <span class="stat-value">{}</span>
-      <span class="stat-label">Artifacts</span>
-    </div>
-    <div class="stat-card">
-      <span class="stat-value">{}</span>
-      <span class="stat-label">Instance</span>
-      <span class="stat-detail">{}</span>
-    </div>
-  </div>
+  {}
+  <section class="panel tower"><h3>Tower</h3><div class="kpis">
+    <div class="kpi"><div class="l">Agents</div><div class="v">{}</div><div class="s">{} healthy, {} unhealthy</div></div>
+    <div class="kpi"><div class="l">Artifacts</div><div class="v">{}</div><div class="s">stored by warte</div></div>
+    <div class="kpi"><div class="l">Instance</div><div class="v mono">{}</div><div class="s">warte v{}</div></div>
+  </div></section>
   <p class="freshness">Rendered {}</p>
 </div>"#,
-        fleet::health_cards(state.hub.as_ref()),
+        fleet::overview(state.hub.as_ref()),
         agents.len(),
         healthy,
         unhealthy,
         artifacts.len(),
-        state.config.instance_id(),
-        &state.config.instance_id()[..8],
+        fleet::esc(&state.config.instance_id()[..8]),
+        env!("CARGO_PKG_VERSION"),
         chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC"),
     );
 
