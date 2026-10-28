@@ -1,0 +1,11 @@
+{
+  "name": "warte-playwright",
+  "private": true,
+  "devDependencies": {
+    "@playwright/test": "1.50.1"
+  },
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed"
+  }
+}

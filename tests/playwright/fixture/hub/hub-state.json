@@ -1,0 +1,123 @@
+{
+  "history": [],
+  "latest": {
+    "agent_version": "0.1.0",
+    "automation": {
+      "bazel_sweep": [],
+      "dispatcher": [],
+      "timers": [],
+      "trace_rollout": [],
+      "watchdog": []
+    },
+    "errors": [],
+    "host": "ci-test",
+    "machine": {
+      "disks": [],
+      "load": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "mem_avail_mb": 0,
+      "mem_total_mb": 0,
+      "ncpu": 0,
+      "psi": {
+        "cpu": {
+          "avg10": 0.0,
+          "avg300": 0.0,
+          "avg60": 0.0
+        },
+        "io": {
+          "avg10": 0.0,
+          "avg300": 0.0,
+          "avg60": 0.0
+        },
+        "memory": {
+          "avg10": 0.0,
+          "avg300": 0.0,
+          "avg60": 0.0
+        }
+      },
+      "swap_total_mb": 0,
+      "swap_used_mb": 0
+    },
+    "queue": {
+      "hosted": [],
+      "hosted_groups": [],
+      "hosted_queued": 0,
+      "hosted_running": 0,
+      "hosted_total": 0,
+      "jobs_queued": 7,
+      "pools": {
+        "rust-cpu": {
+          "jobs_queued": 7,
+          "median_s": 300,
+          "oldest_s": 900
+        }
+      },
+      "queued": [
+        {
+          "branch": "feat/x",
+          "event": "pull_request",
+          "jobs": 7,
+          "pool": "rust-cpu",
+          "pr": 511,
+          "repo": "spar",
+          "run_id": 9,
+          "since": 1793163201,
+          "workflow": "<img src=x onerror=alert(1)>"
+        }
+      ],
+      "queued_complete": true,
+      "repos_scanned": 0,
+      "runs_queued": 1,
+      "scanned_at": 1793163801,
+      "top_runs": [],
+      "truncated": false,
+      "waits": {
+        "rust-cpu": {
+          "max": 1200,
+          "n": 40,
+          "p50": 60,
+          "p90": 600
+        }
+      }
+    },
+    "runners": [
+      {
+        "active": false,
+        "ctx": null,
+        "gh_busy": null,
+        "gh_status": "online",
+        "id": 1,
+        "job": null,
+        "job_started": null,
+        "labels": [],
+        "last_result": null,
+        "local_busy": true,
+        "pid": 0,
+        "stats": null,
+        "trace": null,
+        "unit": ""
+      },
+      {
+        "active": false,
+        "ctx": null,
+        "gh_busy": null,
+        "gh_status": "online",
+        "id": 2,
+        "job": null,
+        "job_started": null,
+        "labels": [],
+        "last_result": null,
+        "local_busy": false,
+        "pid": 0,
+        "stats": null,
+        "trace": null,
+        "unit": ""
+      }
+    ],
+    "taken_at": 1793163801
+  },
+  "received_at": 1793000000
+}
