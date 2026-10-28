@@ -4,7 +4,7 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased — v1.4.1
 
-- **`warte watch --ci`** (REQ-WATCH-001/002, DD-WATCH-001) blocks until a PR's or branch's CI runs start or finish, then prints JSON and exits: 0 on a change, 3 on timeout, 2 on usage errors, 1 on errors. Agents run it as a background command instead of polling. The server side is the long-poll `GET /api/watch`. Its cursor is the CI state itself, so a caller resuming with `--since` cannot miss a change and the server keeps no event log. Holds are capped at 900 s and 64 at once.
+- **`warte watch --ci`** (REQ-WATCH-001/002, DD-WATCH-001) blocks until a PR's or branch's CI runs start or finish, then prints JSON and exits: 0 on a change, 3 on timeout, 2 on usage errors, 1 on errors. Agents run it as a background command instead of polling. The server side is the long-poll `GET /api/watch`. Its cursor is the CI state itself, so a caller resuming with `--since` cannot miss a change and the server keeps no event log. Holds are capped at 900 s, 8 per client and 1024 in total.
 - `GET /api/queue` and `GET /api/admission` give agents a machine-readable queue and an `open | batch | hold` verdict before they open a PR (#55). The verdicts come from the ground station's snapshot, the thresholds live in warte, and stale data never gates. Documented in the new `/api/openapi.json`.
 
 ## Unreleased — v1.4.0

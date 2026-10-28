@@ -171,9 +171,11 @@ async fn api_admission(
     }
 }
 
-/// Held `/api/watch` requests (REQ-WATCH-002).
+/// Held `/api/watch` requests (REQ-WATCH-002): in total, and per client.
 static WATCHERS: tokio::sync::Semaphore =
     tokio::sync::Semaphore::const_new(crate::watch::MAX_WATCHERS);
+static WATCH_SLOTS: std::sync::LazyLock<crate::watch::Slots> =
+    std::sync::LazyLock::new(Default::default);
 
 /// Long-poll: hold until the PR's or branch's CI state differs from `since`,
 /// or `timeout` seconds pass. Without `since`, the state at the call is the
@@ -181,6 +183,7 @@ static WATCHERS: tokio::sync::Semaphore =
 async fn api_watch(
     State(state): State<AppState>,
     Query(q): Query<std::collections::HashMap<String, String>>,
+    req: axum::extract::Request,
 ) -> axum::response::Response {
     use crate::watch;
     let Some(repo) = q.get("repo").filter(|r| crate::admission::valid_repo(r)) else {
@@ -217,6 +220,20 @@ async fn api_watch(
         return plain(
             StatusCode::SERVICE_UNAVAILABLE,
             "no ground station configured",
+        );
+    };
+    let peer = req
+        .extensions()
+        .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
+        .map(|c| c.0.ip());
+    let xff = req
+        .headers()
+        .get("x-forwarded-for")
+        .and_then(|v| v.to_str().ok());
+    let Some(_slot) = WATCH_SLOTS.take(watch::client_of(peer, xff)) else {
+        return plain(
+            StatusCode::TOO_MANY_REQUESTS,
+            "too many held watches from this client; retry later",
         );
     };
     let Ok(_permit) = WATCHERS.try_acquire() else {

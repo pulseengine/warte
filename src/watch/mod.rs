@@ -16,9 +16,11 @@ use std::collections::BTreeMap;
 /// The server holds a request at most this long; the CLI chains requests.
 pub const MAX_HOLD_S: u64 = 900;
 pub const DEFAULT_HOLD_S: u64 = 300;
-/// Held requests at once. A watcher is cheap, but not free: the cap keeps a
-/// flood of open requests from tying up the server.
-pub const MAX_WATCHERS: usize = 64;
+/// Held requests at once, in total and per client. A held request costs a
+/// channel receiver and a timer, so the total is generous; the per-client cap
+/// keeps one caller from taking all of it and locking everyone else out.
+pub const MAX_WATCHERS: usize = 1024;
+pub const MAX_WATCHERS_PER_CLIENT: usize = 8;
 /// Exit code of `warte watch` when the timeout passes with no change.
 pub const EXIT_TIMEOUT: i32 = 3;
 
@@ -223,6 +225,35 @@ mod tests {
     }
 
     #[test]
+    fn one_client_cannot_take_every_slot() {
+        use std::net::IpAddr;
+        let slots = Slots::default();
+        let a: IpAddr = "192.0.2.1".parse().unwrap();
+        let b: IpAddr = "192.0.2.2".parse().unwrap();
+        let held: Vec<_> = (0..MAX_WATCHERS_PER_CLIENT)
+            .map(|_| slots.take(a).unwrap())
+            .collect();
+        assert!(slots.take(a).is_none(), "a is at its cap");
+        assert!(slots.take(b).is_some(), "b still gets in");
+        drop(held);
+        assert!(slots.take(a).is_some(), "slots come back on drop");
+    }
+
+    #[test]
+    fn the_client_behind_the_proxy_is_the_forwarded_one_only_from_loopback() {
+        let lo = Some("127.0.0.1".parse().unwrap());
+        let lan = Some("192.0.2.9".parse().unwrap());
+        assert_eq!(client_of(lo, Some("192.0.2.7")).to_string(), "192.0.2.7");
+        assert_eq!(
+            client_of(lo, Some("10.0.0.1, 192.0.2.7")).to_string(),
+            "192.0.2.7"
+        );
+        assert_eq!(client_of(lo, Some("junk")).to_string(), "127.0.0.1");
+        // a direct client cannot pick its own key
+        assert_eq!(client_of(lan, Some("192.0.2.7")).to_string(), "192.0.2.9");
+    }
+
+    #[test]
     fn the_cursor_changes_with_the_runs_not_only_the_status() {
         let a = Picture {
             status: "running",
@@ -236,6 +267,61 @@ mod tests {
         };
         assert_ne!(a.cursor(), b.cursor(), "run 1 finished, run 2 started");
         assert_eq!(a.cursor(), a.cursor());
+    }
+}
+
+/// Who is asking: the TCP peer, or, when the peer is the local reverse proxy
+/// (loopback), the address it forwarded. Caddy writes `X-Forwarded-For`
+/// itself and does not pass a client's own value through untrusted, so the
+/// last entry is the client it saw.
+pub fn client_of(peer: Option<std::net::IpAddr>, xff: Option<&str>) -> std::net::IpAddr {
+    use std::net::{IpAddr, Ipv4Addr};
+    match peer {
+        Some(p) if p.is_loopback() => xff
+            .and_then(|v| v.rsplit(',').next())
+            .and_then(|v| v.trim().parse().ok())
+            .unwrap_or(p),
+        Some(p) => p,
+        None => IpAddr::V4(Ipv4Addr::UNSPECIFIED),
+    }
+}
+
+/// Counts held requests per client; a [`Slot`] gives its place back on drop.
+#[derive(Default)]
+pub struct Slots {
+    held: std::sync::Mutex<std::collections::HashMap<std::net::IpAddr, usize>>,
+}
+
+pub struct Slot<'a> {
+    slots: &'a Slots,
+    client: std::net::IpAddr,
+}
+
+impl Slots {
+    /// `None` when the client already holds [`MAX_WATCHERS_PER_CLIENT`].
+    pub fn take(&self, client: std::net::IpAddr) -> Option<Slot<'_>> {
+        let mut m = self.held.lock().unwrap_or_else(|e| e.into_inner());
+        let n = m.entry(client).or_default();
+        if *n >= MAX_WATCHERS_PER_CLIENT {
+            return None;
+        }
+        *n += 1;
+        Some(Slot {
+            slots: self,
+            client,
+        })
+    }
+}
+
+impl Drop for Slot<'_> {
+    fn drop(&mut self) {
+        let mut m = self.slots.held.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(n) = m.get_mut(&self.client) {
+            *n -= 1;
+            if *n == 0 {
+                m.remove(&self.client);
+            }
+        }
     }
 }
 

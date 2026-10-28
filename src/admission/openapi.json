@@ -37,7 +37,7 @@
     "/api/watch": {
       "get": {
         "summary": "Long-poll: hold until a PR's or branch's CI runs start or finish",
-        "description": "Answers at once when the CI state differs from the cursor in since; otherwise holds until a snapshot changes it or timeout passes (changed: false). Without since, the state at the call is the baseline. Pass the returned cursor as since on the next call so no change is missed. Resolution is one snapshot (about a minute). The CLI is warte watch --ci.",
+        "description": "Answers at once when the CI state differs from the cursor in since; otherwise holds until a snapshot changes it or timeout passes (changed: false). Without since, the state at the call is the baseline. Pass the returned cursor as since on the next call so no change is missed. Resolution is one snapshot (about a minute). At most 8 held requests per client and 1024 in total. The CLI is warte watch --ci.",
         "parameters": [
           {"name": "repo", "in": "query", "required": true, "description": "Repository name without the org", "schema": {"type": "string"}},
           {"name": "pr", "in": "query", "required": false, "description": "PR number; give exactly one of pr or branch", "schema": {"type": "integer"}},
@@ -48,6 +48,7 @@
         "responses": {
           "200": {"description": "Changed, or held until the timeout", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Watch"}}}},
           "400": {"description": "missing or invalid repo, pr/branch, since or timeout"},
+          "429": {"description": "this client already holds 8 watches"},
           "503": {"description": "no ground station, no snapshot yet, or too many watchers"}
         }
       }

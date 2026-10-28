@@ -272,3 +272,25 @@ async fn the_cli_exits_0_on_a_change_3_on_timeout_2_on_usage_1_on_error() {
     );
     assert_eq!(out.status.code(), Some(1), "{out:?}");
 }
+
+// rivet: verifies REQ-WATCH-002
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn one_client_cannot_hold_every_watch() {
+    let (_d, base, _hub) = serve().await;
+    let cap = warte::watch::MAX_WATCHERS_PER_CLIENT;
+    let held: Vec<_> = (0..cap)
+        .map(|_| {
+            let base = base.clone();
+            tokio::spawn(async move { watch(&base, "repo=spar&pr=511&timeout=3").await })
+        })
+        .collect();
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    let (code, _) = watch(&base, "repo=spar&pr=511&timeout=3").await;
+    assert_eq!(code, 429, "over the per-client cap");
+    for h in held {
+        assert_eq!(h.await.unwrap().0, 200);
+    }
+    // the slots came back
+    let (code, _) = watch(&base, "repo=spar&pr=511&timeout=0").await;
+    assert_eq!(code, 200);
+}
