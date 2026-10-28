@@ -8,7 +8,17 @@
 # differences. Requests to A and B are fired together so time-dependent answers
 # (ETA, "Ns old") see the same clock second; on live hubs a frame may still land
 # between them, so re-run once before treating a diff in /api/state or /api/eta as real.
+#
+# Expected differences between two live hubs fed by the same agent:
+#   /api/state (link, frames) and status.md's "packets lost" line are per-hub
+#   counters; history and the monthly report differ for any time before the
+#   second hub started receiving. Compare the snapshot, ETA answers and ledger
+#   days after that point.
+#
+# HUB_PARITY_INSECURE=1 accepts a self-signed / internal-CA TLS certificate.
 set -euo pipefail
+curl_opts=(-s -m15)
+[ "${HUB_PARITY_INSECURE:-}" = 1 ] && curl_opts+=(-k)
 A=${1:?base url A}; B=${2:?base url B}; shift 2
 months=("$@"); [ ${#months[@]} -eq 0 ] && months=("$(date -u +%Y-%m)")
 out=$(mktemp -d); trap 'rm -rf "$out"' EXIT
@@ -17,7 +27,7 @@ paths=(api/state 'api/history?hours=168' status.md api/openapi.json '' healthz
 for m in "${months[@]}"; do paths+=("api/report?month=$m" "report.md?month=$m"); done
 # ETA for every PR/branch the fleet currently shows, plus one that is not queued
 paths+=('api/eta?repo=warte&pr=999999')
-for q in $(curl -fsS "$A/api/state" | python3 -c '
+for q in $(curl -fsS "${curl_opts[@]}" "$A/api/state" | python3 -c '
 import json,sys,urllib.parse
 s=json.load(sys.stdin).get("snapshot") or {}
 seen=set()
@@ -30,8 +40,8 @@ for e in (s.get("queue") or {}).get("queued", []):
 n=0; d=0
 for p in "${paths[@]}"; do
   f=$(printf '%s' "x$p" | tr '/?=&%' '_____')
-  curl -s -m15 -o "$out/A$f" -w '%{http_code} %{content_type}' "$A/$p" > "$out/A$f.meta" &
-  curl -s -m15 -o "$out/B$f" -w '%{http_code} %{content_type}' "$B/$p" > "$out/B$f.meta" &
+  curl "${curl_opts[@]}" -o "$out/A$f" -w '%{http_code} %{content_type}' "$A/$p" > "$out/A$f.meta" &
+  curl "${curl_opts[@]}" -o "$out/B$f" -w '%{http_code} %{content_type}' "$B/$p" > "$out/B$f.meta" &
   wait
   n=$((n+1))
   if ! cmp -s "$out/A$f" "$out/B$f" || ! cmp -s "$out/A$f.meta" "$out/B$f.meta"; then

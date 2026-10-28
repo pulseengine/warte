@@ -341,6 +341,10 @@ async fn serve_with_a_hub_mounts_the_ground_station_at_ci() {
     };
     let (_d, base) = serve_app(Some(cfg)).await;
     assert_eq!(status(format!("{base}/ci/healthz")).await, 200);
+    // the hub's web view, where a browser lands (found by the live parity run)
+    for p in ["/ci", "/ci/", "/ci/index.html"] {
+        assert_eq!(status(format!("{base}{p}")).await, 200, "{p}");
+    }
     assert_eq!(status(format!("{base}/ci/api/openapi.json")).await, 200);
     // before telemetry: the hub says so, and so does the view
     assert_eq!(
