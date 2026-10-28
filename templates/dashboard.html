@@ -3,15 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>warte — the PulseEngine control tower</title>
+  <title>warte · control tower</title>
   <!-- htmx 2.0.4, vendored (0BSD): no CDN, works on an offline LAN -->
   <script src="htmx.min.js"></script>
   <link rel="stylesheet" href="dashboard.css">
 </head>
 <body>
   <header class="header">
-    <h1>warte</h1>
-    <span class="subtitle">the PulseEngine control tower</span>
+    <div class="brand">
+      <svg viewBox="0 0 26 26" aria-hidden="true"><circle cx="13" cy="13" r="12" fill="none" stroke="#1d7f93"/><circle cx="13" cy="13" r="6" fill="none" stroke="#1d7f93"/><g class="sweep"><path d="M13 13 L13 1 A12 12 0 0 1 24 9 Z" fill="#3ee6ff" opacity=".45"/><line x1="13" y1="13" x2="13" y2="1" stroke="#3ee6ff" stroke-width="1.5"/></g><circle cx="18" cy="7" r="1.6" fill="#ffb84d"/></svg>
+      <h1>warte</h1>
+      <span class="subtitle">control tower</span>
+    </div>
     <nav class="nav">
       <button hx-get="api/dashboard/overview-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn active">Overview</button>
       <button hx-get="api/dashboard/ask-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn" data-no-refresh>Ask</button>
@@ -25,6 +28,7 @@
       <button hx-get="api/dashboard/agents-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Agents</button>
       <button hx-get="api/dashboard/artifacts-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Artifacts</button>
     </nav>
+    <span class="clock" title="tower time">UTC <b id="utc">--:--:--</b></span>
   </header>
 
   <main id="content">
@@ -50,6 +54,11 @@
         current = btn;
       });
     });
+    // Tower clock: UTC, like the timestamps everywhere else.
+    var utc = document.getElementById('utc');
+    function tick() { utc.textContent = new Date().toISOString().slice(11, 19); }
+    tick();
+    setInterval(tick, 1000);
     setInterval(function () {
       if (current && !current.hasAttribute('data-no-refresh') && !document.hidden) {
         htmx.trigger(current, 'click');
