@@ -354,6 +354,16 @@ impl Hub {
         &self.org
     }
 
+    /// Per-minute history points taken at or after `since` (unix seconds).
+    pub fn history_since(&self, since: i64) -> Vec<model::Point> {
+        let g = lk(&self.shared);
+        g.p.history
+            .iter()
+            .filter(|p| p.t >= since)
+            .cloned()
+            .collect()
+    }
+
     /// The same answer `/api/eta` gives; `None` before the first snapshot.
     pub fn eta(&self, repo: &str, pr: Option<u32>, branch: Option<&str>) -> Option<eta::Answer> {
         let g = lk(&self.shared);

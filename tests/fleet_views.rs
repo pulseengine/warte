@@ -371,6 +371,40 @@ fn assert_escaped(html: &str, what: &str) {
 
 // rivet: verifies REQ-DASH-005
 // rivet: verifies REQ-ASK-004
+// rivet: verifies REQ-DASH-014
+#[test]
+fn overview_is_the_tower_view_of_the_hub_snapshot() {
+    let mut s = fleet_snapshot();
+    s.runners[1].gh_busy = Some(true); // GitHub lags: the host says idle
+    if let Some(q) = s.queue.as_mut() {
+        let mut late = q.queued[0].clone();
+        late.run_id = 10;
+        late.workflow = "Late".into();
+        late.since = now() - 3600; // past the pool's p90 (600 s)
+        q.queued.push(late);
+    }
+    let (_d, hub) = hub_with(&s);
+    let html = fleet::overview(Some(&hub));
+    // runway gauge: one cell per runner, lit for the busy one only
+    assert_eq!(html.matches(r#"<i class="on""#).count(), 1, "{html}");
+    assert_eq!(html.matches("title=\"runner").count(), 2);
+    // flight strips: the host's view decides, GitHub's disagreement is shown
+    assert!(html.contains("R01") && html.contains("AIRBORNE"));
+    assert!(html.contains("R02") && html.contains("HOLDING"));
+    assert!(html.contains("GH busy"), "{html}");
+    // departures: longest waiting first, overdue past p90
+    let late = html.find("Late").expect("late run on the board");
+    let fresh = html.find("&lt;img").expect("first run on the board");
+    assert!(late < fresh, "longest waiting first");
+    assert!(html.contains("overdue"));
+    assert!(html.contains("Runners online"));
+    // no hub, or a hub with no telemetry: say why
+    assert!(fleet::overview(None).contains("not configured"));
+    let e = tempfile::tempdir().unwrap();
+    let empty = Hub::open(e.path().to_str().unwrap(), "pulseengine").unwrap();
+    assert!(fleet::overview(Some(&empty)).contains("no telemetry"));
+}
+
 // rivet: verifies REQ-STORE-002
 #[tokio::test]
 async fn every_view_escapes_author_controlled_text() {
@@ -384,6 +418,18 @@ async fn every_view_escapes_author_controlled_text() {
         q.pools.insert(HOSTILE.into(), Default::default());
         q.waits.insert(HOSTILE.into(), Default::default());
     }
+    // runner fields come from job logs and repo-defined labels: hostile too
+    s.host = HOSTILE.into();
+    s.errors = vec![HOSTILE.into()];
+    s.runners[0].job = Some(HOSTILE.into());
+    s.runners[0].labels = vec![HOSTILE.into()];
+    s.runners[0].ctx = Some(warte::hub::model::JobContext {
+        repo: HOSTILE.into(),
+        workflow: HOSTILE.into(),
+        branch: HOSTILE.into(),
+        ..Default::default()
+    });
+    s.runners[1].last_result = Some(HOSTILE.into());
     let hub_dir = tempfile::tempdir().unwrap();
     {
         let (_d, hub) = hub_with(&s);
@@ -445,6 +491,15 @@ async fn every_view_escapes_author_controlled_text() {
         checked += 1;
     }
     assert!(checked >= 8, "only {checked} views answered");
+    // rivet: verifies REQ-DASH-014 (escaping)
+    // the overview did receive the hostile runner fields, escaped
+    let o = reqwest::get(format!("{base}/api/dashboard/overview-partial"))
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    assert!(o.matches("&lt;script&gt;").count() >= 6, "{o}");
     // the queue view did receive the hostile names, escaped
     let q = reqwest::get(format!("{base}/api/dashboard/queue-partial"))
         .await
