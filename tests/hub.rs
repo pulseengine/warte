@@ -229,7 +229,7 @@ fn job(id: u64, day: &str) -> JobRecord {
         wf: "CI".into(),
         job: "Build".into(),
         pool: "rust-cpu".into(),
-        runner: "pulseengine-ci-01-7".into(),
+        runner: "ci-host-7".into(),
         ev: "pull_request".into(),
         c: 1_793_000_000,
         s: Some(1_793_000_060),
