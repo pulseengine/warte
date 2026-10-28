@@ -231,12 +231,12 @@ mod tests {
         let a: IpAddr = "192.0.2.1".parse().unwrap();
         let b: IpAddr = "192.0.2.2".parse().unwrap();
         let held: Vec<_> = (0..MAX_WATCHERS_PER_CLIENT)
-            .map(|_| slots.take(a).unwrap())
+            .map(|_| slots.take(a).ok().unwrap())
             .collect();
-        assert!(slots.take(a).is_none(), "a is at its cap");
-        assert!(slots.take(b).is_some(), "b still gets in");
+        assert!(matches!(slots.take(a), Err(true)), "a is at its cap");
+        assert!(slots.take(b).is_ok(), "b still gets in");
         drop(held);
-        assert!(slots.take(a).is_some(), "slots come back on drop");
+        assert!(slots.take(a).is_ok(), "slots come back on drop");
     }
 
     #[test]
@@ -251,6 +251,15 @@ mod tests {
         assert_eq!(client_of(lo, Some("junk")).to_string(), "127.0.0.1");
         // a direct client cannot pick its own key
         assert_eq!(client_of(lan, Some("192.0.2.7")).to_string(), "192.0.2.9");
+        // one IPv6 host is one /64, however many addresses it uses
+        let v6 = |a: &str| client_of(Some(a.parse().unwrap()), None);
+        assert_eq!(v6("2001:db8:1:2::1"), v6("2001:db8:1:2:ffff::9"));
+        assert_ne!(v6("2001:db8:1:2::1"), v6("2001:db8:1:3::1"));
+        assert_eq!(v6("::ffff:192.0.2.9").to_string(), "192.0.2.9");
+        assert_eq!(
+            client_of(lo, Some("2001:db8:1:2::5")),
+            v6("2001:db8:1:2::77")
+        );
     }
 
     #[test]
@@ -274,19 +283,31 @@ mod tests {
 /// (loopback), the address it forwarded. Caddy writes `X-Forwarded-For`
 /// itself and does not pass a client's own value through untrusted, so the
 /// last entry is the client it saw.
+///
+/// The key is normalized: an IPv6 client is its /64 (one host holds a whole
+/// /64, so per-address keys would not cap it), and an IPv4-mapped address is
+/// its IPv4 address.
 pub fn client_of(peer: Option<std::net::IpAddr>, xff: Option<&str>) -> std::net::IpAddr {
-    use std::net::{IpAddr, Ipv4Addr};
-    match peer {
+    use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+    let ip = match peer {
         Some(p) if p.is_loopback() => xff
             .and_then(|v| v.rsplit(',').next())
             .and_then(|v| v.trim().parse().ok())
             .unwrap_or(p),
         Some(p) => p,
         None => IpAddr::V4(Ipv4Addr::UNSPECIFIED),
+    };
+    match ip {
+        IpAddr::V6(v6) => match v6.to_ipv4_mapped() {
+            Some(v4) => IpAddr::V4(v4),
+            None => IpAddr::V6(Ipv6Addr::from(u128::from(v6) & !((1u128 << 64) - 1))),
+        },
+        v4 => v4,
     }
 }
 
-/// Counts held requests per client; a [`Slot`] gives its place back on drop.
+/// Counts held requests per client, per server; a [`Slot`] gives its place
+/// back on drop.
 #[derive(Default)]
 pub struct Slots {
     held: std::sync::Mutex<std::collections::HashMap<std::net::IpAddr, usize>>,
@@ -298,15 +319,19 @@ pub struct Slot<'a> {
 }
 
 impl Slots {
-    /// `None` when the client already holds [`MAX_WATCHERS_PER_CLIENT`].
-    pub fn take(&self, client: std::net::IpAddr) -> Option<Slot<'_>> {
+    /// `Err(true)` when the client already holds [`MAX_WATCHERS_PER_CLIENT`],
+    /// `Err(false)` when [`MAX_WATCHERS`] are held in total.
+    pub fn take(&self, client: std::net::IpAddr) -> Result<Slot<'_>, bool> {
         let mut m = self.held.lock().unwrap_or_else(|e| e.into_inner());
+        if m.values().sum::<usize>() >= MAX_WATCHERS {
+            return Err(false);
+        }
         let n = m.entry(client).or_default();
         if *n >= MAX_WATCHERS_PER_CLIENT {
-            return None;
+            return Err(true);
         }
         *n += 1;
-        Some(Slot {
+        Ok(Slot {
             slots: self,
             client,
         })

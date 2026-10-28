@@ -171,12 +171,6 @@ async fn api_admission(
     }
 }
 
-/// Held `/api/watch` requests (REQ-WATCH-002): in total, and per client.
-static WATCHERS: tokio::sync::Semaphore =
-    tokio::sync::Semaphore::const_new(crate::watch::MAX_WATCHERS);
-static WATCH_SLOTS: std::sync::LazyLock<crate::watch::Slots> =
-    std::sync::LazyLock::new(Default::default);
-
 /// Long-poll: hold until the PR's or branch's CI state differs from `since`,
 /// or `timeout` seconds pass. Without `since`, the state at the call is the
 /// baseline.
@@ -230,17 +224,20 @@ async fn api_watch(
         .headers()
         .get("x-forwarded-for")
         .and_then(|v| v.to_str().ok());
-    let Some(_slot) = WATCH_SLOTS.take(watch::client_of(peer, xff)) else {
-        return plain(
-            StatusCode::TOO_MANY_REQUESTS,
-            "too many held watches from this client; retry later",
-        );
-    };
-    let Ok(_permit) = WATCHERS.try_acquire() else {
-        return plain(
-            StatusCode::SERVICE_UNAVAILABLE,
-            "too many watchers; retry later",
-        );
+    let _slot = match hub.watch_slots().take(watch::client_of(peer, xff)) {
+        Ok(slot) => slot,
+        Err(true) => {
+            return plain(
+                StatusCode::TOO_MANY_REQUESTS,
+                "too many held watches from this client; retry later",
+            )
+        }
+        Err(false) => {
+            return plain(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "too many watchers; retry later",
+            )
+        }
     };
     let mut tick = hub.subscribe();
     let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(hold);

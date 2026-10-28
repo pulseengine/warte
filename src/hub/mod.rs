@@ -251,6 +251,8 @@ pub struct Hub {
     state_path: Arc<str>,
     /// Counts complete snapshots; long-polls (`/api/watch`) wait on it.
     tick: Arc<tokio::sync::watch::Sender<u64>>,
+    /// Held `/api/watch` requests on this hub.
+    watch_slots: Arc<crate::watch::Slots>,
 }
 
 impl Hub {
@@ -273,6 +275,7 @@ impl Hub {
             org: org.into(),
             state_path: path.into(),
             tick: Arc::new(tokio::sync::watch::channel(0).0),
+            watch_slots: Default::default(),
         })
     }
 
@@ -339,6 +342,11 @@ impl Hub {
     /// Wakes on every complete snapshot.
     pub fn subscribe(&self) -> tokio::sync::watch::Receiver<u64> {
         self.tick.subscribe()
+    }
+
+    /// Held `/api/watch` requests, per client and in total.
+    pub fn watch_slots(&self) -> &crate::watch::Slots {
+        &self.watch_slots
     }
 
     /// The GitHub org repo names are relative to.
