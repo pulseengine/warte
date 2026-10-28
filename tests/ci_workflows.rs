@@ -110,6 +110,27 @@ fn rivet_is_installed_from_pulseengine_git_only() {
     );
 }
 
+// rivet: verifies REQ-CI-004
+#[test]
+fn superseded_pr_runs_are_cancelled_but_main_never_is() {
+    let wf = workflow("ci.yml");
+    let c = &wf["concurrency"];
+    let group = c["group"].as_str().expect("ci.yml has a concurrency group");
+    assert!(
+        group.contains("github.event.pull_request.number"),
+        "group must key PR runs by PR number: {group}"
+    );
+    assert!(
+        group.contains("github.sha"),
+        "non-PR runs must get a per-commit group, so one push never cancels another: {group}"
+    );
+    assert_eq!(
+        c["cancel-in-progress"].as_str(),
+        Some("${{ github.event_name == 'pull_request' }}"),
+        "only pull_request runs may be cancelled"
+    );
+}
+
 // rivet: verifies REQ-RELEASE-005
 #[test]
 fn every_cargo_install_is_pinned() {

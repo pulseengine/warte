@@ -378,3 +378,95 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-10-28T04:53:00Z
+
+  - id: REQ-CI-004
+    type: requirement
+    title: Superseded PR CI runs are cancelled; main and release runs never are
+    status: implemented
+    release: v1.4.1
+    description: A new push to a pull request SHALL cancel that PR's older CI runs, so stale commits don't hold the shared smithy runners. Runs for pushes to main and release/** SHALL never be cancelled.
+    fields:
+      category: non-functional
+      priority: should
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T04:59:06Z
+
+  - id: REQ-WATCH-001
+    type: requirement
+    title: warte watch blocks until something relevant changes, then exits
+    status: approved
+    release: v1.4.1
+    description: warte watch SHALL block until a watched condition changes and then exit 0 with a JSON description of the change and a cursor. The first condition is --ci (a PR's or branch's CI runs start or finish), with --repo plus --pr or --branch. It SHALL exit with a distinct code when --timeout expires with no change, 1 on error and 2 on usage errors, and accept --since <cursor> so no change is missed between two calls. Agents (Claude Code, Copilot CLI, cron) run it as a background command and are woken only when it exits.
+    fields:
+      category: interface
+      priority: must
+      upstream-ref: https://github.com/pulseengine/warte/issues/16
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T04:59:06Z
+
+  - id: REQ-WATCH-002
+    type: requirement
+    title: Long-poll /api/watch fed by the realtime broadcaster
+    status: approved
+    release: v1.4.1
+    description: warte SHALL expose GET /api/watch?since=<cursor>&timeout=<s>&... which holds the request until a matching event or the timeout. Events SHALL come from the realtime broadcaster, which the ground station feeds on snapshot changes (CI runs started or finished per repo/PR/branch). Every event carries a monotonic cursor, and events after a given cursor SHALL be retained long enough for a caller to resume.
+    fields:
+      category: interface
+      priority: must
+      upstream-ref: https://github.com/pulseengine/warte/issues/16
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T04:59:06Z
+
+  - id: DD-WATCH-001
+    type: design-decision
+    title: Agents wait on a blocking CLI, not on channels or polling
+    status: approved
+    release: v1.4.1
+    description: warte watch is a blocking command over a long-poll endpoint. It works unchanged for Claude Code (background command, woken on exit), Copilot CLI (shell or SDK wrapper calling session.send) and cron agents.
+    fields:
+      rationale: Claude Code channels are a research preview, need allow-listing, and don't register for headless sessions; Copilot has no equivalent, only SDK session.send for SDK-driven sessions. A blocking CLI needs neither, costs no tokens while waiting, and replaces the hand-written gh pr checks loops agents use today. Inbox messages and advisories become further event types on the same endpoint.
+    links:
+      - type: satisfies
+        target: REQ-WATCH-001
+      - type: satisfies
+        target: REQ-WATCH-002
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T04:59:06Z
+
+  - id: REQ-ADV-001
+    type: requirement
+    title: Scheduled advisory sweep over every repo and every published varve layer
+    status: proposed
+    release: v1.5.0
+    description: warte SHALL query OSV.dev (RustSec and GHSA) on a schedule for the Cargo.lock on every repo's default branch and for every published varve layer's signed SBOM (varve sbom), and record each advisory as a rivet supply-chain vulnerability that affects the sbom-components a release-artifact (layer) contains.
+    fields:
+      category: functional
+      priority: should
+      upstream-ref: https://github.com/pulseengine/warte/issues/47
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T04:59:06Z
+
+  - id: REQ-ADV-002
+    type: requirement
+    title: "Advisory response: per-repo issue, per-layer notice, VEX status"
+    status: proposed
+    release: v1.5.0
+    description: For each advisory warte SHALL track vuln-status (unresolved, investigating, patched, mitigated, not-affected with a reason). It SHALL open one deduplicated issue per affected repo, name the affected published layers and the first layer that fixes them, and show open advisories in the dashboard, the API and warte watch.
+    fields:
+      category: functional
+      priority: should
+      upstream-ref: https://github.com/pulseengine/warte/issues/47
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T04:59:06Z
