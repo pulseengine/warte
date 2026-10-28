@@ -2,7 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # release/** too: a release commit gets CI on its exact SHA (a PR from a
+    # release branch cut from an older tag conflicts with main and never runs)
+    branches: [main, 'release/**']
   pull_request:
     branches: [main]
 
