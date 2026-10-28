@@ -20,7 +20,7 @@ artifacts:
     type: sec-loss
     title: Compromise of operator infrastructure beyond warte
     status: draft
-    description: "An attacker who entered through one PulseEngine component gains control of other operator systems: the CI host (root, runners, caches), the ground-station host and its co-tenant services (personal photo library, monitoring), the home LAN behind it, or operator workstations."
+    description: "An attacker who entered through one PulseEngine component gains control of other operator systems: the CI host (root, runners, caches), the ground-station host, the home LAN behind it, or operator workstations. Personal data (SL-009), keys and secrets (SL-010) and fleet availability (SL-011) are separate losses."
     fields:
       cia-impact:
         - confidentiality
@@ -101,9 +101,9 @@ artifacts:
 
   - id: SH-007
     type: sec-hazard
-    title: A component holds credentials or network reach beyond its own role
+    title: An attacker-controlled process holds a credential that is valid outside its own zone
     status: draft
-    description: "Compromising one component gives access to another trust zone. Examples: the root smithy agent with an org-wide GitHub app token on the same host as untrusted CI jobs; the ground-station host bridging the home LAN and the CI host's WireGuard tunnel; an operator session with standing root on hosts."
+    description: "System state: some process under attacker control can authenticate somewhere else. Examples: a job escaping its runner user can reach the root agent's org-wide GitHub App token; the ground-station host's processes hold Beszel's SSH key into the CI host; an operator session holds sudo on every host."
     fields:
       cia-impact:
         - confidentiality
@@ -115,6 +115,8 @@ artifacts:
         target: SL-006
       - type: leads-to-sec-loss
         target: SL-007
+      - type: leads-to-sec-loss
+        target: SL-010
     provenance:
       created-by: ai-assisted
       model: claude-opus-5-5
@@ -135,6 +137,8 @@ artifacts:
         target: SL-006
       - type: leads-to-sec-loss
         target: SL-007
+      - type: leads-to-sec-loss
+        target: SL-011
     provenance:
       created-by: ai-assisted
       model: claude-opus-5-5
@@ -142,9 +146,9 @@ artifacts:
 
   - id: SH-009
     type: sec-hazard
-    title: Unrelated services share one host and one root
+    title: A foothold in one service of a host gives access to another service's data or privileges
     status: draft
-    description: The ground-station host runs warte and smithy-hub next to a personal photo library and the monitoring hub, behind one Caddy container on the host network with one root. A foothold in any of them is a foothold next to all of them.
+    description: "System state: on the ground-station host, warte, smithy-hub, the photo library and the monitoring hub share one host, one Docker root and one origin behind Caddy, so compromising one exposes the others."
     fields:
       cia-impact:
         - confidentiality
@@ -154,6 +158,8 @@ artifacts:
     links:
       - type: leads-to-sec-loss
         target: SL-007
+      - type: leads-to-sec-loss
+        target: SL-009
     provenance:
       created-by: ai-assisted
       model: claude-opus-5-5
@@ -174,6 +180,8 @@ artifacts:
         target: SL-008
       - type: leads-to-sec-loss
         target: SL-006
+      - type: traces-to
+        target: H-006
     provenance:
       created-by: ai-assisted
       model: claude-opus-5-5
@@ -183,11 +191,11 @@ artifacts:
     type: sec-hazard
     title: Fleet layout readable without authentication
     status: draft
-    description: warte publishes hosts, runner pools, labels, tool and agent versions, drift and (planned) disk/driver inventory. Its read API is unauthenticated (#46); the route is limited to private networks, which includes every device on the LAN. That is a precise target list for whoever is already inside.
+    description: "warte publishes hosts, runner pools, labels, tool and agent versions, drift and (planned) disk/driver inventory. Its read API is unauthenticated (#46). The Caddy route admits only private networks, but warte answers Access-Control-Allow-Origin: * (verified 2026-10-28), so any web page an operator opens in a LAN browser can read the fleet map through that browser. A precise target list for whoever is already inside, or whoever runs a malicious page."
     fields:
       cia-impact:
         - confidentiality
-      severity: medium
+      severity: high
     links:
       - type: leads-to-sec-loss
         target: SL-007
@@ -198,9 +206,9 @@ artifacts:
 
   - id: SH-012
     type: sec-hazard
-    title: Operations act with root on paths or hosts a compromised service controls
+    title: An unprivileged component can direct a root-privileged operation
     status: draft
-    description: Deploys and maintenance run as root against hosts and directories that services write to (recursive chown over the warte state directory; sudo over SSH from interactive or agent sessions). A compromised service or session turns the operator's own tooling into its privilege escalation.
+    description: "System state: something a service or an untrusted text source controls determines what a root operation acts on: a symlink in a service-writable directory that a root deploy walks; instructions an agent session read and then executes with the operator's sudo."
     fields:
       cia-impact:
         - integrity
@@ -241,8 +249,8 @@ artifacts:
     status: draft
     description: CTRL-007's smithy agent holds and uses the pulseengine-smithy app token (Actions r/w, Issues r/w) as root on the runner host.
     fields:
-      adversarial-causation: "Tamper/intercept: a job that escapes its runner user (or any root-level foothold on the CI host) reads the token helper's output and uses Actions write to dispatch or re-run workflows org-wide, including release and signing workflows that hold secrets."
-      attacker-type: supply-chain
+      adversarial-causation: "Intercept: after a local privilege escalation from a runner user (e.g. a kernel or runner-service bug), an external attacker reads the token helper's output on the same host and uses Actions write to dispatch or re-run workflows org-wide, including release and signing workflows that hold secrets."
+      attacker-type: external-network
       uca-type: providing
     links:
       - type: issued-by
@@ -279,8 +287,8 @@ artifacts:
     status: draft
     description: CTRL-008 runs deploys (Ansible, scripts) with passwordless sudo on hosts, and agent sessions do so with permission prompts bypassed.
     fields:
-      adversarial-causation: "Inject: a prompt-injected agent session (content from an issue, a log, a fetched page) or a compromised workstation runs the deploy path or arbitrary sudo against the hosts; nothing distinguishes it from a legitimate deploy."
-      attacker-type: insider
+      adversarial-causation: "Inject: an external attacker writes instructions into content an agent session reads (an issue or PR body, a CI log, a fetched page, a dependency's README). The session, running with prompts bypassed, executes them with the operator's SSH access, sudo and org-admin gh. Nothing distinguishes this from a legitimate deploy."
+      attacker-type: external-network
       uca-type: providing
     links:
       - type: issued-by
@@ -296,18 +304,18 @@ artifacts:
 
   - id: SUCA-005
     type: sec-uca
-    title: Organisation merges without the required gates
+    title: Organisation does not enforce required gates on a default branch
     status: draft
     description: CTRL-009 allows a merge to the default branch while the required checks are red, absent or not required.
     fields:
-      adversarial-causation: "Tamper: an attacker who controls an agent or a maintainer session merges a change that never passed its gates (as warte #21-#33 did before branch protection; smithy still cannot have protection as a private repo without GitHub Pro)."
+      adversarial-causation: "Tamper: an attacker who controls an agent or a maintainer session merges a change that never passed its gates, because nothing enforces them (smithy, a private repo without GitHub Pro, has no branch protection; warte had none until 2026-10-28)."
       attacker-type: insider
-      uca-type: providing
+      uca-type: not-providing
     links:
       - type: issued-by
         target: CTRL-009
       - type: leads-to-sec-hazard
-        target: SH-008
+        target: SH-013
     provenance:
       created-by: ai-assisted
       model: claude-opus-5-5
@@ -363,14 +371,14 @@ artifacts:
       attack-vector: adjacent
       attacker-type: external-network
     links:
-      - type: caused-by-sec-uca
-        target: SUCA-003
       - type: leads-to-sec-hazard
         target: SH-009
       - type: leads-to-sec-hazard
         target: SH-012
       - type: leads-to-sec-hazard
         target: SH-007
+      - type: caused-by-sec-uca
+        target: SUCA-012
     provenance:
       created-by: ai-assisted
       model: claude-opus-5-5
@@ -380,7 +388,7 @@ artifacts:
     type: sec-scenario
     title: Compromised ground station → instructions injected into the whole agent fleet
     status: draft
-    description: With control of warte (or forged telemetry), the attacker shapes ETA/admission answers and plants instruction-shaped text in names that agents read; every agent that checks the queue before opening a PR takes it into its context.
+    description: "Chain: (1) the attacker gains the warte user on the ground-station host (SS-002) or forges telemetry from inside the tunnel (SS-011); (2) warte now reports a fleet the attacker chose: admission 'open' for its own repos, 'hold' for everyone else's fixes; (3) workflow, branch and job names in the snapshot carry instruction-shaped text; (4) every agent that checks the queue before opening a PR takes that text into its context, and agents running with bypassed prompts act on it."
     fields:
       attack-vector: network
       attacker-type: external-network
@@ -418,7 +426,7 @@ artifacts:
     type: sec-scenario
     title: LAN foothold reads the fleet map, then picks the target
     status: draft
-    description: Any compromised device on the LAN queries warte's unauthenticated read API and learns hosts, versions, drift and runner layout, then targets the weakest component on the paths above.
+    description: "Chain: (1) a LAN device is compromised, or an operator opens a malicious page (SUCA-013); (2) it reads warte's unauthenticated API: host names, runner pools and labels, tool and agent versions, drift; (3) it picks the host with an outdated agent CLI or tool and the shortest path to a credential (SS-001, SS-007); (4) it attacks that one component instead of probing."
     fields:
       attack-vector: adjacent
       attacker-type: external-network
@@ -427,6 +435,8 @@ artifacts:
         target: SUCA-006
       - type: leads-to-sec-hazard
         target: SH-011
+      - type: caused-by-sec-uca
+        target: SUCA-013
     provenance:
       created-by: ai-assisted
       model: claude-opus-5-5
@@ -449,7 +459,7 @@ artifacts:
     type: sec-constraint
     title: Untrusted code runs only where nothing worth stealing is reachable
     status: draft
-    description: PR jobs run on ephemeral or network-isolated runners with no route into WireGuard or the LAN, enforced by runner-group policy and approval of outside-contributor runs, not by workflow expressions. Tools are pinned (no unpinned cargo install).
+    description: "Mitigates (does not fully prevent): PR jobs run on ephemeral or network-isolated runners with no route into WireGuard or the LAN, enforced by runner-group policy and outside-contributor approval, not by workflow expressions; workspaces and tool caches are wiped between jobs; tools are pinned."
     links:
       - type: prevents-sec-hazard
         target: SH-008
@@ -462,7 +472,7 @@ artifacts:
     type: sec-constraint
     title: The ground-station host runs nothing unrelated, or each service is isolated
     status: draft
-    description: Personal services (photo library) do not share a host, container runtime and root with fleet infrastructure; where they must, each runs as its own user without access to the others' data or to the Docker socket.
+    description: "Mitigates: personal services (the photo library) move off the ground-station host. Until then each service runs as its own user without the Docker socket and without host networking where possible; warte gets its own origin (hostname) instead of sharing one with the photo library."
     links:
       - type: prevents-sec-hazard
         target: SH-009
@@ -475,7 +485,7 @@ artifacts:
     type: sec-constraint
     title: Only verified operator content enters agents' context
     status: draft
-    description: Operator messages are signed and verified before a hook injects them; author-controlled names are escaped and never injected as instructions; agents treat warte answers as data. Telemetry is authenticated per probe (REQ-SEC-001), so a forged snapshot cannot shape the answers.
+    description: "Enforcement points: (a) the hook that injects operator messages verifies the signature and refuses anything unsigned; (b) every author-controlled name in warte answers passes a charset/length allow-list and is never placed where an agent harness treats text as instructions; (c) telemetry is authenticated per probe (REQ-SEC-001, relay-sec + QUIC), so a forged snapshot cannot shape answers; (d) answers carry their snapshot age and agents refuse stale ones."
     links:
       - type: prevents-sec-hazard
         target: SH-010
@@ -488,7 +498,7 @@ artifacts:
     type: sec-constraint
     title: Fleet data requires authentication beyond liveness
     status: draft
-    description: warte's read API answers health and coarse status without authentication; inventory, versions and drift require an authenticated operator or agent (#46).
+    description: "Mitigates: warte's read API answers health and coarse status without authentication; inventory, versions and drift need an authenticated operator or agent (#46). CORS is an explicit allow-list (none by default), so a web page in a LAN browser cannot read the API."
     links:
       - type: prevents-sec-hazard
         target: SH-011
@@ -514,7 +524,7 @@ artifacts:
     type: sec-constraint
     title: Every merge to a default branch passes its required gates
     status: draft
-    description: Branch protection with required checks on every repository that produces releases; where GitHub cannot enforce it (private repos without Pro), the gate is a required CI check plus merge only by the merge-when-green rule.
+    description: "Enforcement point: GitHub branch protection with required checks on every repository that releases. For repositories where GitHub cannot enforce it (private, no Pro): make them public, upgrade, or route merges through a merge queue or bot that checks the required runs. A policy alone does not count."
     links:
       - type: prevents-sec-hazard
         target: SH-008
@@ -527,7 +537,7 @@ artifacts:
     type: sec-constraint
     title: Agent identity is cryptographically verified
     status: draft
-    description: Mirror of cybersecurity goal CG-001 as the STPA-Sec constraint on SH-001. All agent registrations and ongoing communications must use cryptographic identity verification (mTLS, signed challenges, or hardware-backed attestation) to prevent impersonation.
+    description: "Mirror of cybersecurity goal CG-001 as the STPA-Sec constraint on SH-001. Implementation status (2026-10-28): mTLS agent identity is not implemented (src/server/auth.rs is an unmounted placeholder); mutating endpoints require a bearer token, but no code path issues tokens, so agents cannot register yet (#12)."
     links:
       - type: prevents-sec-hazard
         target: SH-001
@@ -612,3 +622,432 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-10-28T08:50:10Z
+
+  - id: SL-009
+    type: sec-loss
+    title: Exposure of personal data on the home host
+    status: draft
+    description: The photo library and anything else personal on the ground-station host or the home LAN is read or altered.
+    fields:
+      cia-impact:
+        - confidentiality
+        - integrity
+      stakeholders:
+        - owner of the home LAN and its data
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:52:10Z
+
+  - id: SL-010
+    type: sec-loss
+    title: Theft of signing keys, tokens and secrets
+    status: draft
+    description: "Release signing material (sigil/cosign identities), the GitHub App private key and tokens, deploy SSH keys, WireGuard keys or vault-protected secrets are copied. Longer-lived than one malicious change: they let an attacker produce trusted artifacts later."
+    fields:
+      cia-impact:
+        - confidentiality
+        - integrity
+      stakeholders:
+        - maintainers
+        - downstream users who trust signed releases
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:52:10Z
+
+  - id: SL-011
+    type: sec-loss
+    title: CI fleet unavailable or used for the attacker's purposes
+    status: draft
+    description: The self-hosted runners are disrupted, saturated or used for cryptomining, scanning or as a botnet node, from the operator's infrastructure and at the operator's cost.
+    fields:
+      cia-impact:
+        - availability
+        - integrity
+      stakeholders:
+        - maintainers
+        - every repository that uses the fleet
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:52:10Z
+
+  - id: CTRL-010
+    type: controller
+    title: Home router with the WireGuard tunnel
+    status: draft
+    description: Terminates the tunnel from the CI host and decides which LAN addresses and ports the tunnel can reach.
+    fields:
+      controller-type: automated
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:52:10Z
+
+  - id: CTRL-011
+    type: controller
+    title: Caddy on the ground-station host
+    status: draft
+    description: Routes /warte/, /ci/, /photos/ and /monitor/ on one origin, applies the private-network allow-list to /warte/, terminates TLS with an internal CA. Runs in Docker with host networking.
+    fields:
+      controller-type: automated
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:52:10Z
+
+  - id: CTRL-012
+    type: controller
+    title: varve layer and sigil signing (tool supply chain)
+    status: draft
+    description: Decides which tool binaries every project and host runs (signed, digest-pinned OCI layers) and which artifacts are trusted (sigil/cosign signatures).
+    fields:
+      controller-type: automated
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:52:10Z
+
+  - id: CTRL-013
+    type: controller
+    title: GitHub App installations and their scopes
+    status: draft
+    description: Grants the pulseengine-smithy app (and others) their permissions across the org; issues installation tokens to whoever holds the app key.
+    fields:
+      controller-type: automated
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:52:10Z
+
+  - id: CTRL-014
+    type: controller
+    title: Beszel monitoring hub
+    status: draft
+    description: Runs on the ground-station host; holds the SSH key that its agents (including the one on the CI host, bound to the WireGuard address) accept.
+    fields:
+      controller-type: automated
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:52:10Z
+
+  - id: SH-013
+    type: sec-hazard
+    title: Default-branch content can change without passing its gates
+    status: draft
+    description: "System state: a repository's default branch accepts a merge whose required checks are red, absent or not required (warte before 2026-10-28; smithy, a private repo without GitHub Pro, still)."
+    fields:
+      cia-impact:
+        - integrity
+      severity: high
+    links:
+      - type: leads-to-sec-loss
+        target: SL-006
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:52:10Z
+
+  - id: SUCA-007
+    type: sec-uca
+    title: Operators do not revoke or rotate credentials after a suspected compromise
+    status: draft
+    description: "CTRL-008/CTRL-013: the GitHub App key, installation tokens, deploy SSH keys, WireGuard and Beszel keys stay valid after a host or session is suspected compromised."
+    fields:
+      adversarial-causation: "Intercept: an attacker who once copied a credential keeps using it, because there is no revocation runbook, no inventory of which credential lives where, and no rotation schedule."
+      attacker-type: external-network
+      uca-type: not-providing
+    links:
+      - type: issued-by
+        target: CTRL-008
+      - type: leads-to-sec-hazard
+        target: SH-007
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:53:00Z
+
+  - id: SUCA-008
+    type: sec-uca
+    title: Organisation does not require approval for outside-contributor workflow runs
+    status: draft
+    description: CTRL-009 runs workflows from first-time or outside contributors on the self-hosted pool without a maintainer approving them.
+    fields:
+      adversarial-causation: "Inject: a new contributor opens a PR whose workflow edit removes the fork routing; it runs on the smithy pool immediately."
+      attacker-type: external-network
+      uca-type: not-providing
+    links:
+      - type: issued-by
+        target: CTRL-009
+      - type: leads-to-sec-hazard
+        target: SH-008
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:53:00Z
+
+  - id: SUCA-009
+    type: sec-uca
+    title: Agent acts on a stale admission or ETA answer
+    status: draft
+    description: CTRL-001's answer is used after the fleet state it described has changed (an agent caches 'open' for hours; a stale snapshot is served while telemetry is cut).
+    fields:
+      adversarial-causation: "Spoof: an attacker who can cut or delay telemetry (or replay an old snapshot) freezes warte's view, so agents keep acting on answers chosen at a time of the attacker's choosing."
+      attacker-type: external-network
+      uca-type: too-early-too-late
+    links:
+      - type: issued-by
+        target: CTRL-001
+      - type: leads-to-sec-hazard
+        target: SH-010
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:53:00Z
+
+  - id: SUCA-010
+    type: sec-uca
+    title: "Runner isolation ends before the next job: workspace and caches survive"
+    status: draft
+    description: "CTRL-007 stops cleaning too soon: workspaces, tool caches or /Users/r content persist from one job to the next on the persistent runners."
+    fields:
+      adversarial-causation: "Tamper: a job plants a poisoned binary or cache entry that a later, trusted job (e.g. a release) executes."
+      attacker-type: supply-chain
+      uca-type: stopped-too-soon
+    links:
+      - type: issued-by
+        target: CTRL-007
+      - type: leads-to-sec-hazard
+        target: SH-008
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:53:00Z
+
+  - id: SUCA-011
+    type: sec-uca
+    title: Agent session keeps bypassed permissions after reading untrusted text
+    status: draft
+    description: "CTRL-008: a session that has read issue bodies, CI logs or web pages keeps running with permission prompts bypassed and the operator's privileges."
+    fields:
+      adversarial-causation: "Inject: instructions planted in the untrusted text take effect with full privileges, because the session never dropped to a confirming mode after ingesting it."
+      attacker-type: external-network
+      uca-type: stopped-too-soon
+    links:
+      - type: issued-by
+        target: CTRL-008
+      - type: leads-to-sec-hazard
+        target: SH-012
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:53:00Z
+
+  - id: SUCA-012
+    type: sec-uca
+    title: warte parses unauthenticated UDP and HTTP input
+    status: draft
+    description: CTRL-001 decodes CCSDS datagrams from any allow-listed source address and HTTP from the LAN, with no per-probe authentication yet (REQ-SEC-001 open).
+    fields:
+      adversarial-causation: "Inject/spoof: a crafted datagram with a spoofed source address, or a crafted HTTP request, reaches the parser; a memory-safety or logic bug there gives code execution as the warte user."
+      attacker-type: external-network
+      uca-type: providing
+    links:
+      - type: issued-by
+        target: CTRL-001
+      - type: leads-to-sec-hazard
+        target: SH-007
+      - type: leads-to-sec-hazard
+        target: SH-009
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:53:00Z
+
+  - id: SUCA-013
+    type: sec-uca
+    title: warte answers cross-origin reads from any web page
+    status: draft
+    description: "CTRL-001 sends Access-Control-Allow-Origin: * (CorsLayer::permissive), so a browser on the LAN lets any page read warte's API."
+    fields:
+      adversarial-causation: "Intercept: an operator on the LAN opens a malicious or compromised page; its script reads /warte/api/* through the operator's browser, from inside the private network the Caddy allow-list trusts."
+      attacker-type: external-network
+      uca-type: providing
+    links:
+      - type: issued-by
+        target: CTRL-001
+      - type: leads-to-sec-hazard
+        target: SH-011
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:53:00Z
+
+  - id: SUCA-014
+    type: sec-uca
+    title: Supply chain installs an unpinned or unverified tool everywhere
+    status: draft
+    description: CTRL-012 (or a workflow outside it) puts a tool on PATH that no pin or signature covers.
+    fields:
+      adversarial-causation: "Tamper: a compromised upstream release or crate name (as crates.io rivet-cli was for warte's CI) is installed and run with each host's or job's privileges; a compromised varve layer would reach every host at once."
+      attacker-type: supply-chain
+      uca-type: providing
+    links:
+      - type: issued-by
+        target: CTRL-012
+      - type: leads-to-sec-hazard
+        target: SH-008
+      - type: leads-to-sec-hazard
+        target: SH-007
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:53:00Z
+
+  - id: SS-006
+    type: sec-scenario
+    title: Malicious page in an operator's LAN browser reads the fleet map
+    status: draft
+    description: "Chain: an operator on the LAN visits a page (or a compromised site); its script calls https://<host>/warte/api/... cross-origin; warte's Access-Control-Allow-Origin: * lets the browser hand the answers to the script; the attacker learns the fleet layout without ever touching the network directly."
+    fields:
+      attack-vector: network
+      attacker-type: external-network
+    links:
+      - type: caused-by-sec-uca
+        target: SUCA-013
+      - type: leads-to-sec-hazard
+        target: SH-011
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:53:00Z
+
+  - id: SS-007
+    type: sec-scenario
+    title: Ground-station foothold → Beszel's SSH key → CI host
+    status: draft
+    description: "Chain: code execution on the ground-station host (SS-002, SS-008) reads the Beszel hub's SSH key; the Beszel agent on the CI host accepts it on the WireGuard address; the attacker now has a shell path into the CI host, where the root smithy agent holds the org app token."
+    fields:
+      attack-vector: adjacent
+      attacker-type: external-network
+    links:
+      - type: caused-by-sec-uca
+        target: SUCA-012
+      - type: caused-by-sec-uca
+        target: SUCA-007
+      - type: leads-to-sec-hazard
+        target: SH-007
+      - type: leads-to-sec-hazard
+        target: SH-009
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:53:00Z
+
+  - id: SS-008
+    type: sec-scenario
+    title: Photo library as the entry point
+    status: draft
+    description: "Chain: a vulnerability in the photo library (an internet-facing image parser, a web bug) gives code execution in its container; host networking and the shared Docker root on the ground-station host expose warte's state, smithy-hub's ledger, the Beszel key and the WireGuard path; it shares an origin with /warte/ behind Caddy."
+    fields:
+      attack-vector: adjacent
+      attacker-type: external-network
+    links:
+      - type: caused-by-sec-uca
+        target: SUCA-012
+      - type: leads-to-sec-hazard
+        target: SH-009
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:53:00Z
+
+  - id: SS-009
+    type: sec-scenario
+    title: Untrusted issue text → agent session with org-admin gh → the whole org
+    status: draft
+    description: "Chain: an outsider files an issue or PR whose body carries instructions; an issue-hunt session with bypassed prompts reads it (SUCA-011); it runs gh with the operator's org-admin token: changes branch protection, adds a deploy key, edits workflows, or uses the GitHub App's Issues write to spread the text to other repos' agents."
+    fields:
+      attack-vector: network
+      attacker-type: external-network
+    links:
+      - type: caused-by-sec-uca
+        target: SUCA-004
+      - type: caused-by-sec-uca
+        target: SUCA-011
+      - type: leads-to-sec-hazard
+        target: SH-012
+      - type: leads-to-sec-hazard
+        target: SH-013
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:53:00Z
+
+  - id: SS-010
+    type: sec-scenario
+    title: Compromised varve layer or signing identity → every host's PATH
+    status: draft
+    description: "Chain: an attacker gets a malicious build into a varve layer or obtains a signing identity (SL-010); the layer verifies against the realm root; every project and host that pins it runs the attacker's rivet/spar/wsc with its own privileges, including CI release jobs."
+    fields:
+      attack-vector: network
+      attacker-type: supply-chain
+    links:
+      - type: caused-by-sec-uca
+        target: SUCA-014
+      - type: leads-to-sec-hazard
+        target: SH-008
+      - type: leads-to-sec-hazard
+        target: SH-007
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:53:00Z
+
+  - id: SS-011
+    type: sec-scenario
+    title: Compromised runner forges the agent's telemetry from inside the tunnel
+    status: draft
+    description: "Chain: a job escapes its runner user on the CI host; UDP it sends to the ground station leaves from the same tunnel address the allow-list trusts; warte ingests forged snapshots and ledger records (no per-probe authentication yet) and serves them to agents (SS-003)."
+    fields:
+      attack-vector: adjacent
+      attacker-type: supply-chain
+    links:
+      - type: caused-by-sec-uca
+        target: SUCA-001
+      - type: caused-by-sec-uca
+        target: SUCA-012
+      - type: leads-to-sec-hazard
+        target: SH-010
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:53:00Z
+
+  - id: SC-SEC-014
+    type: sec-constraint
+    title: Credentials have an inventory, an owner and a revocation runbook
+    status: draft
+    description: Every credential (GitHub App key and tokens, deploy SSH keys, WireGuard and Beszel keys, signing identities) is listed with where it lives and who can rotate it; compromise of any host triggers rotation of everything that host held.
+    links:
+      - type: prevents-sec-hazard
+        target: SH-007
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:53:00Z
+
+  - id: SC-SEC-015
+    type: sec-constraint
+    title: No merge to a releasing default branch without enforced gates
+    status: draft
+    description: Enforced by GitHub branch protection (or a merge queue/bot where GitHub cannot), checked by gate-potency audits.
+    links:
+      - type: prevents-sec-hazard
+        target: SH-013
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T08:53:00Z
