@@ -487,3 +487,127 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-10-28T04:59:06Z
+
+  - id: REQ-SEC-001
+    type: requirement
+    title: Ground-station telemetry is authenticated and replay-proof per probe (relay-sec)
+    status: approved
+    release: v1.5.0
+    description: Every probe SHALL connect to the ground station over QUIC with mutual TLS 1.3 under its own identity, and every telemetry packet SHALL additionally be sealed with relay-sec (Ascon tag, anti-replay counter) under that probe's own security association (SPI), verified before ingest. Frames failing either check SHALL be rejected and counted by kind (TLS identity, bad tag, replay, unknown SPI). The source-IP allow-list stays as an extra filter only.
+    fields:
+      category: constraint
+      priority: must
+      upstream-ref: https://github.com/pulseengine/warte/issues/41
+    links:
+      - type: satisfies
+        target: CG-007
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T06:15:13Z
+
+  - id: REQ-PROBE-001
+    type: requirement
+    title: warte probe reports metrics and inventory from every machine, built on relay
+    status: approved
+    release: v1.5.0
+    description: "A read-only warte probe SHALL run on Linux and macOS hosts and report machine metrics (CPU, memory, swap, network, disks), disk health (fill, SMART), driver and firmware versions (kernel, GPU, USB/debug-probe), agent inventory (Claude Code, Copilot CLI, plugin versions) and toolchain inventory (varve pin and layer versus the binaries first on PATH). Telemetry SHALL use relay: relay-ccsds framing, relay-hk housekeeping, relay-sec authentication."
+    fields:
+      category: functional
+      priority: must
+      upstream-ref: https://github.com/pulseengine/warte/issues/52
+    links:
+      - type: derives-from
+        target: REQ-SMITHY-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T06:15:13Z
+
+  - id: REQ-PROBE-002
+    type: requirement
+    title: Probes find the ground station via mDNS on the LAN, explicit address elsewhere
+    status: approved
+    release: v1.5.0
+    description: warte SHALL advertise its ground station via mDNS/DNS-SD on the physical LAN (reusing src/discovery's signed TXT records) and probes SHALL find it there. Remote probes (e.g. Hetzner over WireGuard) SHALL be configured with an explicit address; mDNS SHALL NOT be relied on across WireGuard.
+    fields:
+      category: interface
+      priority: should
+      upstream-ref: https://github.com/pulseengine/warte/issues/52
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T06:15:13Z
+
+  - id: REQ-PROBE-003
+    type: requirement
+    title: Machines view with drift warnings; Beszel retired after parity
+    status: approved
+    release: v1.5.0
+    description: warte SHALL show every machine with metrics, freshness, versions, disk health and drivers, and SHALL warn on drift (agent CLI behind the newest in use, layer behind its pin, PATH shadowing, degrading disk, driver mismatch), using relay-lc limit checks. Beszel SHALL run side by side until warte covers what it shows, then be retired.
+    fields:
+      category: functional
+      priority: should
+      upstream-ref: https://github.com/pulseengine/warte/issues/52
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T06:15:13Z
+
+  - id: REQ-SIGN-001
+    type: requirement
+    title: Release binaries are signed with sigil and carry a build attestation
+    status: approved
+    release: v1.5.0
+    description: The release SHALL sign the Linux binary with wsc (keyless, GitHub OIDC; --format elf) and record wsc build-env / attest provenance. The macOS binary SHALL be covered by the cosign-signed SHA256SUMS until sigil supports Mach-O (sigil#330).
+    fields:
+      category: constraint
+      priority: must
+      upstream-ref: https://github.com/pulseengine/warte/issues/53
+    links:
+      - type: derives-from
+        target: REQ-RELEASE-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T06:15:13Z
+
+  - id: DD-SEC-002
+    type: design-decision
+    title: "Fleet security on our own stack: relay-sec for telemetry, sigil for binaries, varve for installs"
+    status: approved
+    release: v1.5.0
+    description: Probe-to-ground telemetry uses relay-sec (one SPI per probe). Release binaries are signed with sigil and attested. warte and the probe ship in the varve layer, so every machine installs a verified, digest-pinned build; deploys install from the layer.
+    fields:
+      rationale: "Owner direction, 2026-10-28: use relay and sigil, not new code. relay-sec already provides Kani-proved anti-replay and authenticated frames for exactly this transport. sigil and varve already give signed, attested, rollback-protected distribution. A warte-specific MAC scheme or install path would add a second trust path to audit."
+    links:
+      - type: satisfies
+        target: REQ-SEC-001
+      - type: satisfies
+        target: REQ-SIGN-001
+      - type: satisfies
+        target: REQ-PROBE-001
+      - type: satisfies
+        target: REQ-LAYER-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T06:15:13Z
+
+  - id: DD-TRANSPORT-001
+    type: design-decision
+    title: "Probe telemetry: CCSDS packets over QUIC, sealed per packet with relay-sec"
+    status: approved
+    release: v1.5.0
+    description: Probes dial out to the ground station over QUIC (quinn) with mutual TLS 1.3, one identity per probe. Housekeeping telemetry (relay-ccsds/relay-hk packets) goes in QUIC DATAGRAM frames (RFC 9221, unreliable, no head-of-line blocking); the job ledger, inventory snapshots and later operator commands go on reliable streams. Every packet is also sealed with relay-sec (per-probe SPI, anti-replay), so authenticity survives storage and forwarding beyond the connection. The interface is described in WIT (spar-generated from the AADL model per the feature loop), keeping wRPC's QUIC transport an option. Interoperability with SDLS, Yamcs or CryptoLib is explicitly not a goal.
+    fields:
+      rationale: "Owner decision, 2026-10-28: CCSDS over QUIC, interoperability with other ground systems not required. Raw UDP authenticates by source IP only (#41) and loses ledger frames silently; QUIC adds mutual authentication, encryption, replay protection, congestion control, connection migration for laptops, and a reliable channel without a CFDP implementation. quinn is already in our audited dependency trees (kiln, sigil), and wRPC's QUIC transport is already in rules_wasm_component. relay-sec stays as the per-packet seal: QUIC protects the link, relay-sec protects the packet after it leaves the link."
+    links:
+      - type: satisfies
+        target: REQ-SEC-001
+      - type: satisfies
+        target: REQ-PROBE-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T06:33:43Z
