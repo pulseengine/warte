@@ -29,7 +29,14 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 - `scripts/deploy-fourpi.sh` deploys the current `origin/main` to fourpi: a static aarch64 build, the `warte.service` unit, the Caddy route `/warte/` and a link on fourpi's landing page. smithy-hub is not touched. The binary is streamed into a root-owned directory and its sha256 checked before it is activated (no `/tmp`). The route answers private-network clients only, because warte's read API is unauthenticated (#46). Telemetry listens on the LAN address, not `0.0.0.0` (#41).
 - **Traceability corrected:** REQ-CRIT-001 and REQ-DASH-006 had been `accepted`, but the Critical Path view never showed the dependency chain they describe (`CriticalPathComputer` is not called by any view). Both are back to `approved` for v1.5.0 (#44).
 
-## v1.3.1 — unreleased
+## v1.3.2
+
+- Release pipeline: the SBOM job installed `cargo-cyclonedx` unpinned and called a flag (`--output-file`) the current release doesn't have, so v1.3.1's release run failed and no GitHub release was created. The tool is now pinned (0.5.9) and called with `--override-filename sbom` (CycloneDX 1.5). A new oracle requires every `cargo install` in the workflows to pin `--version` or `--rev`.
+- The v1.3.1 release run otherwise confirmed the pipeline end to end: the rivet gate passed for the tag, both builds passed the `warte --version` check, and checksums and cosign signing succeeded.
+
+## v1.3.1 — tagged 2026-10-28, not released
+
+Tagged at `b5ce41c`; the release run failed at SBOM generation (fixed in v1.3.2), so there are no v1.3.1 binaries.
 
 - CI installs rivet from `pulseengine/rivet` git at a pinned rev (v0.41.1, matching the varve layer). It used to install crates.io `rivet-cli`, which is a different project (#34).
 - The release gate runs `rivet release status` for the tag being cut and fails on rivet's exit code (#34).

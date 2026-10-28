@@ -89,6 +89,8 @@ artifacts:
     links:
       - type: satisfies
         target: SC-006
+      - type: traces-to
+        target: REQ-WATCH-002
     fields:
       upstream-ref: https://github.com/pulseengine/warte/issues/50
 

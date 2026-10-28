@@ -80,6 +80,7 @@ fn is_toolchain(cmd: &str) -> bool {
     cmd.contains("rivet") || cmd.contains("varve") || cmd.contains("cargo install")
 }
 
+// rivet: verifies DD-CI-001
 // rivet: verifies REQ-CI-001
 #[test]
 fn rivet_is_installed_from_pulseengine_git_only() {
@@ -106,6 +107,49 @@ fn rivet_is_installed_from_pulseengine_git_only() {
     assert!(
         installs > 0,
         "no rivet install step found — oracle checked nothing"
+    );
+}
+
+// rivet: verifies REQ-CI-004
+#[test]
+fn superseded_pr_runs_are_cancelled_but_main_never_is() {
+    let wf = workflow("ci.yml");
+    let c = &wf["concurrency"];
+    let group = c["group"].as_str().expect("ci.yml has a concurrency group");
+    assert!(
+        group.contains("github.event.pull_request.number"),
+        "group must key PR runs by PR number: {group}"
+    );
+    assert!(
+        group.contains("github.sha"),
+        "non-PR runs must get a per-commit group, so one push never cancels another: {group}"
+    );
+    assert_eq!(
+        c["cancel-in-progress"].as_str(),
+        Some("${{ github.event_name == 'pull_request' }}"),
+        "only pull_request runs may be cancelled"
+    );
+}
+
+// rivet: verifies REQ-RELEASE-005
+#[test]
+fn every_cargo_install_is_pinned() {
+    let mut installs = 0;
+    for (name, _) in workflows() {
+        for cmd in commands(&workflow(&name)) {
+            if !cmd.contains("cargo install") {
+                continue;
+            }
+            installs += 1;
+            assert!(
+                cmd.contains("--version ") || cmd.contains("--rev "),
+                "{name}: unpinned `cargo install` picks up whatever was published last: {cmd}"
+            );
+        }
+    }
+    assert!(
+        installs > 0,
+        "no cargo install found — oracle checked nothing"
     );
 }
 
@@ -271,6 +315,7 @@ fn runners(text: &str) -> Vec<String> {
 /// is the org's runner-group policy and fork-PR approval, not this expression.
 const SMITHY_CPU_FORK_GUARDED: &str = "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || fromJSON('[\"self-hosted\",\"linux\",\"x64\",\"rust-cpu\"]') }}";
 
+// rivet: verifies DD-CI-001
 // rivet: verifies REQ-CI-003
 #[test]
 fn ci_jobs_run_on_smithy_with_forks_guarded() {
@@ -296,6 +341,7 @@ fn ci_jobs_run_on_smithy_with_forks_guarded() {
     assert!(checked > 0, "ci.yml has no jobs — oracle checked nothing");
 }
 
+// rivet: verifies DD-CI-001
 // rivet: verifies REQ-CI-003
 #[test]
 fn release_jobs_run_on_github_hosted_runners() {
@@ -317,6 +363,7 @@ fn release_jobs_run_on_github_hosted_runners() {
     assert!(!runners(&text).is_empty(), "release.yml has no runs-on");
 }
 
+// rivet: verifies DD-CI-001
 // rivet: verifies REQ-CI-001
 #[test]
 fn rivet_is_never_trusted_from_home() {

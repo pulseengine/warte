@@ -131,12 +131,15 @@ jobs:
         with:
           toolchain: stable
 
+      # Pinned: the unpinned install picked up a release without --output-file
+      # and failed v1.3.1's release run (tests/ci_workflows.rs checks pins).
       - name: Install cargo-cyclonedx
-        run: cargo install cargo-cyclonedx --locked
+        run: cargo install --locked --version 0.5.9 cargo-cyclonedx
 
       - name: Generate SBOM
         run: |
-          cargo cyclonedx --format json --output-file sbom.json
+          cargo cyclonedx --format json --spec-version 1.5 --override-filename sbom
+          test -s sbom.json
 
       - name: Upload SBOM
         uses: actions/upload-artifact@v4
