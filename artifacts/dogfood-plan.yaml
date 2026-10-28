@@ -662,3 +662,37 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-10-28T19:16:20Z
+
+  - id: DD-PROBE-002
+    type: design-decision
+    title: Probes enroll with a one-time token; the probe makes its own key
+    status: approved
+    release: v1.5.0
+    description: The operator runs 'warte probe token' on the ground station, which prints a short-lived single-use token; on the machine, 'warte probe enroll <token> --ground <address>' generates the probe's key locally, sends a certificate request with the token, and receives a certificate signed by warte's CA plus its relay-sec SPI. The private key never leaves the machine. Tokens expire (default 15 min), are single use, and are stored hashed. Ansible (smithy) runs the same two commands for hosts it manages.
+    fields:
+      rationale: Owner decision 2026-10-28. Works the same for Macs, Pis and Hetzner, by hand or by Ansible; keys never travel, unlike pushing certificates; and an explicit operator step, unlike trust on first use, is the security boundary for a new probe.
+    links:
+      - type: satisfies
+        target: REQ-SEC-001
+      - type: satisfies
+        target: REQ-PROBE-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T19:26:32Z
+
+  - id: DD-PROBE-003
+    type: design-decision
+    title: The probe offers its agent hooks; the user confirms
+    status: approved
+    release: v1.5.0
+    description: "'warte probe install-hooks' shows the exact change to each agent's config (Claude Code ~/.claude/settings.json, Copilot CLI ~/.copilot/hooks/) and writes it only after confirmation; it keeps existing hooks (including iTerm2's cc-status) and backs the file up first. The probe never edits agent config on its own; it reports when its hook is missing (Claude Code can rewrite settings.json) and the dashboard shows that machine's agent state as unknown."
+    fields:
+      rationale: "Owner decision 2026-10-28: nothing edits a developer's agent config silently. A missing hook is reported, not repaired."
+    links:
+      - type: satisfies
+        target: REQ-PROBE-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T19:26:32Z
