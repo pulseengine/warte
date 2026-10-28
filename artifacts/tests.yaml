@@ -217,13 +217,11 @@ artifacts:
 
   - id: TEST-MIGRATE-001
     type: verification
-    title: test_migrate_smithy + test_migrate_temper — migration commands import data from smithy and temper
+    title: test_migrate_temper — temper migration imports branch protection config and issue labels
     status: accepted
     release: v0.1.0
-    description: "Integration tests verify: smithy migration imports agent fleet data (JSON array format), temper migration imports branch protection config + issue labels from config.yml. Both produce MigrationResult with imported/skipped/errors/checksum."
+    description: "Unit test test_migrate_temper: the temper migration imports branch protection config and issue labels from config.yml and produces a MigrationResult with imported/skipped/errors/checksum. (Its former smithy half tested a format smithy never had and was removed in v1.4.0.)"
     links:
-      - type: verifies
-        target: REQ-MIGRATE-001
       - type: verifies
         target: REQ-MIGRATE-002
 
@@ -308,9 +306,10 @@ artifacts:
   - id: TEST-ASK-001
     type: verification
     title: test_eta_estimator_no_samples + test_eta_estimator_with_samples + test_percentile — ETA estimation from measured waits
-    status: accepted
+    status: deprecated
     release: v0.3.0
     description: "Unit tests verify: ETA estimator returns 'no estimate' with < 5 samples, computes p50/p90 from 10 measured waits with medium confidence, percentile function computes correct index-based percentiles. The ask feature computes ETA from measured waits (not queue position) — warte's unique selling point per docs/research/similar-tools.md."
+    tags: [superseded-by-ground-station]
     links:
       - type: verifies
         target: REQ-ASK-001
@@ -319,6 +318,8 @@ artifacts:
       - type: verifies
         target: REQ-ASK-003
 
+      - type: traces-to
+        target: DD-SMITHY-001
   - id: TEST-SIGIL-001
     type: verification
     title: test_sigil_verifier_creation + test_sha256_fallback_sign + test_sha256_fallback_verify + test_wsc_signature_serialization — sigil/wsc signatures
@@ -352,13 +353,16 @@ artifacts:
   - id: TEST-CI-DATA-001
     type: verification
     title: test_parse_datetime + test_infer_runner_pool + test_webhook_deserialization + test_process_webhook — GitHub CI data collection
-    status: accepted
+    status: deprecated
     release: v0.4.0
     description: "Unit tests verify: datetime parsing (RFC3339 + GitHub format), runner pool inference (hardware/wasm/proof/default), webhook payload deserialization (GitHub Actions workflow_run event), webhook processing (stores ci_jobs record, updates wait_history with measured wait, updates ci_status cache)."
+    tags: [superseded-by-ground-station]
     links:
       - type: verifies
         target: REQ-CI-DATA-001
 
+      - type: traces-to
+        target: DD-SMITHY-001
   - id: TEST-DASH-004
     type: verification
     title: Dashboard HTML frontend — HTMX-based overview, ask, agents, artifacts views with SSE
@@ -372,34 +376,38 @@ artifacts:
   - id: TEST-WEBHOOK-001
     type: verification
     title: GitHub webhook endpoint — HMAC-SHA256 signature verification + workflow_run event processing
-    status: accepted
+    status: deprecated
     release: v0.5.0
     description: "Webhook endpoint verification: POST /api/webhooks/github receives GitHub Actions workflow_run events. Verifies X-Hub-Signature-256 header (HMAC-SHA256 with WARTE_GITHUB_WEBHOOK_SECRET). Returns 202 on success, 401 on invalid signature, 400 on invalid payload, 500 if secret not configured. Auth middleware skips /api/webhooks/ paths (HMAC instead of bearer token). Events forwarded to CiDataCollector for storage in ci_jobs + wait_history + ci_status."
+    tags: [superseded-by-ground-station]
     links:
       - type: verifies
         target: REQ-WEBHOOK-001
 
+      - type: traces-to
+        target: DD-SMITHY-001
   - id: TEST-POLLER-001
     type: verification
     title: test_poller_config_default + test_poller_config_custom + test_poller_creation — periodic CI status poller
-    status: accepted
+    status: deprecated
     release: v0.5.0
     description: "Unit tests verify: PollerConfig defaults (60s interval, no platforms), custom config (GitHub org + token + GHE URL), CiPoller creation with database. The poller runs as a background task, queries GitHub/GitLab APIs via FleetAggregator, updates ci_status cache for the dashboard. Configurable interval (default 60s)."
+    tags: [superseded-by-ground-station]
     links:
       - type: verifies
         target: REQ-POLLER-001
 
+      - type: traces-to
+        target: DD-SMITHY-001
   - id: TEST-DASH-005
     type: verification
     title: Dashboard queue + critical path views — runner pools, waiting jobs, bottlenecks, ETA pool stats
-    status: accepted
-    release: v0.6.0
-    description: "Dashboard view verification: queue_partial (runner pool cards with running/queued counts, waiting jobs table with wait times), critical_path_partial (bottleneck cards for red/high-queue repos, runner pool wait time table from ETA estimator). Both views query ci_jobs and ci_status tables, show freshness indicators, and are served as HTMX partials at /api/dashboard/queue-partial and /api/dashboard/critical-path-partial."
+    status: implemented
+    release: v1.4.0
+    description: "tests/fleet_views.rs: the Queue view renders the hub's pools, runners and queued runs; author-controlled text in every dashboard view is escaped (router-level, hostile DB rows and hub snapshot); stale data is shown as stale; missing hub or telemetry is stated. Served through the real router at /api/dashboard/queue-partial."
     links:
       - type: verifies
         target: REQ-DASH-005
-      - type: verifies
-        target: REQ-DASH-006
 
   - id: TEST-DASH-006
     type: verification
@@ -416,13 +424,16 @@ artifacts:
   - id: TEST-WEBHOOK-002
     type: verification
     title: GitLab webhook endpoint — X-Gitlab-Token verification + pipeline event processing
-    status: accepted
+    status: deprecated
     release: v0.8.0
     description: "GitLab webhook verification: POST /api/webhooks/gitlab receives GitLab CI pipeline events. Verifies X-Gitlab-Token header (shared secret via WARTE_GITLAB_WEBHOOK_TOKEN). Returns 202 on success, 401 on invalid token, 400 on invalid payload, 500 if token not configured. Events stored in ci_jobs with runner_pool='gitlab'. Auth middleware skips /api/webhooks/ paths."
+    tags: [superseded-by-ground-station]
     links:
       - type: verifies
         target: REQ-WEBHOOK-002
 
+      - type: traces-to
+        target: DD-SMITHY-001
   - id: TEST-STATUS-001
     type: verification
     title: test_status_client_creation + test_status_client_custom + test_status_serialization + test_incident_serialization — GitHub status API
@@ -468,13 +479,16 @@ artifacts:
   - id: TEST-POLLER-002
     type: verification
     title: Poller measured wait recording — queued → started transitions tracked, waits recorded in wait_history
-    status: accepted
+    status: deprecated
     release: v1.0.0
     description: "Poller wait recording verification: CiPoller.poll_once now tracks job state transitions using last_states map (job_key → (status, timestamp)). When a job transitions from pending to green/red, the poller records the measured wait (queued_at → started_at) in the wait_history table with runner_pool='polled'. This complements webhook-based wait recording (more precise but requires webhook configuration). The poller-based recording works without webhooks configured."
+    tags: [superseded-by-ground-station]
     links:
       - type: verifies
         target: REQ-POLLER-002
 
+      - type: traces-to
+        target: DD-SMITHY-001
   - id: TEST-CRIT-001
     type: verification
     title: test_critical_path_simple_chain + test_critical_path_with_blocking + test_critical_path_no_dependencies + test_repo_node_is_blocking — dependency graph critical path

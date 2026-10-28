@@ -53,6 +53,22 @@ schedule their next look instead of polling GitHub (see the `ci-status` skill).
 - If a panic poisons the hub's state lock, the process exits so systemd restarts it from
   disk, as smithy hub's single-threaded server did, rather than serving half-dead.
 
+## Inside `warte serve`
+
+With a `[hub]` section in warte.toml, `warte serve` runs the ground station in-process,
+mounts the hub API under `/ci` (read-only, outside warte's auth, as on fourpi), and the
+dashboard's Queue, Critical Path, Ask and Health views read from it:
+
+```toml
+[hub]
+udp = "<wireguard-address>:8092"
+allow = ["<ci-host-tunnel-ip>"]
+data_dir = "/var/lib/smithy-hub"   # default
+org = "pulseengine"                # default
+```
+
+Without it, those views say the ground station is not configured.
+
 ## Running
 
 ```bash

@@ -45,7 +45,6 @@ rcgen = { version = "0.13", features = ["pem", "x509-parser"] }
 # Integrity / signing
 sha2 = "0.10"
 hex = "0.4"
-hmac = "0.12"
 
 # Logging / tracing
 tracing = "0.1"

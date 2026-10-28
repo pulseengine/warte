@@ -37,7 +37,7 @@ warte serve --bind 0.0.0.0:8080
 warte status --format json
 warte agents --health unhealthy
 warte access grant <agent-id> --rights "artifacts:download"
-warte migrate smithy --path /data/smithy
+warte migrate temper --path /etc/temper/config.yml
 warte hub --udp <wireguard-address>:8092 --allow <ci-host-tunnel-ip> --data-dir /var/lib/smithy-hub
 warte docs architecture
 ```

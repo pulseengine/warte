@@ -1,7 +1,10 @@
-//! Migration commands — import data from smithy and temper.
+//! Migration commands — import repo hardening config from temper.
 //!
-//! REQ-MIGRATE-001: Migrate agent fleet data from smithy (internal dashboard).
 //! REQ-MIGRATE-002: Migrate repo hardening config from temper (GitHub App).
+//!
+//! smithy hub needs no import: `warte hub` reads its data directory as-is
+//! (DD-SMITHY-001). The earlier `migrate_smithy` parsed a format smithy never
+//! had and was removed.
 //!
 //! Temper is linked, not absorbed — we read its config.yml and convert
 //! to warte's access control policy format.
@@ -18,77 +21,6 @@ pub struct MigrationResult {
     pub skipped: usize,
     pub errors: Vec<String>,
     pub checksum: String,
-}
-
-/// Migrate agent fleet data from smithy.
-///
-/// Smithy data format (JSON lines or JSON array):
-/// ```json
-/// [
-///   { "name": "agent-1", "repo": "pulseengine/rivet", "last_heartbeat": "2026-10-26T10:00:00Z" },
-///   { "name": "agent-2", "repo": "pulseengine/spar", "last_heartbeat": "2026-10-26T09:00:00Z" }
-/// ]
-/// ```
-pub async fn migrate_smithy(
-    pool: &SqlitePool,
-    source_path: &Path,
-) -> anyhow::Result<MigrationResult> {
-    let content = std::fs::read_to_string(source_path)?;
-    let agents: Vec<SmithyAgent> = serde_json::from_str(&content).or_else(|_| {
-        // Try JSON lines format
-        let agents: Result<Vec<SmithyAgent>, _> = content
-            .lines()
-            .filter(|l| !l.trim().is_empty())
-            .map(serde_json::from_str)
-            .collect();
-        agents
-    })?;
-
-    let mut imported = 0;
-    let mut skipped = 0;
-    let mut errors = Vec::new();
-
-    for agent in &agents {
-        let agent_id = uuid::Uuid::now_v7().to_string();
-        let result = sqlx::query(
-            r#"
-            INSERT OR IGNORE INTO agents (id, name, repo, identity_type, public_key,
-                                          health_status, instance_id, created_at, updated_at)
-            VALUES (?, ?, ?, 'migrated', ?, 'unknown', 'migration', datetime('now'), datetime('now'))
-            "#,
-        )
-        .bind(&agent_id)
-        .bind(&agent.name)
-        .bind(&agent.repo)
-        .bind(format!("migrated-from-smithy:{}", agent.name))
-        .execute(pool)
-        .await;
-
-        match result {
-            Ok(r) => {
-                if r.rows_affected() > 0 {
-                    imported += 1;
-                } else {
-                    skipped += 1;
-                }
-            }
-            Err(e) => errors.push(format!("{}: {}", agent.name, e)),
-        }
-    }
-
-    // Compute checksum of the source file
-    let checksum = {
-        use sha2::{Digest, Sha256};
-        hex::encode(Sha256::digest(content.as_bytes()))
-    };
-
-    Ok(MigrationResult {
-        source: "smithy".to_string(),
-        imported,
-        skipped,
-        errors,
-        checksum,
-    })
 }
 
 /// Migrate repo hardening config from temper.
@@ -194,17 +126,6 @@ pub async fn migrate_temper(
     })
 }
 
-/// Smithy agent data format.
-#[derive(Debug, Deserialize)]
-#[allow(dead_code)]
-struct SmithyAgent {
-    name: String,
-    #[serde(default)]
-    repo: Option<String>,
-    #[serde(default)]
-    last_heartbeat: Option<String>,
-}
-
 /// Temper config format (subset).
 #[derive(Debug, Deserialize)]
 #[allow(dead_code)]
@@ -245,28 +166,6 @@ struct TemperLabel {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[tokio::test]
-    async fn test_migrate_smithy() {
-        let dir = tempfile::tempdir().unwrap();
-        let db_path = dir.path().join("test.db");
-        let db = crate::db::Database::connect(&db_path).await.unwrap();
-
-        // Create a smithy data file
-        let smithy_data = r#"[
-            {"name": "agent-1", "repo": "pulseengine/rivet"},
-            {"name": "agent-2", "repo": "pulseengine/spar"}
-        ]"#;
-        let smithy_path = dir.path().join("smithy-agents.json");
-        std::fs::write(&smithy_path, smithy_data).unwrap();
-
-        let result = migrate_smithy(db.pool(), &smithy_path).await.unwrap();
-        assert_eq!(result.source, "smithy");
-        assert_eq!(result.imported, 2);
-        assert_eq!(result.skipped, 0);
-        assert!(result.errors.is_empty());
-        assert!(!result.checksum.is_empty());
-    }
 
     #[tokio::test]
     async fn test_migrate_temper() {

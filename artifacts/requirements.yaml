@@ -374,10 +374,10 @@ artifacts:
   # --- Migration ---
   - id: REQ-MIGRATE-001
     type: requirement
-    title: Migrate smithy hub state and ledger into warte, then retire smithy-hub
+    title: Replace smithy-hub with warte hub in place, after a parallel run
     status: approved
     release: v1.4.0
-    description: warte SHALL import smithy hub's /var/lib/smithy-hub/hub-state.json (latest snapshot and per-minute history) and ledger/*.jsonl, report imported, skipped and malformed records with a checksum per source file, and be idempotent. After a parallel run in which warte's /api/eta and /status.md agree with smithy-hub's, warte SHALL replace smithy-hub.service on fourpi.
+    description: "There SHALL be no data import: warte hub SHALL read smithy hub's data directory (hub-state.json, ledger/*.jsonl) in place, with smithy hub's flags. Cut-over SHALL follow a parallel run in which the smithy agent feeds both hubs and scripts/hub-parity.sh reports zero differences, after which smithy-hub.service on fourpi runs warte hub instead."
     links:
       - type: satisfies
         target: SC-005
@@ -401,13 +401,16 @@ artifacts:
   - id: REQ-CI-DATA-001
     type: requirement
     title: GitHub CI data collection — webhook receiver + status poller for ETA estimation
-    status: accepted
+    status: deprecated
     release: v0.4.0
     description: "The system SHALL collect CI data from GitHub (and GitLab) to feed the ETA estimator and dashboard. Collection methods: (a) GitHub Actions webhook receiver (workflow_run events: queued, in_progress, completed), (b) periodic status poller (fallback when webhooks are not configured), (c) manual CLI import. Collected data: job queued_at, started_at, completed_at, runner pool, repo, PR number. This data feeds the wait_history table (for ETA estimation) and ci_status cache (for dashboard)."
+    tags: [superseded-by-ground-station]
     links:
       - type: satisfies
         target: SC-006
 
+      - type: traces-to
+        target: DD-SMITHY-001
   - id: REQ-DASH-004
     type: requirement
     title: Dashboard HTML frontend — HTMX-based overview, ask, queue views
@@ -421,29 +424,35 @@ artifacts:
   - id: REQ-WEBHOOK-001
     type: requirement
     title: GitHub webhook HTTP endpoint — receive workflow_run events
-    status: accepted
+    status: deprecated
     release: v0.5.0
     description: The system SHALL expose POST /api/webhooks/github to receive GitHub Actions workflow_run webhook events. The endpoint SHALL verify the X-Hub-Signature-256 header (HMAC-SHA256 with the configured webhook secret) before processing. Events SHALL be forwarded to the CiDataCollector for storage. The endpoint SHALL return 202 Accepted on success, 401 on invalid signature, 400 on invalid payload. The webhook secret SHALL be configured via warte.toml (github_webhook_secret) or environment variable (WARTE_GITHUB_WEBHOOK_SECRET).
+    tags: [superseded-by-ground-station]
     links:
       - type: satisfies
         target: SC-006
 
+      - type: traces-to
+        target: DD-SMITHY-001
   - id: REQ-POLLER-001
     type: requirement
     title: Periodic CI status poller — fallback when webhooks are not configured
-    status: accepted
+    status: deprecated
     release: v0.5.0
     description: The system SHALL provide a periodic CI status poller that queries the GitHub/GitLab API every 60 seconds (configurable) to collect CI status for all repos. The poller SHALL be the fallback when webhooks are not configured. The poller SHALL record measured waits (queued_at → started_at) in the wait_history table. The poller SHALL update the ci_status cache for the dashboard. The poller SHALL run as a background task started by warte serve.
+    tags: [superseded-by-ground-station]
     links:
       - type: satisfies
         target: SC-006
 
+      - type: traces-to
+        target: DD-SMITHY-001
   - id: REQ-DASH-005
     type: requirement
     title: Dashboard queue view — runner pool, waiting jobs, hardware availability
-    status: accepted
-    release: v0.6.0
-    description: "The dashboard SHALL provide a Queue view showing: (a) runner pool status — which pools are busy/free, how many jobs running/queued per pool, (b) waiting jobs — list of queued jobs with repo, PR, wait time, (c) hardware availability — which boards are free/claimed, by whom, since when. The view SHALL use SSE for real-time updates and show freshness indicators. Data sources: ci_jobs table (queued jobs), ci_status cache (pool status), agent registry (hardware claims via agent data)."
+    status: implemented
+    release: v1.4.0
+    description: "The dashboard SHALL provide a Queue view showing: (a) runner pools from the ground station's latest snapshot, with jobs queued and oldest/median wait per pool, and self-hosted runners busy/total; (b) every queued run with repo, PR or branch, workflow, pool, job count and time waiting; (c) hardware availability (free/claimed boards, by whom, since when) from agent data. Author-controlled names SHALL be HTML-escaped. Freshness SHALL be the snapshot's real age, shown as stale beyond 5 minutes; with no ground station or no telemetry the view SHALL say so."
     links:
       - type: satisfies
         target: SC-006
@@ -451,12 +460,14 @@ artifacts:
   - id: REQ-DASH-006
     type: requirement
     title: Dashboard critical path view — longest chain of dependent gates
-    status: accepted
-    release: v0.6.0
+    status: approved
+    release: v1.5.0
     description: "The dashboard SHALL provide a Critical Path view showing the longest chain of dependent gates across all repos. The view SHALL compute the critical path from: (a) repo dependency graph (which repos depend on which), (b) CI gate status per repo (green/red/pending), (c) queue depth per repo. The critical path is the longest chain of repos where each depends on the next and at least one gate is not green. The view SHALL show: the chain (repo → repo → repo), the bottleneck repo, the estimated minimum release time (from ETA estimates). The view SHALL use SSE for real-time updates."
     links:
       - type: satisfies
         target: SC-006
+    fields:
+      upstream-ref: https://github.com/pulseengine/warte/issues/44
 
   - id: REQ-DASH-007
     type: requirement
@@ -481,13 +492,16 @@ artifacts:
   - id: REQ-WEBHOOK-002
     type: requirement
     title: GitLab webhook endpoint — receive pipeline events
-    status: accepted
+    status: deprecated
     release: v0.8.0
     description: The system SHALL expose POST /api/webhooks/gitlab to receive GitLab CI pipeline webhook events. The endpoint SHALL verify the X-Gitlab-Token header (shared secret token) before processing. Events SHALL be forwarded to the CiDataCollector for storage. The endpoint SHALL return 202 Accepted on success, 401 on invalid token, 400 on invalid payload. The token SHALL be configured via warte.toml (gitlab_webhook_token) or environment variable (WARTE_GITLAB_WEBHOOK_TOKEN).
+    tags: [superseded-by-ground-station]
     links:
       - type: satisfies
         target: SC-006
 
+      - type: traces-to
+        target: DD-SMITHY-001
   - id: REQ-STATUS-001
     type: requirement
     title: GitHub status API integration — real status from status.github.com
@@ -541,22 +555,27 @@ artifacts:
   - id: REQ-POLLER-002
     type: requirement
     title: Poller measured wait recording — record queued → started transitions from polling
-    status: accepted
+    status: deprecated
     release: v1.0.0
     description: The CI status poller SHALL record measured waits (queued_at → started_at) in the wait_history table when it detects a job transitioning from queued to in_progress. The poller SHALL track the last known state of each job (by repo + run_id) and compute the wait time when the job starts. This complements the webhook-based wait recording (which is more precise but requires webhook configuration).
+    tags: [superseded-by-ground-station]
     links:
       - type: satisfies
         target: SC-006
 
+      - type: traces-to
+        target: DD-SMITHY-001
   - id: REQ-CRIT-001
     type: requirement
     title: Critical path dependency graph — real repo dependencies from rivet/GitHub
-    status: accepted
-    release: v1.1.0
+    status: approved
+    release: v1.5.0
     description: "The critical path view SHALL compute the real dependency graph between repos, not just ci_status heuristics. Data sources: (a) rivet externals (rivet sync / rivet externals shows cross-repo dependencies), (b) GitHub dependency graph API (dependabot alerts show dependencies), (c) manual dependency declaration in warte.toml (repo_dependencies = [{repo='jess', depends_on=['relay','gale']}]). The critical path SHALL be the longest chain of repos where each depends on the next and at least one gate is not green. The view SHALL show: the chain (repo → repo → repo), the bottleneck repo, the estimated minimum release time."
     links:
       - type: satisfies
         target: SC-006
+    fields:
+      upstream-ref: https://github.com/pulseengine/warte/issues/44
 
   - id: REQ-DASH-012
     type: requirement

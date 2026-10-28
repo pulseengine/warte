@@ -65,6 +65,27 @@ pub struct Config {
     /// GitHub token (for API access).
     #[serde(default)]
     pub github_token: Option<String>,
+
+    /// Ground station (absorbed smithy hub). When set, `warte serve` ingests the
+    /// smithy agent's telemetry, mounts the hub API under `/ci`, and the Queue,
+    /// Resources, Ask and Overview views read from it (DD-SMITHY-001).
+    #[serde(default)]
+    pub hub: Option<HubConfig>,
+}
+
+/// `[hub]` in warte.toml — the same settings as `warte hub`'s flags.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HubConfig {
+    /// UDP telemetry listen address; bind the WireGuard interface address.
+    pub udp: String,
+    /// Source addresses allowed to send telemetry (the CI host's tunnel IP).
+    pub allow: Vec<std::net::IpAddr>,
+    /// Hub state directory (hub-state.json + ledger/).
+    #[serde(default = "default_hub_data_dir")]
+    pub data_dir: String,
+    /// GitHub org the agent scans.
+    #[serde(default = "default_hub_org")]
+    pub org: String,
 }
 
 impl Default for Config {
@@ -85,6 +106,7 @@ impl Default for Config {
             rate_limit_per_agent: default_rate_limit_per_agent(),
             github_org: None,
             github_token: None,
+            hub: None,
         }
     }
 }
@@ -134,6 +156,12 @@ impl Config {
     }
 }
 
+fn default_hub_data_dir() -> String {
+    "/var/lib/smithy-hub".to_string()
+}
+fn default_hub_org() -> String {
+    "pulseengine".to_string()
+}
 fn default_bind() -> String {
     "127.0.0.1:8080".to_string()
 }

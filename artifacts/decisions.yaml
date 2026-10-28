@@ -158,11 +158,12 @@ artifacts:
   - id: DD-ARCH-009
     type: design-decision
     title: "Migration from smithy — agent fleet data import"
-    status: accepted
+    status: deprecated
     release: v0.1.0
     description: >
       The smithy migration imports agent registrations, captured session data,
       and tool friction reports.
+    tags: [superseded-by-ground-station]
     fields:
       rationale: >
         The migration is a one-time import via a CLI command (warte migrate
@@ -172,6 +173,8 @@ artifacts:
       - type: satisfies
         target: REQ-MIGRATE-001
 
+      - type: traces-to
+        target: DD-SMITHY-001
   - id: DD-ARCH-010
     type: design-decision
     title: "Migration from temper — repo hardening config import"

@@ -5,45 +5,46 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>warte — the PulseEngine control tower</title>
   <script src="https://unpkg.com/htmx.org@2.0.4"></script>
-  <link rel="stylesheet" href="/dashboard.css">
+  <link rel="stylesheet" href="dashboard.css">
 </head>
 <body>
   <header class="header">
     <h1>warte</h1>
     <span class="subtitle">the PulseEngine control tower</span>
     <nav class="nav">
-      <button hx-get="/api/dashboard/overview-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn active">Overview</button>
+      <button hx-get="api/dashboard/overview-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn active">Overview</button>
       <button hx-get="#ask-form" hx-target="#content" hx-swap="innerHTML" class="nav-btn" onclick="document.getElementById('ask-form').style.display='block'">Ask</button>
-      <button hx-get="/api/dashboard/queue-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Queue</button>
-      <button hx-get="/api/dashboard/critical-path-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Critical Path</button>
-      <button hx-get="/api/dashboard/resources-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Resources</button>
-      <button hx-get="/api/dashboard/outages-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Outages</button>
-      <button hx-get="/api/dashboard/friction-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Friction</button>
-      <button hx-get="/api/dashboard/schedule-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Schedule</button>
-      <button hx-get="/api/dashboard/health-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Health</button>
-      <button hx-get="/api/dashboard/agents-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Agents</button>
-      <button hx-get="/api/dashboard/artifacts-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Artifacts</button>
+      <button hx-get="api/dashboard/queue-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Queue</button>
+      <button hx-get="api/dashboard/critical-path-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Critical Path</button>
+      <button hx-get="api/dashboard/resources-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Resources</button>
+      <button hx-get="api/dashboard/outages-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Outages</button>
+      <button hx-get="api/dashboard/friction-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Friction</button>
+      <button hx-get="api/dashboard/schedule-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Schedule</button>
+      <button hx-get="api/dashboard/health-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Health</button>
+      <button hx-get="api/dashboard/agents-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Agents</button>
+      <button hx-get="api/dashboard/artifacts-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Artifacts</button>
     </nav>
   </header>
 
-  <main id="content" hx-ext="sse" sse-connect="/api/events" sse-swap="message">
-    <div hx-get="/api/dashboard/overview-partial" hx-trigger="load" hx-target="#content" hx-swap="innerHTML">
+  <main id="content" hx-ext="sse" sse-connect="api/events" sse-swap="message">
+    <div hx-get="api/dashboard/overview-partial" hx-trigger="load" hx-target="#content" hx-swap="innerHTML">
       <p class="loading">Loading...</p>
     </div>
   </main>
 
   <div id="ask-form" style="display:none" class="ask-form">
     <h2>Ask — when will this PR run?</h2>
-    <form hx-post="/api/dashboard/ask-partial" hx-target="#ask-result" hx-swap="innerHTML">
-      <label>Repo: <input type="text" name="repo" placeholder="pulseengine/rivet" required></label>
+    <form hx-get="api/dashboard/ask-partial" hx-target="#ask-result" hx-swap="innerHTML">
+      <label>Repo: <input type="text" name="repo" placeholder="rivet" required></label>
       <label>PR: <input type="number" name="pr" placeholder="511"></label>
+      <label>or branch: <input type="text" name="branch" placeholder="main"></label>
       <button type="submit" class="btn">Estimate</button>
     </form>
     <div id="ask-result"></div>
   </div>
 
   <footer class="footer">
-    <span>warte v0.1.0</span>
+    <span>warte v{{VERSION}}</span>
     <span id="sse-status" class="sse-status">SSE: connecting...</span>
   </footer>
 

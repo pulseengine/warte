@@ -62,7 +62,7 @@ pub enum Commands {
 
     /// Migrate data from an existing system
     Migrate {
-        /// Source system (smithy or temper)
+        /// Source system (temper; smithy hub data is read in place by `warte hub`)
         source: String,
 
         /// Path to the source data

@@ -2,6 +2,26 @@
 
 Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red (#34); their "Cuttable" claims were checked only by a local rivet.
 
+## Unreleased — v1.4.0
+
+- **Ground station** (absorbed smithy hub, DD-SMITHY-001): `warte hub` takes smithy hub's flags and reads its data directory as-is; it serves the hub API unchanged. Behaviour on fourpi's real data was checked against smithy's own binary: 0 differences in 26 requests (`scripts/hub-parity.sh`).
+- `warte serve` runs the ground station in-process when warte.toml has a `[hub]` section, and mounts its API under `/ci`. The Queue, Critical Path, Ask and Health views now read the hub's live data, escape repo/branch/job names, and show the snapshot's real age.
+- **Removed duplicates of the hub:**
+  - the poller (never started), the GitHub and GitLab webhooks, and the `eta` module;
+  - the `ci_jobs`, `wait_history` and `ci_status` tables (migration 005);
+  - `warte migrate smithy`, which imported a format smithy never had;
+  - the stub `/api/dashboard/ask`.
+  REQ-POLLER-*, REQ-CI-DATA-001, REQ-WEBHOOK-001/002 and REQ-ASK-* are deprecated in rivet and traced to DD-SMITHY-001.
+- **Fixed:**
+  - Routing: since at least v1.0.0 every API route was mounted at `/api/api/...`, so `/api/health` returned 404 and the dashboard page was unreachable. The API is now at `/api` and the dashboard at `/`.
+  - The dashboard Ask form posted to a route that requires auth (401). Ask is now a read-only GET.
+  - Views no longer show a hardcoded "fresh" badge, and the footer shows the real version.
+  - Every dashboard view now HTML-escapes agent- and author-controlled text: agent names and repos, artifact fields, hardware boards, friction and schedule entries, and Ask input. Before, an agent could put script into the page for every dashboard viewer.
+  - The leftover authentication exemption for `/api/webhooks/*` is removed together with the webhooks.
+  - The dashboard uses relative URLs, so it works behind a path prefix (fourpi: `https://fourpi.local/warte/`). Unknown paths return a text 404; before, browsers saved the empty 404 response as `document.txt`.
+- `scripts/deploy-fourpi.sh` deploys the current `origin/main` to fourpi: a static aarch64 build, the `warte.service` unit, the Caddy route `/warte/` and a link on fourpi's landing page. smithy-hub is not touched. The binary is streamed into a root-owned directory and its sha256 checked before it is activated (no `/tmp`). The route answers private-network clients only, because warte's read API is unauthenticated (#46). Telemetry listens on the LAN address, not `0.0.0.0` (#41).
+- **Traceability corrected:** REQ-CRIT-001 and REQ-DASH-006 had been `accepted`, but the Critical Path view never showed the dependency chain they describe (`CriticalPathComputer` is not called by any view). Both are back to `approved` for v1.5.0 (#44).
+
 ## v1.3.1 — unreleased
 
 - CI installs rivet from `pulseengine/rivet` git at a pinned rev (v0.41.1, matching the varve layer). It used to install crates.io `rivet-cli`, which is a different project (#34).
