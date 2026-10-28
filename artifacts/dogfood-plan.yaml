@@ -364,7 +364,7 @@ artifacts:
   - id: REQ-RELEASE-005
     type: requirement
     title: Release tooling is version-pinned; the release publishes an SBOM
-    status: implemented
+    status: verified
     release: v1.3.2
     description: Every tool a workflow installs with cargo install SHALL be pinned to a version or commit, so a new upstream release cannot change the pipeline unreviewed. The release SHALL generate a CycloneDX SBOM (cargo-cyclonedx 0.5.9, spec 1.5) and fail if it is empty. Found by v1.3.1's release run.
     fields:
