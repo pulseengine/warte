@@ -415,7 +415,7 @@ artifacts:
   - id: REQ-WATCH-001
     type: requirement
     title: warte watch blocks until something relevant changes, then exits
-    status: approved
+    status: verified
     release: v1.4.1
     description: warte watch SHALL block until a watched condition changes and then exit 0 with a JSON description of the change and a cursor. The first condition is --ci (a PR's or branch's CI runs start or finish), with --repo plus --pr or --branch. It SHALL exit with a distinct code when --timeout expires with no change, 1 on error and 2 on usage errors, and accept --since <cursor> so no change is missed between two calls. Agents (Claude Code, Copilot CLI, cron) run it as a background command and are woken only when it exits.
     fields:
@@ -429,10 +429,10 @@ artifacts:
 
   - id: REQ-WATCH-002
     type: requirement
-    title: Long-poll /api/watch fed by the realtime broadcaster
-    status: approved
+    title: Long-poll /api/watch, woken by the ground station's snapshots
+    status: verified
     release: v1.4.1
-    description: warte SHALL expose GET /api/watch?since=<cursor>&timeout=<s>&... which holds the request until a matching event or the timeout. Events SHALL come from the realtime broadcaster, which the ground station feeds on snapshot changes (CI runs started or finished per repo/PR/branch). Every event carries a monotonic cursor, and events after a given cursor SHALL be retained long enough for a caller to resume.
+    description: warte SHALL expose GET /api/watch?repo=&(pr=|branch=)&since=<cursor>&timeout=<s>, which answers at once when the PR's or branch's CI state (its runs, each queued or running) differs from the cursor, and otherwise holds until a new ground-station snapshot changes it or the timeout passes. The cursor SHALL encode the state itself, so a caller resuming with an old cursor cannot miss a change and the server keeps no event log. Holds SHALL be bounded (at most 900 s, at most 64 at once); invalid input SHALL be refused, not held.
     fields:
       category: interface
       priority: must
@@ -449,7 +449,7 @@ artifacts:
     release: v1.4.1
     description: warte watch is a blocking command over a long-poll endpoint. It works unchanged for Claude Code (background command, woken on exit), Copilot CLI (shell or SDK wrapper calling session.send) and cron agents.
     fields:
-      rationale: Claude Code channels are a research preview, need allow-listing, and don't register for headless sessions; Copilot has no equivalent, only SDK session.send for SDK-driven sessions. A blocking CLI needs neither, costs no tokens while waiting, and replaces the hand-written gh pr checks loops agents use today. Inbox messages and advisories become further event types on the same endpoint.
+      rationale: "Claude Code channels are a research preview, need allow-listing, and don't register for headless sessions; Copilot has no equivalent, only SDK session.send for SDK-driven sessions. A blocking CLI needs neither, costs no tokens while waiting, and replaces the hand-written gh pr checks loops agents use today. The cursor is the watched state (status + digest of runs), not an event sequence number: with telemetry arriving once a minute, a state comparison is exact at that resolution, needs no retention window, and cannot lose events across a server restart; the realtime broadcaster is not needed for this. Inbox messages and advisories become further conditions on the same endpoint."
     links:
       - type: satisfies
         target: REQ-WATCH-001
@@ -649,6 +649,55 @@ artifacts:
       model: claude-opus-5-5
       timestamp: 2026-10-28T06:33:43Z
 
+  - id: DD-PROBE-001
+    type: design-decision
+    title: Agent state comes from the agents' own hooks, not from the terminal
+    status: approved
+    release: v1.5.0
+    description: "warte probe SHALL learn each agent session's state (working, waiting for input, idle, ended) from a small hook it installs in the agent's own config (Claude Code hooks in ~/.claude/settings.json; Copilot CLI hooks in ~/.copilot/hooks/; Codex when its hooks are confirmed). The hook appends {agent, session_id, event, cwd, pid, ts} to a local state file the probe reads. Mapping: UserPromptSubmit/PreToolUse -> working; Notification(permission_prompt)/PermissionRequest -> waiting; Stop -> idle; SessionEnd -> gone. ps finds agents without the hook and their versions. The probe SHALL check that its hook is still installed (Claude Code may rewrite settings.json) and report when it is not."
+    fields:
+      rationale: "iTerm2 3.7's Session Status (checked on 3.7.6) shows working/waiting/idle per tab, but its Claude Code integration is itself a Claude Code hook: a small binary (~/.config/iterm2/cc-status) on ten hook events that runs 'it2 session set-status'. It needs macOS, iTerm2 running and its Python API enabled; with the API off the hook fails silently on every event. Status can be read back ('it2 session get-status --json', 'it2 session list', tmux panes via --tmux/--tmux-pane), so on Macs with the API enabled the probe MAY read it as a second source. The agents' hook events stay the source of truth: they work on every OS and terminal. OTel export has usage counters but no live state. Sources: iterm2.com/documentation-session-status.html, iterm2.com/claude-code-integration.html, code.claude.com/docs/en/hooks, docs.github.com copilot-cli hooks reference."
+    links:
+      - type: satisfies
+        target: REQ-PROBE-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T19:16:20Z
+
+  - id: DD-PROBE-002
+    type: design-decision
+    title: Probes enroll with a one-time token; the probe makes its own key
+    status: approved
+    release: v1.5.0
+    description: The operator runs 'warte probe token' on the ground station, which prints a short-lived single-use token; on the machine, 'warte probe enroll <token> --ground <address>' generates the probe's key locally, sends a certificate request with the token, and receives a certificate signed by warte's CA plus its relay-sec SPI. The private key never leaves the machine. Tokens expire (default 15 min), are single use, and are stored hashed. Ansible (smithy) runs the same two commands for hosts it manages.
+    fields:
+      rationale: Owner decision 2026-10-28. Works the same for Macs, Pis and Hetzner, by hand or by Ansible; keys never travel, unlike pushing certificates; and an explicit operator step, unlike trust on first use, is the security boundary for a new probe.
+    links:
+      - type: satisfies
+        target: REQ-SEC-001
+      - type: satisfies
+        target: REQ-PROBE-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T19:26:32Z
+
+  - id: DD-PROBE-003
+    type: design-decision
+    title: The probe offers its agent hooks; the user confirms
+    status: approved
+    release: v1.5.0
+    description: "'warte probe install-hooks' shows the exact change to each agent's config (Claude Code ~/.claude/settings.json, Copilot CLI ~/.copilot/hooks/) and writes it only after confirmation; it keeps existing hooks (including iTerm2's cc-status) and backs the file up first. The probe never edits agent config on its own; it reports when its hook is missing (Claude Code can rewrite settings.json) and the dashboard shows that machine's agent state as unknown."
+    fields:
+      rationale: "Owner decision 2026-10-28: nothing edits a developer's agent config silently. A missing hook is reported, not repaired."
+    links:
+      - type: satisfies
+        target: REQ-PROBE-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T19:26:32Z
   - id: REQ-DASH-014
     type: requirement
     title: The overview is the control tower's view of the fleet

@@ -95,11 +95,23 @@ async fn main() -> anyhow::Result<()> {
             println!("  (not yet implemented — see https://github.com/pulseengine/warte/issues)");
         }
 
-        Commands::Watch => {
-            let config = Config::load()?;
-            let url = format!("http://{}/dashboard", config.bind);
-            println!("Opening {} in browser...", url);
-            // TODO: open browser
+        Commands::Watch {
+            ci: _,
+            repo,
+            pr,
+            branch,
+            since,
+            timeout,
+            url,
+        } => {
+            let base = match url {
+                Some(u) => u.trim_end_matches('/').to_string(),
+                None => format!("http://{}", Config::load()?.bind),
+            };
+            let code =
+                warte::watch::client::run(&base, &repo, pr, branch.as_deref(), since, timeout)
+                    .await?;
+            std::process::exit(code);
         }
 
         Commands::Access { action } => {

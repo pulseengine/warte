@@ -249,6 +249,10 @@ pub struct Hub {
     ledger: Arc<Mutex<belt::HubLedger>>,
     org: Arc<str>,
     state_path: Arc<str>,
+    /// Counts complete snapshots; long-polls (`/api/watch`) wait on it.
+    tick: Arc<tokio::sync::watch::Sender<u64>>,
+    /// Held `/api/watch` requests on this hub.
+    watch_slots: Arc<crate::watch::Slots>,
 }
 
 impl Hub {
@@ -270,6 +274,8 @@ impl Hub {
             ledger: Arc::new(Mutex::new(belt::HubLedger::open(data_dir)?)),
             org: org.into(),
             state_path: path.into(),
+            tick: Arc::new(tokio::sync::watch::channel(0).0),
+            watch_slots: Default::default(),
         })
     }
 
@@ -321,6 +327,8 @@ impl Hub {
             if g.frames.is_multiple_of(5) {
                 save(&self.state_path, &g.p);
             }
+            drop(g);
+            self.tick.send_modify(|n| *n += 1);
         }
     }
 
@@ -329,6 +337,21 @@ impl Hub {
     pub fn snapshot(&self) -> Option<(Snapshot, i64)> {
         let g = lk(&self.shared);
         g.p.latest.clone().map(|s| (s, g.p.received_at))
+    }
+
+    /// Wakes on every complete snapshot.
+    pub fn subscribe(&self) -> tokio::sync::watch::Receiver<u64> {
+        self.tick.subscribe()
+    }
+
+    /// Held `/api/watch` requests, per client and in total.
+    pub fn watch_slots(&self) -> &crate::watch::Slots {
+        &self.watch_slots
+    }
+
+    /// The GitHub org repo names are relative to.
+    pub fn org(&self) -> &str {
+        &self.org
     }
 
     /// Per-minute history points taken at or after `since` (unix seconds).

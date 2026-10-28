@@ -29,5 +29,6 @@ pub mod sigil;
 pub mod status;
 pub mod sync;
 pub mod temper;
+pub mod watch;
 
 pub use config::Config;

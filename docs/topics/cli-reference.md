@@ -8,7 +8,7 @@ Commands:
   status    Show factory health status
   agents    List registered agents
   schedule  Show the weekly cron schedule
-  watch     Open the dashboard in the browser
+  watch     Block until a PR's or branch's CI changes, then print JSON and exit
   access    Manage access rights
   migrate   Migrate data from an existing system
   artifact  Manage artifacts
@@ -41,3 +41,28 @@ warte migrate temper --path /etc/temper/config.yml
 warte hub --udp <wireguard-address>:8092 --allow <ci-host-tunnel-ip> --data-dir /var/lib/smithy-hub
 warte docs architecture
 ```
+
+## warte watch
+
+Blocks until a PR's or branch's CI runs start or finish, prints one JSON
+line and exits. It is meant for agents: run it as a background command
+and be woken when it exits, instead of polling `gh pr checks`.
+
+```bash
+warte watch --ci --repo spar --pr 511 --url https://<host>/warte
+```
+
+| Exit | Meaning |
+|------|---------|
+| 0 | the CI state changed; the JSON says `from`, `status` and the runs |
+| 3 | `--timeout` (default 3600 s) passed with no change |
+| 2 | usage error |
+| 1 | error (server unreachable, bad answer, no ground station) |
+
+Every answer carries a `cursor`. Pass it back with `--since` on the next
+call and no change between the two calls is missed. `status` is one of
+`queued`, `running`, `running+queued`, `not_queued` (the PR has nothing in
+flight) or `unknown` (nothing seen, but the queue scan was incomplete).
+The resolution is one ground-station snapshot, about a minute. `--url`
+defaults to `WARTE_URL`, then to the configured bind address. The server
+side is `GET /api/watch`; see `/api/openapi.json`.
