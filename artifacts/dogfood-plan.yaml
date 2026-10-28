@@ -646,3 +646,20 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-10-28T06:33:43Z
+
+  - id: REQ-DASH-014
+    type: requirement
+    title: The overview is the control tower's view of the fleet
+    status: verified
+    release: v1.4.1
+    description: "The dashboard Overview SHALL show, from the ground station's latest snapshot and its per-minute history: a runway gauge with one cell per runner (busy by the host's own view); KPIs with two-hour trends (runners online, self-hosted jobs waiting, GitHub-hosted, CPU and memory pressure, runner disk); six hours of traffic (busy runners and waiting jobs); one flight strip per runner with its job, repo, PR, elapsed time and cgroup CPU/memory, marking where GitHub's busy flag disagrees; and a departures board of queued runs, longest waiting first, estimating start from the pool's measured median wait and marking runs past the pool's p90 as overdue. Every author-controlled field SHALL be HTML-escaped. Without a hub or telemetry the view SHALL say why."
+    fields:
+      category: functional
+      priority: should
+    links:
+      - type: satisfies
+        target: SC-006
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T16:46:28Z
