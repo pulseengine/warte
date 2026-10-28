@@ -1,6 +1,6 @@
 [package]
 name = "warte"
-version = "1.3.1"
+version = "1.3.2"
 edition = "2021"
 description = "Warte — the PulseEngine control tower. A CI dashboard with an ask feature and an API."
 license = "Apache-2.0"

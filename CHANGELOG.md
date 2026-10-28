@@ -2,7 +2,14 @@
 
 Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red (#34); their "Cuttable" claims were checked only by a local rivet.
 
-## v1.3.1 — unreleased
+## v1.3.2
+
+- Release pipeline: the SBOM job installed `cargo-cyclonedx` unpinned and called a flag (`--output-file`) the current release doesn't have, so v1.3.1's release run failed and no GitHub release was created. The tool is now pinned (0.5.9) and called with `--override-filename sbom` (CycloneDX 1.5). A new oracle requires every `cargo install` in the workflows to pin `--version` or `--rev`.
+- The v1.3.1 release run otherwise confirmed the pipeline end to end: the rivet gate passed for the tag, both builds passed the `warte --version` check, and checksums and cosign signing succeeded.
+
+## v1.3.1 — tagged 2026-10-28, not released
+
+Tagged at `b5ce41c`; the release run failed at SBOM generation (fixed in v1.3.2), so there are no v1.3.1 binaries.
 
 - CI installs rivet from `pulseengine/rivet` git at a pinned rev (v0.41.1, matching the varve layer). It used to install crates.io `rivet-cli`, which is a different project (#34).
 - The release gate runs `rivet release status` for the tag being cut and fails on rivet's exit code (#34).

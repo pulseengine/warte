@@ -302,3 +302,21 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-10-27T19:41:29Z
+
+  - id: REQ-RELEASE-005
+    type: requirement
+    title: Release tooling is version-pinned; the release publishes an SBOM
+    status: implemented
+    release: v1.3.2
+    description: Every tool a workflow installs with cargo install SHALL be pinned to a version or commit, so a new upstream release cannot change the pipeline unreviewed. The release SHALL generate a CycloneDX SBOM (cargo-cyclonedx 0.5.9, spec 1.5) and fail if it is empty. Found by v1.3.1's release run.
+    fields:
+      category: constraint
+      corrective: true
+      priority: must
+    links:
+      - type: derives-from
+        target: REQ-RELEASE-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-28T04:53:00Z
