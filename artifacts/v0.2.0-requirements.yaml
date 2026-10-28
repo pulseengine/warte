@@ -112,8 +112,8 @@ artifacts:
   - id: REQ-LAYER-001
     type: requirement
     title: "Warte binary included in the varve toolchain layer"
-    status: accepted
-    release: v0.2.0
+    status: approved
+    release: v1.5.0
     description: >
       The warte binary SHALL be included in the pulseengine varve layer
       (like rivet, spar, witness, wsc). The layer manifest SHALL list
@@ -122,6 +122,8 @@ artifacts:
     links:
       - type: satisfies
         target: SC-006
+    fields:
+      upstream-ref: https://github.com/pulseengine/warte/issues/53
 
   # --- Temper as optional link ---
   - id: REQ-TEMPER-001
