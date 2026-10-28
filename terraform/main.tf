@@ -6,7 +6,7 @@
 # Architecture:
 #   Internet → Edge Proxy (Hetzner, public IP, Caddy + WireGuard + ufw)
 #                  │ WireGuard VPN (10.0.0.0/24)
-#                  ├──→ warte instance 1 (fourpi.local replacement, internal)
+#                  ├──→ warte instance 1 (home-LAN instance, internal)
 #                  └──→ warte instance 2 (Netcup, internal)
 #
 # Usage:
@@ -137,7 +137,7 @@ resource "hcloud_server" "edge" {
     ListenPort = 51820
     PrivateKey = ${var.wireguard_private_key_edge}
 
-    # Instance 1 (fourpi.local replacement)
+    # Instance 1 (home-LAN instance)
     [Peer]
     PublicKey = $(echo "${var.wireguard_private_key_instance1}" | wg pubkey)
     AllowedIPs = 10.0.0.2/32
@@ -224,7 +224,7 @@ output "wireguard_network" {
 }
 
 output "instance1_wg_ip" {
-  description = "Instance 1 WireGuard IP (fourpi.local replacement)"
+  description = "Instance 1 WireGuard IP (home-LAN instance)"
   value       = "10.0.0.2"
 }
 

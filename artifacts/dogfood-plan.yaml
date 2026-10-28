@@ -197,7 +197,7 @@ artifacts:
     title: warte serves smithy hub's API contract unchanged
     status: verified
     release: v1.4.0
-    description: warte SHALL serve the endpoints of smithy hub's OpenAPI document (/api/eta, /api/state, /api/history, /api/report, /status.md, /report.md, /healthz, /api/openapi.json) with compatible request parameters and response shapes, so agents following the ci-status skill keep working when fourpi switches from smithy-hub to warte. A test SHALL check warte's OpenAPI document against smithy's.
+    description: warte SHALL serve the endpoints of smithy hub's OpenAPI document (/api/eta, /api/state, /api/history, /api/report, /status.md, /report.md, /healthz, /api/openapi.json) with compatible request parameters and response shapes, so agents following the ci-status skill keep working when the ground-station host switches from smithy-hub to warte. A test SHALL check warte's OpenAPI document against smithy's.
     fields:
       category: interface
       priority: must
@@ -250,7 +250,7 @@ artifacts:
     title: "warte absorbs smithy hub: CCSDS ingest, ledger, ETA and the hub API move into warte"
     status: approved
     release: v1.4.0
-    description: "warte becomes the ground station. It receives the smithy agent's CCSDS telemetry over UDP (relay-ccsds), keeps the per-day JSONL ledger and hub state, computes ETA from measured waits, and serves the hub's API. The smithy agent stays on the CI host. warte's own poller, CI webhooks, eta module and SQLite telemetry tables are removed. Cut-over: run side by side (agent sends to both), compare /api/eta and /status.md, then retire smithy-hub.service on fourpi."
+    description: "warte becomes the ground station. It receives the smithy agent's CCSDS telemetry over UDP (relay-ccsds), keeps the per-day JSONL ledger and hub state, computes ETA from measured waits, and serves the hub's API. The smithy agent stays on the CI host. warte's own poller, CI webhooks, eta module and SQLite telemetry tables are removed. Cut-over: run side by side (agent sends to both), compare /api/eta and /status.md, then retire smithy-hub.service on the ground-station host."
     fields:
       rationale: "Decided by the project owner on 2026-10-27 (#36): one control tower instead of two dashboards. smithy hub is live and measured (14 runners, 35-day ledger, ETA from measured pool waits), while warte's copy was unit-tested only. Absorbing the hub's code and formats, instead of re-deriving them, keeps the measured behaviour. Its ledger also gives warte telemetry storage that needs no SQL. Licensing: both are PulseEngine-owned and Apache-2.0 (DD-LICENSE-001), so hub code moves across unchanged."
     links:
@@ -367,7 +367,7 @@ artifacts:
     title: The dashboard works in a browser, offline and behind a path prefix
     status: implemented
     release: v1.4.0
-    description: In a browser, every dashboard view SHALL render non-empty content without script errors; Ask SHALL show its form and the ground station's answer. The page SHALL load nothing from other origins (htmx is served by warte), SHALL work behind a path prefix (https://fourpi.local/warte/), and SHALL NOT claim a live connection that does not exist. Verified by the Playwright suite in tests/playwright, run in CI.
+    description: In a browser, every dashboard view SHALL render non-empty content without script errors; Ask SHALL show its form and the ground station's answer. The page SHALL load nothing from other origins (htmx is served by warte), SHALL work behind a path prefix (https://<host>/warte/), and SHALL NOT claim a live connection that does not exist. Verified by the Playwright suite in tests/playwright, run in CI.
     fields:
       category: functional
       priority: must
