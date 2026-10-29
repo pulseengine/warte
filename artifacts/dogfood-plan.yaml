@@ -841,3 +841,80 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-10-29T19:08:20Z
+  - id: DD-PROBE-004
+    type: design-decision
+    title: The probe absorbs the smithy agent; the agent retires after a parallel run
+    status: proposed
+    release: v1.6.0
+    description: "Runner hosts run warte probe like every machine. Its machine data replaces the agent's host data (one card per host; the probe's report wins). The agent's CI duties move into warte one by one: the GitHub queue scan (already in warte, REQ-GHSRC-001); runner telemetry (host-view busy, job context, cgroup CPU/memory, OOM) as a probe capability on runner hosts; the job ledger over QUIC reliable streams (fixes smithy#34, lost UDP bursts). Then the smithy agent and the UDP/CCSDS ingest retire, after a parallel run with a parity check, as smithy-hub's retirement does (REQ-MIGRATE-001)."
+    fields:
+      rationale: "Owner, 2026-10-29: the CI host's card should come from warte's own probe too. One collector per machine, one transport (QUIC with mTLS and relay-sec), and the ledger on a reliable stream instead of UDP."
+    links:
+      - type: satisfies
+        target: REQ-PROBE-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-29T18:20:20Z
+
+  - id: REQ-PROBE-004
+    type: requirement
+    title: "Topology view: where each machine is and how far, in hops and round-trip time"
+    status: approved
+    release: v1.5.0
+    description: "warte SHALL show every probe's path to the ground station: path class (LAN via mDNS, WireGuard tunnel, direct over the internet), round-trip time from the probe's QUIC connection, and hop count from a periodic unprivileged trace (tracepath on Linux, traceroute on macOS; at most hourly). It SHALL flag a jump in round-trip time or hops and a path that changes class. The view and its API SHALL show names and path classes, never IP addresses or intermediate routers, and no real topology SHALL appear in the repository's docs or tests."
+    fields:
+      category: functional
+      priority: should
+    links:
+      - type: satisfies
+        target: SC-006
+      - type: depends-on
+        target: REQ-PROBE-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-29T18:22:51Z
+
+  - id: REQ-DEVICES-001
+    type: requirement
+    title: "Devices view: bench hardware from with-device registries, presence, claims and usage over time"
+    status: approved
+    release: v1.5.0
+    description: "warte SHALL show every bench device the hosts' with-device registries declare: the host it is registered on, whether it is present (registered but not attached is a finding), free or claimed and by whom (from with-device --status --format json), its part identity from the hardware catalogue, its last use and a usage timeline (from with-device's claim log once it has one). The probe on each bench host reads these and sends them in its report. warte SHALL show who, when and how long, never the free-text purpose of a claim."
+    fields:
+      category: functional
+      priority: should
+    links:
+      - type: satisfies
+        target: SC-006
+      - type: depends-on
+        target: REQ-PROBE-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-29T18:25:25Z
+
+  - id: REQ-DASH-015
+    type: requirement
+    title: "Airport map: every view as a place, agents as planes and walkers, explorable by anyone"
+    status: proposed
+    release: v1.6.0
+    description: "warte SHALL offer a map view drawn as an airport and generated from live data, so it fits any topology: a central hall holding the control tower (the ground station) and one place per view (info desk = Ask, departures = Queue, fuel = Costs, fire station = Outages, doctor = Health, radar = Topology, clock = Jobs, lab = Experiments, skywalk = Seams, bags = Artifacts, lounge = Attention); one pier per machine from /api/machines, LAN machines spread over one side and remote ones beyond a tunnel ring on the other, pier size from the machine's capacity, its kind shown (terminal, workshop, cargo hall, server, GitHub-hosted), not-enrolled machines dashed; bench devices as stands on the pier of the machine they are attached to; agents as planes along their machine's pier, flagged when waiting for the owner, and as walkers routed through the hall to the device they hold; runways from the runner count and a holding pattern from the queue. Tapping a pier or a place explains it in plain words and opens the view. The layout SHALL stay readable from one machine to at least twelve; motion stops under prefers-reduced-motion."
+    fields:
+      category: functional
+      priority: could
+      rationale: "Owner, 2026-10-29: something a child can explore and understand, showing every view and where it lives. Mockup: the view-plan canvas, board 5."
+    links:
+      - type: satisfies
+        target: SC-006
+      - type: depends-on
+        target: REQ-PROBE-001
+      - type: depends-on
+        target: REQ-DEVICES-001
+      - type: depends-on
+        target: REQ-FLEET-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-29T18:38:24Z
