@@ -29,6 +29,8 @@ pub struct AppState {
     pub status: Arc<crate::status::StatusClient>,
     /// The ground station, when `[hub]` is configured.
     pub hub: Option<crate::hub::Hub>,
+    /// The latest report per machine (REQ-PROBE-001), with the ground station.
+    pub machines: Option<Arc<crate::probe::Machines>>,
 }
 
 /// Build the Axum router with all routes.
@@ -116,9 +118,17 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
         }
         None => None,
     };
+    let machines = config.hub.as_ref().map(|h| {
+        let m = Arc::new(crate::probe::Machines::open(&h.data_dir));
+        if h.probe_self {
+            crate::probe::spawn_self(m.clone(), std::time::Duration::from_secs(60));
+        }
+        m
+    });
 
     let state = AppState {
         hub,
+        machines,
         agents: Arc::new(AgentRegistry::with_ca(
             pool.clone(),
             instance_id.clone(),

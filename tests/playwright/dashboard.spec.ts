@@ -11,6 +11,7 @@ const VIEWS = [
   "Overview",
   "Ask",
   "Queue",
+  "Machines",
   "Critical Path",
   "Resources",
   "Outages",

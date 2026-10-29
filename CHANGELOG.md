@@ -4,6 +4,7 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased — v1.5.0
 
+- **Machines view** and `GET /api/machines` (REQ-PROBE-001/003). The ground station probes its own machine every minute (`[hub] probe_self`, on by default) and shows a card per machine: OS, kernel, load, memory, disks, agent CLIs with versions, and agent sessions. The CI host gets a card from the smithy agent's data. Findings across machines, worst first: kernel or tool versions behind the newest seen, disks at 85% or more, low memory, load above the core count, and machines silent for 3 minutes. More machines appear as they are enrolled.
 - **`warte probe report`** (REQ-PROBE-001, first part) prints what a machine is and runs: OS, kernel and architecture, CPU and load, memory and swap, disks, the agent CLIs and tools on PATH with their versions (`claude`, `copilot`, `codex`, `gh`, `varve`), and the agent sessions running now. It is read-only and sends nothing yet. For agent processes it reports the agent, pid, start time and working-directory name, never command lines. Sending (QUIC + mTLS + relay-sec), one-time-token enrollment (DD-PROBE-002) and hook-based agent state (DD-PROBE-003) build on it.
 
 ## Unreleased — v1.4.1

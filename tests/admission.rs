@@ -205,6 +205,7 @@ async fn serve(snapshot: Option<&Snapshot>) -> (tempfile::TempDir, String) {
             allow: vec![Ipv4Addr::LOCALHOST.into()],
             data_dir: hub_dir.to_str().unwrap().into(),
             org: "pulseengine".into(),
+            probe_self: false,
         }),
         ..Default::default()
     };

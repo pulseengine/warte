@@ -370,3 +370,188 @@ mod tests {
         assert_eq!(agent_of("claude-helper", &cmd(&[])), None);
     }
 }
+
+/// A machine as the ground station last heard from it.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct Seen {
+    pub report: Report,
+    pub received_at: i64,
+    /// How it arrived: `local` (the ground station probing itself) or
+    /// `probe` (an enrolled probe, DD-PROBE-002).
+    pub via: String,
+}
+
+/// A machine silent this long is shown as stale (probes report every minute).
+pub const MACHINE_STALE_S: i64 = 3 * 60;
+
+/// The latest report per machine, persisted next to the hub state.
+pub struct Machines {
+    seen: std::sync::Mutex<std::collections::BTreeMap<String, Seen>>,
+    path: std::path::PathBuf,
+}
+
+impl Machines {
+    pub fn open(data_dir: &str) -> Self {
+        let path = std::path::Path::new(data_dir).join("machines.json");
+        let seen = std::fs::read(&path)
+            .ok()
+            .and_then(|b| serde_json::from_slice(&b).ok())
+            .unwrap_or_default();
+        Machines {
+            seen: std::sync::Mutex::new(seen),
+            path,
+        }
+    }
+
+    pub fn record(&self, report: Report, via: &str, received_at: i64) {
+        let mut g = self.seen.lock().unwrap_or_else(|e| e.into_inner());
+        g.insert(
+            report.host.clone(),
+            Seen {
+                report,
+                received_at,
+                via: via.into(),
+            },
+        );
+        let tmp = self.path.with_extension("json.tmp");
+        if let Ok(b) = serde_json::to_vec(&*g) {
+            if std::fs::write(&tmp, b).is_ok() {
+                let _ = std::fs::rename(&tmp, &self.path);
+            }
+        }
+    }
+
+    pub fn list(&self) -> Vec<Seen> {
+        self.seen
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .values()
+            .cloned()
+            .collect()
+    }
+}
+
+/// Probe this machine every `every` and record it as `local`.
+pub fn spawn_self(machines: std::sync::Arc<Machines>, every: Duration) {
+    tokio::spawn(async move {
+        loop {
+            let r = collect().await;
+            machines.record(r, "local", chrono::Utc::now().timestamp());
+            tokio::time::sleep(every).await;
+        }
+    });
+}
+
+#[derive(Serialize, Debug, Clone, PartialEq)]
+pub struct Finding {
+    pub host: String,
+    /// `red` or `amber`.
+    pub severity: &'static str,
+    pub text: String,
+}
+
+/// Numeric parts of a version, for ordering ("2.1.4" < "2.1.12").
+fn vkey(v: &str) -> Vec<u64> {
+    v.split(|c: char| !c.is_ascii_digit())
+        .filter(|s| !s.is_empty())
+        .filter_map(|s| s.parse().ok())
+        .collect()
+}
+
+/// What is wrong or drifting across the machines, worst first.
+pub fn findings(seen: &[Seen], now: i64) -> Vec<Finding> {
+    let mut out = Vec::new();
+    let f = |host: &str, severity, text: String| Finding {
+        host: host.into(),
+        severity,
+        text,
+    };
+    for s in seen {
+        let r = &s.report;
+        let age = now - s.received_at;
+        if age > MACHINE_STALE_S {
+            out.push(f(
+                &r.host,
+                "red",
+                format!("no report for {}", crate::dashboard::fleet::dur_pub(age)),
+            ));
+        }
+        for d in &r.disks {
+            if d.used_pct >= 85.0 {
+                let sev = if d.used_pct >= 95.0 { "red" } else { "amber" };
+                out.push(f(
+                    &r.host,
+                    sev,
+                    format!("disk {} is {:.0}% full", d.mount, d.used_pct),
+                ));
+            }
+        }
+        if r.memory.total_mb > 0 && r.memory.avail_mb * 10 < r.memory.total_mb {
+            out.push(f(
+                &r.host,
+                "amber",
+                format!(
+                    "only {} MB of {} MB memory free",
+                    r.memory.avail_mb, r.memory.total_mb
+                ),
+            ));
+        }
+        if r.cpu.ncpu > 0 && r.cpu.load[1] > r.cpu.ncpu as f64 {
+            out.push(f(
+                &r.host,
+                "amber",
+                format!(
+                    "load {:.1} over 5 min on {} cores",
+                    r.cpu.load[1], r.cpu.ncpu
+                ),
+            ));
+        }
+    }
+    // kernel drift between machines on the same OS
+    let mut by_os: std::collections::BTreeMap<&str, Vec<&Report>> = Default::default();
+    for s in seen {
+        by_os
+            .entry(s.report.os.name.as_str())
+            .or_default()
+            .push(&s.report);
+    }
+    for (os, rs) in by_os {
+        let newest = rs
+            .iter()
+            .map(|r| r.os.kernel.as_str())
+            .max_by_key(|k| vkey(k));
+        if let Some(newest) = newest {
+            for r in rs.iter().filter(|r| vkey(&r.os.kernel) < vkey(newest)) {
+                out.push(f(
+                    &r.host,
+                    "amber",
+                    format!(
+                        "kernel {} behind {newest} on other {os} machines",
+                        r.os.kernel
+                    ),
+                ));
+            }
+        }
+    }
+    // an agent CLI behind the newest version in use anywhere
+    for tool in TOOLS {
+        let have: Vec<(&str, &str)> = seen
+            .iter()
+            .filter_map(|s| {
+                s.report
+                    .tools
+                    .iter()
+                    .find(|t| t.name == tool)
+                    .and_then(|t| t.version.as_deref())
+                    .map(|v| (s.report.host.as_str(), v))
+            })
+            .collect();
+        if let Some(newest) = have.iter().map(|h| h.1).max_by_key(|v| vkey(v)) {
+            for (host, v) in have.iter().filter(|h| vkey(h.1) < vkey(newest)) {
+                out.push(f(host, "amber", format!("{tool} {v} behind {newest}")));
+            }
+        }
+    }
+    out.sort_by_key(|x| (x.severity != "red", x.host.clone()));
+    out
+}

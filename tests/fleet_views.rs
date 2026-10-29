@@ -343,6 +343,7 @@ async fn serve_with_a_hub_mounts_the_ground_station_at_ci() {
         allow: vec![Ipv4Addr::LOCALHOST.into()],
         data_dir: hub_dir.path().to_str().unwrap().into(),
         org: "pulseengine".into(),
+        probe_self: false,
     };
     let (_d, base) = serve_app(Some(cfg)).await;
     assert_eq!(status(format!("{base}/ci/healthz")).await, 200);
@@ -451,6 +452,7 @@ async fn every_view_escapes_author_controlled_text() {
         allow: vec![Ipv4Addr::LOCALHOST.into()],
         data_dir: hub_dir.path().to_str().unwrap().into(),
         org: "pulseengine".into(),
+        probe_self: false,
     };
     let (_d, base, db) = serve_app_db(Some(cfg)).await;
 
@@ -541,6 +543,7 @@ async fn with_a_hub_stale_data_is_shown_as_stale() {
         allow: vec![Ipv4Addr::LOCALHOST.into()],
         data_dir: hub_dir.path().to_str().unwrap().into(),
         org: "pulseengine".into(),
+        probe_self: false,
     };
     let (_d, base) = serve_app(Some(cfg)).await;
     for p in ["queue-partial", "critical-path-partial", "health-partial"] {

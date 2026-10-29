@@ -10,6 +10,7 @@
 //! Views refresh every 30 s and show the age of the data they render.
 
 pub mod fleet;
+pub mod machines;
 
 use axum::{
     extract::State,
@@ -62,6 +63,15 @@ pub async fn overview_partial(State(state): State<crate::server::AppState>) -> R
     );
 
     Html(html).into_response()
+}
+
+/// HTMX partial: machines (REQ-PROBE-001/003).
+pub async fn machines_partial(State(state): State<crate::server::AppState>) -> Response {
+    Html(machines::view(
+        state.machines.as_deref(),
+        state.hub.as_ref(),
+    ))
+    .into_response()
 }
 
 /// HTMX partial: agents list.

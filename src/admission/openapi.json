@@ -53,6 +53,16 @@
         }
       }
     },
+    "/api/machines": {
+      "get": {
+        "summary": "Every machine the ground station hears from, with drift findings",
+        "description": "Latest probe report per machine (OS, kernel, CPU, memory, disks, agent CLIs and their versions, agent sessions without command lines), its age and a stale flag (no report for 3 minutes), plus findings: kernel or tool versions behind the newest seen, full disks, low memory, overload, silence.",
+        "responses": {
+          "200": {"description": "machines and findings"},
+          "503": {"description": "no ground station configured"}
+        }
+      }
+    },
     "/api/openapi.json": {
       "get": {"summary": "This document", "responses": {"200": {"description": "OpenAPI 3 document"}}}
     }
