@@ -823,3 +823,21 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-10-29T16:56:42Z
+
+  - id: REQ-FLEET-001
+    type: requirement
+    title: The fleet is modelled in AADL; warte loads spar's instance and shows model against reality
+    status: approved
+    release: v1.5.0
+    description: "The fleet a deployment intends (machines, kind, location, capacity, runners, and which bench board is attached to which machine) SHALL be an AADL instance of the Warte_Fleet types (architecture/fleet/warte_fleet.aadl), instantiated with spar (instance --format json). warte SHALL load that instance from a configured file and SHALL report every difference against what probes and registries report: a modelled machine not reporting, a reporting machine not in the model, a board attached elsewhere than modelled, a location (LAN/tunnel) other than modelled. warte renders the model itself (Machines, Topology, the airport map); spar does the modelling, not the drawing. A deployment's own instance lives with that deployment, not in this repository."
+    fields:
+      category: functional
+      priority: should
+      rationale: "Owner, 2026-10-29: use spar for the topology, and render it in warte's own view. A model of what should exist turns drift (e.g. a board registered on one host and plugged into another) into a mechanical finding instead of a manual discovery."
+    links:
+      - type: satisfies
+        target: SC-006
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-29T19:08:20Z

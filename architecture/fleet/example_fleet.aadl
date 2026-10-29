@@ -1,0 +1,35 @@
+-- An example fleet with placeholder names, for tests and docs.
+-- A real deployment keeps its own instance outside this repository.
+
+package Example_Fleet
+public
+  with Warte_Fleet_Types, Warte_Fleet;
+
+  system ExampleFleet extends Warte_Fleet_Types::Fleet
+  end ExampleFleet;
+
+  system implementation ExampleFleet.impl
+    subcomponents
+      home : bus Warte_Fleet_Types::Lan;
+      tunnel : bus Warte_Fleet_Types::Tunnel;
+      tower : system Warte_Fleet_Types::GroundStation {
+        Warte_Fleet::Kind => workshop; Warte_Fleet::Location => lan; Warte_Fleet::Cores => 4; };
+      laptop : system Warte_Fleet_Types::Machine {
+        Warte_Fleet::Kind => terminal; Warte_Fleet::Location => lan; Warte_Fleet::Cores => 12; };
+      pi_bench : system Warte_Fleet_Types::Machine {
+        Warte_Fleet::Kind => workshop; Warte_Fleet::Location => lan; Warte_Fleet::Cores => 4; };
+      ci : system Warte_Fleet_Types::Machine {
+        Warte_Fleet::Kind => cargo_hall; Warte_Fleet::Location => remote; Warte_Fleet::Cores => 32; Warte_Fleet::Runners => 14; };
+      flight_ctrl : device Warte_Fleet_Types::BenchBoard {
+        Warte_Fleet::Catalog_Name => "pixhawk-6xrt"; };
+      nucleo : device Warte_Fleet_Types::BenchBoard {
+        Warte_Fleet::Catalog_Name => "nucleo-g474re"; };
+    connections
+      l_tower : bus access home -> tower.lan;
+      l_laptop : bus access home -> laptop.lan;
+      l_pi : bus access home -> pi_bench.lan;
+      t_ci : bus access tunnel -> ci.tunnel;
+      u_fc : bus access tower.usb -> flight_ctrl.usb;
+      u_nucleo : bus access pi_bench.usb -> nucleo.usb;
+  end ExampleFleet.impl;
+end Example_Fleet;

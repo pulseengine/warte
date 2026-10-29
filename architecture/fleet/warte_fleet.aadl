@@ -1,0 +1,60 @@
+-- warte fleet model: what SHOULD exist (REQ-FLEET-001).
+--
+-- The machines warte watches, where they live, and which bench boards are
+-- attached to which machine. An instance of Fleet is the designed topology;
+-- the probes report what actually exists, and warte shows the difference.
+-- spar instantiates it (`spar instance --format json`) and warte draws the
+-- airport map from that instance (REQ-DASH-015).
+--
+-- This package holds only types. A deployment's own instance (its host
+-- names, its boards) lives with that deployment, not in this repository.
+
+property set Warte_Fleet is
+  -- What kind of building the map draws for a machine.
+  Kind : enumeration (terminal, workshop, cargo_hall, server, github_hosted) applies to (system);
+  -- Reached on the home LAN (mDNS), or remote over the tunnel.
+  Location : enumeration (lan, remote) applies to (system);
+  Cores : aadlinteger applies to (system);
+  -- The host name the machine's probe reports, to match model and reality
+  -- (an AADL identifier cannot carry dots or dashes).
+  Host_Name : aadlstring applies to (system);
+  -- Self-hosted CI runners on the machine.
+  Runners : aadlinteger applies to (system);
+  -- The board's name in the with-device hardware catalogue.
+  Catalog_Name : aadlstring applies to (device);
+end Warte_Fleet;
+
+package Warte_Fleet_Types
+public
+  with Warte_Fleet;
+
+  -- the home network and the tunnel to remote machines
+  bus Lan
+  end Lan;
+
+  bus Tunnel
+  end Tunnel;
+
+  -- a USB attachment between a machine and a bench board
+  bus Usb
+  end Usb;
+
+  system Machine
+    features
+      lan : requires bus access Lan;
+      tunnel : requires bus access Tunnel;
+      usb : provides bus access Usb;
+  end Machine;
+
+  -- the machine running warte's ground station
+  system GroundStation extends Machine
+  end GroundStation;
+
+  device BenchBoard
+    features
+      usb : requires bus access Usb;
+  end BenchBoard;
+
+  system Fleet
+  end Fleet;
+end Warte_Fleet_Types;
