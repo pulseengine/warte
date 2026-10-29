@@ -103,7 +103,7 @@ artifacts:
   - id: REQ-STORE-002
     type: requirement
     title: CI telemetry is not stored in warte's database
-    status: implemented
+    status: verified
     release: v1.4.0
     description: "CI job, wait and status data SHALL NOT be kept in warte's SQLite database. It lives in the ground station: hub-state.json and the per-day JSONL ledger, which can be rebuilt from GitHub, the store of record. The ci_jobs, wait_history and ci_status tables SHALL be dropped, and no code SHALL read or write them."
     fields:
@@ -248,7 +248,7 @@ artifacts:
   - id: DD-SMITHY-001
     type: design-decision
     title: "warte absorbs smithy hub: CCSDS ingest, ledger, ETA and the hub API move into warte"
-    status: approved
+    status: accepted
     release: v1.4.0
     description: "warte becomes the ground station. It receives the smithy agent's CCSDS telemetry over UDP (relay-ccsds), keeps the per-day JSONL ledger and hub state, computes ETA from measured waits, and serves the hub's API. The smithy agent stays on the CI host. warte's own poller, CI webhooks, eta module and SQLite telemetry tables are removed. Cut-over: run side by side (agent sends to both), compare /api/eta and /status.md, then retire smithy-hub.service on the ground-station host."
     fields:
@@ -350,7 +350,7 @@ artifacts:
   - id: REQ-ASK-004
     type: requirement
     title: Dashboard Ask shows the ground station's ETA
-    status: implemented
+    status: verified
     release: v1.4.0
     description: The dashboard Ask view SHALL answer for a repo and a PR number or branch with the same answer as the ground station's /api/eta (status, running jobs, queued parts with measured-wait estimate or the reason there is none). It SHALL be a read-only GET usable without authentication, accept the repo with or without the org, and HTML-escape its input and all author-controlled names.
     fields:
@@ -367,7 +367,7 @@ artifacts:
   - id: REQ-DASH-013
     type: requirement
     title: The dashboard works in a browser, offline and behind a path prefix
-    status: implemented
+    status: verified
     release: v1.4.0
     description: In a browser, every dashboard view SHALL render non-empty content without script errors; Ask SHALL show its form and the ground station's answer. The page SHALL load nothing from other origins (htmx is served by warte), SHALL work behind a path prefix (https://<host>/warte/), and SHALL NOT claim a live connection that does not exist. Verified by the Playwright suite in tests/playwright, run in CI.
     fields:

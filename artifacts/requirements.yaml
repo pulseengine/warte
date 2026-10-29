@@ -450,7 +450,7 @@ artifacts:
   - id: REQ-DASH-005
     type: requirement
     title: Dashboard queue view — runner pool, waiting jobs, hardware availability
-    status: implemented
+    status: verified
     release: v1.4.0
     description: "The dashboard SHALL provide a Queue view showing: (a) runner pools from the ground station's latest snapshot, with jobs queued and oldest/median wait per pool, and self-hosted runners busy/total; (b) every queued run with repo, PR or branch, workflow, pool, job count and time waiting; (c) hardware availability (free/claimed boards, by whom, since when) from agent data. Author-controlled names SHALL be HTML-escaped. Freshness SHALL be the snapshot's real age, shown as stale beyond 5 minutes; with no ground station or no telemetry the view SHALL say so."
     links:
