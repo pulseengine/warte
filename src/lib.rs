@@ -20,6 +20,7 @@ pub mod dashboard;
 pub mod db;
 pub mod discovery;
 pub mod docs;
+pub mod ghsource;
 pub mod hub;
 pub mod migrate;
 pub mod platform;

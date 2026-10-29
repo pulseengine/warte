@@ -333,6 +333,25 @@ impl Hub {
         }
     }
 
+    /// A whole snapshot from a source other than the CCSDS link (the GitHub
+    /// API scan, #81): stored and announced exactly like an assembled one.
+    pub fn ingest_snapshot(&self, snap: Snapshot) {
+        let t = now();
+        let mut g = lk(&self.shared);
+        g.p.history.push_back(Point::from_snapshot(&snap));
+        while g.p.history.len() > HISTORY_MAX {
+            g.p.history.pop_front();
+        }
+        g.p.latest = Some(snap);
+        g.p.received_at = t;
+        g.frames += 1;
+        if g.frames.is_multiple_of(5) {
+            save(&self.state_path, &g.p);
+        }
+        drop(g);
+        self.tick.send_modify(|n| *n += 1);
+    }
+
     /// Latest snapshot and when it was received (unix seconds), for the
     /// dashboard. `None` until the first complete frame arrives.
     pub fn snapshot(&self) -> Option<(Snapshot, i64)> {

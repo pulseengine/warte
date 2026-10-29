@@ -4,6 +4,7 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased — v1.5.0
 
+- **GitHub's API as a CI source** (#81, REQ-GHSRC-001/002). warte now works without a smithy agent: set `WARTE_GITHUB_API_URL` (default `https://api.github.com`; `https://api.<tenant>.ghe.com` for Enterprise Cloud with data residency; `…/api/v3` for GHES), `WARTE_GITHUB_ORG` and `WARTE_GITHUB_TOKEN`. The scan fills the ground station's model, so every view and the agent APIs work unchanged. It follows paging, waits out rate limits, and shows a refused token in Health and Outages. `WARTE_CA_BUNDLE` trusts a TLS-intercepting proxy's CA. The status-page URL is configurable or `off`. The `WARTE_GITHUB_ORG`/`WARTE_GITHUB_TOKEN` settings, parsed but unused since v1.3, now drive this source.
 - **Costs view** and `GET /api/costs` (REQ-COSTS-001). They show the notional cost of agent chats and subagents, labelled **notional list price, not billed**: list prices applied to the token counts in agent transcripts.
   - **What it shows:** $ per day for the last 30 days, the top sessions, repositories and models, and subagent spend by task category. It also shows the share of subagent work that ran on a cheaper tier than its caller.
   - **How the report arrives:** a workstation job copies it to the ground station (`[hub] costs_file`, re-read when it changes). `POST /api/costs` also takes it, behind bearer-token auth.
