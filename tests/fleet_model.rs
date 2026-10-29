@@ -49,7 +49,7 @@ fn fixture() -> std::path::PathBuf {
         .join("tests/fixtures/example_fleet.instance.json")
 }
 
-// rivet: verifies REQ-FLEET-001
+// rivet: partially-verifies REQ-FLEET-001
 #[tokio::test]
 async fn the_model_and_its_differences_are_served_and_shown() {
     let (_d, base) = serve(Some(fixture())).await;
@@ -91,7 +91,7 @@ async fn the_model_and_its_differences_are_served_and_shown() {
     );
 }
 
-// rivet: verifies REQ-FLEET-001
+// rivet: partially-verifies REQ-FLEET-001
 #[tokio::test]
 async fn a_missing_or_unreadable_model_is_said_not_fatal() {
     let (_d, base) = serve(None).await;
