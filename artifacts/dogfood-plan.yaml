@@ -823,3 +823,19 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-10-29T16:56:42Z
+
+  - id: DD-PROBE-004
+    type: design-decision
+    title: The probe absorbs the smithy agent; the agent retires after a parallel run
+    status: proposed
+    release: v1.6.0
+    description: "Runner hosts run warte probe like every machine. Its machine data replaces the agent's host data (one card per host; the probe's report wins). The agent's CI duties move into warte one by one: the GitHub queue scan (already in warte, REQ-GHSRC-001); runner telemetry (host-view busy, job context, cgroup CPU/memory, OOM) as a probe capability on runner hosts; the job ledger over QUIC reliable streams (fixes smithy#34, lost UDP bursts). Then the smithy agent and the UDP/CCSDS ingest retire, after a parallel run with a parity check, as smithy-hub's retirement does (REQ-MIGRATE-001)."
+    fields:
+      rationale: "Owner, 2026-10-29: the CI host's card should come from warte's own probe too. One collector per machine, one transport (QUIC with mTLS and relay-sec), and the ledger on a reliable stream instead of UDP."
+    links:
+      - type: satisfies
+        target: REQ-PROBE-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-29T18:20:20Z
