@@ -404,8 +404,23 @@ impl Costs {
     /// fails the checks replaces nothing it would show: the view says why.
     fn refresh(&self, st: &mut State) {
         let Some(src) = &self.source else { return };
-        let Ok(mtime) = std::fs::metadata(src).and_then(|m| m.modified()) else {
-            return;
+        let mtime = match std::fs::metadata(src).and_then(|m| m.modified()) {
+            Ok(t) => t,
+            // Nothing pushed yet: the quiet empty state.
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return,
+            // A denial (permissions, a unit sandbox hiding the path) must not
+            // look like an empty result (#80). Name the error kind only.
+            Err(e) => {
+                let why = format!("cannot read the report: {}", e.kind());
+                if st.rejected.as_deref() != Some(why.as_str()) {
+                    tracing::warn!(%why, "costs_file rejected");
+                }
+                // A report already held (a POST, or an earlier read) is kept;
+                // `seen` is cleared so the file is re-read once it is readable.
+                st.seen = None;
+                st.rejected = Some(why);
+                return;
+            }
         };
         if st.seen == Some(mtime) {
             return;
