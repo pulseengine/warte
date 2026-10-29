@@ -877,3 +877,25 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-10-29T18:25:25Z
+
+  - id: REQ-DASH-015
+    type: requirement
+    title: "Airport map: every view as a place, agents as planes and walkers, explorable by anyone"
+    status: proposed
+    release: v1.6.0
+    description: "warte SHALL offer a map view drawn as an airport: the ground station as the control tower, machines as gates in terminals (home LAN, remote), CI runners as runways, queued jobs as planes in a holding pattern, bench devices as hangar stands, and each other view as a place (info desk = Ask, departures board = Queue, fuel station = Costs, fire station = Outages, doctor = Health, radar = Topology, clock tower = Jobs, lab = Experiments, skywalk = Seams, baggage claim = Artifacts, quiet lounge = Attention). Agents appear as planes at the machine they run on and as walkers moving to what they use (a device, the lounge when waiting for the owner). Tapping a place explains it in plain words and opens the view. Live data drives it; motion stops under prefers-reduced-motion; a day and a night theme."
+    fields:
+      category: functional
+      priority: could
+      rationale: "Owner, 2026-10-29: something a child can explore and understand, showing every view and where it lives. Mockup: the view-plan canvas, board 5."
+    links:
+      - type: satisfies
+        target: SC-006
+      - type: depends-on
+        target: REQ-PROBE-001
+      - type: depends-on
+        target: REQ-DEVICES-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-29T18:38:24Z
