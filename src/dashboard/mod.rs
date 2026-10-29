@@ -99,13 +99,18 @@ pub async fn agents_partial(State(state): State<crate::server::AppState>) -> Res
         })
         .collect();
 
-    let html = format!(
-        r#"<table class="data-table">
+    let body = if agents.is_empty() {
+        r#"<p class="empty">No agents registered with warte yet. An agent registers with <code>POST /api/agents/register</code> and sends heartbeats (<code>warte docs agent-registration</code>). Agent sessions on each machine (Claude Code, Copilot CLI, Codex) will come from <code>warte probe</code>; try <code>warte probe report</code> on a machine.</p>"#.to_string()
+    } else {
+        format!(
+            r#"<table class="data-table">
   <thead><tr><th>ID</th><th>Name</th><th>Repo</th><th>Health</th><th>Last Seen</th></tr></thead>
-  <tbody>{}</tbody>
-</table>
-<p class="freshness">Rendered {}</p>"#,
-        rows,
+  <tbody>{rows}</tbody>
+</table>"#
+        )
+    };
+    let html = format!(
+        r#"<div class="overview"><h2>Agents</h2>{body}<p class="freshness">Rendered {}</p></div>"#,
         chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC"),
     );
 
@@ -136,13 +141,17 @@ pub async fn artifacts_partial(State(state): State<crate::server::AppState>) -> 
         })
         .collect();
 
-    let html = format!(
-        r#"<table class="data-table">
+    let body = if artifacts.is_empty() {
+        r#"<p class="empty">No artifacts stored. Agents publish build outputs here for others to download by hash (<code>warte artifact</code>, <code>warte docs artifact-distribution</code>).</p>"#.to_string()
+    } else {
+        format!(
+            r#"<table class="data-table">
   <thead><tr><th>ID</th><th>Name</th><th>Version</th><th>SHA-256</th><th></th></tr></thead>
-  <tbody>{}</tbody>
-</table>"#,
-        rows,
-    );
+  <tbody>{rows}</tbody>
+</table>"#
+        )
+    };
+    let html = format!(r#"<div class="overview"><h2>Artifacts</h2>{body}</div>"#);
 
     Html(html).into_response()
 }
@@ -169,16 +178,22 @@ pub async fn ask_partial(
         fleet::ask(state.hub.as_ref(), repo, pr, branch)
     };
     let v = |k: &str| fleet::esc(form.get(k).map(|s| s.trim()).unwrap_or_default());
+    let (picker, repos) = fleet::ask_picker(state.hub.as_ref());
     Html(format!(
-        r##"<div class="ask-form">
-  <h2>Ask — when will this PR run?</h2>
+        r##"<div class="overview">
+  <h2>Ask</h2>
+  <div class="ask-form">
+  <h3>When will this PR run?</h3>
   <form hx-get="api/dashboard/ask-partial" hx-target="#content" hx-swap="innerHTML">
-    <label>Repo: <input type="text" name="repo" placeholder="rivet" value="{}" required></label>
+    <label>Repo: <input type="text" name="repo" placeholder="rivet" value="{}" list="ask-repos" autocomplete="off" required></label>
     <label>PR: <input type="number" name="pr" placeholder="511" value="{}"></label>
     <label>or branch: <input type="text" name="branch" placeholder="main" value="{}"></label>
     <button type="submit" class="btn">Estimate</button>
   </form>
+  <datalist id="ask-repos">{repos}</datalist>
   <div id="ask-result">{result}</div>
+  </div>
+  {picker}
 </div>"##,
         v("repo"),
         v("pr"),
@@ -292,13 +307,11 @@ pub async fn queue_partial(State(state): State<crate::server::AppState>) -> Resp
     };
 
     let html = format!(
-        r#"<div class="queue-view">
+        r#"<div class="overview">
   <h2>Queue</h2>
-  {}
-  <h3>Hardware Availability</h3>
-  {}
+  {fleet}
+  <section class="panel"><h3>Hardware availability</h3>{hw_table}</section>
 </div>"#,
-        fleet, hw_table,
     );
 
     Html(html).into_response()
@@ -307,7 +320,7 @@ pub async fn queue_partial(State(state): State<crate::server::AppState>) -> Resp
 /// HTMX partial: critical path view (longest chain of dependent gates).
 pub async fn critical_path_partial(State(state): State<crate::server::AppState>) -> Response {
     let html = format!(
-        r#"<div class="critical-path-view">
+        r#"<div class="overview">
   <h2>Critical Path</h2>
   {}
 </div>"#,
@@ -380,7 +393,7 @@ pub async fn resources_partial(State(state): State<crate::server::AppState>) -> 
     };
 
     let html = format!(
-        r#"<div class="resources-view">
+        r#"<div class="overview">
   <h2>Resources</h2>
   <h3>Agents</h3>
   <div class="stat-cards">{}</div>
@@ -396,55 +409,34 @@ pub async fn resources_partial(State(state): State<crate::server::AppState>) -> 
     Html(html).into_response()
 }
 
-/// HTMX partial: outages view (GitHub status, fleet health).
+/// HTMX partial: outages view: what the ground station detects as wrong.
 pub async fn outages_partial(State(state): State<crate::server::AppState>) -> Response {
     let agents = state.agents.list().await.unwrap_or_default();
-    let healthy = agents
-        .iter()
-        .filter(|a| a.health_status == crate::agent::HealthStatus::Healthy)
-        .count();
-    let unhealthy = agents
+    let unhealthy: Vec<String> = agents
         .iter()
         .filter(|a| a.health_status == crate::agent::HealthStatus::Unhealthy)
-        .count();
-
-    let fleet_status = if unhealthy > 0 {
-        "degraded"
+        .map(|a| fleet::esc(&a.name))
+        .collect();
+    let agents_line = if unhealthy.is_empty() {
+        format!(
+            r#"<p class="empty">{} registered agent(s), none unhealthy.</p>"#,
+            agents.len()
+        )
     } else {
-        "operational"
+        format!(
+            r#"<div class="incident sev2"><span class="badge red">down</span>Unhealthy agents: {}.</div>"#,
+            unhealthy.join(", ")
+        )
     };
-    let fleet_class = if unhealthy > 0 { "yellow" } else { "green" };
-
-    let html = format!(
-        r#"<div class="outages-view">
-  <h2>Outages & Health</h2>
-  <div class="stat-cards">
-    <div class="stat-card">
-      <span class="stat-label">Fleet Status</span>
-      <span class="badge {}">{}</span>
-      <span class="stat-detail">{} healthy, {} unhealthy</span>
-    </div>
-    <div class="stat-card">
-      <span class="stat-label">GitHub</span>
-      <span class="badge green">operational</span>
-      <span class="stat-detail">status.github.com</span>
-    </div>
-    <div class="stat-card">
-      <span class="stat-label">Instance</span>
-      <span class="stat-detail">{}</span>
-    </div>
-  </div>
-  <p class="freshness">Rendered {}</p>
+    Html(format!(
+        r#"<div class="overview">
+  <h2>Outages</h2>
+  {}
+  <section class="panel"><h3>Registered agents</h3>{agents_line}</section>
 </div>"#,
-        fleet_class,
-        fleet_status,
-        healthy,
-        unhealthy,
-        &state.config.instance_id()[..8.min(state.config.instance_id().len())],
-        chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC"),
-    );
-
-    Html(html).into_response()
+        fleet::incidents(state.hub.as_ref()),
+    ))
+    .into_response()
 }
 
 /// HTMX partial: friction view (tool errors, workarounds).
@@ -485,7 +477,7 @@ pub async fn friction_partial(State(state): State<crate::server::AppState>) -> R
     };
 
     let html = format!(
-        r#"<div class="friction-view">
+        r#"<div class="overview">
   <h2>Friction</h2>
   {}
   <p class="freshness">Rendered {}</p>
@@ -535,7 +527,7 @@ pub async fn schedule_partial(State(state): State<crate::server::AppState>) -> R
     };
 
     let html = format!(
-        r#"<div class="schedule-view">
+        r#"<div class="overview">
   <h2>Schedule</h2>
   {}
   <p class="freshness">Rendered {}</p>
@@ -561,8 +553,9 @@ pub async fn health_partial(State(state): State<crate::server::AppState>) -> Res
     let total = agents.len();
 
     let html = format!(
-        r#"<div class="health-view">
+        r#"<div class="overview">
   <h2>Health</h2>
+  {}
   <div class="stat-cards">
     <div class="stat-card">
       <span class="stat-value">{}</span>
@@ -573,6 +566,7 @@ pub async fn health_partial(State(state): State<crate::server::AppState>) -> Res
   </div>
   <p class="freshness">Rendered {}</p>
 </div>"#,
+        fleet::health_view(state.hub.as_ref()),
         total,
         healthy,
         unhealthy,

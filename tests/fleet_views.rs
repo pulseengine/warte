@@ -599,3 +599,81 @@ fn playwright_fixture_loads_into_the_hub() {
         "fixture must have queued runs for the browser tests"
     );
 }
+
+// rivet: verifies REQ-ASK-004
+#[test]
+fn ask_lists_what_is_in_flight_so_you_click_instead_of_typing() {
+    let mut s = fleet_snapshot();
+    // a branch name that needs URL encoding, and a running job on runner 1
+    if let Some(q) = s.queue.as_mut() {
+        let mut e = q.queued[0].clone();
+        e.run_id = 77;
+        e.pr = None;
+        e.branch = "feat/a b&c".into();
+        q.queued.push(e);
+    }
+    s.runners[0].ctx = Some(warte::hub::model::JobContext {
+        repo: "pulseengine/rivet".into(),
+        workflow: "CI".into(),
+        pr: Some(9),
+        run_id: 5,
+        ..Default::default()
+    });
+    let (_d, hub) = hub_with(&s);
+    let (picker, repos) = fleet::ask_picker(Some(&hub));
+    // one clickable row per PR or branch, asking the same view
+    assert!(
+        picker.contains(r#"hx-get="api/dashboard/ask-partial?repo=spar&amp;pr=511""#),
+        "{picker}"
+    );
+    assert!(
+        picker.contains("repo=spar&amp;branch=feat%2Fa%20b%26c"),
+        "branch is URL-encoded: {picker}"
+    );
+    assert!(
+        picker.contains("repo=rivet&amp;pr=9"),
+        "running work is listed too: {picker}"
+    );
+    assert!(picker.contains("1 running"));
+    // workflow names are author-controlled
+    assert!(!picker.contains("<img"), "{picker}");
+    // the repo input suggests the repos in flight
+    assert!(
+        repos.contains(r#"<option value="spar">"#) && repos.contains(r#"<option value="rivet">"#)
+    );
+    assert_eq!(fleet::ask_picker(None), (String::new(), String::new()));
+}
+
+// rivet: verifies REQ-STORE-002
+#[test]
+fn health_and_outages_come_from_the_snapshot_not_from_decoration() {
+    let mut s = fleet_snapshot();
+    s.machine.ncpu = 32;
+    s.machine.load = [40.0, 30.0, 20.0];
+    s.machine.psi.cpu.avg60 = 61.6;
+    s.machine.disks = vec![warte::hub::model::Disk {
+        mount: "/var/lib/runners".into(),
+        size_gb: 1000.0,
+        used_gb: 960.0,
+        used_pct: 96.0,
+    }];
+    s.runners[1].gh_status = Some("offline".into());
+    s.errors = vec!["<script>x</script> failed".into()];
+    let (_d, hub) = hub_with(&s);
+    let h = fleet::health_view(Some(&hub));
+    assert!(h.contains("40.0 / 30.0 / 20.0 on 32"), "{h}");
+    assert!(h.contains("96% of 1000 GB"), "{h}");
+    assert!(h.contains("&lt;script&gt;x&lt;/script&gt; failed") && !h.contains("<script>x"));
+    let o = fleet::incidents(Some(&hub));
+    assert!(o.contains("Offline runners: runner2."), "{o}");
+    assert!(o.contains("Disk /var/lib/runners is 96% full."), "{o}");
+    assert!(o.contains("CPU pressure 61.6%"), "{o}");
+    // worst first: the red items come before the amber ones
+    assert!(o.find("Offline runners").unwrap() < o.find("CPU pressure").unwrap());
+    assert!(!o.contains("operational"), "no hardcoded status: {o}");
+    assert!(!o.contains("<script>x"));
+    // a calm fleet says so
+    let (_d2, calm) = hub_with(&fleet_snapshot());
+    assert!(fleet::incidents(Some(&calm)).contains("all clear"));
+    assert!(fleet::incidents(None).contains("not configured"));
+}

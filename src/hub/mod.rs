@@ -202,14 +202,15 @@ struct Shared {
     frames: u64,
 }
 
+/// One telemetry stream (APID) as the hub counted it since it started.
 #[derive(Serialize)]
-struct LinkRow {
-    apid: String,
-    stream: String,
-    received: u64,
-    lost: u64,
-    restarts: u64,
-    last_seen: i64,
+pub struct LinkRow {
+    pub apid: String,
+    pub stream: String,
+    pub received: u64,
+    pub lost: u64,
+    pub restarts: u64,
+    pub last_seen: i64,
 }
 
 #[derive(Serialize)]
@@ -339,6 +340,11 @@ impl Hub {
         g.p.latest.clone().map(|s| (s, g.p.received_at))
     }
 
+    /// The telemetry link per stream, as `/api/state` reports it.
+    pub fn link(&self) -> Vec<LinkRow> {
+        link_rows(&lk(&self.shared))
+    }
+
     /// Wakes on every complete snapshot.
     pub fn subscribe(&self) -> tokio::sync::watch::Receiver<u64> {
         self.tick.subscribe()
@@ -432,10 +438,8 @@ async fn index() -> Response {
     body(200, "text/html; charset=utf-8", INDEX.into())
 }
 
-async fn api_state(State(h): State<Hub>) -> Response {
-    let g = lk(&h.shared);
-    let link = g
-        .asm
+fn link_rows(g: &Shared) -> Vec<LinkRow> {
+    g.asm
         .link
         .iter()
         .map(|(a, l)| LinkRow {
@@ -446,7 +450,12 @@ async fn api_state(State(h): State<Hub>) -> Response {
             restarts: l.restarts,
             last_seen: l.last_seen,
         })
-        .collect();
+        .collect()
+}
+
+async fn api_state(State(h): State<Hub>) -> Response {
+    let g = lk(&h.shared);
+    let link = link_rows(&g);
     json(&StateView {
         hub_now: now(),
         received_at: g.p.received_at,
