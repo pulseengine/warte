@@ -344,6 +344,7 @@ async fn serve_with_a_hub_mounts_the_ground_station_at_ci() {
         data_dir: hub_dir.path().to_str().unwrap().into(),
         org: "pulseengine".into(),
         probe_self: false,
+        costs_file: None,
     };
     let (_d, base) = serve_app(Some(cfg)).await;
     assert_eq!(status(format!("{base}/ci/healthz")).await, 200);
@@ -453,6 +454,7 @@ async fn every_view_escapes_author_controlled_text() {
         data_dir: hub_dir.path().to_str().unwrap().into(),
         org: "pulseengine".into(),
         probe_self: false,
+        costs_file: None,
     };
     let (_d, base, db) = serve_app_db(Some(cfg)).await;
 
@@ -544,6 +546,7 @@ async fn with_a_hub_stale_data_is_shown_as_stale() {
         data_dir: hub_dir.path().to_str().unwrap().into(),
         org: "pulseengine".into(),
         probe_self: false,
+        costs_file: None,
     };
     let (_d, base) = serve_app(Some(cfg)).await;
     for p in ["queue-partial", "critical-path-partial", "health-partial"] {
@@ -732,6 +735,7 @@ async fn machines_publish_no_paths_pids_or_dirs_and_no_cross_origin_reads() {
         data_dir: hub_dir.to_str().unwrap().into(),
         org: "pulseengine".into(),
         probe_self: false,
+        costs_file: None,
     };
     let config = warte::config::Config {
         db_path: dir.path().join("state.db"),

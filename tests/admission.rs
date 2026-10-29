@@ -206,6 +206,7 @@ async fn serve(snapshot: Option<&Snapshot>) -> (tempfile::TempDir, String) {
             data_dir: hub_dir.to_str().unwrap().into(),
             org: "pulseengine".into(),
             probe_self: false,
+            costs_file: None,
         }),
         ..Default::default()
     };

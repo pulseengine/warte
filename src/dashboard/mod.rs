@@ -9,6 +9,7 @@
 //!
 //! Views refresh every 30 s and show the age of the data they render.
 
+pub mod costs;
 pub mod fleet;
 pub mod machines;
 
@@ -72,6 +73,11 @@ pub async fn machines_partial(State(state): State<crate::server::AppState>) -> R
         state.hub.as_ref(),
     ))
     .into_response()
+}
+
+/// HTMX partial: costs (REQ-COSTS-001).
+pub async fn costs_partial(State(state): State<crate::server::AppState>) -> Response {
+    Html(costs::view(state.costs.as_deref(), crate::hub::now())).into_response()
 }
 
 /// HTMX partial: agents list.

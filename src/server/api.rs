@@ -21,7 +21,15 @@ pub fn build_routes() -> Router<AppState> {
         .route("/agents/{id}/data", post(capture_data))
         .route("/access/grant", post(grant_access))
         .route("/access/revoke", post(revoke_access))
-        .route("/sync/update", post(sync_update));
+        .route("/sync/update", post(sync_update))
+        // a workstation job replaces the notional-cost report whole (REQ-COSTS-001);
+        // GET serves it. Larger than axum's 2 MB default: a report carries every session.
+        .route(
+            "/costs",
+            get(api_costs)
+                .post(api_costs_post)
+                .layer(axum::extract::DefaultBodyLimit::max(crate::costs::MAX_BODY)),
+        );
 
     // Read-only routes — public (rate-limited at edge proxy)
     let read_routes = Router::new()
@@ -94,6 +102,10 @@ pub fn build_routes() -> Router<AppState> {
         .route(
             "/api/dashboard/machines-partial",
             get(crate::dashboard::machines_partial),
+        )
+        .route(
+            "/api/dashboard/costs-partial",
+            get(crate::dashboard::costs_partial),
         )
         .route(
             "/api/dashboard/health-partial",
@@ -287,6 +299,71 @@ fn public_report(r: &crate::probe::Report) -> serde_json::Value {
         })).collect::<Vec<_>>(),
         "sessions": sessions,
     })
+}
+
+/// The latest notional-cost report, or `report: null` before the first push.
+async fn api_costs(State(state): State<AppState>) -> axum::response::Response {
+    let Some(c) = state.costs.as_ref() else {
+        return plain(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "no ground station configured",
+        );
+    };
+    let now = crate::hub::now();
+    match c.latest() {
+        Some(s) => Json(serde_json::json!({
+            "label": crate::costs::LABEL,
+            "received_at": s.received_at,
+            "age_s": now - s.received_at,
+            "stale": now - s.received_at > crate::costs::STALE_S,
+            "report": s.report,
+        }))
+        .into_response(),
+        None => Json(serde_json::json!({
+            "label": crate::costs::LABEL,
+            "received_at": null,
+            "report": null,
+            "rejected": c.rejected(),
+        }))
+        .into_response(),
+    }
+}
+
+/// Replace the notional-cost report. The read API is public (warte#46), so a
+/// report must hold numbers and names only: unknown fields and free text are
+/// rejected with a 400 and nothing is stored.
+async fn api_costs_post(
+    State(state): State<AppState>,
+    body: axum::body::Bytes,
+) -> axum::response::Response {
+    let Some(c) = state.costs.as_ref() else {
+        return plain(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "no ground station configured",
+        );
+    };
+    let report: crate::costs::CostReport = match serde_json::from_slice(&body) {
+        Ok(r) => r,
+        Err(e) => return plain(StatusCode::BAD_REQUEST, &format!("not a costs report: {e}")),
+    };
+    if let Err(why) = report.validate() {
+        return plain(StatusCode::BAD_REQUEST, &why);
+    }
+    let sessions = report.sessions.len();
+    match c.record(report, crate::hub::now()) {
+        Ok(()) => (
+            StatusCode::CREATED,
+            Json(serde_json::json!({ "stored": true, "sessions": sessions })),
+        )
+            .into_response(),
+        Err(e) => {
+            tracing::error!(error = %e, "failed to store the costs report");
+            plain(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "could not store the report",
+            )
+        }
+    }
 }
 
 /// Every machine the ground station hears from, with drift findings.
