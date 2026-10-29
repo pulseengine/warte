@@ -58,6 +58,11 @@ pub struct Config {
     #[serde(default = "default_rate_limit_per_agent")]
     pub rate_limit_per_agent: u32,
 
+    /// The fleet model: a `spar instance --format json` of the Warte_Fleet
+    /// types (REQ-FLEET-001). Env: `WARTE_FLEET_MODEL`.
+    #[serde(default)]
+    pub fleet_model: Option<PathBuf>,
+
     /// GitHub's API as a CI source, for teams without a smithy agent (#81).
     /// Set by a `[github]` section or by `WARTE_GITHUB_ORG` + `WARTE_GITHUB_TOKEN`.
     #[serde(default)]
@@ -181,6 +186,7 @@ impl Default for Config {
             tls_key_path: default_tls_key_path(),
             rate_limit_per_ip: default_rate_limit_per_ip(),
             rate_limit_per_agent: default_rate_limit_per_agent(),
+            fleet_model: None,
             github: None,
             hub: None,
         }
@@ -214,6 +220,9 @@ impl Config {
             self.db_path = PathBuf::from(db);
         }
         let env = |k: &str| std::env::var(k).ok().filter(|v| !v.is_empty());
+        if let Some(v) = env("WARTE_FLEET_MODEL") {
+            self.fleet_model = Some(v.into());
+        }
         if let (Some(org), Some(token)) = (env("WARTE_GITHUB_ORG"), env("WARTE_GITHUB_TOKEN")) {
             let g = self.github.get_or_insert_with(|| GithubConfig {
                 org: org.clone(),

@@ -410,3 +410,5 @@ p.empty {
 .finding { font: .72rem var(--mono); padding: .25rem .5rem; border-radius: 4px; }
 .finding.amber { color: var(--amber); background: rgba(255, 184, 77, .08); }
 .finding.red { color: var(--err); background: rgba(255, 77, 106, .1); }
+
+.machine.modelled { background: transparent; border: 2px dashed var(--border); border-top: 2px dashed var(--border); opacity: .85; }

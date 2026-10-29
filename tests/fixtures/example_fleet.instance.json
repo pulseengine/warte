@@ -1,0 +1,246 @@
+{
+  "name": "ExampleFleet.impl",
+  "category": "system",
+  "package": "Example_Fleet",
+  "type_name": "ExampleFleet",
+  "impl_name": "impl",
+  "features": [],
+  "connections": [
+    {
+      "name": "l_tower",
+      "kind": "Access",
+      "is_bidirectional": false,
+      "source": "home.",
+      "destination": "tower.lan"
+    },
+    {
+      "name": "l_laptop",
+      "kind": "Access",
+      "is_bidirectional": false,
+      "source": "home.",
+      "destination": "laptop.lan"
+    },
+    {
+      "name": "l_pi",
+      "kind": "Access",
+      "is_bidirectional": false,
+      "source": "home.",
+      "destination": "pi_bench.lan"
+    },
+    {
+      "name": "t_ci",
+      "kind": "Access",
+      "is_bidirectional": false,
+      "source": "tunnel.",
+      "destination": "ci.tunnel"
+    },
+    {
+      "name": "u_fc",
+      "kind": "Access",
+      "is_bidirectional": false,
+      "source": "tower.usb",
+      "destination": "flight_ctrl.usb"
+    },
+    {
+      "name": "u_nucleo",
+      "kind": "Access",
+      "is_bidirectional": false,
+      "source": "pi_bench.usb",
+      "destination": "nucleo.usb"
+    }
+  ],
+  "children": [
+    {
+      "name": "home",
+      "category": "bus",
+      "package": "Warte_Fleet_Types",
+      "type_name": "Lan",
+      "impl_name": null,
+      "features": [],
+      "connections": [],
+      "children": [],
+      "diagnostics": []
+    },
+    {
+      "name": "tunnel",
+      "category": "bus",
+      "package": "Warte_Fleet_Types",
+      "type_name": "Tunnel",
+      "impl_name": null,
+      "features": [],
+      "connections": [],
+      "children": [],
+      "diagnostics": []
+    },
+    {
+      "name": "tower",
+      "category": "system",
+      "package": "Warte_Fleet_Types",
+      "type_name": "GroundStation",
+      "impl_name": null,
+      "features": [
+        {
+          "name": "lan",
+          "kind": "BusAccess",
+          "direction": null
+        },
+        {
+          "name": "tunnel",
+          "kind": "BusAccess",
+          "direction": null
+        },
+        {
+          "name": "usb",
+          "kind": "BusAccess",
+          "direction": null
+        }
+      ],
+      "connections": [],
+      "properties": {
+        "Warte_Fleet::Cores": "4",
+        "Warte_Fleet::Kind": "workshop",
+        "Warte_Fleet::Location": "lan"
+      },
+      "children": [],
+      "diagnostics": []
+    },
+    {
+      "name": "laptop",
+      "category": "system",
+      "package": "Warte_Fleet_Types",
+      "type_name": "Machine",
+      "impl_name": null,
+      "features": [
+        {
+          "name": "lan",
+          "kind": "BusAccess",
+          "direction": null
+        },
+        {
+          "name": "tunnel",
+          "kind": "BusAccess",
+          "direction": null
+        },
+        {
+          "name": "usb",
+          "kind": "BusAccess",
+          "direction": null
+        }
+      ],
+      "connections": [],
+      "properties": {
+        "Warte_Fleet::Cores": "12",
+        "Warte_Fleet::Kind": "terminal",
+        "Warte_Fleet::Location": "lan"
+      },
+      "children": [],
+      "diagnostics": []
+    },
+    {
+      "name": "pi_bench",
+      "category": "system",
+      "package": "Warte_Fleet_Types",
+      "type_name": "Machine",
+      "impl_name": null,
+      "features": [
+        {
+          "name": "lan",
+          "kind": "BusAccess",
+          "direction": null
+        },
+        {
+          "name": "tunnel",
+          "kind": "BusAccess",
+          "direction": null
+        },
+        {
+          "name": "usb",
+          "kind": "BusAccess",
+          "direction": null
+        }
+      ],
+      "connections": [],
+      "properties": {
+        "Warte_Fleet::Cores": "4",
+        "Warte_Fleet::Kind": "workshop",
+        "Warte_Fleet::Location": "lan"
+      },
+      "children": [],
+      "diagnostics": []
+    },
+    {
+      "name": "ci",
+      "category": "system",
+      "package": "Warte_Fleet_Types",
+      "type_name": "Machine",
+      "impl_name": null,
+      "features": [
+        {
+          "name": "lan",
+          "kind": "BusAccess",
+          "direction": null
+        },
+        {
+          "name": "tunnel",
+          "kind": "BusAccess",
+          "direction": null
+        },
+        {
+          "name": "usb",
+          "kind": "BusAccess",
+          "direction": null
+        }
+      ],
+      "connections": [],
+      "properties": {
+        "Warte_Fleet::Cores": "32",
+        "Warte_Fleet::Kind": "cargo_hall",
+        "Warte_Fleet::Location": "remote",
+        "Warte_Fleet::Runners": "14"
+      },
+      "children": [],
+      "diagnostics": []
+    },
+    {
+      "name": "flight_ctrl",
+      "category": "device",
+      "package": "Warte_Fleet_Types",
+      "type_name": "BenchBoard",
+      "impl_name": null,
+      "features": [
+        {
+          "name": "usb",
+          "kind": "BusAccess",
+          "direction": null
+        }
+      ],
+      "connections": [],
+      "properties": {
+        "Warte_Fleet::Catalog_Name": "\"pixhawk-6xrt\""
+      },
+      "children": [],
+      "diagnostics": []
+    },
+    {
+      "name": "nucleo",
+      "category": "device",
+      "package": "Warte_Fleet_Types",
+      "type_name": "BenchBoard",
+      "impl_name": null,
+      "features": [
+        {
+          "name": "usb",
+          "kind": "BusAccess",
+          "direction": null
+        }
+      ],
+      "connections": [],
+      "properties": {
+        "Warte_Fleet::Catalog_Name": "\"nucleo-g474re\""
+      },
+      "children": [],
+      "diagnostics": []
+    }
+  ],
+  "diagnostics": []
+}

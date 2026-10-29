@@ -99,6 +99,12 @@ pub enum Commands {
         path: String,
     },
 
+    /// The fleet model: read a spar instance of the Warte_Fleet types
+    Fleet {
+        #[command(subcommand)]
+        action: FleetCommands,
+    },
+
     /// What this machine is and runs: hardware, disks, agent CLIs, sessions
     Probe {
         #[command(subcommand)]
@@ -141,6 +147,16 @@ pub enum Commands {
         /// Assert every subcommand is documented
         #[arg(long)]
         check: bool,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum FleetCommands {
+    /// Print the machines and boards a spar instance models; exit 1 when the
+    /// model has problems (a board on no machine, a contradicting location)
+    Show {
+        /// `spar instance --format json` output
+        instance: std::path::PathBuf,
     },
 }
 

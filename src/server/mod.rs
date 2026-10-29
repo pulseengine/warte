@@ -30,6 +30,8 @@ pub struct AppState {
     pub hub: Option<crate::hub::Hub>,
     /// The latest report per machine (REQ-PROBE-001), with the ground station.
     pub machines: Option<Arc<crate::probe::Machines>>,
+    /// The fleet model, or why it could not be read (REQ-FLEET-001).
+    pub fleet: Option<Arc<Result<crate::fleet::Fleet, String>>>,
     /// The latest notional-cost report (REQ-COSTS-001), with the ground station.
     pub costs: Option<Arc<crate::costs::Costs>>,
 }
@@ -157,9 +159,25 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
         ))
     });
 
+    // A model that cannot be read is shown as a problem, not a startup failure:
+    // the CI views do not depend on it.
+    // The detail (path, OS error) goes to the server log only: the read API
+    // has no auth (#46), so callers get a generic message.
+    let fleet = config.fleet_model.as_ref().map(|p| {
+        Arc::new(
+            std::fs::read_to_string(p)
+                .map_err(|e| e.to_string())
+                .and_then(|t| crate::fleet::from_spar(&t))
+                .map_err(|e| {
+                    tracing::warn!(path = %p.display(), error = %e, "fleet model unreadable");
+                    "the configured fleet model could not be read; see the server log".to_string()
+                }),
+        )
+    });
     let state = AppState {
         hub,
         machines,
+        fleet,
         costs,
         agents: Arc::new(AgentRegistry::with_ca(
             pool.clone(),

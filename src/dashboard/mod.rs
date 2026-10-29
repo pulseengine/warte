@@ -68,9 +68,16 @@ pub async fn overview_partial(State(state): State<crate::server::AppState>) -> R
 
 /// HTMX partial: machines (REQ-PROBE-001/003).
 pub async fn machines_partial(State(state): State<crate::server::AppState>) -> Response {
-    Html(machines::view(
-        state.machines.as_deref(),
-        state.hub.as_ref(),
+    let model = machines::model_panel(
+        state.fleet.as_deref(),
+        &crate::server::api::reporting_hosts(&state),
+    );
+    let page = machines::view(state.machines.as_deref(), state.hub.as_ref());
+    // the model panel and the modelled-but-silent cards go before the live cards
+    Html(page.replacen(
+        r#"<div class="machines">"#,
+        &format!(r#"{model}<div class="machines">"#),
+        1,
     ))
     .into_response()
 }
