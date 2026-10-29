@@ -63,6 +63,25 @@
         }
       }
     },
+    "/api/costs": {
+      "get": {
+        "summary": "The latest notional-cost report of agent chats and subagents",
+        "description": "Notional list price, not billed. Per session, per subagent (last 90 days) and rollups per day, month and the last 30 days by repository, model and task category, plus the share of subagent work on a cheaper tier than its caller. report is null until a workstation has pushed one.",
+        "responses": {
+          "200": {"description": "the stored report with its age, or report null"},
+          "503": {"description": "no ground station configured"}
+        }
+      },
+      "post": {
+        "summary": "Replace the notional-cost report (a workstation job, nightly)",
+        "description": "The body is the whole report (schema 1, kind claude-code-costs). Unknown fields, free text and negative or non-finite amounts are rejected. At most 8 MiB.",
+        "responses": {
+          "201": {"description": "stored"},
+          "400": {"description": "not a valid report; nothing stored"},
+          "503": {"description": "no ground station configured"}
+        }
+      }
+    },
     "/api/openapi.json": {
       "get": {"summary": "This document", "responses": {"200": {"description": "OpenAPI 3 document"}}}
     }

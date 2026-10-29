@@ -30,6 +30,8 @@ pub struct AppState {
     pub hub: Option<crate::hub::Hub>,
     /// The latest report per machine (REQ-PROBE-001), with the ground station.
     pub machines: Option<Arc<crate::probe::Machines>>,
+    /// The latest notional-cost report (REQ-COSTS-001), with the ground station.
+    pub costs: Option<Arc<crate::costs::Costs>>,
 }
 
 /// Build the Axum router with all routes.
@@ -127,9 +129,17 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
         m
     });
 
+    let costs = config.hub.as_ref().map(|h| {
+        Arc::new(crate::costs::Costs::open(
+            &h.data_dir,
+            h.costs_file.as_deref(),
+        ))
+    });
+
     let state = AppState {
         hub,
         machines,
+        costs,
         agents: Arc::new(AgentRegistry::with_ca(
             pool.clone(),
             instance_id.clone(),

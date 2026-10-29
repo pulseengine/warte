@@ -14,6 +14,7 @@ pub mod ca;
 pub mod cli;
 pub mod config;
 pub mod contract;
+pub mod costs;
 pub mod critpath;
 pub mod dashboard;
 pub mod db;

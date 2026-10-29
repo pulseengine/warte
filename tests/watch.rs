@@ -71,6 +71,7 @@ async fn serve() -> (tempfile::TempDir, String, Hub) {
             data_dir: dir.path().join("hub").to_str().unwrap().into(),
             org: "pulseengine".into(),
             probe_self: false,
+            costs_file: None,
         }),
         ..Default::default()
     };

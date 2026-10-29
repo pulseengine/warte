@@ -90,6 +90,10 @@ pub struct HubConfig {
     /// under Machines (REQ-PROBE-001).
     #[serde(default = "default_true")]
     pub probe_self: bool,
+    /// A notional-cost report a workstation job copies here (REQ-COSTS-001);
+    /// re-read when it changes. None: only `POST /api/costs`.
+    #[serde(default)]
+    pub costs_file: Option<String>,
 }
 
 fn default_true() -> bool {

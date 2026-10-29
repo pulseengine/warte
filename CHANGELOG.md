@@ -4,6 +4,10 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased — v1.5.0
 
+- **Costs view** and `GET /api/costs` (REQ-COSTS-001). They show the notional cost of agent chats and subagents, labelled **notional list price, not billed**: list prices applied to the token counts in agent transcripts.
+  - **What it shows:** $ per day for the last 30 days, the top sessions, repositories and models, and subagent spend by task category. It also shows the share of subagent work that ran on a cheaper tier than its caller.
+  - **How the report arrives:** a workstation job copies it to the ground station (`[hub] costs_file`, re-read when it changes). `POST /api/costs` also takes it, behind bearer-token auth.
+  - **What gets rejected:** reports with unknown fields, free text in a name, or bad amounts. Nothing from them is stored, and the reason shown never quotes the input. The read API is public (#46), so a task description must not reach it.
 - The dashboard view lives in the URL (`#machines`, `#queue`, ...). A reload stays on the view, a link opens it, and back/forward move between views. Before, a reload always went back to the Overview.
 - **Security:** removed the permissive CORS layer. It let any web page a LAN user opened read warte's whole unauthenticated read API cross-origin. Nothing needed it: the dashboard is same-origin, and agents use the CLI. `/api/machines` publishes a reduced record, without tool paths, tool error output, process ids or working directories.
 - **Machines view** and `GET /api/machines` (REQ-PROBE-001/003). The ground station probes its own machine every minute (`[hub] probe_self`, on by default) and shows a card per machine: OS, kernel, load, memory, disks, agent CLIs with versions, and agent sessions. The CI host gets a card from the smithy agent's data. Findings across machines, worst first: kernel or tool versions behind the newest seen, disks at 85% or more, low memory, load above the core count, and machines silent for 3 minutes. More machines appear as they are enrolled.

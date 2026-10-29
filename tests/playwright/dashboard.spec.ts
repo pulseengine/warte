@@ -18,6 +18,7 @@ const VIEWS = [
   "Friction",
   "Schedule",
   "Health",
+  "Costs",
   "Agents",
   "Artifacts",
 ];
