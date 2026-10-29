@@ -86,6 +86,20 @@ test.describe("ask", () => {
     // the form keeps what was asked
     await expect(page.getByLabel("Repo:")).toHaveValue("spar");
   });
+
+  test("clicking an in-flight row asks for it, no typing", async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.goto("/");
+    await openView(page, "Ask");
+    const row = page.locator("tr.pick", { hasText: "spar" }).first();
+    await expect(row).toContainText("#511");
+    await row.click();
+    await waitForHtmx(page);
+    await expect(page.locator("#ask-result")).toContainText("ETA for spar PR #511");
+    await expect(page.getByLabel("Repo:")).toHaveValue("spar");
+    await expect(page.getByLabel("PR:")).toHaveValue("511");
+    expect(errors).toEqual([]);
+  });
 });
 
 test.describe("honesty", () => {

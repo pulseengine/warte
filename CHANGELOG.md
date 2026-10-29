@@ -8,6 +8,13 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased — v1.4.1
 
+- **Every view now reads the ground station, not just the Overview.**
+  - **Ask** lists everything queued or running right now; click a row to ask, no typing. The repo field suggests the repos in flight.
+  - **Queue** shows each pool with a meter and its measured waits, plus every queued run on the departures board.
+  - **Critical Path** shows which repos hold the queue, and each pool's p50/p90/max wait on one scale.
+  - **Health** shows the CI host's load, memory, swap, CPU/memory/IO pressure and disks, the telemetry link's loss per stream, and collection errors.
+  - **Outages** lists the problems detected now, worst first: stale telemetry, offline runners, OOM kills, full disks, pressure, overdue runs, link loss. It replaces a hardcoded "GitHub: operational" badge that claimed something warte never checked.
+  - **Agents and Artifacts** get titles and empty states that say how to fill them.
 - **Removed** the unauthenticated `/api/ws` and `/api/events`. They broadcast agent heartbeats and access-right grants and revocations to anyone who could reach warte, and nothing used them: the dashboard refreshes every 30 s, and agents use `/api/watch`. REQ-REALTIME-001 moves to v1.5.0 and returns with authentication.
 - `warte watch --ca-cert <pem>` (or `WARTE_CA_CERT`) trusts a reverse proxy's local CA, e.g. Caddy's `tls internal`. Without it, watching `https://<host>/warte` failed with `UnknownIssuer`. A file holding no certificate is an error up front.
 - **`warte watch --ci`** (REQ-WATCH-001/002, DD-WATCH-001) blocks until a PR's or branch's CI runs start or finish, then prints JSON and exits: 0 on a change, 3 on timeout, 2 on usage errors, 1 on errors. Agents run it as a background command instead of polling. The server side is the long-poll `GET /api/watch`. Its cursor is the CI state itself, so a caller resuming with `--since` cannot miss a change and the server keeps no event log. Holds are capped at 900 s, 8 per client and 1024 in total.

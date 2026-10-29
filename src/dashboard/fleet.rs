@@ -55,7 +55,8 @@ fn snap(hub: Option<&Hub>) -> Result<(Snapshot, i64), String> {
     hub.and_then(Hub::snapshot).ok_or_else(|| unavailable(hub))
 }
 
-/// Queue view: per-pool queued jobs, and every queued run.
+/// Queue view: the fleet's queue at a glance, each pool with its measured
+/// waits, and every queued run on the departures board.
 pub fn queue(hub: Option<&Hub>) -> String {
     let (s, at) = match snap(hub) {
         Ok(v) => v,
@@ -67,65 +68,84 @@ pub fn queue(hub: Option<&Hub>) -> String {
             freshness(at)
         );
     };
-    let busy: usize = s
-        .runners
+    let nbusy = s.runners.iter().filter(|r| busy(r)).count();
+    let self_hosted: u32 = q
+        .pools
         .iter()
-        .filter(|r| r.gh_busy == Some(true) || r.local_busy)
-        .count();
-    let mut cards = format!(
-        r#"<div class="stat-card"><span class="stat-value">{busy}/{}</span><span class="stat-label">self-hosted runners busy</span><span class="stat-detail">{} jobs queued in {} runs{}</span></div>"#,
-        s.runners.len(),
-        q.jobs_queued,
-        q.runs_queued,
-        if q.truncated { " (lower bound)" } else { "" },
+        .filter(|(p, _)| p.as_str() != "hosted")
+        .map(|(_, p)| p.jobs_queued)
+        .sum();
+    let mut kpis = kpi(
+        "Runners busy",
+        &format!("{nbusy}/{}", s.runners.len()),
+        "",
+        "host view",
+        "",
     );
-    for (pool, p) in &q.pools {
-        let class = match p.jobs_queued {
-            0 => "green",
-            1..=10 => "yellow",
-            _ => "red",
-        };
-        cards += &format!(
-            r#"<div class="stat-card"><span class="stat-value">{}</span><span class="stat-label">{}</span><span class="stat-detail">oldest {}, median {}</span><span class="badge {class}">queued</span></div>"#,
-            p.jobs_queued,
-            esc(pool),
-            dur(p.oldest_s),
-            dur(p.median_s),
-        );
-    }
-    let waiting = if q.queued.is_empty() {
-        r#"<p class="empty">No jobs waiting in queue.</p>"#.to_string()
-    } else {
-        let t = now();
-        let rows: String = q
-            .queued
-            .iter()
-            .map(|e| {
-                let what = match e.pr {
-                    Some(n) => format!("#{n}"),
-                    None => esc(&e.branch),
-                };
-                format!(
-                    "<tr><td><code>{}</code></td><td>{what}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
-                    esc(&e.repo),
-                    esc(&e.workflow),
-                    esc(&e.pool),
-                    e.jobs,
-                    dur(t - e.since),
-                )
-            })
-            .collect();
-        format!(
-            r#"<table class="data-table"><thead><tr><th>Repo</th><th>PR / branch</th><th>Workflow</th><th>Pool</th><th>Jobs</th><th>Waiting</th></tr></thead><tbody>{rows}</tbody></table>"#
-        )
-    };
+    kpis += &kpi(
+        "Holding · self-hosted",
+        &self_hosted.to_string(),
+        if self_hosted >= 50 { "warn" } else { "" },
+        &format!(
+            "jobs in {} runs{}",
+            q.runs_queued,
+            if q.truncated { " (lower bound)" } else { "" }
+        ),
+        "",
+    );
+    kpis += &kpi(
+        "GitHub-hosted",
+        &q.hosted_queued.to_string(),
+        "",
+        &format!("queued · {} running", q.hosted_running),
+        "",
+    );
+    kpis += &kpi(
+        "Repos scanned",
+        &q.repos_scanned.to_string(),
+        if q.queued_complete { "" } else { "warn" },
+        if q.queued_complete {
+            "queue list complete"
+        } else {
+            "list incomplete"
+        },
+        "",
+    );
+    let peak = q
+        .pools
+        .values()
+        .map(|p| p.jobs_queued)
+        .max()
+        .unwrap_or(0)
+        .max(1);
+    let pools: String = q
+        .pools
+        .iter()
+        .map(|(pool, p)| {
+            let w = q
+                .waits
+                .get(pool)
+                .map(|w| format!("p50 {} · p90 {}", dur(w.p50), dur(w.p90)))
+                .unwrap_or_else(|| "no recent starts".into());
+            format!(
+                r#"<div class="pool"><span class="name">{}</span>{}<span class="n">{}</span><span class="dim">oldest {} · median {}</span><span class="dim">waits {w}</span></div>"#,
+                esc(pool),
+                meter(p.jobs_queued as f64 * 100.0 / peak as f64, p.jobs_queued >= 50),
+                p.jobs_queued,
+                dur(p.oldest_s),
+                dur(p.median_s),
+            )
+        })
+        .collect();
     format!(
-        r#"<div class="stat-cards">{cards}</div><h3>Waiting Jobs</h3>{waiting}{}"#,
+        r#"<section class="kpis">{kpis}</section><section class="panel"><h3>Pools · jobs waiting</h3><div class="pools">{pools}</div></section><section class="panel"><h3>Departures · every queued run</h3>{}</section>{}"#,
+        departures(q, now(), usize::MAX),
         freshness(at)
     )
 }
 
-/// Critical-path inputs: repos with the most queued jobs, and measured pool waits.
+/// Critical-path inputs: which repos hold the queue, and how long each pool
+/// really makes jobs wait (p50, p90, max on one scale).
 pub fn bottlenecks(hub: Option<&Hub>) -> String {
     let (s, at) = match snap(hub) {
         Ok(v) => v,
@@ -137,21 +157,28 @@ pub fn bottlenecks(hub: Option<&Hub>) -> String {
             freshness(at)
         );
     };
-    let mut per_repo: std::collections::BTreeMap<&str, u32> = Default::default();
+    let mut per_repo: std::collections::BTreeMap<&str, (u32, usize)> = Default::default();
     for e in &q.queued {
-        *per_repo.entry(e.repo.as_str()).or_default() += e.jobs;
+        let r = per_repo.entry(e.repo.as_str()).or_default();
+        r.0 += e.jobs;
+        r.1 += 1;
     }
-    let mut repos: Vec<(&str, u32)> = per_repo.into_iter().filter(|(_, n)| *n > 5).collect();
-    repos.sort_by_key(|r| std::cmp::Reverse(r.1));
-    let cards = if repos.is_empty() {
-        r#"<p class="empty">No repo has more than 5 jobs queued.</p>"#.to_string()
+    let mut repos: Vec<(&str, (u32, usize))> = per_repo.into_iter().collect();
+    repos.sort_by_key(|r| std::cmp::Reverse(r.1 .0));
+    let top = repos.first().map(|r| r.1 .0).unwrap_or(0).max(1);
+    let total: u32 = repos.iter().map(|r| r.1 .0).sum();
+    let bars = if repos.is_empty() {
+        r#"<p class="empty">Nothing queued.</p>"#.to_string()
     } else {
         repos
             .iter()
-            .map(|(r, n)| {
+            .take(12)
+            .map(|(r, (jobs, runs))| {
                 format!(
-                    r#"<div class="stat-card"><span class="stat-label">{}</span><span class="badge yellow">{n} jobs queued</span></div>"#,
-                    esc(r)
+                    r#"<div class="hbar"><span class="name">{}</span>{}<span class="n">{jobs} jobs queued</span><span class="dim">{runs} runs · {:.0}%</span></div>"#,
+                    esc(r),
+                    meter(*jobs as f64 * 100.0 / top as f64, *jobs as f64 >= total as f64 * 0.4),
+                    *jobs as f64 * 100.0 / total.max(1) as f64,
                 )
             })
             .collect()
@@ -159,27 +186,357 @@ pub fn bottlenecks(hub: Option<&Hub>) -> String {
     let waits = if q.waits.is_empty() {
         r#"<p class="empty">No measured waits in the latest snapshot.</p>"#.to_string()
     } else {
+        let scale = q.waits.values().map(|w| w.max).max().unwrap_or(1).max(1) as f64;
         let rows: String = q
             .waits
             .iter()
             .map(|(pool, w)| {
+                let pct = |v: i64| v as f64 * 100.0 / scale;
                 format!(
-                    "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
+                    r#"<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td class="viz"><span class="range"><i class="p90" style="width:{:.0}%"></i><i class="p50" style="width:{:.0}%"></i><i class="max" style="left:{:.0}%"></i></span></td></tr>"#,
                     esc(pool),
                     w.n,
                     dur(w.p50),
                     dur(w.p90),
-                    dur(w.max)
+                    dur(w.max),
+                    pct(w.p90),
+                    pct(w.p50),
+                    pct(w.max).min(99.0),
                 )
             })
             .collect();
         format!(
-            r#"<table class="data-table"><thead><tr><th>Runner pool</th><th>Recent starts</th><th>Wait p50</th><th>p90</th><th>max</th></tr></thead><tbody>{rows}</tbody></table>"#
+            r#"<table class="data-table"><thead><tr><th>Runner pool</th><th>Recent starts</th><th>Wait p50</th><th>p90</th><th>max</th><th>p50 ▮ p90 ▯ max |</th></tr></thead><tbody>{rows}</tbody></table>"#
         )
     };
     format!(
-        r#"<h3>Bottlenecks</h3><div class="stat-cards">{cards}</div><h3>Measured pool waits</h3>{waits}{}"#,
+        r#"<section class="panel"><h3>Who holds the queue</h3><div class="hbars">{bars}</div><div class="note">Share of all queued jobs; amber when one repo holds 40% or more.</div></section><section class="panel"><h3>Measured pool waits · last 3 h</h3>{waits}<div class="note">How long jobs that started recently actually waited, per pool, all on one scale. Ask uses these to estimate a PR's start.</div></section>{}"#,
         freshness(at)
+    )
+}
+
+/// Health: the CI host's machine, the telemetry link per stream, and what
+/// the agent could not collect.
+pub fn health_view(hub: Option<&Hub>) -> String {
+    let Some((hub, (s, at))) = hub.and_then(|h| h.snapshot().map(|v| (h, v))) else {
+        return format!(r#"<section class="panel">{}</section>"#, unavailable(hub));
+    };
+    let m = &s.machine;
+    let pct = |a: f64, b: f64| if b > 0.0 { a * 100.0 / b } else { 0.0 };
+    let line = |label: &str, value: String, p: f64, hot: bool| {
+        format!(
+            r#"<div class="hbar"><span class="name">{label}</span>{}<span class="n">{value}</span></div>"#,
+            meter(p, hot)
+        )
+    };
+    let mut host = String::new();
+    if m.ncpu > 0 {
+        host += &line(
+            "load",
+            format!(
+                "{:.1} / {:.1} / {:.1} on {}",
+                m.load[0], m.load[1], m.load[2], m.ncpu
+            ),
+            pct(m.load[0], m.ncpu as f64),
+            m.load[0] > m.ncpu as f64,
+        );
+        let used = m.mem_total_mb.saturating_sub(m.mem_avail_mb);
+        host += &line(
+            "memory",
+            format!(
+                "{:.0} of {:.0} GB used",
+                used as f64 / 1024.0,
+                m.mem_total_mb as f64 / 1024.0
+            ),
+            pct(used as f64, m.mem_total_mb as f64),
+            pct(used as f64, m.mem_total_mb as f64) >= 90.0,
+        );
+        host += &line(
+            "swap",
+            format!(
+                "{:.1} of {:.0} GB",
+                m.swap_used_mb as f64 / 1024.0,
+                m.swap_total_mb as f64 / 1024.0
+            ),
+            pct(m.swap_used_mb as f64, m.swap_total_mb as f64),
+            m.swap_used_mb > 0 && pct(m.swap_used_mb as f64, m.swap_total_mb as f64) >= 50.0,
+        );
+        for (name, p) in [
+            ("cpu pressure", m.psi.cpu),
+            ("mem pressure", m.psi.memory),
+            ("io pressure", m.psi.io),
+        ] {
+            host += &line(
+                name,
+                format!(
+                    "{:.1}% (10 s {:.1}%, 5 min {:.1}%)",
+                    p.avg60, p.avg10, p.avg300
+                ),
+                p.avg60,
+                p.avg60 >= 10.0,
+            );
+        }
+    }
+    for d in &m.disks {
+        host += &line(
+            &esc(&d.mount),
+            format!("{:.0}% of {:.0} GB", d.used_pct, d.size_gb),
+            d.used_pct,
+            d.used_pct >= 85.0,
+        );
+    }
+    let t = now();
+    let link: String = hub
+        .link()
+        .iter()
+        .map(|l| {
+            let rate = l.lost as f64 * 100.0 / (l.received + l.lost).max(1) as f64;
+            format!(
+                r#"<tr class="{}"><td><code>{}</code></td><td>{}</td><td class="n">{}</td><td class="n">{}</td><td class="n">{rate:.2}%</td><td class="n">{}</td><td class="n">{}</td></tr>"#,
+                if rate >= 1.0 { "warnrow" } else { "" },
+                esc(&l.apid),
+                esc(&l.stream),
+                l.received,
+                l.lost,
+                l.restarts,
+                if l.last_seen > 0 { format!("{} ago", dur(t - l.last_seen)) } else { "—".into() },
+            )
+        })
+        .collect();
+    let link = if link.is_empty() {
+        r#"<tr><td colspan="7" class="dim">No packets since warte started.</td></tr>"#.to_string()
+    } else {
+        link
+    };
+    let errors = if s.errors.is_empty() {
+        r#"<p class="empty">The agent collected everything in its last snapshot.</p>"#.to_string()
+    } else {
+        s.errors
+            .iter()
+            .map(|e| format!(r#"<div class="err">{}</div>"#, esc(e)))
+            .collect()
+    };
+    format!(
+        r#"<div class="split"><section class="panel"><h3>CI host · {}</h3><div class="hbars">{host}</div><div class="note">smithy agent {} · pressure is the share of time tasks stalled (PSI avg60).</div></section><section class="panel"><h3>Telemetry link · CCSDS</h3><div class="scroll"><table class="data-table"><thead><tr><th>APID</th><th>Stream</th><th class="n">Received</th><th class="n">Lost</th><th class="n">Loss</th><th class="n">Restarts</th><th class="n">Last</th></tr></thead><tbody>{link}</tbody></table></div><div class="note">Counted since warte last started. A lost packet is a gap in the stream's sequence count.</div><h3 style="margin-top:1rem">Collection errors</h3>{errors}</section></div>{}"#,
+        esc(&s.host),
+        esc(&s.agent_version),
+        freshness(at)
+    )
+}
+
+/// Problems the ground station can see right now, worst first.
+pub fn incidents(hub: Option<&Hub>) -> String {
+    let Some((hub, (s, at))) = hub.and_then(|h| h.snapshot().map(|v| (h, v))) else {
+        return format!(r#"<section class="panel">{}</section>"#, unavailable(hub));
+    };
+    let t = now();
+    let mut list: Vec<(u8, String)> = Vec::new(); // 2 = red, 1 = amber
+    if t - at > STALE_AFTER_S {
+        list.push((
+            2,
+            format!(
+                "No telemetry for {}: the agent or the link is down.",
+                dur(t - at)
+            ),
+        ));
+    }
+    let offline: Vec<String> = s
+        .runners
+        .iter()
+        .filter(|r| r.gh_status.as_deref() == Some("offline"))
+        .map(|r| format!("runner{}", r.id))
+        .collect();
+    if !offline.is_empty() {
+        list.push((2, format!("Offline runners: {}.", offline.join(", "))));
+    }
+    for r in &s.runners {
+        if let Some(st) = r.stats.as_ref().filter(|st| st.oom_kills > 0) {
+            list.push((
+                1,
+                format!(
+                    "runner{}: {} job(s) OOM-killed since the service started.",
+                    r.id, st.oom_kills
+                ),
+            ));
+        }
+    }
+    for d in s.machine.disks.iter().filter(|d| d.used_pct >= 85.0) {
+        list.push((
+            if d.used_pct >= 95.0 { 2 } else { 1 },
+            format!("Disk {} is {:.0}% full.", esc(&d.mount), d.used_pct),
+        ));
+    }
+    let psi = &s.machine.psi;
+    for (name, v) in [
+        ("CPU", psi.cpu.avg60),
+        ("memory", psi.memory.avg60),
+        ("IO", psi.io.avg60),
+    ] {
+        if v >= 10.0 {
+            list.push((1, format!("{name} pressure {v:.1}%: tasks are stalling.")));
+        }
+    }
+    if let Some(q) = &s.queue {
+        if !q.queued_complete {
+            list.push((
+                1,
+                "The last queue scan was incomplete: Ask and the boards may miss runs.".into(),
+            ));
+        }
+        let overdue = q
+            .queued
+            .iter()
+            .filter(|e| q.waits.get(&e.pool).is_some_and(|w| t - e.since > w.p90))
+            .count();
+        if overdue > 0 {
+            list.push((
+                1,
+                format!(
+                    "{overdue} queued run(s) waited longer than 90% of recent jobs in their pool."
+                ),
+            ));
+        }
+    }
+    for l in hub.link() {
+        let rate = l.lost as f64 * 100.0 / (l.received + l.lost).max(1) as f64;
+        if rate >= 1.0 {
+            list.push((
+                1,
+                format!(
+                    "Telemetry stream {} ({}) loses {rate:.1}% of packets.",
+                    esc(&l.apid),
+                    esc(&l.stream)
+                ),
+            ));
+        }
+    }
+    for e in &s.errors {
+        list.push((1, format!("Agent could not collect: {}", esc(e))));
+    }
+    list.sort_by_key(|i| std::cmp::Reverse(i.0));
+    let body = if list.is_empty() {
+        r#"<div class="allclear"><span class="pill">all clear</span> Nothing the ground station can see is wrong.</div>"#.to_string()
+    } else {
+        list.iter()
+            .map(|(sev, msg)| {
+                format!(
+                    r#"<div class="incident sev{sev}"><span class="badge {}">{}</span>{msg}</div>"#,
+                    if *sev == 2 { "red" } else { "yellow" },
+                    if *sev == 2 { "down" } else { "degraded" }
+                )
+            })
+            .collect()
+    };
+    format!(
+        r#"<section class="panel"><h3>Detected now · CI fleet and ground station</h3>{body}<div class="note">From the latest snapshot and the telemetry link. GitHub's own status is not monitored yet.</div></section>{}"#,
+        freshness(at)
+    )
+}
+
+/// Percent-encode a query value (RFC 3986 unreserved characters pass).
+fn qv(s: &str) -> String {
+    s.bytes()
+        .map(|b| match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                (b as char).to_string()
+            }
+            _ => format!("%{b:02X}"),
+        })
+        .collect()
+}
+
+/// What is in flight right now, one row per PR or branch, for Ask: click a
+/// row instead of typing. Also the repos for the input's suggestions.
+pub fn ask_picker(hub: Option<&Hub>) -> (String, String) {
+    let Some((s, at)) = hub.and_then(Hub::snapshot) else {
+        return (String::new(), String::new());
+    };
+    #[derive(Default)]
+    struct Row {
+        queued_jobs: u32,
+        oldest: i64,
+        running: usize,
+        workflows: std::collections::BTreeSet<String>,
+    }
+    let t = now();
+    let bare = |r: &str| r.rsplit('/').next().unwrap_or(r).to_string();
+    let target = |pr: Option<u32>, branch: &str| match pr {
+        Some(n) => (Some(n), String::new()),
+        None => (None, branch.to_string()),
+    };
+    let mut rows: std::collections::BTreeMap<(String, Option<u32>, String), Row> =
+        Default::default();
+    if let Some(q) = &s.queue {
+        for e in &q.queued {
+            let (pr, br) = target(e.pr, &e.branch);
+            let r = rows.entry((bare(&e.repo), pr, br)).or_default();
+            r.queued_jobs += e.jobs;
+            r.oldest = r.oldest.max(t - e.since);
+            r.workflows.insert(e.workflow.clone());
+        }
+        for j in q.hosted.iter().filter(|j| j.status == "in_progress") {
+            let (pr, br) = target(j.pr, &j.branch);
+            let r = rows.entry((bare(&j.repo), pr, br)).or_default();
+            r.running += 1;
+            r.workflows.insert(j.workflow.clone());
+        }
+    }
+    for c in s
+        .runners
+        .iter()
+        .filter(|r| r.local_busy)
+        .filter_map(|r| r.ctx.as_ref())
+    {
+        let (pr, br) = target(c.pr, &c.branch);
+        let r = rows.entry((bare(&c.repo), pr, br)).or_default();
+        r.running += 1;
+        r.workflows.insert(c.workflow.clone());
+    }
+    let repos: std::collections::BTreeSet<&String> = rows.keys().map(|k| &k.0).collect();
+    let datalist = repos
+        .iter()
+        .map(|r| format!(r#"<option value="{}">"#, esc(r)))
+        .collect::<String>();
+    let mut list: Vec<_> = rows.into_iter().collect();
+    list.sort_by_key(|(_, r)| std::cmp::Reverse((r.oldest, r.running)));
+    if list.is_empty() {
+        return (
+            format!(
+                r#"<section class="panel"><h3>In flight</h3><p class="empty">Nothing queued or running.</p>{}</section>"#,
+                freshness(at)
+            ),
+            datalist,
+        );
+    }
+    let body: String = list
+        .iter()
+        .map(|((repo, pr, branch), r)| {
+            let (what, q) = match pr {
+                Some(n) => (format!("#{n}"), format!("pr={n}")),
+                None => (esc(branch), format!("branch={}", qv(branch))),
+            };
+            let state = match (r.running, r.queued_jobs) {
+                (0, _) => r#"<span class="badge yellow">queued</span>"#.to_string(),
+                (n, 0) => format!(r#"<span class="badge green">{n} running</span>"#),
+                (n, _) => format!(r#"<span class="badge green">{n} running</span> <span class="badge yellow">queued</span>"#),
+            };
+            let wfs: Vec<&str> = r.workflows.iter().map(String::as_str).take(3).collect();
+            format!(
+                r##"<tr class="pick" tabindex="0" title="ask when it runs" hx-get="api/dashboard/ask-partial?repo={}&amp;{q}" hx-target="#content" hx-swap="innerHTML" hx-trigger="click, keyup[key=='Enter']"><td class="flap">{}</td><td>{what}</td><td class="dim">{}</td><td>{state}</td><td class="n">{}</td><td class="n">{}</td></tr>"##,
+                qv(repo),
+                esc(repo),
+                esc(&wfs.join(", ")),
+                r.queued_jobs,
+                if r.oldest > 0 { dur(r.oldest) } else { "—".into() },
+            )
+        })
+        .collect();
+    (
+        format!(
+            r#"<section class="panel"><h3>In flight · click a row to ask</h3><div class="scroll"><table class="board pickable"><thead><tr><th>Repo</th><th>PR / branch</th><th>Workflows</th><th>State</th><th class="n">Queued jobs</th><th class="n">Waiting</th></tr></thead><tbody>{body}</tbody></table></div>{}</section>"#,
+            freshness(at)
+        ),
+        datalist,
     )
 }
 
@@ -381,7 +738,7 @@ fn traffic(hist: &[crate::hub::model::Point], total: usize, t1: i64) -> String {
 
 /// The departures board: queued runs, longest waiting first, with the pool's
 /// measured median wait as the boarding estimate.
-fn departures(q: &crate::hub::model::Queue, t: i64) -> String {
+fn departures(q: &crate::hub::model::Queue, t: i64, limit: usize) -> String {
     if q.queued.is_empty() {
         return r#"<p class="empty">Nothing waiting. Every runway is clear.</p>"#.into();
     }
@@ -389,7 +746,7 @@ fn departures(q: &crate::hub::model::Queue, t: i64) -> String {
     runs.sort_by_key(|e| e.since);
     let rows: String = runs
         .iter()
-        .take(BOARD_ROWS)
+        .take(limit)
         .map(|e| {
             let repo = e.repo.rsplit('/').next().unwrap_or(&e.repo);
             let what = match e.pr {
@@ -412,7 +769,7 @@ fn departures(q: &crate::hub::model::Queue, t: i64) -> String {
             )
         })
         .collect();
-    let more = match runs.len().saturating_sub(BOARD_ROWS) {
+    let more = match runs.len().saturating_sub(limit) {
         0 => String::new(),
         n => format!(r#"<div class="note">and {n} more runs waiting; see Queue.</div>"#),
     };
@@ -628,7 +985,7 @@ pub fn overview(hub: Option<&Hub>) -> String {
         .map(|e| format!(r#"<div class="err">{}</div>"#, esc(e)))
         .collect();
     let board = match &s.queue {
-        Some(q) => departures(q, t),
+        Some(q) => departures(q, t, BOARD_ROWS),
         None => r#"<p class="empty">No queue scan in the latest snapshot.</p>"#.into(),
     };
     let strips: String = s.runners.iter().map(|r| strip(r, t)).collect();

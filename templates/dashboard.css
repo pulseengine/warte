@@ -333,3 +333,58 @@ b.hot { background: none; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before { animation: none !important; }
 }
+
+/* Ask: rows you can click instead of typing */
+.board.pickable tr.pick { cursor: pointer; }
+.board.pickable tr.pick:hover td, .board.pickable tr.pick:focus td { background: #10202e; color: var(--accent); }
+.board.pickable tr.pick:focus { outline: 1px solid var(--accent); }
+.board td .badge { font-size: .6rem; }
+
+/* Queue: one row per pool */
+.pools, .hbars { display: grid; gap: .45rem; }
+.pool, .hbar {
+  display: grid; grid-template-columns: minmax(7rem, 12rem) minmax(80px, 1fr) 4.5rem minmax(0, 14rem) minmax(0, 12rem);
+  align-items: center; gap: .9rem; font: .76rem var(--mono);
+}
+.hbar { grid-template-columns: minmax(7rem, 12rem) minmax(80px, 1fr) minmax(7rem, max-content) minmax(0, 10rem); }
+.hbar .n { white-space: nowrap; }
+.pool .name, .hbar .name { color: var(--text); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pool .n, .hbar .n { color: var(--amber); font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
+.pool .dim, .hbar .dim { color: var(--dim); font-size: .68rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pool .bar, .hbar .bar { height: 8px; border-radius: 4px; }
+.hbars .hbar .n { color: var(--text); }
+
+/* Critical path: p50 / p90 / max on one scale */
+td.viz { width: 34%; }
+.range { position: relative; display: block; height: 10px; border-radius: 5px; background: var(--border); overflow: hidden; }
+.range i { position: absolute; top: 0; bottom: 0; left: 0; display: block; }
+.range i.p90 { background: rgba(62, 230, 255, .28); }
+.range i.p50 { background: var(--accent); }
+.range i.max { width: 2px; background: var(--amber); }
+
+/* Outages */
+.incident {
+  display: flex; gap: .7rem; align-items: center; padding: .55rem .75rem; margin-bottom: .4rem;
+  border-radius: 6px; background: var(--raise); border-left: 4px solid var(--amber); font-size: .85rem;
+}
+.incident.sev2 { border-left-color: var(--err); }
+.allclear { display: flex; gap: .8rem; align-items: center; padding: .9rem; font-size: .9rem; color: var(--dim); }
+tr.warnrow td { color: var(--amber); }
+
+/* Views backed by warte's own database: panels and a real empty state */
+.resources-view, .friction-view, .schedule-view, .agents-view, .artifacts-view { display: grid; gap: 1rem; }
+main > p.empty, .resources-view .empty, .friction-view .empty, .schedule-view .empty, main > table + p.freshness {
+  margin: 0;
+}
+p.empty {
+  border: 1px dashed var(--border); border-radius: 10px; padding: 1.1rem 1.2rem;
+  background: rgba(17, 27, 41, .4); font-family: var(--mono); font-size: .8rem; line-height: 1.6;
+}
+
+@media (max-width: 640px) {
+  .pool { grid-template-columns: minmax(0, 1fr) 3.5rem; }
+  .pool .bar, .pool .dim { grid-column: 1 / -1; }
+  .hbar { grid-template-columns: minmax(0, 1fr) auto; }
+  .hbar .bar, .hbar .dim { grid-column: 1 / -1; }
+  td.viz { display: none; }
+}
