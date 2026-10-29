@@ -3,3 +3,6 @@
 .warte/state.json
 .warte/heartbeat.json
 .playwright-mcp/
+
+# written by a ground station probing its own machine; never commit
+machines.json

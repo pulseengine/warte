@@ -7,3 +7,5 @@ bind = "127.0.0.1:3013"
 udp = "127.0.0.1:0"
 allow = ["127.0.0.1"]
 data_dir = "hub"
+# the fixture must not probe the machine running the tests
+probe_self = false

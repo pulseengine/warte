@@ -769,3 +769,57 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-10-29T05:48:14Z
+
+  - id: REQ-GHSRC-001
+    type: requirement
+    title: GitHub's API as a CI source for teams without a smithy agent
+    status: verified
+    release: v1.5.0
+    description: "With [github] (or WARTE_GITHUB_ORG and WARTE_GITHUB_TOKEN) warte SHALL scan GitHub's REST API at a configured base URL (api.github.com; api.<tenant>.ghe.com; <host>/api/v3 for GHES, never guessed) and fill the ground station's model: org runners, queued and running runs of recently pushed repos, their jobs per pool, and realized waits. Every view and /api/eta, /api/queue, /api/admission and /api/watch SHALL work on it unchanged. Read-only: GETs with a bearer token."
+    fields:
+      category: functional
+      priority: must
+      upstream-ref: https://github.com/pulseengine/warte/issues/81
+    links:
+      - type: satisfies
+        target: SC-006
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-29T16:56:42Z
+
+  - id: REQ-GHSRC-002
+    type: requirement
+    title: The GitHub scan pages, respects rate limits, and says why it fails
+    status: verified
+    release: v1.5.0
+    description: "The scan SHALL follow Link rel=next paging (bounded), wait for the reset on a primary (x-ratelimit-remaining 0) or secondary (retry-after) rate limit, and treat 401 and non-rate-limit 403 as a refused token: shown in Health and Outages with what to fix, retried at the normal interval. A token that cannot list org runners SHALL still give the queue, with the gap stated. A configured CA bundle SHALL be trusted in addition to the bundled roots; a bundle without a certificate, a missing token, or [hub] and [github] together SHALL stop startup."
+    fields:
+      category: functional
+      priority: must
+      upstream-ref: https://github.com/pulseengine/warte/issues/81
+    links:
+      - type: satisfies
+        target: SC-006
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-29T16:56:42Z
+
+  - id: DD-GHSRC-001
+    type: design-decision
+    title: The GitHub source feeds the ground station's model; one CI source per instance
+    status: accepted
+    release: v1.5.0
+    description: "The GitHub API scan is the smithy agent's queue scan ported to warte (async, configurable base URL) and its result enters the hub as a snapshot (Hub::ingest_snapshot). Views, ETA, admission and watch have one model and one code path whichever source fills it. [hub] and [github] are exclusive: two sources writing one model would make every view wrong."
+    fields:
+      rationale: "Reported from a GitHub Enterprise Cloud (data residency) deployment: since v1.4.0 the ground station was warte's only CI source, so a team without a smithy agent saw empty views. Reusing the model keeps the agent-facing APIs identical; there is no host view without an agent, so GitHub's busy flag stands in for it."
+    links:
+      - type: satisfies
+        target: REQ-GHSRC-001
+      - type: satisfies
+        target: REQ-GHSRC-002
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-29T16:56:42Z

@@ -109,6 +109,11 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
     )?);
     tracing::info!(ca_cert = %config.ca_cert_path.display(), "CA initialized");
 
+    if config.hub.is_some() && config.github.is_some() {
+        anyhow::bail!(
+            "[hub] and [github] are both set: choose one CI source (the smithy agent's telemetry, or GitHub's API)"
+        );
+    }
     let hub = match &config.hub {
         Some(h) => {
             crate::hub::check_allow(&h.allow).map_err(anyhow::Error::msg)?;
@@ -119,11 +124,27 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
             tracing::info!(%udp, data_dir = %h.data_dir, "ground station up, API at /ci");
             Some(hub)
         }
-        None => None,
+        None => match &config.github {
+            // No smithy agent: GitHub's API is the CI source (#81).
+            Some(g) => {
+                std::fs::create_dir_all(&g.data_dir)
+                    .map_err(|e| anyhow::anyhow!("{}: {e}", g.data_dir))?;
+                let hub = crate::hub::Hub::open(&g.data_dir, &g.org).map_err(anyhow::Error::msg)?;
+                crate::ghsource::spawn(hub.clone(), g.clone()).map_err(anyhow::Error::msg)?;
+                tracing::info!(api = %g.api_url, org = %g.org, every_s = g.interval_s, "CI source: GitHub API");
+                Some(hub)
+            }
+            None => None,
+        },
     };
-    let machines = config.hub.as_ref().map(|h| {
-        let m = Arc::new(crate::probe::Machines::open(&h.data_dir));
-        if h.probe_self {
+    let machines = match (&config.hub, &config.github) {
+        (Some(h), _) => Some((h.data_dir.clone(), h.probe_self)),
+        (None, Some(g)) => Some((g.data_dir.clone(), true)),
+        (None, None) => None,
+    }
+    .map(|(dir, probe_self)| {
+        let m = Arc::new(crate::probe::Machines::open(&dir));
+        if probe_self {
             crate::probe::spawn_self(m.clone(), std::time::Duration::from_secs(60));
         }
         m
@@ -150,7 +171,12 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
         sync: Arc::new(SyncService::new(pool.clone(), instance_id.clone())),
         tokens: Arc::new(crate::auth::TokenManager::new(24)),
         realtime: Arc::new(crate::realtime::EventBroadcaster::new()),
-        status: Arc::new(crate::status::StatusClient::github()),
+        status: Arc::new(
+            match config.github.as_ref().map(|g| g.status_url.as_str()) {
+                Some(url) if url != "off" => crate::status::StatusClient::new(url),
+                _ => crate::status::StatusClient::github(),
+            },
+        ),
         config: config.clone(),
         db,
     };

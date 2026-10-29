@@ -58,19 +58,84 @@ pub struct Config {
     #[serde(default = "default_rate_limit_per_agent")]
     pub rate_limit_per_agent: u32,
 
-    /// GitHub organization (for CI status, ETA estimation).
+    /// GitHub's API as a CI source, for teams without a smithy agent (#81).
+    /// Set by a `[github]` section or by `WARTE_GITHUB_ORG` + `WARTE_GITHUB_TOKEN`.
     #[serde(default)]
-    pub github_org: Option<String>,
-
-    /// GitHub token (for API access).
-    #[serde(default)]
-    pub github_token: Option<String>,
+    pub github: Option<GithubConfig>,
 
     /// Ground station (absorbed smithy hub). When set, `warte serve` ingests the
     /// smithy agent's telemetry, mounts the hub API under `/ci`, and the Queue,
     /// Resources, Ask and Overview views read from it (DD-SMITHY-001).
     #[serde(default)]
     pub hub: Option<HubConfig>,
+}
+
+/// GitHub's REST API as a CI source (#81). The scan fills the same model as
+/// the smithy agent's telemetry, so every view and agent API works on it.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GithubConfig {
+    /// API base. `https://api.github.com`; GitHub Enterprise Cloud with data
+    /// residency: `https://api.<tenant>.ghe.com`; GHES: `https://<host>/api/v3`.
+    /// Set explicitly, never guessed from a web URL.
+    #[serde(default = "default_github_api_url")]
+    pub api_url: String,
+    pub org: String,
+    /// Prefer `WARTE_GITHUB_TOKEN` over writing it into the file.
+    #[serde(default, skip_serializing)]
+    pub token: Option<String>,
+    /// Seconds between scans.
+    #[serde(default = "default_github_interval_s")]
+    pub interval_s: u64,
+    /// Only repos pushed within this many days are scanned.
+    #[serde(default = "default_github_active_days")]
+    pub active_days: i64,
+    /// At most this many runs have their jobs listed per scan.
+    #[serde(default = "default_github_max_runs")]
+    pub max_runs: usize,
+    /// Extra PEM roots for the API, e.g. a TLS-intercepting proxy's CA.
+    #[serde(default)]
+    pub ca_bundle: Option<PathBuf>,
+    /// GitHub status page API, or `off`.
+    #[serde(default = "default_github_status_url")]
+    pub status_url: String,
+    /// Where the scanned state is kept when there is no `[hub]`.
+    #[serde(default = "default_github_data_dir")]
+    pub data_dir: String,
+}
+
+impl Default for GithubConfig {
+    fn default() -> Self {
+        GithubConfig {
+            api_url: default_github_api_url(),
+            org: String::new(),
+            token: None,
+            interval_s: default_github_interval_s(),
+            active_days: default_github_active_days(),
+            max_runs: default_github_max_runs(),
+            ca_bundle: None,
+            status_url: default_github_status_url(),
+            data_dir: default_github_data_dir(),
+        }
+    }
+}
+
+fn default_github_api_url() -> String {
+    "https://api.github.com".into()
+}
+fn default_github_interval_s() -> u64 {
+    60
+}
+fn default_github_active_days() -> i64 {
+    7
+}
+fn default_github_max_runs() -> usize {
+    150
+}
+fn default_github_status_url() -> String {
+    "https://www.githubstatus.com/api/v2".into()
+}
+fn default_github_data_dir() -> String {
+    "/var/lib/warte/github".into()
 }
 
 /// `[hub]` in warte.toml — the same settings as `warte hub`'s flags.
@@ -116,8 +181,7 @@ impl Default for Config {
             tls_key_path: default_tls_key_path(),
             rate_limit_per_ip: default_rate_limit_per_ip(),
             rate_limit_per_agent: default_rate_limit_per_agent(),
-            github_org: None,
-            github_token: None,
+            github: None,
             hub: None,
         }
     }
@@ -149,11 +213,28 @@ impl Config {
         if let Ok(db) = std::env::var("WARTE_DB_PATH") {
             self.db_path = PathBuf::from(db);
         }
-        if let Ok(org) = std::env::var("WARTE_GITHUB_ORG") {
-            self.github_org = Some(org);
+        let env = |k: &str| std::env::var(k).ok().filter(|v| !v.is_empty());
+        if let (Some(org), Some(token)) = (env("WARTE_GITHUB_ORG"), env("WARTE_GITHUB_TOKEN")) {
+            let g = self.github.get_or_insert_with(|| GithubConfig {
+                org: org.clone(),
+                ..Default::default()
+            });
+            g.org = org;
+            g.token = Some(token);
         }
-        if let Ok(token) = std::env::var("WARTE_GITHUB_TOKEN") {
-            self.github_token = Some(token);
+        if let Some(g) = self.github.as_mut() {
+            if let Some(v) = env("WARTE_GITHUB_TOKEN") {
+                g.token = Some(v);
+            }
+            if let Some(v) = env("WARTE_GITHUB_API_URL") {
+                g.api_url = v;
+            }
+            if let Some(v) = env("WARTE_CA_BUNDLE") {
+                g.ca_bundle = Some(v.into());
+            }
+            if let Some(v) = env("WARTE_GITHUB_STATUS_URL") {
+                g.status_url = v;
+            }
         }
         if let Ok(tls) = std::env::var("WARTE_TLS_ENABLED") {
             self.tls_enabled = tls == "true" || tls == "1";
