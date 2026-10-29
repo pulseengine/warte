@@ -17,6 +17,7 @@
     </div>
     <nav class="nav">
       <button hx-get="api/dashboard/overview-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn active">Overview</button>
+      <button hx-get="api/dashboard/machines-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Machines</button>
       <button hx-get="api/dashboard/ask-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn" data-no-refresh>Ask</button>
       <button hx-get="api/dashboard/queue-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Queue</button>
       <button hx-get="api/dashboard/critical-path-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Critical Path</button>

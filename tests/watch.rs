@@ -70,6 +70,7 @@ async fn serve() -> (tempfile::TempDir, String, Hub) {
             allow: vec![LO],
             data_dir: dir.path().join("hub").to_str().unwrap().into(),
             org: "pulseengine".into(),
+            probe_self: false,
         }),
         ..Default::default()
     };

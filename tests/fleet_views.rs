@@ -343,6 +343,7 @@ async fn serve_with_a_hub_mounts_the_ground_station_at_ci() {
         allow: vec![Ipv4Addr::LOCALHOST.into()],
         data_dir: hub_dir.path().to_str().unwrap().into(),
         org: "pulseengine".into(),
+        probe_self: false,
     };
     let (_d, base) = serve_app(Some(cfg)).await;
     assert_eq!(status(format!("{base}/ci/healthz")).await, 200);
@@ -451,6 +452,7 @@ async fn every_view_escapes_author_controlled_text() {
         allow: vec![Ipv4Addr::LOCALHOST.into()],
         data_dir: hub_dir.path().to_str().unwrap().into(),
         org: "pulseengine".into(),
+        probe_self: false,
     };
     let (_d, base, db) = serve_app_db(Some(cfg)).await;
 
@@ -541,6 +543,7 @@ async fn with_a_hub_stale_data_is_shown_as_stale() {
         allow: vec![Ipv4Addr::LOCALHOST.into()],
         data_dir: hub_dir.path().to_str().unwrap().into(),
         org: "pulseengine".into(),
+        probe_self: false,
     };
     let (_d, base) = serve_app(Some(cfg)).await;
     for p in ["queue-partial", "critical-path-partial", "health-partial"] {
@@ -676,4 +679,97 @@ fn health_and_outages_come_from_the_snapshot_not_from_decoration() {
     let (_d2, calm) = hub_with(&fleet_snapshot());
     assert!(fleet::incidents(Some(&calm)).contains("all clear"));
     assert!(fleet::incidents(None).contains("not configured"));
+}
+
+// rivet: verifies REQ-SEC-001
+#[tokio::test]
+async fn machines_publish_no_paths_pids_or_dirs_and_no_cross_origin_reads() {
+    let dir = tempfile::tempdir().unwrap();
+    let hub_dir = dir.path().join("hub");
+    std::fs::create_dir_all(&hub_dir).unwrap();
+    // a stored machine with the private details the probe keeps locally
+    let m = warte::probe::Machines::open(hub_dir.to_str().unwrap());
+    let mut r = warte::probe::Report {
+        probe_version: "t".into(),
+        host: "box".into(),
+        taken_at: 1,
+        os: warte::probe::Os {
+            name: "L".into(),
+            kernel: "6.1".into(),
+            arch: "a".into(),
+        },
+        uptime_s: 1,
+        cpu: warte::probe::Cpu {
+            ncpu: 1,
+            load: [0.0; 3],
+        },
+        memory: warte::probe::Memory {
+            total_mb: 1,
+            avail_mb: 1,
+            swap_total_mb: 0,
+            swap_used_mb: 0,
+        },
+        disks: vec![],
+        tools: vec![warte::probe::Tool {
+            name: "claude".into(),
+            path: Some("/Users/secret/bin/claude".into()),
+            version: None,
+            error: Some("SECRET-ERROR".into()),
+        }],
+        sessions: vec![warte::probe::Session {
+            agent: "claude".into(),
+            pid: 4242,
+            started_at: 1,
+            dir: Some("secret-repo".into()),
+        }],
+    };
+    m.record(r.clone(), "probe", warte::hub::now());
+    r.host = "other".into();
+    drop(m);
+    let cfg = warte::config::HubConfig {
+        udp: "127.0.0.1:0".into(),
+        allow: vec![Ipv4Addr::LOCALHOST.into()],
+        data_dir: hub_dir.to_str().unwrap().into(),
+        org: "pulseengine".into(),
+        probe_self: false,
+    };
+    let config = warte::config::Config {
+        db_path: dir.path().join("state.db"),
+        ca_cert_path: dir.path().join("ca.pem"),
+        ca_key_path: dir.path().join("ca-key.pem"),
+        hub: Some(cfg),
+        ..Default::default()
+    };
+    let db = warte::db::Database::connect(&config.db_path).await.unwrap();
+    let app = warte::server::build_router(warte::server::build_state(config, db).unwrap());
+    let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base = format!("http://{}", l.local_addr().unwrap());
+    tokio::spawn(async move { axum::serve(l, app).await.unwrap() });
+
+    let resp = reqwest::Client::new()
+        .get(format!("{base}/api/machines"))
+        .header("Origin", "https://evil.example")
+        .send()
+        .await
+        .unwrap();
+    assert!(
+        resp.headers().get("access-control-allow-origin").is_none(),
+        "no CORS: a foreign page must not read this"
+    );
+    let body = resp.text().await.unwrap();
+    for secret in ["/Users/secret", "SECRET-ERROR", "4242", "secret-repo"] {
+        assert!(!body.contains(secret), "{secret} leaked: {body}");
+    }
+    let v: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(v["machines"][0]["report"]["tools"][0]["installed"], true);
+    assert_eq!(v["machines"][0]["report"]["sessions"]["claude"], 1);
+    let page = reqwest::get(format!("{base}/api/dashboard/machines-partial"))
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    for secret in ["/Users/secret", "SECRET-ERROR", "4242", "secret-repo"] {
+        assert!(!page.contains(secret), "{secret} in the view");
+    }
 }

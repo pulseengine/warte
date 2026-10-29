@@ -86,6 +86,14 @@ pub struct HubConfig {
     /// GitHub org the agent scans.
     #[serde(default = "default_hub_org")]
     pub org: String,
+    /// The ground station probes its own machine every minute and shows it
+    /// under Machines (REQ-PROBE-001).
+    #[serde(default = "default_true")]
+    pub probe_self: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 impl Default for Config {

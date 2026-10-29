@@ -38,6 +38,7 @@ pub fn build_routes() -> Router<AppState> {
         .route("/queue", get(api_queue))
         .route("/admission", get(api_admission))
         .route("/watch", get(api_watch))
+        .route("/machines", get(api_machines))
         .route("/openapi.json", get(api_openapi));
     // /api/ws and /api/events are not mounted: they broadcast agent and
     // access events without authentication, and nothing uses them (agents
@@ -89,6 +90,10 @@ pub fn build_routes() -> Router<AppState> {
         .route(
             "/api/dashboard/schedule-partial",
             get(crate::dashboard::schedule_partial),
+        )
+        .route(
+            "/api/dashboard/machines-partial",
+            get(crate::dashboard::machines_partial),
         )
         .route(
             "/api/dashboard/health-partial",
@@ -257,6 +262,61 @@ async fn api_watch(
             _ = tokio::time::sleep_until(deadline) => return Json(a).into_response(),
         }
     }
+}
+
+/// What `/api/machines` publishes of a report. The read API has no auth
+/// (warte#46), so it leaves out what only helps an attacker map a machine:
+/// tool paths, tool error output, process ids and working directories.
+fn public_report(r: &crate::probe::Report) -> serde_json::Value {
+    let mut sessions: std::collections::BTreeMap<&str, usize> = Default::default();
+    for s in &r.sessions {
+        *sessions.entry(s.agent.as_str()).or_default() += 1;
+    }
+    serde_json::json!({
+        "host": r.host,
+        "taken_at": r.taken_at,
+        "os": r.os,
+        "uptime_s": r.uptime_s,
+        "cpu": r.cpu,
+        "memory": r.memory,
+        "disks": r.disks,
+        "tools": r.tools.iter().map(|t| serde_json::json!({
+            "name": t.name,
+            "installed": t.path.is_some(),
+            "version": t.version,
+        })).collect::<Vec<_>>(),
+        "sessions": sessions,
+    })
+}
+
+/// Every machine the ground station hears from, with drift findings.
+async fn api_machines(State(state): State<AppState>) -> axum::response::Response {
+    let Some(m) = state.machines.as_ref() else {
+        return plain(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "no ground station configured",
+        );
+    };
+    let now = crate::hub::now();
+    let seen = m.list();
+    let machines: Vec<serde_json::Value> = seen
+        .iter()
+        .map(|s| {
+            serde_json::json!({
+                "host": s.report.host,
+                "via": s.via,
+                "received_at": s.received_at,
+                "age_s": now - s.received_at,
+                "stale": now - s.received_at > crate::probe::MACHINE_STALE_S,
+                "report": public_report(&s.report),
+            })
+        })
+        .collect();
+    Json(serde_json::json!({
+        "machines": machines,
+        "findings": crate::probe::findings(&seen, now),
+    }))
+    .into_response()
 }
 
 async fn api_openapi() -> axum::response::Response {

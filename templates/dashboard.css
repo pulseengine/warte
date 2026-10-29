@@ -66,8 +66,8 @@ a:hover { text-decoration: underline; }
 .nav { display: flex; gap: .2rem; flex-wrap: wrap; }
 .nav-btn {
   background: none; border: 0; border-bottom: 2px solid transparent;
-  color: var(--dim); padding: .45rem .6rem; cursor: pointer;
-  font: .72rem var(--mono); letter-spacing: .14em; text-transform: uppercase;
+  color: var(--dim); padding: .45rem .5rem; cursor: pointer;
+  font: .7rem var(--mono); letter-spacing: .11em; text-transform: uppercase;
 }
 .nav-btn:hover { color: var(--text); }
 .nav-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
@@ -388,3 +388,25 @@ p.empty {
   .hbar .bar, .hbar .dim { grid-column: 1 / -1; }
   td.viz { display: none; }
 }
+
+/* Machines: one card per host */
+.machines { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: .8rem; }
+.machine {
+  background: var(--raise); border: 1px solid var(--border); border-top: 3px solid var(--accent-dim);
+  border-radius: 10px; padding: .8rem .9rem; display: grid; gap: .5rem; min-width: 0;
+}
+.machine.amber { border-top-color: var(--amber); }
+.machine.red { border-top-color: var(--err); }
+.mhead { display: flex; justify-content: space-between; align-items: center; gap: .5rem; }
+.mname { font: 800 1.05rem var(--mono); color: var(--accent); letter-spacing: .06em; }
+.mos { font: .68rem var(--mono); color: var(--dim); }
+.mtools, .msess { display: flex; flex-wrap: wrap; gap: .3rem; }
+.chip.on { color: var(--text); border-color: var(--accent-dim); }
+.chip.off { opacity: .45; text-decoration: line-through; }
+.chip.warn { color: var(--amber); border-color: rgba(255, 184, 77, .5); }
+.mvia { font: .62rem var(--mono); color: var(--dim); letter-spacing: .08em; }
+.machine .hbar { grid-template-columns: 6.5rem minmax(60px, 1fr) max-content; gap: .6rem; font-size: .7rem; }
+.machine .hbar .dim { display: none; }
+.finding { font: .72rem var(--mono); padding: .25rem .5rem; border-radius: 4px; }
+.finding.amber { color: var(--amber); background: rgba(255, 184, 77, .08); }
+.finding.red { color: var(--err); background: rgba(255, 77, 106, .1); }

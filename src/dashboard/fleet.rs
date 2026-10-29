@@ -21,6 +21,11 @@ pub fn esc(s: &str) -> String {
         .replace('\'', "&#39;")
 }
 
+/// `dur` for other modules (the probe's findings).
+pub fn dur_pub(s: i64) -> String {
+    dur(s)
+}
+
 fn dur(s: i64) -> String {
     match s.max(0) {
         s if s < 90 => format!("{s}s"),
