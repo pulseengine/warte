@@ -334,3 +334,58 @@ async fn the_pushed_file_is_read_when_it_changes_and_checked_like_a_post() {
     assert_eq!(v["report"]["sessions"][0]["repo"], "alpha");
     assert!(v.get("rejected").is_none() || v["rejected"].is_null());
 }
+
+/// A `costs_file` that exists but cannot be read is a rejection naming the
+/// error kind, never the "nothing received yet" empty state (#80).
+// rivet: verifies REQ-COSTS-001
+#[cfg(unix)]
+#[test]
+fn an_unreadable_costs_file_is_rejected_not_empty() {
+    use std::os::unix::fs::PermissionsExt;
+    let set_mode = |p: &std::path::Path, m: u32| {
+        std::fs::set_permissions(p, std::fs::Permissions::from_mode(m)).unwrap()
+    };
+    let data = tempfile::tempdir().unwrap();
+    let src = tempfile::tempdir().unwrap();
+
+    // The file itself is mode 0000: it can be stat'ed but not read.
+    let file = src.path().join("costs.json");
+    std::fs::write(&file, report().to_string()).unwrap();
+    set_mode(&file, 0o000);
+    if std::fs::read(&file).is_ok() {
+        set_mode(&file, 0o600);
+        return; // running as root: permission bits are not enforced
+    }
+    let c = warte::costs::Costs::open(data.path().to_str().unwrap(), file.to_str());
+    let why = c.rejected().expect("an unreadable file must be reported");
+    assert!(why.contains("permission denied"), "{why}");
+    assert!(
+        !why.contains(src.path().to_str().unwrap()),
+        "names no path: {why}"
+    );
+    assert!(c.latest().is_none());
+    set_mode(&file, 0o600);
+
+    // Its directory is mode 0000: even metadata fails, as when a unit
+    // sandbox hides the path.
+    let hidden = src.path().join("hidden");
+    std::fs::create_dir(&hidden).unwrap();
+    let inner = hidden.join("costs.json");
+    std::fs::write(&inner, report().to_string()).unwrap();
+    set_mode(&hidden, 0o000);
+    let c = warte::costs::Costs::open(data.path().to_str().unwrap(), inner.to_str());
+    let why = c.rejected();
+    set_mode(&hidden, 0o700);
+    let why = why.expect("a denied metadata read must be reported");
+    assert!(why.contains("permission denied"), "{why}");
+    assert!(
+        !why.contains(src.path().to_str().unwrap()),
+        "names no path: {why}"
+    );
+
+    // A file that does not exist yet stays the quiet empty state.
+    let missing = src.path().join("not-yet.json");
+    let c = warte::costs::Costs::open(data.path().to_str().unwrap(), missing.to_str());
+    assert_eq!(c.rejected(), None);
+    assert!(c.latest().is_none());
+}
