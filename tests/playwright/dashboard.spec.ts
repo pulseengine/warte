@@ -73,6 +73,31 @@ test.describe("views render", () => {
   }
 });
 
+test.describe("the view is in the URL", () => {
+  test("a reload stays on the view, links open it, back goes back", async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.goto("/");
+    await waitForHtmx(page);
+    await openView(page, "Machines");
+    await expect(page).toHaveURL(/#machines$/);
+    await page.reload();
+    await waitForHtmx(page);
+    await expect(page.getByRole("button", { name: "Machines", exact: true })).toHaveClass(/active/);
+    await expect(page.locator("#content").getByRole("heading", { name: "Machines" })).toBeVisible();
+
+    await page.goto("/#critical-path");
+    await page.reload();
+    await waitForHtmx(page);
+    await expect(page.locator("#content").getByRole("heading", { name: "Critical Path" })).toBeVisible();
+
+    await openView(page, "Queue");
+    await page.goBack();
+    await waitForHtmx(page);
+    await expect(page.locator("#content").getByRole("heading", { name: "Critical Path" })).toBeVisible();
+    expect(errors).toEqual([]);
+  });
+});
+
 test.describe("ask", () => {
   test("asks the ground station for a PR's ETA", async ({ page }) => {
     await page.goto("/");
