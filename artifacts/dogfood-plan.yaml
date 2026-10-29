@@ -714,3 +714,41 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-10-28T16:46:28Z
+
+  - id: REQ-JOBS-001
+    type: requirement
+    title: "Jobs view: scheduled jobs across hosts, overdue when a success is missing"
+    status: approved
+    release: v1.5.0
+    description: "warte SHALL show every scheduled job reported by the hosts' probes (from each host's jobs/<name>.json: name, host, started, finished, exit, duration_s, expect_within_s): last run, last success, exit code and time until overdue, red once overdue; GET /api/jobs SHALL return the same as JSON with a count of overdue jobs. A job is overdue when no success was recorded within expect_within_s, so a host that is down or a timer that stopped shows up as overdue, not as silence. Job states travel in the probe report (REQ-PROBE-001), not by a separate collection."
+    fields:
+      category: functional
+      priority: should
+      upstream-ref: https://github.com/pulseengine/warte/issues/72
+    links:
+      - type: satisfies
+        target: SC-006
+      - type: depends-on
+        target: REQ-PROBE-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-29T05:48:13Z
+
+  - id: REQ-EXP-001
+    type: requirement
+    title: Experiments view from structured experiment metadata
+    status: proposed
+    release: v1.6.0
+    description: warte SHALL show each pre-registered experiment (status, window and days left, arms and their repositories, criteria linked to the pinned doc and claim, latest readings, next due item) and serve it at GET /api/experiments. The source SHALL be structured metadata (frontmatter or a rivet experiment artifact in pulseengine.eu), never parsed prose; the view is designed together with that metadata.
+    fields:
+      category: functional
+      priority: could
+      upstream-ref: https://github.com/pulseengine/warte/issues/73
+    links:
+      - type: satisfies
+        target: SC-006
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-29T05:48:14Z
