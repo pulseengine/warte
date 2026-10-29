@@ -264,6 +264,31 @@ async fn api_watch(
     }
 }
 
+/// What `/api/machines` publishes of a report. The read API has no auth
+/// (warte#46), so it leaves out what only helps an attacker map a machine:
+/// tool paths, tool error output, process ids and working directories.
+fn public_report(r: &crate::probe::Report) -> serde_json::Value {
+    let mut sessions: std::collections::BTreeMap<&str, usize> = Default::default();
+    for s in &r.sessions {
+        *sessions.entry(s.agent.as_str()).or_default() += 1;
+    }
+    serde_json::json!({
+        "host": r.host,
+        "taken_at": r.taken_at,
+        "os": r.os,
+        "uptime_s": r.uptime_s,
+        "cpu": r.cpu,
+        "memory": r.memory,
+        "disks": r.disks,
+        "tools": r.tools.iter().map(|t| serde_json::json!({
+            "name": t.name,
+            "installed": t.path.is_some(),
+            "version": t.version,
+        })).collect::<Vec<_>>(),
+        "sessions": sessions,
+    })
+}
+
 /// Every machine the ground station hears from, with drift findings.
 async fn api_machines(State(state): State<AppState>) -> axum::response::Response {
     let Some(m) = state.machines.as_ref() else {
@@ -283,7 +308,7 @@ async fn api_machines(State(state): State<AppState>) -> axum::response::Response
                 "received_at": s.received_at,
                 "age_s": now - s.received_at,
                 "stale": now - s.received_at > crate::probe::MACHINE_STALE_S,
-                "report": s.report,
+                "report": public_report(&s.report),
             })
         })
         .collect();

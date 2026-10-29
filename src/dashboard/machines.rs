@@ -63,8 +63,7 @@ fn card(s: &Seen, mine: &[&Finding], now: i64) -> String {
                 esc(v)
             ),
             (_, None) => format!(
-                r#"<span class="chip warn" title="{}">{} ?</span>"#,
-                esc(t.error.as_deref().unwrap_or_default()),
+                r#"<span class="chip warn" title="installed, version unknown">{} ?</span>"#,
                 esc(&t.name)
             ),
         })

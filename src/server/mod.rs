@@ -12,7 +12,6 @@ use crate::sync::SyncService;
 use axum::response::IntoResponse;
 use axum::Router;
 use std::sync::Arc;
-use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 
 /// Shared application state.
@@ -51,7 +50,9 @@ pub fn build_router(state: AppState) -> Router {
             state.clone(),
             crate::auth::auth_middleware,
         ))
-        .layer(CorsLayer::permissive())
+        // No CORS layer: the dashboard is same-origin and agents use the CLI.
+        // A permissive one let any web page a LAN user opened read the whole
+        // read API (machines, agents, queue) cross-origin.
         .layer(TraceLayer::new_for_http())
         .with_state(state);
     match hub_api {
