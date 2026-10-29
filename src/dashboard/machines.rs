@@ -195,3 +195,50 @@ pub fn view(machines: Option<&Machines>, hub: Option<&crate::hub::Hub>) -> Strin
         r#"<div class="overview"><h2>Machines</h2><section class="panel"><h3>Drift and problems</h3>{summary}</section>{empty}<div class="machines">{cards}</div><div class="note">Each machine reports every minute with <code>warte probe</code>. Agent sessions show the agent and working directory only, never command lines. More machines appear as they are enrolled.</div></div>"#
     )
 }
+
+/// Model vs reality, and the modelled machines that do not report, as dashed
+/// cards (REQ-FLEET-001). Empty when no model is configured.
+pub fn model_panel(
+    fleet: Option<&Result<crate::fleet::Fleet, String>>,
+    reporting: &[String],
+) -> String {
+    let f = match fleet {
+        None => return String::new(),
+        Some(Err(e)) => {
+            return format!(
+                r#"<section class="panel"><h3>Fleet model</h3><div class="incident sev1"><span class="badge yellow">model</span>{}</div></section>"#,
+                esc(e)
+            )
+        }
+        Some(Ok(f)) => f,
+    };
+    let diffs = crate::fleet::differences(f, reporting);
+    let list = if diffs.is_empty() {
+        r#"<div class="allclear"><span class="pill">matches</span> Every modelled machine reports, and nothing reports that is not modelled.</div>"#.to_string()
+    } else {
+        diffs
+            .iter()
+            .map(|d| format!(r#"<div class="incident sev1"><span class="badge yellow">model</span><b>{}</b>&nbsp;{}</div>"#, esc(&d.host), esc(&d.text)))
+            .collect()
+    };
+    let missing: String = f
+        .machines
+        .iter()
+        .filter(|m| !reporting.iter().any(|r| r.eq_ignore_ascii_case(&m.host)))
+        .map(|m| {
+            let boards: Vec<String> = m.boards.iter().map(|b| format!(r#"<span class="chip">{}</span>"#, esc(&b.catalog))).collect();
+            format!(
+                r#"<div class="machine modelled"><div class="mhead"><span class="mname">{}</span><span class="pill stale">not reporting</span></div><div class="mos">modelled: {} · {}{}</div><div class="mtools">{}</div><div class="mvia">from the fleet model</div></div>"#,
+                esc(&m.host),
+                esc(&m.kind),
+                esc(&m.location),
+                m.cores.map(|c| format!(" · {c} cores")).unwrap_or_default(),
+                boards.join("")
+            )
+        })
+        .collect();
+    format!(
+        r#"<section class="panel"><h3>Fleet model vs reality · {}</h3>{list}</section><div class="machines">{missing}</div>"#,
+        esc(&f.root)
+    )
+}

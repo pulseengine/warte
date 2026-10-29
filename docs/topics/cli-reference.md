@@ -12,6 +12,7 @@ Commands:
   access    Manage access rights
   migrate   Migrate data from an existing system
   probe     What this machine is and runs: hardware, disks, agent CLIs, sessions
+  fleet     The fleet model: read a spar instance of the Warte_Fleet types
   artifact  Manage artifacts
   docs      Show embedded documentation
 
@@ -29,7 +30,7 @@ Options:
 - Unknown flags exit 2
 - Structured output via `--format json`
 - Subcommands: `serve`, `status`, `agents`, `schedule`, `watch`,
-  `access`, `migrate`, `probe`, `hub`, `artifact`, `docs`
+  `access`, `migrate`, `probe`, `fleet`, `hub`, `artifact`, `docs`
 
 ## Examples
 
@@ -86,3 +87,21 @@ warte --format json probe report
 Sending to the ground station (QUIC, mutual TLS, relay-sec), enrollment
 with a one-time token, and agent working/waiting state from hooks you
 install are the next steps (DD-TRANSPORT-001, DD-PROBE-002, DD-PROBE-003).
+
+## warte fleet
+
+The fleet a deployment intends (machines, where they live, which bench
+board is attached to which machine) is an AADL model of the `Warte_Fleet`
+types in `architecture/fleet/warte_fleet.aadl`, instantiated with spar:
+
+```bash
+spar instance --root My_Fleet::MyFleet.impl --format json \
+  warte_fleet.aadl my_fleet.aadl > fleet.json
+warte fleet show fleet.json          # exit 1 when the model has problems
+```
+
+Point `fleet_model` (or `WARTE_FLEET_MODEL`) at `fleet.json` and warte
+compares it with what reports in: a modelled machine that is not
+reporting, a reporting machine that is not modelled. The Machines view
+shows the differences and draws modelled-but-silent machines dashed;
+`GET /api/fleet` serves the same. spar does the modelling; warte draws it.

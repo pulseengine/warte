@@ -122,6 +122,42 @@ async fn main() -> anyhow::Result<()> {
             std::process::exit(code);
         }
 
+        Commands::Fleet { action } => match action {
+            warte::cli::FleetCommands::Show { instance } => {
+                let text = std::fs::read_to_string(&instance)
+                    .map_err(|e| anyhow::anyhow!("{}: {e}", instance.display()))?;
+                let f = warte::fleet::from_spar(&text).map_err(anyhow::Error::msg)?;
+                match cli.format {
+                    OutputFormat::Json => println!("{}", serde_json::to_string_pretty(&f)?),
+                    OutputFormat::Text => {
+                        println!("{}", f.root);
+                        for m in &f.machines {
+                            let boards: Vec<&str> =
+                                m.boards.iter().map(|b| b.catalog.as_str()).collect();
+                            println!(
+                                "  {:<20} {:<12} {:<7} {}{}",
+                                m.host,
+                                m.kind,
+                                m.location,
+                                if m.ground_station {
+                                    "ground station "
+                                } else {
+                                    ""
+                                },
+                                boards.join(", ")
+                            );
+                        }
+                        for p in &f.problems {
+                            println!("  problem: {p}");
+                        }
+                    }
+                }
+                if !f.problems.is_empty() {
+                    std::process::exit(1);
+                }
+            }
+        },
+
         Commands::Probe { action } => match action {
             warte::cli::ProbeCommands::Report => {
                 let r = warte::probe::collect().await;

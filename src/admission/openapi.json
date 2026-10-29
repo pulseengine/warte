@@ -82,6 +82,16 @@
         }
       }
     },
+    "/api/fleet": {
+      "get": {
+        "summary": "The fleet model (a spar instance of the Warte_Fleet AADL types) and its differences from what reports in",
+        "responses": {
+          "200": {"description": "model and differences"},
+          "404": {"description": "no fleet model configured"},
+          "503": {"description": "the configured model could not be read"}
+        }
+      }
+    },
     "/api/openapi.json": {
       "get": {"summary": "This document", "responses": {"200": {"description": "OpenAPI 3 document"}}}
     }

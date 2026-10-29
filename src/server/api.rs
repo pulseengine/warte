@@ -47,6 +47,7 @@ pub fn build_routes() -> Router<AppState> {
         .route("/admission", get(api_admission))
         .route("/watch", get(api_watch))
         .route("/machines", get(api_machines))
+        .route("/fleet", get(api_fleet))
         .route("/openapi.json", get(api_openapi));
     // /api/ws and /api/events are not mounted: they broadcast agent and
     // access events without authentication, and nothing uses them (agents
@@ -363,6 +364,40 @@ async fn api_costs_post(
                 "could not store the report",
             )
         }
+    }
+}
+
+/// The hosts reporting now: probes, and the CI host's agent.
+pub fn reporting_hosts(state: &AppState) -> Vec<String> {
+    let mut hosts: Vec<String> = state
+        .machines
+        .as_ref()
+        .map(|m| m.list().into_iter().map(|s| s.report.host).collect())
+        .unwrap_or_default();
+    if let Some((s, _)) = state.hub.as_ref().and_then(|h| h.snapshot()) {
+        if !s.host.is_empty() && !hosts.contains(&s.host) {
+            hosts.push(s.host);
+        }
+    }
+    hosts
+}
+
+/// The fleet model and its differences from what reports in (REQ-FLEET-001).
+async fn api_fleet(State(state): State<AppState>) -> axum::response::Response {
+    match state.fleet.as_deref() {
+        None => plain(
+            StatusCode::NOT_FOUND,
+            "no fleet model configured (fleet_model / WARTE_FLEET_MODEL)",
+        ),
+        Some(Err(e)) => plain(
+            StatusCode::SERVICE_UNAVAILABLE,
+            &format!("fleet model unreadable: {e}"),
+        ),
+        Some(Ok(f)) => Json(serde_json::json!({
+            "model": f,
+            "differences": crate::fleet::differences(f, &reporting_hosts(&state)),
+        }))
+        .into_response(),
     }
 }
 
