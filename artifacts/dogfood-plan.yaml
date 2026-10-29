@@ -103,7 +103,7 @@ artifacts:
   - id: REQ-STORE-002
     type: requirement
     title: CI telemetry is not stored in warte's database
-    status: implemented
+    status: verified
     release: v1.4.0
     description: "CI job, wait and status data SHALL NOT be kept in warte's SQLite database. It lives in the ground station: hub-state.json and the per-day JSONL ledger, which can be rebuilt from GitHub, the store of record. The ci_jobs, wait_history and ci_status tables SHALL be dropped, and no code SHALL read or write them."
     fields:
@@ -234,7 +234,7 @@ artifacts:
     type: requirement
     title: smithy agent can send telemetry to more than one hub (parallel run)
     status: proposed
-    release: v1.4.0
+    release: v1.5.0
     description: The smithy agent on the CI host SHALL accept a repeatable --hub, so the same snapshots and ledger frames reach both smithy-hub and warte during the parallel run, without doubling GitHub API calls. Owned by pulseengine/smithy; held at implemented here until smithy ships it.
     fields:
       category: interface
@@ -248,7 +248,7 @@ artifacts:
   - id: DD-SMITHY-001
     type: design-decision
     title: "warte absorbs smithy hub: CCSDS ingest, ledger, ETA and the hub API move into warte"
-    status: approved
+    status: accepted
     release: v1.4.0
     description: "warte becomes the ground station. It receives the smithy agent's CCSDS telemetry over UDP (relay-ccsds), keeps the per-day JSONL ledger and hub state, computes ETA from measured waits, and serves the hub's API. The smithy agent stays on the CI host. warte's own poller, CI webhooks, eta module and SQLite telemetry tables are removed. Cut-over: run side by side (agent sends to both), compare /api/eta and /status.md, then retire smithy-hub.service on the ground-station host."
     fields:
@@ -350,7 +350,7 @@ artifacts:
   - id: REQ-ASK-004
     type: requirement
     title: Dashboard Ask shows the ground station's ETA
-    status: implemented
+    status: verified
     release: v1.4.0
     description: The dashboard Ask view SHALL answer for a repo and a PR number or branch with the same answer as the ground station's /api/eta (status, running jobs, queued parts with measured-wait estimate or the reason there is none). It SHALL be a read-only GET usable without authentication, accept the repo with or without the org, and HTML-escape its input and all author-controlled names.
     fields:
@@ -367,7 +367,7 @@ artifacts:
   - id: REQ-DASH-013
     type: requirement
     title: The dashboard works in a browser, offline and behind a path prefix
-    status: implemented
+    status: verified
     release: v1.4.0
     description: In a browser, every dashboard view SHALL render non-empty content without script errors; Ask SHALL show its form and the ground station's answer. The page SHALL load nothing from other origins (htmx is served by warte), SHALL work behind a path prefix (https://<host>/warte/), and SHALL NOT claim a live connection that does not exist. Verified by the Playwright suite in tests/playwright, run in CI.
     fields:
@@ -402,7 +402,7 @@ artifacts:
     type: requirement
     title: Superseded PR CI runs are cancelled; main and release runs never are
     status: verified
-    release: v1.4.1
+    release: v1.4.0
     description: A new push to a pull request SHALL cancel that PR's older CI runs, so stale commits don't hold the shared smithy runners. Runs for pushes to main and release/** SHALL never be cancelled.
     fields:
       category: non-functional
@@ -416,7 +416,7 @@ artifacts:
     type: requirement
     title: warte watch blocks until something relevant changes, then exits
     status: verified
-    release: v1.4.1
+    release: v1.4.0
     description: warte watch SHALL block until a watched condition changes and then exit 0 with a JSON description of the change and a cursor. The first condition is --ci (a PR's or branch's CI runs start or finish), with --repo plus --pr or --branch. It SHALL exit with a distinct code when --timeout expires with no change, 1 on error and 2 on usage errors, and accept --since <cursor> so no change is missed between two calls. Agents (Claude Code, Copilot CLI, cron) run it as a background command and are woken only when it exits.
     fields:
       category: interface
@@ -431,7 +431,7 @@ artifacts:
     type: requirement
     title: Long-poll /api/watch, woken by the ground station's snapshots
     status: verified
-    release: v1.4.1
+    release: v1.4.0
     description: warte SHALL expose GET /api/watch?repo=&(pr=|branch=)&since=<cursor>&timeout=<s>, which answers at once when the PR's or branch's CI state (its runs, each queued or running) differs from the cursor, and otherwise holds until a new ground-station snapshot changes it or the timeout passes. The cursor SHALL encode the state itself, so a caller resuming with an old cursor cannot miss a change and the server keeps no event log. Holds SHALL be bounded (at most 900 s, at most 64 at once); invalid input SHALL be refused, not held.
     fields:
       category: interface
@@ -446,7 +446,7 @@ artifacts:
     type: design-decision
     title: Agents wait on a blocking CLI, not on channels or polling
     status: accepted
-    release: v1.4.1
+    release: v1.4.0
     description: warte watch is a blocking command over a long-poll endpoint. It works unchanged for Claude Code (background command, woken on exit), Copilot CLI (shell or SDK wrapper calling session.send) and cron agents.
     fields:
       rationale: "Claude Code channels are a research preview, need allow-listing, and don't register for headless sessions; Copilot has no equivalent, only SDK session.send for SDK-driven sessions. A blocking CLI needs neither, costs no tokens while waiting, and replaces the hand-written gh pr checks loops agents use today. The cursor is the watched state (status + digest of runs), not an event sequence number: with telemetry arriving once a minute, a state comparison is exact at that resolution, needs no retention window, and cannot lose events across a server restart; the realtime broadcaster is not needed for this. Inbox messages and advisories become further conditions on the same endpoint."
@@ -494,7 +494,7 @@ artifacts:
     type: requirement
     title: "GET /api/queue: machine-readable fleet queue for agents"
     status: verified
-    release: v1.4.1
+    release: v1.4.0
     description: "warte SHALL serve GET /api/queue[?repo=<name>] as JSON from the ground station's latest snapshot: self_hosted {busy, total, queued_jobs}, hosted {queued_jobs, oldest_wait_s, median_wait_s}, repo {queued_runs, running_runs} when repo is given, and as_of with the snapshot age and a stale flag. It SHALL answer 503 when no ground station or snapshot exists and 400 for an invalid repo, and SHALL be described in /api/openapi.json."
     fields:
       category: interface
@@ -512,7 +512,7 @@ artifacts:
     type: requirement
     title: "GET /api/admission: open | batch | hold verdict before an agent opens a PR"
     status: verified
-    release: v1.4.1
+    release: v1.4.0
     description: "warte SHALL serve GET /api/admission?repo=<name>&kind=<docs|fix|feature|security|red-main> returning {verdict: open|batch|hold, reason, recheck_s}. security and red-main SHALL always be open. docs SHALL be batch whenever the repo has runs queued or running. The thresholds for fix and feature SHALL live in warte as named constants. Stale or missing queue data SHALL never produce batch or hold (the verdict is open, with the reason saying so). Unknown kinds SHALL be rejected with 400."
     fields:
       category: interface
@@ -702,7 +702,7 @@ artifacts:
     type: requirement
     title: The overview is the control tower's view of the fleet
     status: verified
-    release: v1.4.1
+    release: v1.4.0
     description: "The dashboard Overview SHALL show, from the ground station's latest snapshot and its per-minute history: a runway gauge with one cell per runner (busy by the host's own view); KPIs with two-hour trends (runners online, self-hosted jobs waiting, GitHub-hosted, CPU and memory pressure, runner disk); six hours of traffic (busy runners and waiting jobs); one flight strip per runner with its job, repo, PR, elapsed time and cgroup CPU/memory, marking where GitHub's busy flag disagrees; and a departures board of queued runs, longest waiting first, estimating start from the pool's measured median wait and marking runs past the pool's p90 as overdue. Every author-controlled field SHALL be HTML-escaped. Without a hub or telemetry the view SHALL say why."
     fields:
       category: functional
@@ -774,7 +774,7 @@ artifacts:
     type: requirement
     title: GitHub's API as a CI source for teams without a smithy agent
     status: verified
-    release: v1.5.0
+    release: v1.4.0
     description: "With [github] (or WARTE_GITHUB_ORG and WARTE_GITHUB_TOKEN) warte SHALL scan GitHub's REST API at a configured base URL (api.github.com; api.<tenant>.ghe.com; <host>/api/v3 for GHES, never guessed) and fill the ground station's model: org runners, queued and running runs of recently pushed repos, their jobs per pool, and realized waits. Every view and /api/eta, /api/queue, /api/admission and /api/watch SHALL work on it unchanged. Read-only: GETs with a bearer token."
     fields:
       category: functional
@@ -792,7 +792,7 @@ artifacts:
     type: requirement
     title: The GitHub scan pages, respects rate limits, and says why it fails
     status: verified
-    release: v1.5.0
+    release: v1.4.0
     description: "The scan SHALL follow Link rel=next paging (bounded), wait for the reset on a primary (x-ratelimit-remaining 0) or secondary (retry-after) rate limit, and treat 401 and non-rate-limit 403 as a refused token: shown in Health and Outages with what to fix, retried at the normal interval. A token that cannot list org runners SHALL still give the queue, with the gap stated. A configured CA bundle SHALL be trusted in addition to the bundled roots; a bundle without a certificate, a missing token, or [hub] and [github] together SHALL stop startup."
     fields:
       category: functional
@@ -810,7 +810,7 @@ artifacts:
     type: design-decision
     title: The GitHub source feeds the ground station's model; one CI source per instance
     status: accepted
-    release: v1.5.0
+    release: v1.4.0
     description: "The GitHub API scan is the smithy agent's queue scan ported to warte (async, configurable base URL) and its result enters the hub as a snapshot (Hub::ingest_snapshot). Views, ETA, admission and watch have one model and one code path whichever source fills it. [hub] and [github] are exclusive: two sources writing one model would make every view wrong."
     fields:
       rationale: "Reported from a GitHub Enterprise Cloud (data residency) deployment: since v1.4.0 the ground station was warte's only CI source, so a team without a smithy agent saw empty views. Reusing the model keeps the agent-facing APIs identical; there is no host view without an agent, so GitHub's busy flag stands in for it."

@@ -2,7 +2,10 @@
 
 Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red (#34); their "Cuttable" claims were checked only by a local rivet.
 
-## Unreleased — v1.5.0
+## v1.4.0 — 2026-10-29
+
+One release for everything since v1.3.2: the ground station absorbed into warte, warte without a smithy agent (GitHub API, including `.ghe.com`), machine supervision, the agent APIs, and the control-tower dashboard. Machine supervision covers the ground station's own machine and the CI host; other machines join once probes can enroll and send (v1.5.0). Retiring smithy-hub follows its parity run (moved to v1.5.0).
+
 
 - **Fleet model** (REQ-FLEET-001). The fleet a deployment intends (machines, where they live, which bench board is attached to which machine) is an AADL model of the new `Warte_Fleet` types (`architecture/fleet/`), instantiated with spar. `warte fleet show` reads the instance, and exits 1 when the model has problems. With `fleet_model` set, warte compares the model with what reports in: `GET /api/fleet`, plus a "model vs reality" panel in Machines that draws modelled-but-silent machines dashed. spar models; warte draws.
 - **Costs:** a `costs_file` that exists but cannot be read (a denied directory, a unit sandbox hiding the path) is now shown as rejected, with the error kind (`cannot read the report: permission denied`), instead of looking like "no report received yet" (#80). Only a missing file stays the quiet empty state.
@@ -16,8 +19,6 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 - **Machines view** and `GET /api/machines` (REQ-PROBE-001/003). The ground station probes its own machine every minute (`[hub] probe_self`, on by default) and shows a card per machine: OS, kernel, load, memory, disks, agent CLIs with versions, and agent sessions. The CI host gets a card from the smithy agent's data. Findings across machines, worst first: kernel or tool versions behind the newest seen, disks at 85% or more, low memory, load above the core count, and machines silent for 3 minutes. More machines appear as they are enrolled.
 - **`warte probe report`** (REQ-PROBE-001, first part) prints what a machine is and runs: OS, kernel and architecture, CPU and load, memory and swap, disks, the agent CLIs and tools on PATH with their versions (`claude`, `copilot`, `codex`, `gh`, `varve`), and the agent sessions running now. It is read-only and sends nothing yet. For agent processes it reports the agent, pid, start time and working-directory name, never command lines. Sending (QUIC + mTLS + relay-sec), one-time-token enrollment (DD-PROBE-002) and hook-based agent state (DD-PROBE-003) build on it.
 
-## Unreleased — v1.4.1
-
 - **Every view now reads the ground station, not just the Overview.**
   - **Ask** lists everything queued or running right now; click a row to ask, no typing. The repo field suggests the repos in flight.
   - **Queue** shows each pool with a meter and its measured waits, plus every queued run on the departures board.
@@ -30,8 +31,6 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 - **`warte watch --ci`** (REQ-WATCH-001/002, DD-WATCH-001) blocks until a PR's or branch's CI runs start or finish, then prints JSON and exits: 0 on a change, 3 on timeout, 2 on usage errors, 1 on errors. Agents run it as a background command instead of polling. The server side is the long-poll `GET /api/watch`. Its cursor is the CI state itself, so a caller resuming with `--since` cannot miss a change and the server keeps no event log. Holds are capped at 900 s, 8 per client and 1024 in total.
 - **The Overview is a control tower** (REQ-DASH-014). It shows a runway gauge with one cell per runner, KPIs with two-hour trends and six hours of traffic, all drawn from the ground station's own history. Each runner is a flight strip showing what it is running, for how long, its cgroup CPU and memory, and whether GitHub's busy flag disagrees with the host. A departures board lists queued runs, longest waiting first. It estimates start from the pool's measured median wait and marks runs past p90 as overdue. Every view gets warte's own look: night sky, tower cyan for what is moving, amber for what is waiting, and a UTC tower clock. No new requests and no external assets: the page is still offline-capable, and motion stops under `prefers-reduced-motion`.
 - `GET /api/queue` and `GET /api/admission` give agents a machine-readable queue and an `open | batch | hold` verdict before they open a PR (#55). The verdicts come from the ground station's snapshot, the thresholds live in warte, and stale data never gates. Documented in the new `/api/openapi.json`.
-
-## Unreleased — v1.4.0
 
 - **Ground station** (absorbed smithy hub, DD-SMITHY-001): `warte hub` takes smithy hub's flags and reads its data directory as-is; it serves the hub API unchanged. Behaviour on the ground-station host's real data was checked against smithy's own binary: 0 differences in 26 requests (`scripts/hub-parity.sh`).
 - `warte serve` runs the ground station in-process when warte.toml has a `[hub]` section, and mounts its API under `/ci`. The Queue, Critical Path, Ask and Health views now read the hub's live data, escape repo/branch/job names, and show the snapshot's real age.
