@@ -402,7 +402,7 @@ artifacts:
   - id: TEST-DASH-005
     type: verification
     title: Dashboard queue + critical path views — runner pools, waiting jobs, bottlenecks, ETA pool stats
-    status: implemented
+    status: accepted
     release: v1.4.0
     description: "tests/fleet_views.rs: the Queue view renders the hub's pools, runners and queued runs; author-controlled text in every dashboard view is escaped (router-level, hostile DB rows and hub snapshot); stale data is shown as stale; missing hub or telemetry is stated. Served through the real router at /api/dashboard/queue-partial."
     links:
