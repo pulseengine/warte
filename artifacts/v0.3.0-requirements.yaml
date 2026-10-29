@@ -79,7 +79,7 @@ artifacts:
     type: requirement
     title: "WebSocket for real-time dashboard and mobile updates"
     status: approved
-    release: v1.4.1
+    release: v1.5.0
     description: >
       The API SHALL expose a WebSocket endpoint (/api/ws) for real-time
       updates: agent heartbeats, CI status changes, access revocations,

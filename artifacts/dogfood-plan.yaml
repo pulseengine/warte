@@ -401,7 +401,7 @@ artifacts:
   - id: REQ-CI-004
     type: requirement
     title: Superseded PR CI runs are cancelled; main and release runs never are
-    status: implemented
+    status: verified
     release: v1.4.1
     description: A new push to a pull request SHALL cancel that PR's older CI runs, so stale commits don't hold the shared smithy runners. Runs for pushes to main and release/** SHALL never be cancelled.
     fields:
@@ -445,7 +445,7 @@ artifacts:
   - id: DD-WATCH-001
     type: design-decision
     title: Agents wait on a blocking CLI, not on channels or polling
-    status: approved
+    status: accepted
     release: v1.4.1
     description: warte watch is a blocking command over a long-poll endpoint. It works unchanged for Claude Code (background command, woken on exit), Copilot CLI (shell or SDK wrapper calling session.send) and cron agents.
     fields:
@@ -493,7 +493,7 @@ artifacts:
   - id: REQ-QUEUE-001
     type: requirement
     title: "GET /api/queue: machine-readable fleet queue for agents"
-    status: implemented
+    status: verified
     release: v1.4.1
     description: "warte SHALL serve GET /api/queue[?repo=<name>] as JSON from the ground station's latest snapshot: self_hosted {busy, total, queued_jobs}, hosted {queued_jobs, oldest_wait_s, median_wait_s}, repo {queued_runs, running_runs} when repo is given, and as_of with the snapshot age and a stale flag. It SHALL answer 503 when no ground station or snapshot exists and 400 for an invalid repo, and SHALL be described in /api/openapi.json."
     fields:
@@ -511,7 +511,7 @@ artifacts:
   - id: REQ-QUEUE-002
     type: requirement
     title: "GET /api/admission: open | batch | hold verdict before an agent opens a PR"
-    status: implemented
+    status: verified
     release: v1.4.1
     description: "warte SHALL serve GET /api/admission?repo=<name>&kind=<docs|fix|feature|security|red-main> returning {verdict: open|batch|hold, reason, recheck_s}. security and red-main SHALL always be open. docs SHALL be batch whenever the repo has runs queued or running. The thresholds for fix and feature SHALL live in warte as named constants. Stale or missing queue data SHALL never produce batch or hold (the verdict is open, with the reason saying so). Unknown kinds SHALL be rejected with 400."
     fields:

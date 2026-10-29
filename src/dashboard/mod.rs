@@ -7,8 +7,7 @@
 //! - Agents: agent registry with health status
 //! - Artifacts: artifact list with download links
 //!
-//! The frontend uses SSE (/api/events) for real-time updates and
-//! shows freshness indicators for all data.
+//! Views refresh every 30 s and show the age of the data they render.
 
 pub mod fleet;
 

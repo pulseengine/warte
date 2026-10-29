@@ -38,10 +38,10 @@ pub fn build_routes() -> Router<AppState> {
         .route("/queue", get(api_queue))
         .route("/admission", get(api_admission))
         .route("/watch", get(api_watch))
-        .route("/openapi.json", get(api_openapi))
-        // Real-time: WebSocket (bidirectional) + SSE (unidirectional)
-        .route("/ws", axum::routing::any(crate::realtime::ws_handler))
-        .route("/events", get(crate::realtime::sse_handler));
+        .route("/openapi.json", get(api_openapi));
+    // /api/ws and /api/events are not mounted: they broadcast agent and
+    // access events without authentication, and nothing uses them (agents
+    // use /api/watch). They return with auth in v1.5.0 (REQ-REALTIME-001).
 
     Router::new()
         .nest("/api", read_routes.merge(mutating_routes))

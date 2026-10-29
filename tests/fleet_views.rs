@@ -222,6 +222,11 @@ async fn the_router_serves_api_and_dashboard_where_documented() {
     // the API is under /api, once (it was under /api/api before v1.4.0)
     assert_eq!(status(format!("{base}/api/health")).await, 200);
     assert_eq!(status(format!("{base}/api/api/health")).await, 404);
+    // the unauthenticated realtime broadcast is not mounted (REQ-REALTIME-001
+    // returns with auth in v1.5.0)
+    for p in ["/api/events", "/api/ws"] {
+        assert_eq!(status(format!("{base}{p}")).await, 404, "{p}");
+    }
     // the dashboard page is reachable and shows the real version
     let page = reqwest::get(format!("{base}/")).await.unwrap();
     assert_eq!(page.status(), 200);
