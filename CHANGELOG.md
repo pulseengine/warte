@@ -2,6 +2,10 @@
 
 Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red (#34); their "Cuttable" claims were checked only by a local rivet.
 
+## Unreleased — v1.5.0
+
+- **`warte probe report`** (REQ-PROBE-001, first part) prints what a machine is and runs: OS, kernel and architecture, CPU and load, memory and swap, disks, the agent CLIs and tools on PATH with their versions (`claude`, `copilot`, `codex`, `gh`, `varve`), and the agent sessions running now. It is read-only and sends nothing yet. For agent processes it reports the agent, pid, start time and working-directory name, never command lines. Sending (QUIC + mTLS + relay-sec), one-time-token enrollment (DD-PROBE-002) and hook-based agent state (DD-PROBE-003) build on it.
+
 ## Unreleased — v1.4.1
 
 - `warte watch --ca-cert <pem>` (or `WARTE_CA_CERT`) trusts a reverse proxy's local CA, e.g. Caddy's `tls internal`. Without it, watching `https://<host>/warte` failed with `UnknownIssuer`. A file holding no certificate is an error up front.
