@@ -120,7 +120,25 @@ async fn a_missing_or_unreadable_model_is_said_not_fatal() {
         .text()
         .await
         .unwrap();
-    assert!(page.contains("/nonexistent/fleet.json"), "{page}");
+    assert!(
+        page.contains("could not be read; see the server log"),
+        "{page}"
+    );
+    // the path and the OS error stay in the server log
+    assert!(
+        !page.contains("/nonexistent") && !page.contains("No such file"),
+        "{page}"
+    );
+    let body = reqwest::get(format!("{base2}/api/fleet"))
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    assert!(
+        !body.contains("/nonexistent") && !body.contains("No such file"),
+        "{body}"
+    );
     // the rest of warte still works
     assert_eq!(
         reqwest::get(format!("{base2}/api/health"))
