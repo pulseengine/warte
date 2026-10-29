@@ -100,8 +100,7 @@ bearer token). Endpoints:
 | `/ci/api/eta` | GET | public (read-only) | ETA query ("when will this PR run?"), from the ground station |
 | `/api/sync/state` | GET | instance | Get sync state |
 | `/api/sync/update` | POST | instance | Push state update |
-| `/api/ws` | WS | agent/operator | WebSocket for real-time updates |
-| `/api/events` | SSE | operator | Server-Sent Events for dashboard |
+| `/api/watch` | GET (long-poll) | agent | Blocks until a PR's or branch's CI changes (`warte watch`) |
 
 ### 2. Agent Registry
 
