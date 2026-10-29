@@ -77,6 +77,10 @@ pub enum Commands {
         /// warte's base URL, e.g. https://host/warte (default: the configured bind)
         #[arg(long, env = "WARTE_URL")]
         url: Option<String>,
+        /// PEM CA certificate to trust for --url, e.g. a reverse proxy's
+        /// local CA, in addition to the built-in roots
+        #[arg(long, env = "WARTE_CA_CERT")]
+        ca_cert: Option<std::path::PathBuf>,
     },
 
     /// Manage access rights

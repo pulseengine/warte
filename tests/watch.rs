@@ -271,6 +271,24 @@ async fn the_cli_exits_0_on_a_change_3_on_timeout_2_on_usage_1_on_error() {
         &["--ci", "--repo", "spar", "--pr", "1"],
     );
     assert_eq!(out.status.code(), Some(1), "{out:?}");
+    // a --ca-cert that holds no certificate is an error up front, not a
+    // TLS failure later
+    let not_pem = _d.path().join("not.pem");
+    std::fs::write(&not_pem, "hello").unwrap();
+    let out = cli(
+        &base,
+        &[
+            "--ci",
+            "--repo",
+            "spar",
+            "--pr",
+            "1",
+            "--ca-cert",
+            not_pem.to_str().unwrap(),
+        ],
+    );
+    assert_eq!(out.status.code(), Some(1), "{out:?}");
+    assert!(String::from_utf8_lossy(&out.stderr).contains("no PEM certificate"));
 }
 
 // rivet: verifies REQ-WATCH-002

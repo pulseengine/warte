@@ -103,14 +103,22 @@ async fn main() -> anyhow::Result<()> {
             since,
             timeout,
             url,
+            ca_cert,
         } => {
             let base = match url {
                 Some(u) => u.trim_end_matches('/').to_string(),
                 None => format!("http://{}", Config::load()?.bind),
             };
-            let code =
-                warte::watch::client::run(&base, &repo, pr, branch.as_deref(), since, timeout)
-                    .await?;
+            let code = warte::watch::client::run(
+                &base,
+                &repo,
+                pr,
+                branch.as_deref(),
+                since,
+                timeout,
+                ca_cert.as_deref(),
+            )
+            .await?;
             std::process::exit(code);
         }
 

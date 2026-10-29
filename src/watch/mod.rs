@@ -363,8 +363,21 @@ pub mod client {
         branch: Option<&str>,
         mut since: Option<String>,
         timeout_s: u64,
+        ca_cert: Option<&std::path::Path>,
     ) -> anyhow::Result<i32> {
-        let http = reqwest::Client::new();
+        let mut http = reqwest::Client::builder();
+        if let Some(p) = ca_cert {
+            let bad = |e: &dyn std::fmt::Display| anyhow::anyhow!("--ca-cert {}: {e}", p.display());
+            let pem = std::fs::read(p).map_err(|e| bad(&e))?;
+            let certs = reqwest::Certificate::from_pem_bundle(&pem).map_err(|e| bad(&e))?;
+            if certs.is_empty() {
+                return Err(bad(&"no PEM certificate in the file"));
+            }
+            for c in certs {
+                http = http.add_root_certificate(c);
+            }
+        }
+        let http = http.build()?;
         let deadline = Instant::now() + Duration::from_secs(timeout_s);
         loop {
             let left = deadline.saturating_duration_since(Instant::now()).as_secs();
