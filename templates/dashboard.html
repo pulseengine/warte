@@ -33,9 +33,7 @@
   </header>
 
   <main id="content">
-    <div hx-get="api/dashboard/overview-partial" hx-trigger="load" hx-target="#content" hx-swap="innerHTML">
-      <p class="loading">Loading...</p>
-    </div>
+    <p class="loading">Loading...</p>
   </main>
 
   <footer class="footer">
@@ -47,14 +45,25 @@
     // Active nav button, and a periodic refresh of the current view. Live push
     // (warte watch / long-poll, v1.4.1) replaces the timer later. Ask is not
     // refreshed: it would wipe what you typed.
-    var current = document.querySelector('.nav-btn.active');
-    document.querySelectorAll('.nav-btn').forEach(function (btn) {
+    // The view lives in the URL (#machines, #queue, ...): a reload, a bookmark
+    // or a shared link opens that view, and back/forward move between views.
+    var buttons = Array.prototype.slice.call(document.querySelectorAll('.nav-btn'));
+    var current = buttons[0];
+    function slug(btn) { return '#' + btn.textContent.trim().toLowerCase().replace(/\s+/g, '-'); }
+    function fromHash() {
+      return buttons.find(function (b) { return slug(b) === location.hash; }) || buttons[0];
+    }
+    buttons.forEach(function (btn) {
       btn.addEventListener('click', function () {
-        document.querySelectorAll('.nav-btn').forEach(function (b) { b.classList.remove('active'); });
+        buttons.forEach(function (b) { b.classList.remove('active'); });
         btn.classList.add('active');
         current = btn;
+        if (location.hash !== slug(btn)) history.pushState(null, '', slug(btn));
       });
     });
+    window.addEventListener('popstate', function () { htmx.trigger(fromHash(), 'click'); });
+    // after htmx has processed the page (its listener was registered first)
+    document.addEventListener('DOMContentLoaded', function () { htmx.trigger(fromHash(), 'click'); });
     // Tower clock: UTC, like the timestamps everywhere else.
     var utc = document.getElementById('utc');
     function tick() { utc.textContent = new Date().toISOString().slice(11, 19); }
