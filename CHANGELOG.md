@@ -2,6 +2,10 @@
 
 Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red (#34); their "Cuttable" claims were checked only by a local rivet.
 
+## Unreleased — v1.5.0
+
+- **Probe enrollment** (DD-PROBE-002): `warte probe token --host <h>` on the ground station mints a one-time token (15 min, single use, bound to the host, stored as its SHA-256); `warte probe enroll <token> --ground <url>` on the machine makes its key locally and sends only a certificate request to `POST /api/probe/enroll`, which warte's CA signs for the token's host (30 days). The private key never leaves the machine. Every refusal answers the same 403. Enrollment is the one POST exempt from bearer auth (exact path); the token is its credential.
+
 ## v1.4.0 — 2026-10-29
 
 One release for everything since v1.3.2: the ground station absorbed into warte, warte without a smithy agent (GitHub API, including `.ghe.com`), machine supervision, the agent APIs, and the control-tower dashboard. Machine supervision covers the ground station's own machine and the CI host; other machines join once probes can enroll and send (v1.5.0). Retiring smithy-hub follows its parity run (moved to v1.5.0).
