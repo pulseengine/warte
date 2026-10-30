@@ -159,6 +159,40 @@ async fn main() -> anyhow::Result<()> {
         },
 
         Commands::Probe { action } => match action {
+            warte::cli::ProbeCommands::Token { host } => {
+                let config = Config::load()?;
+                let db = Database::connect(&config.db_path).await?;
+                let t =
+                    warte::probe::enroll::mint(&db, &host, chrono::Utc::now().timestamp()).await?;
+                println!("{t}");
+                eprintln!(
+                    "one-time token for {host}, valid {} min. On {host}: warte probe enroll <token> --ground <url>",
+                    warte::probe::enroll::TOKEN_TTL_S / 60
+                );
+            }
+            warte::cli::ProbeCommands::Enroll {
+                token,
+                ground,
+                host,
+                state_dir,
+                ca_cert,
+            } => {
+                let host = host
+                    .or_else(sysinfo::System::host_name)
+                    .ok_or_else(|| anyhow::anyhow!("cannot tell this host's name; pass --host"))?;
+                warte::probe::enroll::enroll(
+                    &ground,
+                    &token,
+                    &host,
+                    &state_dir,
+                    ca_cert.as_deref(),
+                )
+                .await?;
+                println!(
+                    "enrolled {host}: key, certificate and CA in {}",
+                    state_dir.display()
+                );
+            }
             warte::cli::ProbeCommands::Report => {
                 let r = warte::probe::collect().await;
                 match cli.format {

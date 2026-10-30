@@ -84,9 +84,27 @@ warte probe report
 warte --format json probe report
 ```
 
-Sending to the ground station (QUIC, mutual TLS, relay-sec), enrollment
-with a one-time token, and agent working/waiting state from hooks you
-install are the next steps (DD-TRANSPORT-001, DD-PROBE-002, DD-PROBE-003).
+### Enrollment (DD-PROBE-002)
+
+On the ground station, mint a one-time token for the machine:
+
+```bash
+sudo -u warte warte probe token --host wohl      # valid 15 min, used once
+```
+
+On the machine, enroll with it. The key is made here and never leaves:
+
+```bash
+warte probe enroll <token> --ground https://<host>/warte [--ca-cert ca.pem]
+# key (0600), certificate and the ground station's CA in /var/lib/warte-probe
+```
+
+The certificate names the host the token was minted for, whatever the
+request says, and is valid for 30 days. A token works once, for one host,
+for 15 minutes; only its SHA-256 is stored. Sending reports with the
+certificate (QUIC, mutual TLS, relay-sec) is the next step
+(DD-TRANSPORT-001); agent working/waiting state from hooks you install
+follows (DD-PROBE-003).
 
 ## warte fleet
 

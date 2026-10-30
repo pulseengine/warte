@@ -170,6 +170,37 @@ impl CertificateAuthority {
     }
 }
 
+impl CertificateAuthority {
+    /// Sign a probe's certificate request (DD-PROBE-002). The probe made its
+    /// key and keeps it; only its public key comes from the request. The name
+    /// is the host the enrollment token was minted for, never the request's:
+    /// a CSR cannot choose its own identity.
+    pub async fn sign_probe_csr(
+        &self,
+        csr_pem: &str,
+        host: &str,
+        days: u32,
+    ) -> anyhow::Result<String> {
+        let mut csr = rcgen::CertificateSigningRequestParams::from_pem(csr_pem)?;
+        let mut params = CertificateParams::new(vec![host.to_string()])?;
+        params.distinguished_name = DistinguishedName::new();
+        params.distinguished_name.push(DnType::CommonName, host);
+        params
+            .distinguished_name
+            .push(DnType::OrganizationName, "PulseEngine Probe");
+        params.key_usages = vec![rcgen::KeyUsagePurpose::DigitalSignature];
+        params.extended_key_usages = vec![rcgen::ExtendedKeyUsagePurpose::ClientAuth];
+        let now = time::OffsetDateTime::now_utc();
+        params.not_before = now - time::Duration::minutes(5);
+        params.not_after = now + time::Duration::days(days as i64);
+        csr.params = params;
+        let ca_key = self.ca_key.read().await;
+        let ca_params = self.ca_params.read().await;
+        let ca_cert = ca_params.clone().self_signed(&ca_key)?;
+        Ok(csr.signed_by(&ca_cert, &ca_key)?.pem())
+    }
+}
+
 /// Convert a PEM certificate to DER bytes.
 fn pem_cert_to_der(pem: &str) -> anyhow::Result<Vec<u8>> {
     let pem = pem.trim();
