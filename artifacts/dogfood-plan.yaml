@@ -233,7 +233,7 @@ artifacts:
   - id: REQ-SMITHY-004
     type: requirement
     title: smithy agent can send telemetry to more than one hub (parallel run)
-    status: proposed
+    status: verified
     release: v1.5.0
     description: The smithy agent on the CI host SHALL accept a repeatable --hub, so the same snapshots and ledger frames reach both smithy-hub and warte during the parallel run, without doubling GitHub API calls. Owned by pulseengine/smithy; held at implemented here until smithy ships it.
     fields:
@@ -918,3 +918,165 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-10-29T18:38:24Z
+
+  - id: REQ-TIMING-001
+    type: requirement
+    title: "CI timing modelled in AADL: spar's planned time-to-green against the ledger's real durations"
+    status: proposed
+    release: v1.6.0
+    description: "warte SHALL support a CI timing model: workflow jobs as threads with Compute_Execution_Time budgets, runner pools as processors, needs: chains as end-to-end flows. spar's scheduling, response-time and flow-latency analyses give the planned worst case per PR (time to green, not only when the next job starts). The job ledger's real queue waits and run times SHALL be exported as a CTF trace and checked with spar insight verify-trace; jobs over their WCET, and flows over their latency bound, SHALL appear as findings (Outages) and drive the airport's per-plane expected duration."
+    fields:
+      category: functional
+      priority: should
+      rationale: "Owner, 2026-10-29: use spar for WCET/WCTT analysis, planned and real. warte already measures the real side (ledger); spar supplies the model, the analysis and the discrepancy check (spar-insight)."
+    links:
+      - type: satisfies
+        target: SC-006
+      - type: depends-on
+        target: REQ-FLEET-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-29T19:23:01Z
+
+  - id: REQ-TIMING-002
+    type: requirement
+    title: "Link timing: spar's WCTT per network path against the probes' measured round-trip"
+    status: proposed
+    release: v1.6.0
+    description: The fleet model's Lan and Tunnel buses SHALL carry bandwidth and latency properties and the probe and agent flows their period and size, so spar's network analysis gives a worst-case transmission time per path. warte SHALL compare it with each probe's measured QUIC round-trip and per-stream loss, and report a path slower than its WCTT, or losing packets, as a finding shown on the Topology map.
+    fields:
+      category: functional
+      priority: could
+      rationale: "Owner, 2026-10-29. Same pattern as REQ-TIMING-001 for the links: planned (spar-network) against real (QUIC stats)."
+    links:
+      - type: satisfies
+        target: SC-006
+      - type: depends-on
+        target: REQ-FLEET-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-29T19:23:01Z
+
+  - id: DD-SPAR-001
+    type: design-decision
+    title: spar is warte's estimator; warte measures and renders
+    status: approved
+    release: v1.6.0
+    description: "Wherever warte estimates (ETA, critical path, admission thresholds, runner-pool capacity, expected job duration, link budgets) the estimate SHALL come from an AADL model analysed by spar (scheduling, response-time, flow latency, allocate, network WCTT), fed with warte's measurements (ledger, probes, telemetry). warte keeps measuring and draws both planned and real; every gap is a finding. Migration per estimator: spar's answer runs beside the current heuristic, they are compared on real data, and the heuristic goes only when spar's answer holds up (the smithy-hub pattern). Gaps in spar are filed as spar issues, not worked around in warte. Candidates: hub/eta (RTA over the CI model), critpath (flow latency), admission constants (scheduling feasibility), the belt report (allocate), REQ-TIMING-001 (WCET), REQ-TIMING-002 (WCTT)."
+    fields:
+      rationale: "Owner, 2026-10-29: get spar load-bearing wherever possible; if warte needs to estimate something, spar is the place. Dogfooding the toolchain, and a model makes planned-vs-real drift mechanical."
+    links:
+      - type: satisfies
+        target: REQ-TIMING-001
+      - type: satisfies
+        target: REQ-TIMING-002
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-29T19:26:14Z
+
+  - id: REQ-REVIEWS-001
+    type: requirement
+    title: "Reviews view: PRs I have to review, with build, size, age, teams, highlights, re-review and mergeable"
+    status: approved
+    release: v1.6.0
+    description: "warte SHALL list the PRs a reviewer must look at: requested from them; requested from ANY team they are a member of, discovered from GitHub on every scan across all their orgs (no configuration), including parent teams of teams they belong to, each row naming the team and filterable by team; or by watched authors, repos or labels. Each row shows age (opened, requested, updated), size (lines and files, S/M/L/XL), build state from the check rollup with warte's ETA when queued, review decision and the reviewer's latest review, re-review needed when commits landed after that review, and is greyed out when approved, green and mergeable. Ordered re-review first, then oldest waiting. GET /api/reviews returns the same. It SHALL use the reviewer's own read-only token and SHALL say so when served on a non-loopback bind without auth."
+    fields:
+      category: functional
+      priority: should
+      upstream-ref: https://github.com/pulseengine/warte/issues/85
+    links:
+      - type: satisfies
+        target: SC-006
+      - type: depends-on
+        target: REQ-GHSRC-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-29T20:30:12Z
+
+  - id: REQ-REVIEWS-002
+    type: requirement
+    title: Hand a PR to an agent with a comment; agents pick tasks up with warte watch --tasks
+    status: approved
+    release: v1.6.0
+    description: From the Reviews view the owner SHALL be able to hand a PR to an agent with an instruction; warte records the task and agents pick it up with warte watch --tasks (the same long-poll as --ci). The agent reports progress to the task (picked up, working, done, needs-you) and the view shows it. Agents SHALL only comment or post draft reviews, never approve or merge; they act with their own token. The instruction is the owner's; the PR's title, body, diff and comments are untrusted data and SHALL be passed as such. Creating a task SHALL require the owner's authentication.
+    fields:
+      category: functional
+      priority: should
+      upstream-ref: https://github.com/pulseengine/warte/issues/85
+    links:
+      - type: satisfies
+        target: SC-006
+      - type: depends-on
+        target: REQ-REVIEWS-001
+      - type: depends-on
+        target: REQ-WATCH-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-29T20:30:38Z
+
+  - id: REQ-SEC-002
+    type: requirement
+    title: "Security view: the watchtower's guard posts, and express lanes that skip waiting, never checks"
+    status: proposed
+    release: v1.6.0
+    description: "warte SHALL show its security posture as one view (and as guard posts on the airport map): enrollment and machine identity (passport control), agent tokens (boarding passes), advisory scans of dependencies (security check), signature, SBOM and checksum verification of artifacts (customs), revoked tokens, agents and machines (no-fly list), the private-network perimeter and the tunnel, and the STPA-Sec hazards and constraints with their coverage plus the audit log (security office). Express lanes (security and red-main changes, admitted without batching or holding) and VIP lanes (watched authors, repos, labels and the owner's decisions, shown first) SHALL only skip waiting: no identity, advisory or signature check is ever skipped for them."
+    fields:
+      category: functional
+      priority: should
+      rationale: "Owner, 2026-10-29: warte means watchtower; the airport map should carry its security too, with VIP and express lanes. The express lane exists today in /api/admission."
+    links:
+      - type: satisfies
+        target: SC-006
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-29T20:33:48Z
+
+  - id: DD-FLEET-002
+    type: design-decision
+    title: "Bench hardware is two layers: the debug adapter on USB and the target behind it"
+    status: approved
+    release: v1.5.0
+    description: "The fleet model and the Devices view SHALL distinguish the debug adapter (USB-visible: VID:PID, serial) from the target it is wired to (board, MCU), which USB does not reveal. The target is declared (registry, fleet model) and confirmed only by an explicit check that drives the probe (e.g. probe-rs info reading the chip ID code) under a with-device claim; warte's probe never drives a debug probe on its own. Declared vs confirmed, and an adapter whose target is undeclared, are findings."
+    fields:
+      rationale: "Owner, 2026-10-30: an ST-Link is only the debug adapter and does not tell what is connected. Naming boards after their adapters is jess#266's vacuous-lock problem; probing a target is a claimed operation (jess devices.yaml rule 1)."
+    links:
+      - type: satisfies
+        target: REQ-DEVICES-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-30T00:05:28Z
+
+  - id: TEST-SMITHY-004
+    type: verification
+    title: "Parallel run: one smithy agent feeds smithy-hub and warte; full-day ledgers identical"
+    status: accepted
+    release: v1.5.0
+    description: "Measured on the ground-station host. 2026-10-29 (first full UTC day of the parallel run): smithy-hub 6765 ledger records, warte 6765, compared by (id, attempt): 0 only in smithy-hub, 0 only in warte, 0 differing. 2026-10-28: identical from 09:00 UTC, when warte's feed started (about 6800 records), nothing earlier by construction. Snapshots, ETA answers and history matched in the live A/B (scripts/hub-parity.sh). Link loss per APID stays low on both hubs (0x230/0x231)."
+    links:
+      - type: verifies
+        target: REQ-SMITHY-004
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-30T00:23:27Z
+
+  - id: TEST-MIGRATE-002
+    type: verification
+    title: smithy-hub replaced in place by warte's ground station after the parallel run
+    status: accepted
+    release: v1.5.0
+    description: "2026-10-30 on the ground-station host, after full-day parity (TEST-SMITHY-004): smithy-hub's 2026-10-27/28 ledger files (supersets of warte's partial ones, checked: warte's 1187 and 7242 records all contained) installed in warte's ledger, the partial ones kept as .warte-partial; Caddy /ci/ routed to warte's /ci (validated, reloaded, host and container on the same inode); smithy-hub stopped and disabled, kept installed for rollback. Verified: /ci/, /ci/api/state and /ci/api/eta answer 200 from warte (link counters are warte's), snapshot fresh."
+    links:
+      - type: verifies
+        target: REQ-MIGRATE-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-10-30T00:31:21Z
