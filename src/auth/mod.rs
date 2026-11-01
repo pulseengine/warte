@@ -141,6 +141,12 @@ pub async fn auth_middleware(
         return Ok(next.run(req).await);
     }
 
+    // The one exemption: probe enrollment authenticates with its one-time
+    // token, checked by the handler (DD-PROBE-002). Exact path and method.
+    if method == axum::http::Method::POST && req.uri().path() == "/api/probe/enroll" {
+        return Ok(next.run(req).await);
+    }
+
     // Extract Authorization header
     let auth_header = req
         .headers()

@@ -10,6 +10,8 @@
 //! start time and working-directory name, never command lines: those can
 //! carry prompts and tokens.
 
+pub mod enroll;
+
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 

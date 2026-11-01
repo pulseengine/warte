@@ -164,6 +164,30 @@ pub enum FleetCommands {
 pub enum ProbeCommands {
     /// Collect once and print (read-only; nothing is sent)
     Report,
+    /// On the ground station: mint a one-time enrollment token for a host
+    /// (valid 15 minutes, used once; only its hash is stored)
+    Token {
+        /// The host name the machine's probe reports
+        #[arg(long)]
+        host: String,
+    },
+    /// On the machine: make a key here, enroll with the ground station, and
+    /// keep key, certificate and CA in --state-dir
+    Enroll {
+        /// The token from `warte probe token`
+        token: String,
+        /// The ground station's base URL, e.g. https://<host>/warte
+        #[arg(long, env = "WARTE_URL")]
+        ground: String,
+        /// Host name to enroll as (default: this machine's)
+        #[arg(long)]
+        host: Option<String>,
+        #[arg(long, default_value = "/var/lib/warte-probe")]
+        state_dir: std::path::PathBuf,
+        /// PEM CA to trust for --ground (a reverse proxy's local CA)
+        #[arg(long, env = "WARTE_CA_CERT")]
+        ca_cert: Option<std::path::PathBuf>,
+    },
 }
 
 #[derive(Subcommand)]
