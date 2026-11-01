@@ -48,6 +48,7 @@ pub fn build_routes() -> Router<AppState> {
         .route("/watch", get(api_watch))
         .route("/machines", get(api_machines))
         .route("/fleet", get(api_fleet))
+        .route("/probe/enroll", post(api_probe_enroll))
         .route("/openapi.json", get(api_openapi));
     // /api/ws and /api/events are not mounted: they broadcast agent and
     // access events without authentication, and nothing uses them (agents
@@ -363,6 +364,48 @@ async fn api_costs_post(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "could not store the report",
             )
+        }
+    }
+}
+
+/// Enroll a probe: a one-time token for this host, and a CSR (DD-PROBE-002).
+/// One answer for every refusal, so a caller learns nothing about tokens.
+async fn api_probe_enroll(
+    State(state): State<AppState>,
+    Json(req): Json<crate::probe::enroll::EnrollRequest>,
+) -> axum::response::Response {
+    use crate::probe::enroll;
+    let refused = || plain(StatusCode::FORBIDDEN, "enrollment refused");
+    if !enroll::valid_host(&req.host) || req.token.len() > 200 || req.csr.len() > 16 * 1024 {
+        return refused();
+    }
+    match enroll::consume(&state.db, &req.token, &req.host, crate::hub::now()).await {
+        Ok(true) => {}
+        Ok(false) => {
+            tracing::warn!(host = %req.host, "probe enrollment refused: token unknown, used, expired or for another host");
+            return refused();
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "probe enrollment: token store");
+            return plain(StatusCode::SERVICE_UNAVAILABLE, "enrollment unavailable");
+        }
+    }
+    match state
+        .ca
+        .sign_probe_csr(&req.csr, &req.host, enroll::CERT_DAYS)
+        .await
+    {
+        Ok(cert) => {
+            tracing::info!(host = %req.host, "probe enrolled");
+            Json(enroll::EnrollResponse {
+                cert,
+                ca: state.ca.ca_cert_pem().to_string(),
+            })
+            .into_response()
+        }
+        Err(e) => {
+            tracing::warn!(host = %req.host, error = %e, "probe enrollment: bad certificate request");
+            plain(StatusCode::BAD_REQUEST, "not a valid certificate request")
         }
     }
 }

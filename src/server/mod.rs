@@ -30,6 +30,8 @@ pub struct AppState {
     pub hub: Option<crate::hub::Hub>,
     /// The latest report per machine (REQ-PROBE-001), with the ground station.
     pub machines: Option<Arc<crate::probe::Machines>>,
+    /// warte's CA: signs probe certificates at enrollment (DD-PROBE-002).
+    pub ca: Arc<crate::ca::CertificateAuthority>,
     /// The fleet model, or why it could not be read (REQ-FLEET-001).
     pub fleet: Option<Arc<Result<crate::fleet::Fleet, String>>>,
     /// The latest notional-cost report (REQ-COSTS-001), with the ground station.
@@ -175,6 +177,7 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
         )
     });
     let state = AppState {
+        ca: ca.clone(),
         hub,
         machines,
         fleet,
