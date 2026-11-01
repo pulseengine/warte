@@ -28,7 +28,7 @@ jobs:
     name: V-model traceability gate
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
@@ -67,7 +67,7 @@ jobs:
             target: aarch64-apple-darwin
             asset: macos-arm64
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
@@ -92,7 +92,7 @@ jobs:
           cp "target/${{ matrix.target }}/release/warte" "dist/warte-${TAG#v}-${{ matrix.asset }}"
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: warte-${{ matrix.target }}
           path: dist/
@@ -102,7 +102,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           path: dist/
           merge-multiple: true
@@ -114,7 +114,7 @@ jobs:
           cat SHA256SUMS
 
       - name: Upload SHA256SUMS
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: checksums
           path: dist/SHA256SUMS
@@ -124,7 +124,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
@@ -142,7 +142,7 @@ jobs:
           test -s sbom.json
 
       - name: Upload SBOM
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: sbom
           path: sbom.json
@@ -155,7 +155,7 @@ jobs:
       id-token: write
       packages: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           path: dist/
           merge-multiple: true
@@ -168,7 +168,7 @@ jobs:
           cosign sign-blob --yes --bundle dist/SHA256SUMS.cosign.bundle dist/SHA256SUMS
 
       - name: Upload signature
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: signatures
           path: dist/SHA256SUMS.cosign.bundle
@@ -180,7 +180,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           path: release-artifacts/
           merge-multiple: true
