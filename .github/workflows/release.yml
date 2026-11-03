@@ -90,6 +90,18 @@ jobs:
             exit 1
           fi
 
+      - name: Check the probe can enroll and send
+        # A release without these broke a probe host once (v1.4.0 has only
+        # `probe report`); the probe hosts install releases only.
+        run: |
+          help="$("target/${{ matrix.target }}/release/warte" probe --help)"
+          for cmd in enroll send hook; do
+            if ! printf '%s\n' "$help" | grep -qE "^  $cmd( |$)"; then
+              echo "warte probe has no '$cmd' subcommand; refusing to release"
+              exit 1
+            fi
+          done
+
       - name: Package binary
         run: |
           mkdir -p dist

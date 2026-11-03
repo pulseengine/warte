@@ -24,3 +24,26 @@ fn the_release_matrix_builds_every_probe_platform() {
     assert!(wf.contains("sha256sum warte-* > SHA256SUMS"));
     assert!(wf.contains("release-artifacts/warte-*"));
 }
+
+// rivet: partially-verifies REQ-RELEASE-006
+#[test]
+fn the_release_refuses_a_probe_that_cannot_enroll_or_send() {
+    let wf = include_str!("../.github/workflows/release.yml");
+    assert!(
+        wf.contains("for cmd in enroll send hook; do"),
+        "release.yml must check the probe's subcommands"
+    );
+    // and the check matches what the binary prints
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_warte"))
+        .args(["probe", "--help"])
+        .output()
+        .unwrap();
+    let help = String::from_utf8(out.stdout).unwrap();
+    for cmd in ["enroll", "send", "hook"] {
+        assert!(
+            help.lines()
+                .any(|l| l.starts_with(&format!("  {cmd} ")) || l == format!("  {cmd}")),
+            "probe --help lists no '{cmd}' in the form the release checks:\n{help}"
+        );
+    }
+}
