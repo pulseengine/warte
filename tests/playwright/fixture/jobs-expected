@@ -1,0 +1,5 @@
+# fixture manifest: certbot is fine for centuries, archive is long overdue,
+# backup never reported
+netcup-vps/certbot.json 9999999999
+mini/archive.json 93600
+mini/backup.json 3600

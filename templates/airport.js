@@ -25,6 +25,7 @@
     ['Fire station', 'Outages', 'M12 3c1 4 5 5 5 10a5 5 0 0 1-10 0c0-3 2-4 2-6 2 1 3 3 3 3s1-3 0-7z', 'red', 'When something breaks, the bell rings here first.', 'Problems now, worst first.'],
     ['Doctor', 'Health', 'M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.5-7 10-7 10z', 'red', 'The doctor checks the cargo halls.', 'CI host health and link.'],
     ['Radar', 'Machines', 'M12 12l6-6M12 3a9 9 0 1 0 9 9M12 7a5 5 0 1 0 5 5', 'teal', 'The radar knows every pier and what is parked there.', 'Every machine, its disks, tools and agents.'],
+    ['Clock', 'Jobs', 'M12 7v5l3 2M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18', 'teal', 'The clock notices a job that forgot to run.', 'Scheduled jobs on every host; overdue when no success came in time.'],
     ['Taxiway', 'Critical Path', 'M4 20L12 4l8 16M8 13h8', 'teal', 'Some planes must wait for others to land first.', 'What blocks what, the longest chain.'],
     ['Bags', 'Artifacts', 'M6 8h12v12H6zM9 8V5h6v3', 'orange', 'Finished things arrive here, labelled.', 'Build outputs by hash.'],
     ['Pilots', 'Agents', 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0', 'purple', 'Every pilot has a name and a badge.', 'Agent identities and rights.']
@@ -185,7 +186,7 @@
       var head = el('span', 'ap-head'), badge = el('span', 'ap-badge', 'background:' + kind[1]);
       badge.appendChild(svg(ICON[p.kind] || ICON.server, 13, null, 0, '#fff')); head.appendChild(badge); head.appendChild(el('b', null, null, p.name)); b.appendChild(head);
       var sub = [p.reporting ? kind[0] : kind[0] + ' · not reporting'];
-      if (p.agents) sub.push(p.agents + ' agents'); if (p.runners) sub.push(p.runners + ' runways'); if (p.note && p.reporting) sub.push(p.note);
+      if (p.agents) sub.push(p.agents + ' agents'); if (p.runners) sub.push(p.runners + ' runways'); if (p.jobs_ok && !p.jobs_bad) sub.push(p.jobs_ok + (p.jobs_ok === 1 ? ' job ok' : ' jobs ok')); if (p.note && p.reporting) sub.push(p.note);
       var subEl = el('span', p.reporting && !p.note ? 'ap-sub' : 'ap-sub warn', null, sub.join(' · ')); subEl.title = sub.join(' · '); b.appendChild(subEl);
       if (p.boards.length) {
         var devs = el('span', 'ap-devs');

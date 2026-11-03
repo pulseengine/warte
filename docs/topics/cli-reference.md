@@ -143,3 +143,25 @@ compares it with what reports in: a modelled machine that is not
 reporting, a reporting machine that is not modelled. The Machines view
 shows the differences and draws modelled-but-silent machines dashed;
 `GET /api/fleet` serves the same. spar does the modelling; warte draws it.
+
+## Scheduled jobs (REQ-JOBS-001)
+
+Hosts push one state file per job to the ground station
+(`<dir>/<host>/<job>.json`, as `pe-job` writes them), and a manifest
+lists the files that must exist and how long each may go without a
+success:
+
+```toml
+[jobs]
+dir = "/var/lib/pulseengine/jobs"
+expected = "/etc/pulseengine/jobs-expected"   # "<path> <window_s>" per line
+hosts = { mini = "Mac.fritz.box", "netcup-vps" = "netcup" }  # dir -> machine
+```
+
+(`WARTE_JOBS_DIR`, `WARTE_JOBS_EXPECTED` work too.) The Jobs view and
+`GET /api/jobs` list every job worst first: **missing** (listed, no file),
+**overdue** (no success within the window, so a stopped timer or a host
+that is down shows up), **failing** (the last run failed, a success is
+still within the window) and **ok**. Files that are not listed are shown
+with their own `expect_within_s`. The airport puts each job on its
+machine's pier and makes a late one the pier's note.

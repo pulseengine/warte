@@ -36,7 +36,16 @@ fn sessions_carry_no_command_lines() {
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
     for s in v["sessions"].as_array().unwrap() {
-        let keys: Vec<&String> = s.as_object().unwrap().keys().collect();
+        let mut keys: Vec<&str> = s.as_object().unwrap().keys().map(|k| k.as_str()).collect();
+        // an agent with the hook installed also carries its verb (REQ-PROBE-009)
+        if let Some(a) = s.get("activity") {
+            let verb = a.as_str().unwrap();
+            assert!(
+                verb.len() <= 32 && verb.chars().all(|c| c.is_ascii_lowercase() || c == ' '),
+                "activity must be a plain verb: {s}"
+            );
+            keys.retain(|k| *k != "activity");
+        }
         assert_eq!(keys, ["agent", "dir", "pid", "started_at"], "{s}");
     }
 }

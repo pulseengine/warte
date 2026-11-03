@@ -12,6 +12,7 @@
 pub mod airport;
 pub mod costs;
 pub mod fleet;
+pub mod jobs;
 pub mod machines;
 
 use axum::{
@@ -95,6 +96,12 @@ pub async fn machines_partial(State(state): State<crate::server::AppState>) -> R
         1,
     ))
     .into_response()
+}
+
+/// HTMX partial: scheduled jobs (REQ-JOBS-001).
+pub async fn jobs_partial(State(state): State<crate::server::AppState>) -> Response {
+    let jobs = crate::server::api::jobs_now(&state);
+    Html(jobs::view(jobs.as_deref(), crate::hub::now())).into_response()
 }
 
 /// HTMX partial: costs (REQ-COSTS-001).

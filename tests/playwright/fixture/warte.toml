@@ -9,3 +9,8 @@ allow = ["127.0.0.1"]
 data_dir = "hub"
 # the fixture must not probe the machine running the tests
 probe_self = false
+
+[jobs]
+dir = "jobs"
+expected = "jobs-expected"
+hosts = { "netcup-vps" = "netcup" }

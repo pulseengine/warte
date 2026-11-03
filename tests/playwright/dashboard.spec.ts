@@ -9,6 +9,7 @@ import { collectErrors, waitForHtmx } from "./helpers";
 
 const VIEWS = [
   "Overview",
+  "Jobs",
   "Ask",
   "Queue",
   "Machines",
@@ -131,7 +132,8 @@ test.describe("airport", () => {
     await page.locator(".ap-fs").click();
     await expect.poll(() => page.evaluate(() => document.fullscreenElement?.id ?? "")).toBe("airport");
     // scaled to fit 1280x720 whole: full height, centred
-    await expect.poll(async () => Math.round((await page.locator(".ap-stage").boundingBox())!.height)).toBe(720);
+    // the stage is redrawn on entering full screen; a detached one has no box
+    await expect.poll(async () => Math.round((await page.locator(".ap-stage").boundingBox())?.height ?? 0)).toBe(720);
     const box = await page.locator(".ap-stage").boundingBox();
     expect(Math.round(box!.x)).toBe(Math.round((1280 - box!.width) / 2));
     await page.locator(".ap-fs").click();
@@ -183,6 +185,26 @@ test.describe("airport pilots", () => {
     await relay.hover({ force: true });
     await relay.click({ force: true });
     await expect(page.locator(".ap-card .ap-story")).toContainText("editing in relay");
+    expect(errors).toEqual([]);
+  });
+});
+
+test.describe("jobs", () => {
+  test("overdue and missing jobs come first, mapped to their machine", async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.goto("/");
+    await openView(page, "Jobs");
+    const rows = page.locator("#content tbody tr");
+    await expect(rows).toHaveCount(3);
+    await expect(rows.nth(0)).toContainText("backup");
+    await expect(rows.nth(0)).toContainText("missing");
+    await expect(rows.nth(1)).toContainText("archive");
+    await expect(rows.nth(1)).toContainText("overdue");
+    await expect(rows.nth(2)).toContainText("netcup");
+    await expect(rows.nth(2)).toContainText("certbot");
+    await expect(page.locator("#content .lede")).toContainText("2");
+    const api = await (await page.request.get("/api/jobs")).json();
+    expect(api.overdue).toBe(2);
     expect(errors).toEqual([]);
   });
 });

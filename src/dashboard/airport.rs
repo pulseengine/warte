@@ -26,6 +26,10 @@ pub struct Pier {
     /// those with a verb. Repo is the folder name only; no pid, no path.
     pub sessions: Vec<Walker>,
     pub ground_station: bool,
+    /// Scheduled jobs on this machine that are fine / overdue or missing
+    /// (REQ-JOBS-001).
+    pub jobs_ok: u32,
+    pub jobs_bad: u32,
     /// Reporting now (a probe, or the CI host's agent).
     pub reporting: bool,
     /// What is wrong with it, for its label (findings, "not reporting").
@@ -96,6 +100,7 @@ pub fn build(
     fleet: Option<&crate::fleet::Fleet>,
     machines: &[crate::probe::Seen],
     hub: Option<(crate::hub::model::Snapshot, i64)>,
+    jobs: &[crate::jobs::Job],
     now: i64,
 ) -> Airport {
     let ci_host = hub
@@ -143,6 +148,8 @@ pub fn build(
                     agents: agents(&m.host),
                     sessions: walkers(&m.host),
                     ground_station: m.ground_station,
+                    jobs_ok: 0,
+                    jobs_bad: 0,
                     reporting: up,
                     note: note(&m.host, up),
                 }
@@ -160,6 +167,8 @@ pub fn build(
                 agents: m.report.sessions.len() as u32,
                 sessions: walkers_of(&m.report, now),
                 ground_station: m.via == "local",
+                jobs_ok: 0,
+                jobs_bad: 0,
                 reporting: true,
                 note: note(&m.report.host, true),
             })
@@ -202,9 +211,25 @@ pub fn build(
                 agents: 0,
                 sessions: vec![],
                 ground_station: false,
+                jobs_ok: 0,
+                jobs_bad: 0,
                 reporting: true,
                 note: String::new(),
             });
+        }
+    }
+    // jobs onto their machine's pier; a bad one becomes the pier's note
+    for p in &mut piers {
+        let mine: Vec<&crate::jobs::Job> = jobs
+            .iter()
+            .filter(|j| j.host.eq_ignore_ascii_case(&p.name))
+            .collect();
+        p.jobs_bad = mine.iter().filter(|j| j.bad()).count() as u32;
+        p.jobs_ok = mine.len() as u32 - p.jobs_bad;
+        if let Some(j) = mine.iter().find(|j| j.bad()) {
+            if p.note.is_empty() {
+                p.note = format!("job {} {}", j.name, j.state);
+            }
         }
     }
     let tower = piers
@@ -257,7 +282,7 @@ mod tests {
             "../../tests/fixtures/example_fleet.instance.json"
         ))
         .unwrap();
-        let a = build(Some(&f), &[seen("laptop", 3)], None, 1_000);
+        let a = build(Some(&f), &[seen("laptop", 3)], None, &[], 1_000);
         let p = |n: &str| a.piers.iter().find(|p| p.name == n).unwrap().clone();
         assert_eq!(a.piers.len(), f.machines.len());
         assert!(p("laptop").reporting && p("laptop").agents == 3);
@@ -286,7 +311,7 @@ mod tests {
             }],
             ..Default::default()
         };
-        let a = build(None, &[seen("Mac", 1)], Some((snap, 1_000)), 1_000);
+        let a = build(None, &[seen("Mac", 1)], Some((snap, 1_000)), &[], 1_000);
         assert_eq!(
             a.piers.iter().map(|p| p.name.as_str()).collect::<Vec<_>>(),
             vec!["Mac", "ci-test"]
