@@ -724,6 +724,7 @@ async fn machines_publish_no_paths_pids_or_dirs_and_no_cross_origin_reads() {
             pid: 4242,
             started_at: 1,
             dir: Some("secret-repo".into()),
+            activity: None,
         }],
     };
     m.record(r.clone(), "probe", warte::hub::now());
@@ -775,5 +776,20 @@ async fn machines_publish_no_paths_pids_or_dirs_and_no_cross_origin_reads() {
         .unwrap();
     for secret in ["/Users/secret", "SECRET-ERROR", "4242", "secret-repo"] {
         assert!(!page.contains(secret), "{secret} in the view");
+    }
+    // the airport shows the repo's folder name (the owner's decision,
+    // REQ-PROBE-009), never a pid, a path or a tool error
+    let airport = reqwest::get(format!("{base}/api/airport"))
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    assert!(airport.contains("\"repo\":\"secret-repo\""), "{airport}");
+    for secret in ["/Users/secret", "SECRET-ERROR", "4242"] {
+        assert!(
+            !airport.contains(secret),
+            "{secret} in the airport: {airport}"
+        );
     }
 }

@@ -159,6 +159,34 @@ test.describe("airport field", () => {
   });
 });
 
+test.describe("airport pilots", () => {
+  test("agents walk and say what they do; a waiting one stands with a beacon", async ({ page }) => {
+    const errors = collectErrors(page);
+    const sessions = [
+      { agent: "claude", repo: "warte", activity: "waiting for you", minutes: 30 },
+      { agent: "claude", repo: "spar", activity: "running tests", minutes: 12 },
+      { agent: "claude", repo: "relay", activity: "editing", minutes: 4 },
+      { agent: "claude", repo: "rivet", activity: "", minutes: 90 },
+    ];
+    await page.route("**/api/airport", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify({
+      tower: "fourpi", runner_total: 0, holding: 0, runways: [],
+      piers: [{ name: "Mac", kind: "terminal", location: "lan", cores: 10, runners: 0, boards: [], agents: 4, sessions, ground_station: false, reporting: true, note: "" }],
+    }) }));
+    await page.goto("/#airport");
+    // the three with a verb walk or wait; the one without a hook stays parked
+    await expect(page.locator(".ap-walker")).toHaveCount(3);
+    await expect(page.locator(".ap-walker.waiting .ap-say")).toHaveText("warte · waiting for you");
+    await expect(page.locator(".ap-say", { hasText: "spar · running tests" })).toBeVisible();
+    await expect(page.locator(".ap-beacon")).toHaveCount(1);
+    // a walker stops while the pointer is on it, so it can be tapped
+    const relay = page.locator(".ap-walker", { hasText: "relay" });
+    await relay.hover({ force: true });
+    await relay.click({ force: true });
+    await expect(page.locator(".ap-card .ap-story")).toContainText("editing in relay");
+    expect(errors).toEqual([]);
+  });
+});
+
 test.describe("ask", () => {
   test("asks the ground station for a PR's ETA", async ({ page }) => {
     await page.goto("/");
