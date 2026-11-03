@@ -543,7 +543,7 @@ pub fn incidents(hub: Option<&Hub>) -> String {
 }
 
 /// Percent-encode a query value (RFC 3986 unreserved characters pass).
-fn qv(s: &str) -> String {
+pub(crate) fn qv(s: &str) -> String {
     s.bytes()
         .map(|b| match b {
             b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {

@@ -849,3 +849,57 @@ fn critical_path_draws_the_declared_chain_with_its_bottleneck() {
     .unwrap();
     assert_eq!(c.repo_dependencies[0].depends_on, ["relay", "gale"]);
 }
+
+// rivet: verifies REQ-DASH-016
+#[tokio::test]
+async fn ask_refreshes_its_answer_and_list_but_never_the_form() {
+    let (_d, base) = serve_app(None).await;
+    let page = reqwest::get(format!(
+        "{base}/api/dashboard/ask-partial?repo=pulseengine%2Fspar&branch=feat%2Fa%20b"
+    ))
+    .await
+    .unwrap()
+    .text()
+    .await
+    .unwrap();
+    // the live region asks the same question again every 30 s while visible
+    assert!(
+        page.contains(r#"<div id="ask-live" hx-get="api/dashboard/ask-live?repo=spar&amp;branch=feat%2Fa%20b" hx-trigger="every 30s [!document.hidden], refresh""#),
+        "{page}"
+    );
+    // the form is outside it
+    let live_at = page.find(r#"id="ask-live""#).unwrap();
+    assert!(page.find("<form").unwrap() < live_at);
+    // neutral placeholders: no example repo, PR or branch
+    for p in [
+        "placeholder=\"rivet\"",
+        "placeholder=\"511\"",
+        "placeholder=\"main\"",
+    ] {
+        assert!(!page.contains(p), "{p}");
+    }
+    let live = reqwest::get(format!(
+        "{base}/api/dashboard/ask-live?repo=spar&branch=feat%2Fa%20b"
+    ))
+    .await
+    .unwrap()
+    .text()
+    .await
+    .unwrap();
+    assert!(live.contains(r#"<div id="ask-result">"#), "{live}");
+    assert!(live.contains("ETA for spar @ feat/a b"), "{live}");
+    assert!(
+        !live.contains("<form") && !live.contains("<input"),
+        "{live}"
+    );
+    // escaped like the rest of Ask
+    let x = reqwest::get(format!(
+        "{base}/api/dashboard/ask-live?repo=%3Cscript%3E&branch=%3Cb%3E"
+    ))
+    .await
+    .unwrap()
+    .text()
+    .await
+    .unwrap();
+    assert_escaped(&x, "ask-live");
+}

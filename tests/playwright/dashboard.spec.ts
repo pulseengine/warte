@@ -251,6 +251,34 @@ test.describe("ask", () => {
     await expect(page.getByLabel("PR:")).toHaveValue("511");
     expect(errors).toEqual([]);
   });
+
+  test("the answer refreshes on its own and leaves the form alone", async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.goto("/");
+    await openView(page, "Ask");
+    await page.getByLabel("Repo:").fill("spar");
+    await page.getByLabel("PR:").fill("511");
+    await page.getByRole("button", { name: "Estimate" }).click();
+    await expect(page.locator("#ask-result")).toContainText("ETA for spar PR #511");
+    // half-typed, not submitted
+    await page.getByLabel("Repo:").fill("riv");
+    // the region's own refresh (the 30 s timer fires the same request); retried
+    // until htmx has processed the swapped-in region
+    let asked = false;
+    page.on("request", (r) => {
+      if (r.url().includes("/api/dashboard/ask-live?repo=spar&pr=511")) asked = true;
+    });
+    await expect(async () => {
+      await page.evaluate(() => (window as any).htmx.trigger("#ask-live", "refresh"));
+      expect(asked).toBe(true);
+    }).toPass({ timeout: 5000 });
+    await waitForHtmx(page);
+    await expect(page.locator("#ask-result")).toContainText("ETA for spar PR #511");
+    await expect(page.locator("#ask-live tr.pick").first()).toBeVisible();
+    await expect(page.getByLabel("Repo:")).toHaveValue("riv");
+    await expect(page.locator("#ask-live")).toHaveAttribute("hx-trigger", /every 30s/);
+    expect(errors).toEqual([]);
+  });
 });
 
 test.describe("honesty", () => {
