@@ -9,6 +9,7 @@
 //!
 //! Views refresh every 30 s and show the age of the data they render.
 
+pub mod airport;
 pub mod costs;
 pub mod fleet;
 pub mod machines;
@@ -64,6 +65,20 @@ pub async fn overview_partial(State(state): State<crate::server::AppState>) -> R
     );
 
     Html(html).into_response()
+}
+
+/// HTMX partial: the airport map (REQ-DASH-015). The drawing is airport.js.
+pub async fn airport_partial() -> Response {
+    Html(r#"<div class="overview"><h2>Airport</h2><div id="airport" class="airport" aria-label="The fleet drawn as an airport"></div><script src="airport.js"></script></div>"#).into_response()
+}
+
+/// The airport page script.
+pub async fn airport_js() -> Response {
+    (
+        [(header::CONTENT_TYPE, "text/javascript; charset=utf-8")],
+        include_str!("../../templates/airport.js"),
+    )
+        .into_response()
 }
 
 /// HTMX partial: machines (REQ-PROBE-001/003).

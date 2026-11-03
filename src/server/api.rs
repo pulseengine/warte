@@ -48,6 +48,7 @@ pub fn build_routes() -> Router<AppState> {
         .route("/watch", get(api_watch))
         .route("/machines", get(api_machines))
         .route("/fleet", get(api_fleet))
+        .route("/airport", get(api_airport))
         .route("/probe/enroll", post(api_probe_enroll))
         .route("/openapi.json", get(api_openapi));
     // /api/ws and /api/events are not mounted: they broadcast agent and
@@ -100,6 +101,11 @@ pub fn build_routes() -> Router<AppState> {
         .route(
             "/api/dashboard/schedule-partial",
             get(crate::dashboard::schedule_partial),
+        )
+        .route("/airport.js", get(crate::dashboard::airport_js))
+        .route(
+            "/api/dashboard/airport-partial",
+            get(crate::dashboard::airport_partial),
         )
         .route(
             "/api/dashboard/machines-partial",
@@ -408,6 +414,24 @@ async fn api_probe_enroll(
             plain(StatusCode::BAD_REQUEST, "not a valid certificate request")
         }
     }
+}
+
+/// The airport map's data (REQ-DASH-015).
+async fn api_airport(State(state): State<AppState>) -> axum::response::Response {
+    let fleet = state.fleet.as_deref().and_then(|r| r.as_ref().ok());
+    let machines = state
+        .machines
+        .as_ref()
+        .map(|m| m.list())
+        .unwrap_or_default();
+    let hub = state.hub.as_ref().and_then(|h| h.snapshot());
+    Json(crate::dashboard::airport::build(
+        fleet,
+        &machines,
+        hub,
+        crate::hub::now(),
+    ))
+    .into_response()
 }
 
 /// The hosts reporting now: probes, and the CI host's agent.
