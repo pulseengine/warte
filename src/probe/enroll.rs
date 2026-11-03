@@ -151,9 +151,24 @@ pub async fn enroll(
     let cert_path = state_dir.join("probe-cert.pem");
     let ca_path = state_dir.join("ca.pem");
     use std::os::unix::fs::PermissionsExt;
-    std::fs::write(&key_path, key_pair.serialize_pem()).context("writing probe key")?;
-    std::fs::set_permissions(&key_path, std::fs::Permissions::from_mode(0o600))
-        .context("chmod 0600 on probe key")?;
+    // Created 0600: writing first and chmod-ing after left the key readable
+    // by other local users for a moment.
+    {
+        use std::io::Write;
+        use std::os::unix::fs::OpenOptionsExt;
+        let mut f = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(&key_path)
+            .context("creating probe key")?;
+        f.write_all(key_pair.serialize_pem().as_bytes())
+            .context("writing probe key")?;
+        // an existing file keeps its old mode under create(); make sure
+        std::fs::set_permissions(&key_path, std::fs::Permissions::from_mode(0o600))
+            .context("chmod 0600 on probe key")?;
+    }
     std::fs::write(&cert_path, &enrolled.cert).context("writing probe certificate")?;
     std::fs::write(&ca_path, &enrolled.ca).context("writing CA certificate")?;
     Ok(())
