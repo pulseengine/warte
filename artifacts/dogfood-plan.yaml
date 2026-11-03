@@ -1175,7 +1175,7 @@ artifacts:
   - id: REQ-PROBE-007
     type: requirement
     title: Probe certificates are renewed before they expire
-    status: approved
+    status: implemented
     release: v1.5.0
     description: An enrolled probe SHALL renew its certificate before expiry (e.g. at two thirds of its 30-day life) by signing a new CSR with its current key, without a new token; an expired or revoked certificate SHALL need a new enrollment.
     fields:
