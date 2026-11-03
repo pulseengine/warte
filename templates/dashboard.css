@@ -440,7 +440,7 @@ p.empty {
 .ap-head { display: flex; align-items: center; gap: 6px; }
 .ap-head b { font-weight: 900; font-size: 14px; color: #1f2933; }
 .ap-badge { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 0 rgba(0,0,0,.2); }
-.ap-sub { font-weight: 800; font-size: 11px; color: #4a5563; }
+.ap-sub { max-width: 100%; font-weight: 800; font-size: 11px; color: #4a5563; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ap-sub.warn, .ap-runsign .warn { color: #c2410c; }
 .ap-devs { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; }
 .ap-devs span { font-weight: 800; font-size: 10px; color: #fff; background: #7048e8; padding: 1px 6px; border-radius: 5px; }
@@ -469,10 +469,8 @@ p.empty {
 .ap-shadow { position: absolute; inset: 15% 5%; border-radius: 50%; background: rgba(0,0,0,.45); filter: blur(3px); }
 .ap-body { position: absolute; inset: 0; transform-style: preserve-3d; transform: translateZ(4px); animation: aproll 1.4s ease-in-out infinite; }
 .ap-body svg { display: block; }
-.ap-runsign { position: absolute; left: 50%; bottom: 60%; width: 170px; margin-left: -85px; box-sizing: border-box; padding: 4px 7px; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; background: #fff; border: 2px solid; border-radius: 8px; font-weight: 800; font-size: 10px; color: #4a5563; transform-origin: 50% 100%; transform: translateZ(30px) rotateX(-62deg); }
-.ap-runsign b { font-weight: 900; font-size: 11px; color: #1f2933; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ap-bar { display: block; width: 100%; height: 5px; border-radius: 3px; background: #e3e7ec; overflow: hidden; }
-.ap-bar span { display: block; height: 100%; }
+.ap-runsign { position: absolute; right: 40px; bottom: 50%; max-width: 400px; box-sizing: border-box; padding: 2px 8px; display: flex; align-items: baseline; gap: 8px; background: #fff; border: 2px solid; border-radius: 7px; font: inherit; font-weight: 800; font-size: 11px; color: #4a5563; white-space: nowrap; cursor: pointer; transform-origin: 50% 100%; transform: rotateX(-62deg); }
+.ap-runsign b { font-weight: 900; color: #1f2933; overflow: hidden; text-overflow: ellipsis; }
 .ap-hold { left: 1250px; top: 560px; width: 150px; height: 150px; }
 .ap-holdring { position: absolute; left: 13px; top: 13px; width: 124px; height: 124px; border: 2px dashed rgba(240,140,0,.6); border-radius: 50%; box-sizing: border-box; }
 .ap-holdplane { position: absolute; left: 66px; top: 66px; width: 18px; height: 18px; animation: aphold 14s linear infinite; }

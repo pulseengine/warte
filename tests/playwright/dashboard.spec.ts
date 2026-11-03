@@ -140,6 +140,25 @@ test.describe("airport", () => {
   });
 });
 
+test.describe("airport field", () => {
+  test("the field label stays above a full runway field", async ({ page }) => {
+    const runways = Array.from({ length: 8 }, (_, i) => ({ id: `R0${i + 1}`, flight: `spar #${540 + i}`, job: "Build", elapsed_s: 300 + i * 200 }));
+    await page.route("**/api/airport", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify({
+      tower: "fourpi", runner_total: 14, holding: 3, runways,
+      piers: [{ name: "fourpi", kind: "workshop", location: "lan", cores: 4, runners: 0, boards: [], agents: 0, ground_station: true, reporting: true, note: "" }],
+    }) }));
+    await page.goto("/#airport");
+    await expect(page.locator(".ap-lane")).toHaveCount(7);
+    const label = (await page.locator(".ap-fieldlabel").boundingBox())!;
+    for (const sel of [".ap-tilt", ".ap-runsign"]) {
+      for (const b of await page.locator(sel).all()) {
+        const box = (await b.boundingBox())!;
+        expect(label.y + label.height).toBeLessThanOrEqual(box.y + 1);
+      }
+    }
+  });
+});
+
 test.describe("ask", () => {
   test("asks the ground station for a PR's ETA", async ({ page }) => {
     await page.goto("/");
