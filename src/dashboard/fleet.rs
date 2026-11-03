@@ -80,13 +80,23 @@ pub fn queue(hub: Option<&Hub>) -> String {
         .filter(|(p, _)| p.as_str() != "hosted")
         .map(|(_, p)| p.jobs_queued)
         .sum();
-    let mut kpis = kpi(
-        "Runners busy",
-        &format!("{nbusy}/{}", s.runners.len()),
-        "",
-        "host view",
-        "",
-    );
+    let mut kpis = if s.runners_inferred {
+        kpi(
+            "Self-hosted jobs running",
+            &nbusy.to_string(),
+            "",
+            &format!("by runs-on: {}", esc(&busy_by_label(&s))),
+            "",
+        )
+    } else {
+        kpi(
+            "Runners busy",
+            &format!("{nbusy}/{}", s.runners.len()),
+            "",
+            "host view",
+            "",
+        )
+    };
     kpis += &kpi(
         "Holding · self-hosted",
         &self_hosted.to_string(),
@@ -858,6 +868,21 @@ fn strip(r: &crate::hub::model::Runner, t: i64) -> String {
     )
 }
 
+/// Busy self-hosted runners grouped by their pool label, e.g. `rust-cpu 3, arc-large 1`.
+fn busy_by_label(s: &crate::hub::model::Snapshot) -> String {
+    let mut n: std::collections::BTreeMap<String, u32> = Default::default();
+    for r in s.runners.iter().filter(|r| busy(r)) {
+        *n.entry(crate::hub::parse::pool_of(&r.labels)).or_default() += 1;
+    }
+    if n.is_empty() {
+        return "none".into();
+    }
+    n.iter()
+        .map(|(k, v)| format!("{k} {v}"))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
 /// The tower's main view: a runway gauge (one cell per runner), KPIs with
 /// two-hour trends, six hours of traffic, the departures board and the strips.
 pub fn overview(hub: Option<&Hub>) -> String {
@@ -902,28 +927,42 @@ pub fn overview(hub: Option<&Hub>) -> String {
         })
         .collect();
     let m = &s.machine;
-    let hero = format!(
-        r#"<section class="hero"><div class="radar" aria-hidden="true"><span></span></div><div><div class="l">Runways in use</div><div class="big">{nbusy}<small>/{total}</small></div></div><div class="runway" aria-label="{nbusy} of {total} runners busy">{cells}</div><div class="r"><span class="{pill}">{word} · {} ago</span><span>{online} online · GitHub says {gh_busy} busy</span><span class="host">{}{}</span></div></section>"#,
-        dur(age),
-        esc(&s.host),
-        if m.ncpu > 0 {
-            format!(" · load {:.0}/{}", m.load[0], m.ncpu)
-        } else {
-            String::new()
-        },
-    );
+    let hero = if s.runners_inferred {
+        // no runner list: the busy count is real, the total is not known
+        format!(
+            r#"<section class="hero"><div class="radar" aria-hidden="true"><span></span></div><div><div class="l">Self-hosted jobs running</div><div class="big">{nbusy}</div></div><div class="runway" aria-label="{nbusy} self-hosted jobs running">{cells}</div><div class="r"><span class="{pill}">{word} · {} ago</span><span>runner list not readable · idle runners unknown</span><span class="host">{} · {}</span></div></section>"#,
+            dur(age),
+            esc(&s.host),
+            esc(&busy_by_label(&s)),
+        )
+    } else {
+        format!(
+            r#"<section class="hero"><div class="radar" aria-hidden="true"><span></span></div><div><div class="l">Runways in use</div><div class="big">{nbusy}<small>/{total}</small></div></div><div class="runway" aria-label="{nbusy} of {total} runners busy">{cells}</div><div class="r"><span class="{pill}">{word} · {} ago</span><span>{online} online · GitHub says {gh_busy} busy</span><span class="host">{}{}</span></div></section>"#,
+            dur(age),
+            esc(&s.host),
+            if m.ncpu > 0 {
+                format!(" · load {:.0}/{}", m.load[0], m.ncpu)
+            } else {
+                String::new()
+            },
+        )
+    };
 
-    let mut kpis = kpi(
-        "Runners online",
-        &format!("{online}/{total}"),
-        if online < total { "warn" } else { "" },
-        if online == total {
-            "all online"
-        } else {
-            "some offline"
-        },
-        &series(&|p| Some(p.online as f64)),
-    );
+    let mut kpis = if s.runners_inferred {
+        kpi("Runners online", "?", "", "runner list not readable", "")
+    } else {
+        kpi(
+            "Runners online",
+            &format!("{online}/{total}"),
+            if online < total { "warn" } else { "" },
+            if online == total {
+                "all online"
+            } else {
+                "some offline"
+            },
+            &series(&|p| Some(p.online as f64)),
+        )
+    };
     if let Some(q) = &s.queue {
         let sh: u32 = q
             .pools

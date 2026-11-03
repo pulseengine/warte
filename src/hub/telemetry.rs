@@ -865,6 +865,8 @@ impl Assembler {
                     queue: self.queue.clone(),
                     automation: self.auto.clone(),
                     errors: m.errors,
+                    // an agent on the host lists its runners itself
+                    runners_inferred: false,
                 });
             }
             _ => {}

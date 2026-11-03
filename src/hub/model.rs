@@ -15,6 +15,11 @@ pub struct Snapshot {
     pub automation: Automation,
     /// Collection problems, reported instead of silently producing a thinner snapshot.
     pub errors: Vec<String>,
+    /// The runner list could not be read; `runners` are only the busy ones,
+    /// seen through their running jobs, and idle runners are unknown
+    /// (REQ-GHSRC-004).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub runners_inferred: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
