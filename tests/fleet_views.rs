@@ -726,6 +726,7 @@ async fn machines_publish_no_paths_pids_or_dirs_and_no_cross_origin_reads() {
             dir: Some("secret-repo".into()),
             activity: None,
         }],
+        io: None,
     };
     m.record(r.clone(), "probe", warte::hub::now());
     r.host = "other".into();

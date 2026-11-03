@@ -87,6 +87,7 @@ fn report(host: &str, kernel: &str, claude: Option<&str>) -> warte::probe::Repor
             })
             .collect(),
         sessions: vec![],
+        io: None,
     }
 }
 
@@ -179,4 +180,75 @@ fn the_view_escapes_what_machines_report() {
     let again = warte::probe::Machines::open(dir.path().to_str().unwrap());
     assert_eq!(again.list().len(), 1);
     assert!(warte::dashboard::machines::view(None, None).contains("No machine has reported yet"));
+}
+
+// rivet: verifies REQ-PROBE-008
+#[test]
+fn io_is_optional_and_becomes_findings() {
+    use warte::probe::io::{Device, Io};
+    use warte::probe::{findings, Seen};
+    // an old probe's report (no io) still parses, and a new one round-trips
+    let mut r = report("pi", "6.12", None);
+    let old = serde_json::to_string(&r).unwrap();
+    assert!(!old.contains("\"io\""), "no io key when there is none");
+    let back: warte::probe::Report = serde_json::from_str(&old).unwrap();
+    assert_eq!(back.io, None);
+    r.io = Some(Io {
+        psi_some_avg60: Some(55.0),
+        psi_full_avg60: Some(10.0),
+        devices: vec![Device {
+            name: "sda".into(),
+            mounts: vec!["/srv/backup".into()],
+            rotational: Some(true),
+            busy_pct: Some(70.0),
+            await_ms: Some(30.0),
+            read_kbs: Some(1.0),
+            write_kbs: Some(2.0),
+        }],
+    });
+    let back: warte::probe::Report =
+        serde_json::from_str(&serde_json::to_string(&r).unwrap()).unwrap();
+    assert_eq!(back, r);
+    let f = findings(
+        &[Seen {
+            report: r,
+            received_at: 100,
+            via: "probe".into(),
+        }],
+        100,
+    );
+    let io: Vec<(&str, &str)> = f
+        .iter()
+        .filter(|f| f.text.contains("IO") || f.text.contains("spinning"))
+        .map(|f| (f.severity, f.text.as_str()))
+        .collect();
+    assert_eq!(io.len(), 2, "{f:?}");
+    assert!(io
+        .iter()
+        .any(|(s, t)| *s == "red" && t.contains("stalled on IO 55%")));
+    assert!(io
+        .iter()
+        .any(|(s, t)| *s == "amber" && t.contains("sda") && t.contains("70% busy")));
+}
+
+// rivet: verifies REQ-PROBE-008
+#[test]
+fn every_report_field_is_published_or_hidden_on_purpose() {
+    use warte::server::api::{public_report, HIDDEN_REPORT_FIELDS};
+    // a report with every optional part present, so every key serializes
+    let mut r = report("pi", "6.12", Some("2.1.4"));
+    r.io = Some(warte::probe::io::Io::default());
+    let all = serde_json::to_value(&r).unwrap();
+    let public = public_report(&r);
+    for k in all.as_object().unwrap().keys() {
+        assert!(
+            public.get(k).is_some() || HIDDEN_REPORT_FIELDS.contains(&k.as_str()),
+            "Report field {k:?} is neither published by public_report() nor listed in HIDDEN_REPORT_FIELDS"
+        );
+    }
+    // and what is hidden really is not published as it is
+    assert!(public.get("probe_version").is_none());
+    assert!(public["tools"][0].get("path").is_none());
+    assert!(public["sessions"].is_object());
+    assert!(public.get("io").is_some());
 }

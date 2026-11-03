@@ -207,7 +207,7 @@ async fn main() -> anyhow::Result<()> {
                 warte::probe::activity::hook(&s, chrono::Utc::now().timestamp());
             }
             warte::cli::ProbeCommands::Report => {
-                let r = warte::probe::collect().await;
+                let r = warte::probe::collect(None).await;
                 match cli.format {
                     OutputFormat::Json => println!("{}", serde_json::to_string_pretty(&r)?),
                     OutputFormat::Text => print!("{}", warte::probe::text(&r)),

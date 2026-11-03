@@ -124,7 +124,7 @@ pub async fn send(
         .context("reading probe key; enroll first")?;
     let cert = std::fs::read_to_string(state_dir.join("probe-cert.pem"))
         .context("reading probe certificate; enroll first")?;
-    let mut report = super::collect().await;
+    let mut report = super::collect(Some(&state_dir.join("io-prev.json"))).await;
     // the certificate names the host; report under that name
     let cert_der = pem_body(&cert, "CERTIFICATE")?;
     let (_, c) = X509Certificate::from_der(&cert_der).context("probe certificate")?;
