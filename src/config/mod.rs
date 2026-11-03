@@ -63,6 +63,11 @@ pub struct Config {
     #[serde(default)]
     pub fleet_model: Option<PathBuf>,
 
+    /// Scheduled jobs pushed by the hosts (REQ-JOBS-001). Env:
+    /// `WARTE_JOBS_DIR`, `WARTE_JOBS_EXPECTED`.
+    #[serde(default)]
+    pub jobs: Option<JobsConfig>,
+
     /// GitHub's API as a CI source, for teams without a smithy agent (#81).
     /// Set by a `[github]` section or by `WARTE_GITHUB_ORG` + `WARTE_GITHUB_TOKEN`.
     #[serde(default)]
@@ -73,6 +78,19 @@ pub struct Config {
     /// Resources, Ask and Overview views read from it (DD-SMITHY-001).
     #[serde(default)]
     pub hub: Option<HubConfig>,
+}
+
+/// Where the hosts' job states land, and which must exist (REQ-JOBS-001).
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct JobsConfig {
+    /// `<dir>/<host>/<job>.json`, as `pe-job` writes them.
+    pub dir: PathBuf,
+    /// The manifest: `<path relative to dir> <window_s>` per line.
+    #[serde(default)]
+    pub expected: Option<PathBuf>,
+    /// Job host directory name -> machine name, e.g. `mini = "Mac.fritz.box"`.
+    #[serde(default)]
+    pub hosts: std::collections::BTreeMap<String, String>,
 }
 
 /// GitHub's REST API as a CI source (#81). The scan fills the same model as
@@ -187,6 +205,7 @@ impl Default for Config {
             rate_limit_per_ip: default_rate_limit_per_ip(),
             rate_limit_per_agent: default_rate_limit_per_agent(),
             fleet_model: None,
+            jobs: None,
             github: None,
             hub: None,
         }
@@ -222,6 +241,14 @@ impl Config {
         let env = |k: &str| std::env::var(k).ok().filter(|v| !v.is_empty());
         if let Some(v) = env("WARTE_FLEET_MODEL") {
             self.fleet_model = Some(v.into());
+        }
+        if let Some(v) = env("WARTE_JOBS_DIR") {
+            self.jobs.get_or_insert_with(Default::default).dir = v.into();
+        }
+        if let Some(v) = env("WARTE_JOBS_EXPECTED") {
+            if let Some(j) = self.jobs.as_mut() {
+                j.expected = Some(v.into());
+            }
         }
         if let (Some(org), Some(token)) = (env("WARTE_GITHUB_ORG"), env("WARTE_GITHUB_TOKEN")) {
             let g = self.github.get_or_insert_with(|| GithubConfig {

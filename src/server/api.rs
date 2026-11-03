@@ -49,6 +49,7 @@ pub fn build_routes() -> Router<AppState> {
         .route("/machines", get(api_machines))
         .route("/fleet", get(api_fleet))
         .route("/airport", get(api_airport))
+        .route("/jobs", get(api_jobs))
         .route("/probe/enroll", post(api_probe_enroll))
         .route("/probe/report", post(api_probe_report))
         .route("/openapi.json", get(api_openapi));
@@ -107,6 +108,10 @@ pub fn build_routes() -> Router<AppState> {
         .route(
             "/api/dashboard/airport-partial",
             get(crate::dashboard::airport_partial),
+        )
+        .route(
+            "/api/dashboard/jobs-partial",
+            get(crate::dashboard::jobs_partial),
         )
         .route(
             "/api/dashboard/machines-partial",
@@ -463,12 +468,43 @@ async fn api_airport(State(state): State<AppState>) -> axum::response::Response 
         .map(|m| m.list())
         .unwrap_or_default();
     let hub = state.hub.as_ref().and_then(|h| h.snapshot());
+    let jobs = jobs_now(&state).unwrap_or_default();
     Json(crate::dashboard::airport::build(
         fleet,
         &machines,
         hub,
+        &jobs,
         crate::hub::now(),
     ))
+    .into_response()
+}
+
+/// The jobs now, with job host names mapped to machine names
+/// ([jobs] hosts); None when no jobs directory is configured.
+pub fn jobs_now(state: &AppState) -> Option<Vec<crate::jobs::Job>> {
+    let cfg = state.config.jobs.as_ref()?;
+    let manifest = cfg
+        .expected
+        .as_ref()
+        .and_then(|p| std::fs::read_to_string(p).ok());
+    let mut jobs = crate::jobs::read(&cfg.dir, manifest.as_deref(), crate::hub::now());
+    for j in &mut jobs {
+        if let Some(m) = cfg.hosts.get(&j.host) {
+            j.host = m.clone();
+        }
+    }
+    Some(jobs)
+}
+
+/// Scheduled jobs (REQ-JOBS-001), worst first, with the count that need you.
+async fn api_jobs(State(state): State<AppState>) -> axum::response::Response {
+    match jobs_now(&state) {
+        None => Json(serde_json::json!({ "configured": false, "jobs": [], "overdue": 0 })),
+        Some(jobs) => {
+            let overdue = jobs.iter().filter(|j| j.bad()).count();
+            Json(serde_json::json!({ "configured": true, "jobs": jobs, "overdue": overdue }))
+        }
+    }
     .into_response()
 }
 
