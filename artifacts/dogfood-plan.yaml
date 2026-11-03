@@ -1080,3 +1080,181 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-10-30T00:31:21Z
+
+  - id: REQ-PROBE-005
+    type: requirement
+    title: A probe that cannot reach the ground station hands its signed report to an enrolled neighbour
+    status: proposed
+    release: v1.6.0
+    description: When a probe cannot reach the ground station, it SHALL hand its report to an enrolled neighbour it can reach (found on the LAN via mDNS, or configured), which stores and forwards it (bounded store, lifetime-limited). Reports SHALL stay signed end to end by the originating probe, so the ground station verifies the original signature and a forwarder can neither forge nor alter them; a forwarded report is shown with the path it took and its delay. First step one hop; multi-hop and contact-graph routing come from relay's Bundle Protocol work (relay#626).
+    fields:
+      category: functional
+      priority: could
+      rationale: "Owner, 2026-11-03: something like AODV for machines without a direct path. Delay-tolerant store-and-forward (CCSDS Bundle Protocol) fits better than MANET routing; signed reports make untrusted forwarders safe."
+      upstream-ref: https://github.com/pulseengine/relay/issues/626
+    links:
+      - type: satisfies
+        target: SC-006
+      - type: depends-on
+        target: REQ-PROBE-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-03T18:11:05Z
+
+  - id: REQ-GHSRC-003
+    type: requirement
+    title: "The GitHub scan stays inside the rate limit: conditional requests and a reserve"
+    status: approved
+    release: v1.5.0
+    description: "The scan SHALL send If-None-Match with cached ETags (304s are free against the primary limit), track x-ratelimit-remaining/reset, and stop at a configurable reserve (default 150) so other users of the token keep headroom; the default interval SHALL be 120 s. Measured on a GHE tenant: ~450 requests/min against 5000/h stalled the scan; with ETags ~54 requests per scan. Tests for 304 reuse and the reserve guard."
+    fields:
+      category: functional
+      priority: must
+    links:
+      - type: satisfies
+        target: SC-006
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-03T18:28:09Z
+
+  - id: REQ-GHSRC-004
+    type: requirement
+    title: Running self-hosted work is visible without runner-admin rights
+    status: approved
+    release: v1.5.0
+    description: "When the org runner list is unreadable (403/404 for ordinary members), warte SHALL infer running self-hosted work from workflow jobs: Queue shows running jobs (hosted and self-hosted) and runners in use by runs-on label; Overview shows jobs running instead of runways 0/0; Ask and /api/eta count running self-hosted jobs (a PR running on a self-hosted pool must not answer not_queued). Admission, critical path, traffic and the telemetry wire format SHALL count them too."
+    fields:
+      category: functional
+      priority: must
+    links:
+      - type: satisfies
+        target: SC-006
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-03T18:28:09Z
+
+  - id: REQ-GHSRC-005
+    type: requirement
+    title: Self-hosted jobs are classified by configurable runner labels
+    status: approved
+    release: v1.5.0
+    description: self_hosted_labels (env WARTE_SELF_HOSTED_LABELS), wildcard and case-insensitive, SHALL mark jobs whose labels match as self-hosted, for runner groups whose jobs carry no self-hosted label; empty keeps today's behaviour.
+    fields:
+      category: functional
+      priority: should
+    links:
+      - type: satisfies
+        target: SC-006
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-03T18:28:09Z
+
+  - id: REQ-PROBE-006
+    type: requirement
+    title: Probe reports are signed and verified against the enrolled certificate
+    status: approved
+    release: v1.5.0
+    description: warte probe send SHALL post its report to /api/probe/report signed (ECDSA P-256) with its enrolled key; the ground station SHALL verify the signature against the probe's enrolled certificate before storing it. A signature (not mTLS) keeps it working behind a TLS-terminating proxy; /api/probe/enroll and /api/probe/report SHALL be documented as usable without the dashboard's login.
+    fields:
+      category: functional
+      priority: must
+    links:
+      - type: satisfies
+        target: SC-006
+      - type: depends-on
+        target: REQ-PROBE-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-03T18:28:09Z
+
+  - id: REQ-PROBE-007
+    type: requirement
+    title: Probe certificates are renewed before they expire
+    status: approved
+    release: v1.5.0
+    description: An enrolled probe SHALL renew its certificate before expiry (e.g. at two thirds of its 30-day life) by signing a new CSR with its current key, without a new token; an expired or revoked certificate SHALL need a new enrollment.
+    fields:
+      category: functional
+      priority: must
+    links:
+      - type: satisfies
+        target: SC-006
+      - type: depends-on
+        target: REQ-PROBE-006
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-03T18:28:09Z
+
+  - id: REQ-PROBE-008
+    type: requirement
+    title: Probe IO and IO pressure, with findings
+    status: approved
+    release: v1.5.0
+    description: "Probe reports SHALL carry disk IO rates (from /proc/diskstats, averaged since the previous report), IO pressure (PSI), the backing device and whether it is rotational; findings: amber for a rotational disk at least 60 % busy or 100 ms await, red at 90 %; amber for PSI some-avg60 at least 20 %, red at 50 %. New fields are optional, so old probes and old servers keep working; public_report() SHALL expose or explicitly hide every Report field, checked by a test."
+    fields:
+      category: functional
+      priority: should
+    links:
+      - type: satisfies
+        target: SC-006
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-03T18:28:09Z
+
+  - id: REQ-DASH-016
+    type: requirement
+    title: Ask refreshes its result and in-flight list without wiping the form
+    status: approved
+    release: v1.5.0
+    description: The Ask view SHALL refresh its result and the in-flight list on its own every 30 s while visible, leaving the form untouched; placeholders SHALL be neutral.
+    fields:
+      category: functional
+      priority: could
+    links:
+      - type: satisfies
+        target: SC-006
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-03T18:28:09Z
+
+  - id: REQ-DOCS-010
+    type: requirement
+    title: Enterprise deployment notes
+    status: approved
+    release: v1.5.0
+    description: Docs SHALL cover a GHE data-residency base URL with a CA bundle example, a static musl build that runs on older and newer Linux, and putting auth in front (e.g. Caddy basic auth) with the probe routes left open.
+    fields:
+      category: functional
+      priority: should
+    links:
+      - type: satisfies
+        target: SC-006
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-03T18:28:09Z
+
+  - id: REQ-ARTIFACT-010
+    type: requirement
+    title: Artifact upload and download, served safely
+    status: approved
+    release: v1.6.0
+    description: warte SHALL offer an authenticated artifact upload route and working upload/download commands; HTML artifacts SHALL be served sandboxed with nosniff.
+    fields:
+      category: functional
+      priority: could
+    links:
+      - type: satisfies
+        target: SC-006
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-03T18:28:09Z
