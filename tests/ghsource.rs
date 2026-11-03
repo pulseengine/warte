@@ -32,9 +32,45 @@ struct Mock {
     fail: Arc<Mutex<Failure>>,
     /// Only the runners listing fails with 403 (token without runner scope).
     runners_forbidden: Arc<Mutex<bool>>,
+    /// Answer with ETags and honour If-None-Match.
+    etags: Arc<Mutex<bool>>,
+    /// Send `x-ratelimit-remaining` (and a reset 10 min ahead).
+    remaining: Arc<Mutex<Option<i64>>>,
 }
 
+/// The mock behind ETags and rate-limit headers, as GitHub answers: a 200
+/// carries `etag: "<uri>"`, a matching If-None-Match gets a bodiless 304.
 async fn github(State(m): State<Mock>, req: Request) -> Response {
+    let uri = req.uri().to_string();
+    let inm = req
+        .headers()
+        .get("if-none-match")
+        .and_then(|v| v.to_str().ok())
+        .map(String::from);
+    let etags = *m.etags.lock().unwrap();
+    let remaining = *m.remaining.lock().unwrap();
+    let tag = format!("\"{uri}\"");
+    let mut r = if etags && inm.as_deref() == Some(tag.as_str()) {
+        m.seen.lock().unwrap().push((format!("304 {uri}"), None));
+        StatusCode::NOT_MODIFIED.into_response()
+    } else {
+        answer(State(m.clone()), req).await
+    };
+    if etags && r.status() == StatusCode::OK {
+        r.headers_mut().insert("etag", tag.parse().unwrap());
+    }
+    if let Some(n) = remaining {
+        r.headers_mut()
+            .insert("x-ratelimit-remaining", n.to_string().parse().unwrap());
+        r.headers_mut().insert(
+            "x-ratelimit-reset",
+            (now() + 600).to_string().parse().unwrap(),
+        );
+    }
+    r
+}
+
+async fn answer(State(m): State<Mock>, req: Request) -> Response {
     let uri = req.uri().to_string();
     let auth = req
         .headers()
@@ -187,6 +223,15 @@ async fn refused_tokens_and_rate_limits_are_told_apart() {
         GhError::RateLimited { until: reset }
     );
 
+    // with the window spent, the client sends nothing more until the reset
+    let n = m.seen.lock().unwrap().len();
+    assert_eq!(
+        ghsource::snapshot(&c, &cfg(&base)).await.unwrap_err(),
+        GhError::RateLimited { until: reset }
+    );
+    assert_eq!(m.seen.lock().unwrap().len(), n, "no request while spent");
+
+    let c = Client::new(&cfg(&base)).unwrap();
     *m.fail.lock().unwrap() = Some((429, vec![("retry-after", "30".into())]));
     match ghsource::snapshot(&c, &cfg(&base)).await.unwrap_err() {
         GhError::RateLimited { until } => assert!((until - now() - 30).abs() <= 2),
@@ -197,6 +242,7 @@ async fn refused_tokens_and_rate_limits_are_told_apart() {
     // still works, and the gap is said, not hidden
     *m.fail.lock().unwrap() = None;
     *m.runners_forbidden.lock().unwrap() = true;
+    let c = Client::new(&cfg(&base)).unwrap();
     let s = ghsource::snapshot(&c, &cfg(&base)).await.unwrap();
     assert!(s.runners.is_empty() && s.queue.is_some());
     assert!(
@@ -206,6 +252,50 @@ async fn refused_tokens_and_rate_limits_are_told_apart() {
         "{:?}",
         s.errors
     );
+}
+
+// rivet: verifies REQ-GHSRC-003
+#[tokio::test]
+async fn a_second_scan_reuses_etags_and_the_reserve_stops_the_scan() {
+    let (m, base) = mock().await;
+    *m.etags.lock().unwrap() = true;
+    let c = Client::new(&cfg(&base)).unwrap();
+    let first = ghsource::snapshot(&c, &cfg(&base)).await.unwrap();
+    let sent = c.calls.load(std::sync::atomic::Ordering::Relaxed);
+    assert_eq!(c.not_modified.load(std::sync::atomic::Ordering::Relaxed), 0);
+    // the second scan sends every request conditionally and is answered 304
+    // throughout, with the same model as the first
+    let second = ghsource::snapshot(&c, &cfg(&base)).await.unwrap();
+    assert_eq!(c.calls.load(std::sync::atomic::Ordering::Relaxed), 2 * sent);
+    assert_eq!(
+        c.not_modified.load(std::sync::atomic::Ordering::Relaxed),
+        sent,
+        "{:?}",
+        m.seen.lock().unwrap()
+    );
+    assert_eq!(second.runners.len(), first.runners.len());
+    let (q1, q2) = (first.queue.unwrap(), second.queue.unwrap());
+    assert_eq!(q1.queued.len(), q2.queued.len());
+    assert_eq!(q2.pools["rust-cpu"].jobs_queued, 1);
+
+    // GitHub reports 150 left: the next request is not sent, and the scan
+    // waits for the reset instead of eating the token's last requests
+    let (m, base) = mock().await;
+    *m.remaining.lock().unwrap() = Some(150);
+    let c = Client::new(&cfg(&base)).unwrap();
+    assert_eq!(GithubConfig::default().rate_reserve, 150);
+    match ghsource::snapshot(&c, &cfg(&base)).await.unwrap_err() {
+        GhError::RateLimited { until } => assert!((until - now() - 600).abs() <= 2),
+        e => panic!("reserve: {e:?}"),
+    }
+    assert_eq!(m.seen.lock().unwrap().len(), 1, "one request, then stop");
+    assert_eq!(c.remaining(), Some(150));
+    // above the reserve the scan runs
+    let (m, base) = mock().await;
+    *m.remaining.lock().unwrap() = Some(151);
+    let c = Client::new(&cfg(&base)).unwrap();
+    ghsource::snapshot(&c, &cfg(&base)).await.unwrap();
+    assert_eq!(GithubConfig::default().interval_s, 120);
 }
 
 // rivet: verifies REQ-GHSRC-001
