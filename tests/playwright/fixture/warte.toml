@@ -2,6 +2,11 @@
 # synthetic hub-state.json (regenerate: cargo test --test fleet_views --
 # --ignored regenerate_playwright_fixture). No telemetry arrives.
 bind = "127.0.0.1:3013"
+# the Critical Path view's chain (REQ-CRIT-001); spar has CI queued in the fixture
+repo_dependencies = [
+  { repo = "jess", depends_on = ["rivet"] },
+  { repo = "rivet", depends_on = ["spar"] },
+]
 
 [hub]
 udp = "127.0.0.1:0"

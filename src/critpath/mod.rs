@@ -15,7 +15,7 @@
 //! 4. The critical path is the longest such path
 
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 /// A repo dependency declaration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -81,73 +81,73 @@ impl CriticalPathComputer {
         self.nodes.insert(node.name.clone(), node);
     }
 
-    /// Compute the critical path.
-    ///
-    /// Finds the longest chain of repos where each depends on the next
-    /// and at least one repo in the chain is blocking (red/pending/high-queue).
+    /// Compute the critical path: the longest chain of repos, each depending
+    /// on the next, with at least one blocking repo on it (REQ-CRIT-001).
+    /// Nothing blocking: no critical path. Cycles are cut (a repo appears
+    /// once per chain). Ties go to more blocking repos, then by name, so the
+    /// answer is stable.
     pub fn compute(&self) -> CriticalPath {
-        let mut longest_chain: Vec<String> = Vec::new();
-        let mut visited: HashSet<String> = HashSet::new();
-
-        // Try starting from each repo
-        for start in self.nodes.keys() {
-            visited.clear();
-            let chain = self.dfs_longest_path(start, &mut visited);
-            if chain.len() > longest_chain.len() {
-                longest_chain = chain;
-            }
+        let mut starts: Vec<&String> = self.nodes.keys().chain(self.dependencies.keys()).collect();
+        starts.sort();
+        starts.dedup();
+        let blocking = |r: &String| self.nodes.get(r).is_some_and(RepoNode::is_blocking);
+        let score = |c: &[String]| (c.len(), c.iter().filter(|r| blocking(r)).count());
+        let mut best: Vec<String> = vec![];
+        let mut path: Vec<String> = vec![];
+        let mut steps = 0usize;
+        for s in starts {
+            self.walk(
+                s,
+                &mut path,
+                &mut |c: &[String]| {
+                    if c.iter().any(&blocking) && score(c) > score(&best) {
+                        best = c.to_vec();
+                    }
+                },
+                &mut steps,
+            );
         }
-
-        // Find blocking repos on the chain
-        let blocking_repos: Vec<String> = longest_chain
-            .iter()
-            .filter(|name| {
-                self.nodes
-                    .get(*name)
-                    .map(|n| n.is_blocking())
-                    .unwrap_or(false)
-            })
-            .cloned()
-            .collect();
-
-        // The bottleneck is the first blocking repo on the chain
-        let bottleneck = blocking_repos.first().cloned();
-
-        // Estimate total wait (sum of queue depths along the chain)
-        let estimated_wait: u64 = longest_chain
+        let blocking_repos: Vec<String> = best.iter().filter(|r| blocking(r)).cloned().collect();
+        // the bottleneck: the blocking repo deepest in the chain, which every
+        // repo before it waits on
+        let bottleneck = blocking_repos.last().cloned();
+        let estimated_wait: u64 = best
             .iter()
             .filter_map(|name| self.nodes.get(name))
-            .map(|n| n.queue_depth as u64 * 60) // Assume 60s per queued job
+            .map(|n| n.queue_depth as u64 * 60)
             .sum();
-
         CriticalPath {
-            chain: longest_chain,
+            chain: best,
             bottleneck,
             estimated_wait_seconds: estimated_wait,
             blocking_repos,
         }
     }
 
-    /// DFS to find the longest path from a starting repo.
-    fn dfs_longest_path(&self, repo: &str, visited: &mut HashSet<String>) -> Vec<String> {
-        if visited.contains(repo) {
-            return vec![];
+    /// Every simple path from `repo` along dependencies, reported at each
+    /// step; bounded so a large graph cannot stall a request.
+    fn walk(
+        &self,
+        repo: &str,
+        path: &mut Vec<String>,
+        seen: &mut dyn FnMut(&[String]),
+        steps: &mut usize,
+    ) {
+        *steps += 1;
+        if *steps > 100_000 || path.iter().any(|r| r == repo) {
+            return;
         }
-        visited.insert(repo.to_string());
-
-        let mut longest: Vec<String> = vec![repo.to_string()];
-
+        path.push(repo.to_string());
+        seen(path);
         if let Some(deps) = self.dependencies.get(repo) {
-            for dep in deps {
-                let sub_path = self.dfs_longest_path(dep, visited);
-                if sub_path.len() + 1 > longest.len() {
-                    longest = vec![repo.to_string()];
-                    longest.extend(sub_path);
-                }
+            let mut deps = deps.clone();
+            deps.sort();
+            deps.dedup();
+            for d in deps {
+                self.walk(&d, path, seen, steps);
             }
         }
-
-        longest
+        path.pop();
     }
 
     /// Get all blocking repos (not just on the critical path).
@@ -201,8 +201,9 @@ mod tests {
             queue_depth: 0,
         });
 
+        // all green: no critical path (REQ-CRIT-001: at least one gate not green)
         let path = computer.compute();
-        assert_eq!(path.chain.len(), 3);
+        assert!(path.chain.is_empty());
         assert!(path.blocking_repos.is_empty());
         assert!(path.bottleneck.is_none());
     }
@@ -254,8 +255,47 @@ mod tests {
         });
 
         let path = computer.compute();
-        assert_eq!(path.chain.len(), 1);
+        assert!(path.chain.is_empty());
         assert!(path.blocking_repos.is_empty());
+    }
+
+    // rivet: partially-verifies REQ-CRIT-001
+    #[test]
+    fn the_longest_blocked_chain_not_the_first_branch_walked() {
+        let mut c = CriticalPathComputer::new();
+        let dep = |r: &str, d: &[&str]| RepoDependency {
+            repo: r.into(),
+            depends_on: d.iter().map(|s| s.to_string()).collect(),
+        };
+        let node = |n: &str, st: &str| RepoNode {
+            name: n.into(),
+            status: st.into(),
+            queue_depth: 0,
+        };
+        // jess -> {a, relay}; a -> relay; relay -> gale; gale -> jess (a cycle,
+        // cut). A walk that shares `visited` across sibling branches can miss
+        // the longest simple chain, which is 4 here.
+        c.add_dependency(dep("jess", &["a", "relay"]));
+        c.add_dependency(dep("a", &["relay"]));
+        c.add_dependency(dep("relay", &["gale"]));
+        c.add_dependency(dep("gale", &["jess"]));
+        for n in ["jess", "a", "relay"] {
+            c.add_node(node(n, "green"));
+        }
+        c.add_node(node("gale", "pending"));
+        let p = c.compute();
+        assert_eq!(p.chain, ["a", "relay", "gale", "jess"].map(String::from));
+        assert_eq!(p.bottleneck.as_deref(), Some("gale"));
+        // a longer chain that is all green loses to a shorter blocked one
+        let mut c = CriticalPathComputer::new();
+        c.add_dependency(dep("x", &["y"]));
+        c.add_dependency(dep("y", &["z"]));
+        c.add_dependency(dep("p", &["q"]));
+        for n in ["x", "y", "z", "p"] {
+            c.add_node(node(n, "green"));
+        }
+        c.add_node(node("q", "red"));
+        assert_eq!(c.compute().chain, ["p", "q"].map(String::from));
     }
 
     #[test]
