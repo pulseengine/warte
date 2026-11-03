@@ -45,29 +45,41 @@ fn pem_body(pem: &str, label: &str) -> anyhow::Result<Vec<u8>> {
 
 /// Sign `report_json` with the PKCS#8 PEM key from enrollment.
 pub fn sign(key_pem: &str, report_json: &str) -> anyhow::Result<String> {
+    Ok(hex::encode(sign_bytes(key_pem, report_json.as_bytes())?))
+}
+
+pub fn sign_bytes(key_pem: &str, msg: &[u8]) -> anyhow::Result<Vec<u8>> {
     let der = pem_body(key_pem, "PRIVATE KEY")?;
     let rng = ring::rand::SystemRandom::new();
     let kp =
         signature::EcdsaKeyPair::from_pkcs8(&signature::ECDSA_P256_SHA256_ASN1_SIGNING, &der, &rng)
             .map_err(|e| anyhow!("probe key unusable: {e}"))?;
-    let sig = kp
-        .sign(&rng, report_json.as_bytes())
-        .map_err(|e| anyhow!("signing failed: {e}"))?;
-    Ok(hex::encode(sig.as_ref()))
+    Ok(kp
+        .sign(&rng, msg)
+        .map_err(|e| anyhow!("signing failed: {e}"))?
+        .as_ref()
+        .to_vec())
 }
 
 /// What the ground station verified: the report and its host.
 #[derive(Debug)]
 pub struct Verified {
     pub report: super::Report,
+    /// The certificate's not-before, to check against a revocation.
+    pub issued_at: i64,
 }
 
-/// Verify a signed report against warte's CA (DER). `now` is unix seconds.
-/// The caller still checks that `taken_at` is newer than the last accepted
-/// report for the host.
-pub fn verify(ca_der: &[u8], body: &SignedReport, now: i64) -> anyhow::Result<Verified> {
+/// A probe certificate that checked out against warte's CA.
+struct CertInfo {
+    cn: String,
+    public_key: Vec<u8>,
+    not_before: i64,
+}
+
+/// The certificate was issued by warte's CA (DER) and is valid at `now`.
+fn check_cert(ca_der: &[u8], cert_pem: &str, now: i64) -> anyhow::Result<CertInfo> {
     let (_, ca) = X509Certificate::from_der(ca_der).context("CA certificate")?;
-    let cert_der = pem_body(&body.cert, "CERTIFICATE")?;
+    let cert_der = pem_body(cert_pem, "CERTIFICATE")?;
     let (_, cert) = X509Certificate::from_der(&cert_der).context("probe certificate")?;
 
     // issued by our CA: the signature over the TBS part, with the CA's key
@@ -88,30 +100,157 @@ pub fn verify(ca_der: &[u8], body: &SignedReport, now: i64) -> anyhow::Result<Ve
     if now < v.not_before.timestamp() || now > v.not_after.timestamp() {
         return Err(anyhow!("certificate outside its validity"));
     }
-
-    // the report, signed by the certificate's key
-    let sig = hex::decode(&body.sig).context("signature hex")?;
-    let key = signature::UnparsedPublicKey::new(
-        &signature::ECDSA_P256_SHA256_ASN1,
-        cert.public_key().subject_public_key.data.as_ref(),
-    );
-    key.verify(body.report.as_bytes(), &sig)
-        .map_err(|_| anyhow!("report signature does not verify"))?;
-
-    let report: super::Report = serde_json::from_str(&body.report).context("report JSON")?;
     let cn = cert
         .subject()
         .iter_common_name()
         .next()
         .and_then(|c| c.as_str().ok())
-        .unwrap_or_default();
-    if !cn.eq_ignore_ascii_case(&report.host) {
+        .unwrap_or_default()
+        .to_string();
+    let info = CertInfo {
+        cn,
+        public_key: cert.public_key().subject_public_key.data.to_vec(),
+        not_before: v.not_before.timestamp(),
+    };
+    Ok(info)
+}
+
+fn verify_sig(public_key: &[u8], msg: &[u8], sig_hex: &str) -> anyhow::Result<()> {
+    let sig = hex::decode(sig_hex).context("signature hex")?;
+    signature::UnparsedPublicKey::new(&signature::ECDSA_P256_SHA256_ASN1, public_key)
+        .verify(msg, &sig)
+        .map_err(|_| anyhow!("signature does not verify"))
+}
+
+/// Verify a signed report against warte's CA (DER). `now` is unix seconds.
+/// The caller still checks that `taken_at` is newer than the last accepted
+/// report for the host, and that the host is not revoked.
+pub fn verify(ca_der: &[u8], body: &SignedReport, now: i64) -> anyhow::Result<Verified> {
+    let c = check_cert(ca_der, &body.cert, now)?;
+    verify_sig(&c.public_key, body.report.as_bytes(), &body.sig)
+        .map_err(|_| anyhow!("report signature does not verify"))?;
+    let report: super::Report = serde_json::from_str(&body.report).context("report JSON")?;
+    if !c.cn.eq_ignore_ascii_case(&report.host) {
         return Err(anyhow!("report host is not the certificate's host"));
     }
     if (report.taken_at - now).abs() > MAX_SKEW_S {
         return Err(anyhow!("report too old or from the future"));
     }
-    Ok(Verified { report })
+    Ok(Verified {
+        report,
+        issued_at: c.not_before,
+    })
+}
+
+/// Body of POST /api/probe/renew (REQ-PROBE-007): a new CSR for the same
+/// key, signed with that key alongside the certificate it replaces.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RenewRequest {
+    pub cert: String,
+    pub csr: String,
+    /// Unix seconds when the request was made; within [`MAX_SKEW_S`].
+    pub at: i64,
+    /// Signature over [`renew_message`], hex.
+    pub sig: String,
+}
+
+/// The bytes a renewal signs: a fixed prefix, so a report signature can
+/// never pass as one.
+pub fn renew_message(at: i64, csr: &str) -> Vec<u8> {
+    format!("warte-probe-renew\n{at}\n{csr}").into_bytes()
+}
+
+/// What a renewal verified: the host to issue for, and when its current
+/// certificate was issued.
+#[derive(Debug)]
+pub struct Renewal {
+    pub host: String,
+    pub issued_at: i64,
+}
+
+/// Verify a renewal: a current certificate from warte's CA, a fresh request
+/// signed by its key, and a CSR for that same key. An expired certificate
+/// fails here: it needs a new enrollment.
+pub fn verify_renew(ca_der: &[u8], req: &RenewRequest, now: i64) -> anyhow::Result<Renewal> {
+    let c = check_cert(ca_der, &req.cert, now)?;
+    if (req.at - now).abs() > MAX_SKEW_S {
+        return Err(anyhow!("renewal too old or from the future"));
+    }
+    verify_sig(&c.public_key, &renew_message(req.at, &req.csr), &req.sig)
+        .map_err(|_| anyhow!("renewal signature does not verify"))?;
+    let der = pem_body(&req.csr, "CERTIFICATE REQUEST")?;
+    let (_, csr) = x509_parser::certification_request::X509CertificationRequest::from_der(&der)
+        .context("certificate request")?;
+    if csr
+        .certification_request_info
+        .subject_pki
+        .subject_public_key
+        .data
+        .as_ref()
+        != c.public_key.as_slice()
+    {
+        return Err(anyhow!("renewal asks for a different key"));
+    }
+    Ok(Renewal {
+        host: c.cn,
+        issued_at: c.not_before,
+    })
+}
+
+/// True once two thirds of the certificate's life have passed.
+pub fn renewal_due(cert_pem: &str, now: i64) -> anyhow::Result<bool> {
+    let der = pem_body(cert_pem, "CERTIFICATE")?;
+    let (_, c) = X509Certificate::from_der(&der).context("probe certificate")?;
+    let (nb, na) = (
+        c.validity().not_before.timestamp(),
+        c.validity().not_after.timestamp(),
+    );
+    Ok(now >= nb + (na - nb) * 2 / 3)
+}
+
+/// Client side of renewal: a CSR for the enrolled key, signed with it; the
+/// new certificate replaces the old one atomically.
+pub async fn renew(
+    client: &reqwest::Client,
+    ground: &str,
+    state_dir: &std::path::Path,
+    now: i64,
+) -> anyhow::Result<()> {
+    let key = std::fs::read_to_string(state_dir.join("probe-key.pem"))?;
+    let cert = std::fs::read_to_string(state_dir.join("probe-cert.pem"))?;
+    let der = pem_body(&cert, "CERTIFICATE")?;
+    let (_, c) = X509Certificate::from_der(&der).context("probe certificate")?;
+    let host = c
+        .subject()
+        .iter_common_name()
+        .next()
+        .and_then(|c| c.as_str().ok())
+        .ok_or_else(|| anyhow!("probe certificate has no name"))?
+        .to_string();
+    let kp = rcgen::KeyPair::from_pem(&key).context("probe key")?;
+    let csr = super::enroll::csr_pem(&host, &kp)?;
+    let body = RenewRequest {
+        sig: hex::encode(sign_bytes(&key, &renew_message(now, &csr))?),
+        cert,
+        csr,
+        at: now,
+    };
+    let url = format!("{}/api/probe/renew", ground.trim_end_matches('/'));
+    let resp = client.post(&url).json(&body).send().await?;
+    if !resp.status().is_success() {
+        let status = resp.status();
+        return Err(anyhow!(
+            "renewal refused by {ground}: {status} {}",
+            resp.text().await.unwrap_or_default()
+        ));
+    }
+    let r: super::enroll::EnrollResponse = resp.json().await.context("renewal response")?;
+    check_cert(&pem_body(&r.ca, "CERTIFICATE")?, &r.cert, now)
+        .context("the renewed certificate does not check out")?;
+    let tmp = state_dir.join("probe-cert.pem.tmp");
+    std::fs::write(&tmp, &r.cert)?;
+    std::fs::rename(&tmp, state_dir.join("probe-cert.pem"))?;
+    Ok(())
 }
 
 /// Client side: collect, sign with the enrolled key, POST to the ground station.
@@ -120,6 +259,23 @@ pub async fn send(
     state_dir: &std::path::Path,
     ca_cert: Option<&std::path::Path>,
 ) -> anyhow::Result<()> {
+    let mut client = reqwest::Client::builder();
+    if let Some(p) = ca_cert {
+        let pem = std::fs::read(p).context("reading --ca-cert")?;
+        client = client.add_root_certificate(reqwest::Certificate::from_pem(&pem)?);
+    }
+    let client = client.build()?;
+    let cert = std::fs::read_to_string(state_dir.join("probe-cert.pem"))
+        .context("reading probe certificate; enroll first")?;
+    // renew at two thirds of the certificate's life (REQ-PROBE-007); a failed
+    // renewal is said and retried next time, the current certificate still works
+    let now = chrono::Utc::now().timestamp();
+    if renewal_due(&cert, now)? {
+        match renew(&client, ground, state_dir, now).await {
+            Ok(()) => eprintln!("probe certificate renewed"),
+            Err(e) => eprintln!("probe certificate renewal failed, retrying next run: {e:#}"),
+        }
+    }
     let key = std::fs::read_to_string(state_dir.join("probe-key.pem"))
         .context("reading probe key; enroll first")?;
     let cert = std::fs::read_to_string(state_dir.join("probe-cert.pem"))
@@ -142,13 +298,8 @@ pub async fn send(
         cert,
         report,
     };
-    let mut client = reqwest::Client::builder();
-    if let Some(p) = ca_cert {
-        let pem = std::fs::read(p).context("reading --ca-cert")?;
-        client = client.add_root_certificate(reqwest::Certificate::from_pem(&pem)?);
-    }
     let url = format!("{}/api/probe/report", ground.trim_end_matches('/'));
-    let resp = client.build()?.post(&url).json(&body).send().await?;
+    let resp = client.post(&url).json(&body).send().await?;
     if !resp.status().is_success() {
         let status = resp.status();
         return Err(anyhow!(

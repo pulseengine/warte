@@ -52,6 +52,7 @@ pub fn build_routes() -> Router<AppState> {
         .route("/jobs", get(api_jobs))
         .route("/probe/enroll", post(api_probe_enroll))
         .route("/probe/report", post(api_probe_report))
+        .route("/probe/renew", post(api_probe_renew))
         .route("/openapi.json", get(api_openapi));
     // /api/ws and /api/events are not mounted: they broadcast agent and
     // access events without authentication, and nothing uses them (agents
@@ -404,6 +405,17 @@ async fn api_probe_report(
             return refused();
         }
     };
+    match crate::probe::enroll::revoked(&state.db, &v.report.host, v.issued_at).await {
+        Ok(false) => {}
+        Ok(true) => {
+            tracing::warn!(host = %v.report.host, "probe report refused: host revoked");
+            return refused();
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "probe report: revocation store");
+            return plain(StatusCode::SERVICE_UNAVAILABLE, "reports unavailable");
+        }
+    }
     let last = machines
         .list()
         .into_iter()
@@ -415,6 +427,57 @@ async fn api_probe_report(
     }
     machines.record(v.report, "probe", now);
     StatusCode::NO_CONTENT.into_response()
+}
+
+/// Renew a probe's certificate (REQ-PROBE-007): no token, the current
+/// certificate and its key vouch for the new CSR. An expired or revoked
+/// certificate is refused; that machine enrolls again.
+async fn api_probe_renew(
+    State(state): State<AppState>,
+    Json(req): Json<crate::probe::send::RenewRequest>,
+) -> axum::response::Response {
+    use crate::probe::enroll;
+    let refused = || plain(StatusCode::FORBIDDEN, "renewal refused");
+    if req.cert.len() > 16 * 1024 || req.csr.len() > 16 * 1024 || req.sig.len() > 512 {
+        return refused();
+    }
+    let now = crate::hub::now();
+    let r = match crate::probe::send::verify_renew(state.ca.ca_cert_der(), &req, now) {
+        Ok(r) => r,
+        Err(e) => {
+            tracing::warn!(error = %e, "probe renewal refused");
+            return refused();
+        }
+    };
+    match enroll::revoked(&state.db, &r.host, r.issued_at).await {
+        Ok(false) => {}
+        Ok(true) => {
+            tracing::warn!(host = %r.host, "probe renewal refused: host revoked");
+            return refused();
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "probe renewal: revocation store");
+            return plain(StatusCode::SERVICE_UNAVAILABLE, "renewal unavailable");
+        }
+    }
+    match state
+        .ca
+        .sign_probe_csr(&req.csr, &r.host, enroll::CERT_DAYS)
+        .await
+    {
+        Ok(cert) => {
+            tracing::info!(host = %r.host, "probe certificate renewed");
+            Json(enroll::EnrollResponse {
+                cert,
+                ca: state.ca.ca_cert_pem().to_string(),
+            })
+            .into_response()
+        }
+        Err(e) => {
+            tracing::warn!(host = %r.host, error = %e, "probe renewal: bad certificate request");
+            plain(StatusCode::BAD_REQUEST, "not a valid certificate request")
+        }
+    }
 }
 
 /// Enroll a probe: a one-time token for this host, and a CSR (DD-PROBE-002).

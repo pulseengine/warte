@@ -120,9 +120,27 @@ within 10 minutes and is newer than the last one from that host (no
 replays). A signature, not mutual TLS, so it works behind a reverse proxy
 that terminates TLS.
 
-`POST /api/probe/enroll` and `POST /api/probe/report` are the only write
-endpoints usable without the dashboard's login: the one-time token and the
-signature are their authentication. Every refusal gets the same answer;
+### Renewal and revocation (REQ-PROBE-007)
+
+Certificates last 30 days. Once two thirds have passed, `warte probe send`
+renews first: it signs a new CSR for the same key, with that key, and posts
+it with the current certificate to `POST /api/probe/renew`. No token is
+needed. The new certificate replaces the old one atomically; a failed
+renewal is printed and tried again on the next run, while the current
+certificate still works. An expired certificate cannot renew: that machine
+needs a new token.
+
+```bash
+warte probe revoke --host <host>     # on the ground station
+```
+
+refuses every certificate the host holds now, for reports and renewals,
+until it enrolls again with a new token (`warte probe token --host <host>`).
+
+`POST /api/probe/enroll`, `POST /api/probe/report` and `POST
+/api/probe/renew` are the only write endpoints usable without the
+dashboard's login: the one-time token and the signatures are their
+authentication. Every refusal gets the same answer;
 the reason is in the server log. Agent working/waiting state from hooks
 you install follows (DD-PROBE-003).
 
