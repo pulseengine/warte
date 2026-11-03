@@ -141,9 +141,13 @@ pub async fn auth_middleware(
         return Ok(next.run(req).await);
     }
 
-    // The one exemption: probe enrollment authenticates with its one-time
+    // The exemptions: probe enrollment authenticates with its one-time
     // token, checked by the handler (DD-PROBE-002). Exact path and method.
-    if method == axum::http::Method::POST && req.uri().path() == "/api/probe/enroll" {
+    // Signed probe reports authenticate with the enrolled key, checked by the
+    // handler (REQ-PROBE-006).
+    if method == axum::http::Method::POST
+        && matches!(req.uri().path(), "/api/probe/enroll" | "/api/probe/report")
+    {
         return Ok(next.run(req).await);
     }
 
