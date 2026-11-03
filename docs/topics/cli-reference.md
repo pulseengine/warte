@@ -101,10 +101,30 @@ warte probe enroll <token> --ground https://<host>/warte [--ca-cert ca.pem]
 
 The certificate names the host the token was minted for, whatever the
 request says, and is valid for 30 days. A token works once, for one host,
-for 15 minutes; only its SHA-256 is stored. Sending reports with the
-certificate (QUIC, mutual TLS, relay-sec) is the next step
-(DD-TRANSPORT-001); agent working/waiting state from hooks you install
-follows (DD-PROBE-003).
+for 15 minutes; only its SHA-256 is stored.
+
+### Sending reports (REQ-PROBE-006)
+
+Once enrolled, the machine sends its report, signed with its key:
+
+```bash
+warte probe send --ground https://<host>/warte [--ca-cert ca.pem] \
+  [--state-dir /var/lib/warte-probe]
+```
+
+Run it every minute (launchd on macOS, a systemd timer on Linux). The
+ground station stores a report only if the certificate was issued by its
+CA and is valid, the certificate names the report's host, the ECDSA P-256
+signature over the exact report bytes verifies, and the report was taken
+within 10 minutes and is newer than the last one from that host (no
+replays). A signature, not mutual TLS, so it works behind a reverse proxy
+that terminates TLS.
+
+`POST /api/probe/enroll` and `POST /api/probe/report` are the only write
+endpoints usable without the dashboard's login: the one-time token and the
+signature are their authentication. Every refusal gets the same answer;
+the reason is in the server log. Agent working/waiting state from hooks
+you install follows (DD-PROBE-003).
 
 ## warte fleet
 

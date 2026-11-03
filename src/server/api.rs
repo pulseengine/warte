@@ -50,6 +50,7 @@ pub fn build_routes() -> Router<AppState> {
         .route("/fleet", get(api_fleet))
         .route("/airport", get(api_airport))
         .route("/probe/enroll", post(api_probe_enroll))
+        .route("/probe/report", post(api_probe_report))
         .route("/openapi.json", get(api_openapi));
     // /api/ws and /api/events are not mounted: they broadcast agent and
     // access events without authentication, and nothing uses them (agents
@@ -372,6 +373,43 @@ async fn api_costs_post(
             )
         }
     }
+}
+
+/// Accept a signed report from an enrolled probe (REQ-PROBE-006). One answer
+/// for every refusal; the reason goes to the server log.
+async fn api_probe_report(
+    State(state): State<AppState>,
+    Json(body): Json<crate::probe::send::SignedReport>,
+) -> axum::response::Response {
+    let refused = || plain(StatusCode::FORBIDDEN, "report refused");
+    let Some(machines) = state.machines.clone() else {
+        return plain(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "machine supervision is off",
+        );
+    };
+    if body.report.len() > 256 * 1024 || body.cert.len() > 16 * 1024 || body.sig.len() > 512 {
+        return refused();
+    }
+    let now = crate::hub::now();
+    let v = match crate::probe::send::verify(state.ca.ca_cert_der(), &body, now) {
+        Ok(v) => v,
+        Err(e) => {
+            tracing::warn!(error = %e, "probe report refused");
+            return refused();
+        }
+    };
+    let last = machines
+        .list()
+        .into_iter()
+        .find(|m| m.report.host.eq_ignore_ascii_case(&v.report.host) && m.via == "probe")
+        .map(|m| m.report.taken_at);
+    if last.is_some_and(|t| v.report.taken_at <= t) {
+        tracing::warn!(host = %v.report.host, "probe report refused: not newer than the last (replay?)");
+        return refused();
+    }
+    machines.record(v.report, "probe", now);
+    StatusCode::NO_CONTENT.into_response()
 }
 
 /// Enroll a probe: a one-time token for this host, and a CSR (DD-PROBE-002).

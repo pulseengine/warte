@@ -1156,7 +1156,7 @@ artifacts:
   - id: REQ-PROBE-006
     type: requirement
     title: Probe reports are signed and verified against the enrolled certificate
-    status: approved
+    status: implemented
     release: v1.5.0
     description: warte probe send SHALL post its report to /api/probe/report signed (ECDSA P-256) with its enrolled key; the ground station SHALL verify the signature against the probe's enrolled certificate before storing it. A signature (not mTLS) keeps it working behind a TLS-terminating proxy; /api/probe/enroll and /api/probe/report SHALL be documented as usable without the dashboard's login.
     fields:

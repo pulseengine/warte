@@ -101,16 +101,41 @@ test.describe("the view is in the URL", () => {
 });
 
 test.describe("airport", () => {
-  test("the map draws the fleet and a sign opens its view", async ({ page }) => {
+  test("the map draws the fleet; a sign tells its story and opens its view", async ({ page }) => {
     const errors = collectErrors(page);
     await page.goto("/");
     await waitForHtmx(page);
     await openView(page, "Airport");
     await expect(page.locator(".ap-pier").first()).toBeVisible();
     await expect(page.locator(".ap-towername")).toContainText("tower");
+    // the runway field always has its lanes, busy or free
+    expect(await page.locator(".ap-lane").count()).toBeGreaterThan(0);
     await page.locator(".ap-sign", { hasText: "Departures" }).click();
+    await expect(page.locator(".ap-card .ap-title")).toHaveText("Departures");
+    await page.locator(".ap-go").click();
     await waitForHtmx(page);
     await expect(page).toHaveURL(/#queue$/);
+    expect(errors).toEqual([]);
+  });
+
+  test("a pier tells what it is; full screen fills the window", async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.goto("/#airport");
+    await waitForHtmx(page);
+    const label = page.locator(".ap-label").first();
+    await expect(label).toBeVisible();
+    const name = (await label.locator("b").textContent()) ?? "";
+    await label.click();
+    await expect(page.locator(".ap-card .ap-title")).toHaveText(name);
+    await page.locator(".ap-fs").click();
+    await expect.poll(() => page.evaluate(() => document.fullscreenElement?.id ?? "")).toBe("airport");
+    // scaled to fit 1280x720 whole: full height, centred
+    await expect.poll(async () => Math.round((await page.locator(".ap-stage").boundingBox())!.height)).toBe(720);
+    const box = await page.locator(".ap-stage").boundingBox();
+    expect(Math.round(box!.x)).toBe(Math.round((1280 - box!.width) / 2));
+    await page.locator(".ap-fs").click();
+    await expect.poll(() => page.evaluate(() => document.fullscreenElement === null)).toBe(true);
     expect(errors).toEqual([]);
   });
 });

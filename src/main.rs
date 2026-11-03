@@ -193,6 +193,13 @@ async fn main() -> anyhow::Result<()> {
                     state_dir.display()
                 );
             }
+            warte::cli::ProbeCommands::Send {
+                ground,
+                state_dir,
+                ca_cert,
+            } => {
+                warte::probe::send::send(&ground, &state_dir, ca_cert.as_deref()).await?;
+            }
             warte::cli::ProbeCommands::Report => {
                 let r = warte::probe::collect().await;
                 match cli.format {
