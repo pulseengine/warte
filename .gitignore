@@ -6,3 +6,6 @@
 
 # written by a ground station probing its own machine; never commit
 machines.json
+
+# local agent state from sessions run inside tests/playwright
+tests/playwright/.claude/
