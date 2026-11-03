@@ -1310,3 +1310,17 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-11-03T20:50:04Z
+
+  - id: REQ-DEPLOY-002
+    type: requirement
+    title: A config file that does not parse stops warte from starting
+    status: implemented
+    release: v1.5.0
+    description: "When warte.toml exists but cannot be read or parsed, warte SHALL refuse to start and name the file and the error; it SHALL NOT fall back to defaults. No file means defaults. Field case 2026-11-03: a JSON-rendered table made fourpi's warte run four minutes without hub, fleet model or jobs while looking healthy."
+    fields:
+      category: functional
+      priority: must
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-03T20:55:58Z
