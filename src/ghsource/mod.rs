@@ -12,9 +12,10 @@
 
 use crate::config::GithubConfig;
 use crate::hub::model::{
-    HostedGroup, HostedJob, PoolQueue, Queue, QueuedEntry, QueuedRun, Runner, Snapshot, WaitStats,
+    HostedGroup, HostedJob, JobContext, PoolQueue, Queue, QueuedEntry, QueuedRun, Runner, Snapshot,
+    WaitStats,
 };
-use crate::hub::parse::{age_stats, pool_of, rfc3339_utc};
+use crate::hub::parse::{age_stats, pool_with, rfc3339_utc};
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::atomic::{AtomicI64, AtomicU32, AtomicU64, Ordering};
@@ -82,6 +83,8 @@ pub struct Client {
     /// rate limit).
     pub not_modified: AtomicU32,
     reserve: i64,
+    /// Label patterns that mark a job self-hosted (REQ-GHSRC-005).
+    self_hosted: Vec<String>,
     /// `x-ratelimit-remaining` and `-reset` of the last answer; `i64::MAX`
     /// until GitHub has said.
     remaining: AtomicI64,
@@ -125,6 +128,7 @@ impl Client {
             calls: Default::default(),
             not_modified: Default::default(),
             reserve: cfg.rate_reserve,
+            self_hosted: cfg.self_hosted_labels.clone(),
             remaining: AtomicI64::new(i64::MAX),
             reset: AtomicI64::new(0),
             scan: AtomicU64::new(0),
@@ -330,13 +334,16 @@ impl Client {
     /// The agent's queue scan: queued runs of every repo first, then running
     /// ones; jobs listed for at most `max_runs` runs. `truncated` and
     /// `queued_complete` say when the result is a lower bound.
+    ///
+    /// Also returns the self-hosted runners seen busy through their running
+    /// jobs, for when the runner list cannot be read (REQ-GHSRC-004).
     pub async fn queue(
         &self,
         org: &str,
         active_days: i64,
         max_runs: usize,
         now: i64,
-    ) -> Result<Queue, GhError> {
+    ) -> Result<(Queue, Vec<Runner>), GhError> {
         let repos = self.active_repos(org, active_days, now).await?;
         let mut runs: Vec<(String, Value, bool)> = vec![];
         for status in ["queued", "in_progress"] {
@@ -359,6 +366,7 @@ impl Client {
         let mut top: Vec<QueuedRun> = vec![];
         let mut hosted: Vec<HostedJob> = vec![];
         let mut queued: Vec<QueuedEntry> = vec![];
+        let mut busy: Vec<Runner> = vec![];
         for (repo, run, _) in runs.into_iter().take(max_runs) {
             let id = run["id"].as_u64().unwrap_or(0);
             let jobs = self
@@ -381,7 +389,7 @@ impl Client {
                             .collect()
                     })
                     .unwrap_or_default();
-                let pool = pool_of(&labels);
+                let pool = pool_with(&labels, &self.self_hosted);
                 let created = j["created_at"].as_str().and_then(rfc3339_utc);
                 let started = j["started_at"].as_str().and_then(rfc3339_utc);
                 if status == "in_progress" {
@@ -409,6 +417,41 @@ impl Client {
                         event: s("event"),
                         branch: s("head_branch"),
                         pr,
+                    });
+                }
+                if status == "in_progress" && pool != "hosted" {
+                    let runner = j["runner_name"].as_str().unwrap_or_default();
+                    busy.push(Runner {
+                        unit: if runner.is_empty() {
+                            "self-hosted".into()
+                        } else {
+                            runner.to_string()
+                        },
+                        active: true,
+                        local_busy: true,
+                        gh_status: Some("online".into()),
+                        gh_busy: Some(true),
+                        // a job marked by a configured label counts as self-hosted
+                        labels: if labels.iter().any(|l| l.eq_ignore_ascii_case("self-hosted")) {
+                            labels.clone()
+                        } else {
+                            [labels.clone(), vec!["self-hosted".into()]].concat()
+                        },
+                        job: j["name"].as_str().map(String::from),
+                        job_started: started,
+                        ctx: Some(JobContext {
+                            repo: format!("{org}/{repo}"),
+                            workflow: s("name"),
+                            run_id: id,
+                            run_number: run["run_number"].as_u64().unwrap_or(0) as u32,
+                            run_attempt: run["run_attempt"].as_u64().unwrap_or(1) as u32,
+                            event: s("event"),
+                            branch: s("head_branch"),
+                            sha: s("head_sha"),
+                            pr,
+                            ..Default::default()
+                        }),
+                        ..Default::default()
                     });
                 }
                 if status != "queued" {
@@ -499,7 +542,11 @@ impl Client {
         let mut hosted_groups: Vec<HostedGroup> = groups.into_values().collect();
         hosted_groups.sort_by_key(|g| std::cmp::Reverse(g.running + g.queued));
         hosted.truncate(HOSTED_CAP);
-        Ok(Queue {
+        busy.sort_by(|a, b| a.unit.cmp(&b.unit));
+        for (i, r) in busy.iter_mut().enumerate() {
+            r.id = i as u32 + 1;
+        }
+        let q = Queue {
             scanned_at: now,
             repos_scanned: repos.len() as u32,
             runs_queued,
@@ -515,7 +562,8 @@ impl Client {
             queued,
             queued_complete,
             waits,
-        })
+        };
+        Ok((q, busy))
     }
 }
 
@@ -525,27 +573,37 @@ pub async fn snapshot(c: &Client, cfg: &GithubConfig) -> Result<Snapshot, GhErro
     c.begin_scan();
     let now = crate::hub::now();
     let mut errors = vec![];
-    let runners = match c.runners(&cfg.org).await {
-        Ok(r) => r,
-        // listing org runners needs an admin scope; the queue does not
+    let listed = match c.runners(&cfg.org).await {
+        Ok(r) => Some(r),
+        // listing org runners needs an admin scope (403), or the endpoint is
+        // hidden from ordinary members (404); the queue needs neither
         Err(GhError::Auth(code, _)) => {
             errors.push(format!(
-                "runners not listed ({code}): the token cannot read the org's self-hosted runners"
+                "runners not listed ({code}): the token cannot read the org's self-hosted runners; busy ones are shown from their running jobs, idle ones are unknown"
             ));
-            vec![]
+            None
+        }
+        Err(GhError::Other(m)) if m.ends_with("HTTP 404") => {
+            errors.push(
+                "runners not listed (404): the token cannot read the org's self-hosted runners; busy ones are shown from their running jobs, idle ones are unknown"
+                    .into(),
+            );
+            None
         }
         Err(e) => return Err(e),
     };
-    let queue = c
+    let (queue, busy) = c
         .queue(&cfg.org, cfg.active_days, cfg.max_runs, now)
         .await?;
+    let runners_inferred = listed.is_none();
     Ok(Snapshot {
         agent_version: concat!("warte-github ", env!("CARGO_PKG_VERSION")).into(),
         host: format!("github:{}", cfg.org),
         taken_at: now,
-        runners,
+        runners: listed.unwrap_or(busy),
         queue: Some(queue),
         errors,
+        runners_inferred,
         ..Default::default()
     })
 }

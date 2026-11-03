@@ -128,6 +128,11 @@ pub struct GithubConfig {
     /// so other users of the token keep headroom (REQ-GHSRC-003).
     #[serde(default = "default_github_rate_reserve")]
     pub rate_reserve: i64,
+    /// Runner labels that mark a job self-hosted, for runner groups whose
+    /// jobs carry no `self-hosted` label. `*` matches any run of characters;
+    /// case-insensitive. Empty: only `self-hosted` does (REQ-GHSRC-005).
+    #[serde(default)]
+    pub self_hosted_labels: Vec<String>,
 }
 
 impl Default for GithubConfig {
@@ -143,6 +148,7 @@ impl Default for GithubConfig {
             status_url: default_github_status_url(),
             data_dir: default_github_data_dir(),
             rate_reserve: default_github_rate_reserve(),
+            self_hosted_labels: vec![],
         }
     }
 }
@@ -288,6 +294,13 @@ impl Config {
             }
             if let Some(v) = env("WARTE_GITHUB_RATE_RESERVE").and_then(|v| v.parse().ok()) {
                 g.rate_reserve = v;
+            }
+            if let Some(v) = env("WARTE_SELF_HOSTED_LABELS") {
+                g.self_hosted_labels = v
+                    .split(',')
+                    .map(|l| l.trim().to_string())
+                    .filter(|l| !l.is_empty())
+                    .collect();
             }
         }
         if let Ok(tls) = std::env::var("WARTE_TLS_ENABLED") {

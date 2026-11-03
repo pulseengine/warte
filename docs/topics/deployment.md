@@ -50,13 +50,21 @@ WARTE_GITHUB_ORG=<org> WARTE_GITHUB_TOKEN=<token> warte serve
 The base is set, never guessed from a web URL. The same settings as a
 `[github]` section: `api_url`, `org`, `interval_s` (120), `active_days` (7),
 `max_runs` (150), `rate_reserve` (150, env `WARTE_GITHUB_RATE_RESERVE`),
+`self_hosted_labels` (env `WARTE_SELF_HOSTED_LABELS`, comma-separated),
 `ca_bundle`, `status_url`, `data_dir`. Keep the token in
 `WARTE_GITHUB_TOKEN`, not in the file.
 
 - **Token scope:** read-only. A fine-grained token with "Actions: read" on the
   repositories; "Self-hosted runners: read" on the org adds the runner cards.
-  Without it the queue still works and Health says the runners are not
-  listed.
+  Without it (403, or 404 for ordinary members) the queue still works:
+  busy self-hosted runners are taken from their running jobs, so Queue,
+  Overview, Ask, `/api/eta` and admission count running self-hosted work;
+  idle runners are unknown, and Health says the runners are not listed.
+- **Runner groups without a `self-hosted` label** (ARC scale sets, for
+  example): list their labels in `self_hosted_labels`, such as
+  `["arc-*"]`. `*` matches any run of characters, case-insensitive; a job
+  with a matching label is counted as self-hosted. Empty keeps the default:
+  only `self-hosted` does.
 - **Rate limits:** a scan lists recently pushed repos, their queued and
   running runs, and those runs' jobs (at most `max_runs`). Every listing is
   asked again with its ETag (`If-None-Match`); an unchanged one comes back
