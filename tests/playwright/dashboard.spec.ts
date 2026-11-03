@@ -12,6 +12,7 @@ const VIEWS = [
   "Ask",
   "Queue",
   "Machines",
+  "Airport",
   "Critical Path",
   "Resources",
   "Outages",
@@ -95,6 +96,21 @@ test.describe("the view is in the URL", () => {
     await page.goBack();
     await waitForHtmx(page);
     await expect(page.locator("#content").getByRole("heading", { name: "Critical Path" })).toBeVisible();
+    expect(errors).toEqual([]);
+  });
+});
+
+test.describe("airport", () => {
+  test("the map draws the fleet and a sign opens its view", async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.goto("/");
+    await waitForHtmx(page);
+    await openView(page, "Airport");
+    await expect(page.locator(".ap-pier").first()).toBeVisible();
+    await expect(page.locator(".ap-towername")).toContainText("tower");
+    await page.locator(".ap-sign", { hasText: "Departures" }).click();
+    await waitForHtmx(page);
+    await expect(page).toHaveURL(/#queue$/);
     expect(errors).toEqual([]);
   });
 });

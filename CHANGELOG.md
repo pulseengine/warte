@@ -4,6 +4,7 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased — v1.5.0
 
+- **Airport map** (REQ-DASH-015, first part): a new Airport view draws the fleet as an airport. The ground station is the tower; each machine is a pier (from the fleet model if there is one, so silent machines are drawn dashed); boards are stands, agent sessions planes, busy runners planes on 3D runways with their PR, job and time on the runway; the queue is a holding pattern. Signs in the hall open their views. Data from `GET /api/airport`; every string is drawn as text, never markup. Runway planes show elapsed time, not progress: the expected duration comes with REQ-TIMING-001.
 - **Probe enrollment** (DD-PROBE-002): `warte probe token --host <h>` on the ground station mints a one-time token (15 min, single use, bound to the host, stored as its SHA-256); `warte probe enroll <token> --ground <url>` on the machine makes its key locally and sends only a certificate request to `POST /api/probe/enroll`, which warte's CA signs for the token's host (30 days). The private key never leaves the machine. Every refusal answers the same 403. Enrollment is the one POST exempt from bearer auth (exact path); the token is its credential.
 
 ## v1.4.0 — 2026-10-29
