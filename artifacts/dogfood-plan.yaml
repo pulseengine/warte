@@ -1080,3 +1080,24 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-10-30T00:31:21Z
+
+  - id: REQ-PROBE-005
+    type: requirement
+    title: A probe that cannot reach the ground station hands its signed report to an enrolled neighbour
+    status: proposed
+    release: v1.6.0
+    description: When a probe cannot reach the ground station, it SHALL hand its report to an enrolled neighbour it can reach (found on the LAN via mDNS, or configured), which stores and forwards it (bounded store, lifetime-limited). Reports SHALL stay signed end to end by the originating probe, so the ground station verifies the original signature and a forwarder can neither forge nor alter them; a forwarded report is shown with the path it took and its delay. First step one hop; multi-hop and contact-graph routing come from relay's Bundle Protocol work (relay#626).
+    fields:
+      category: functional
+      priority: could
+      rationale: "Owner, 2026-11-03: something like AODV for machines without a direct path. Delay-tolerant store-and-forward (CCSDS Bundle Protocol) fits better than MANET routing; signed reports make untrusted forwarders safe."
+      upstream-ref: https://github.com/pulseengine/relay/issues/626
+    links:
+      - type: satisfies
+        target: SC-006
+      - type: depends-on
+        target: REQ-PROBE-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-03T18:11:05Z
