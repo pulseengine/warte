@@ -1122,7 +1122,7 @@ artifacts:
   - id: REQ-GHSRC-004
     type: requirement
     title: Running self-hosted work is visible without runner-admin rights
-    status: approved
+    status: implemented
     release: v1.5.0
     description: "When the org runner list is unreadable (403/404 for ordinary members), warte SHALL infer running self-hosted work from workflow jobs: Queue shows running jobs (hosted and self-hosted) and runners in use by runs-on label; Overview shows jobs running instead of runways 0/0; Ask and /api/eta count running self-hosted jobs (a PR running on a self-hosted pool must not answer not_queued). Admission, critical path, traffic and the telemetry wire format SHALL count them too."
     fields:
@@ -1139,7 +1139,7 @@ artifacts:
   - id: REQ-GHSRC-005
     type: requirement
     title: Self-hosted jobs are classified by configurable runner labels
-    status: approved
+    status: implemented
     release: v1.5.0
     description: self_hosted_labels (env WARTE_SELF_HOSTED_LABELS), wildcard and case-insensitive, SHALL mark jobs whose labels match as self-hosted, for runner groups whose jobs carry no self-hosted label; empty keeps today's behaviour.
     fields:
@@ -1175,7 +1175,7 @@ artifacts:
   - id: REQ-PROBE-007
     type: requirement
     title: Probe certificates are renewed before they expire
-    status: approved
+    status: implemented
     release: v1.5.0
     description: An enrolled probe SHALL renew its certificate before expiry (e.g. at two thirds of its 30-day life) by signing a new CSR with its current key, without a new token; an expired or revoked certificate SHALL need a new enrollment.
     fields:

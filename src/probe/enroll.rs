@@ -89,6 +89,55 @@ pub async fn consume(db: &Database, token: &str, host: &str, now: i64) -> anyhow
     Ok(res.rows_affected() == 1)
 }
 
+/// A CSR for `host` with `key_pair`, as enrollment and renewal send it.
+pub fn csr_pem(host: &str, key_pair: &rcgen::KeyPair) -> anyhow::Result<String> {
+    let mut csr_params =
+        rcgen::CertificateParams::new(vec![host.to_string()]).context("building CSR params")?;
+    csr_params.distinguished_name = rcgen::DistinguishedName::new();
+    csr_params
+        .distinguished_name
+        .push(rcgen::DnType::CommonName, host);
+    csr_params
+        .distinguished_name
+        .push(rcgen::DnType::OrganizationName, "PulseEngine Probe");
+    csr_params
+        .serialize_request(key_pair)
+        .context("serializing CSR")?
+        .pem()
+        .context("serializing CSR to PEM")
+}
+
+/// Revoke `host` (REQ-PROBE-007): every certificate it holds now is refused
+/// for reports and renewal; it needs a new token.
+pub async fn revoke(db: &Database, host: &str, now: i64) -> anyhow::Result<()> {
+    if !valid_host(host) {
+        return Err(anyhow!("invalid host name: {host:?}"));
+    }
+    sqlx::query(
+        "INSERT INTO probe_revocations (host, revoked_at) VALUES (lower(?), ?) \
+         ON CONFLICT(host) DO UPDATE SET revoked_at = excluded.revoked_at",
+    )
+    .bind(host)
+    .bind(now)
+    .execute(db.pool())
+    .await
+    .context("storing revocation")?;
+    Ok(())
+}
+
+/// True if `host` was revoked after a certificate issued at `issued_at`.
+/// Certificates are back-dated 5 minutes, so one issued right after a
+/// revocation still counts as newer.
+pub async fn revoked(db: &Database, host: &str, issued_at: i64) -> anyhow::Result<bool> {
+    let r: Option<(i64,)> =
+        sqlx::query_as("SELECT revoked_at FROM probe_revocations WHERE host = lower(?)")
+            .bind(host)
+            .fetch_optional(db.pool())
+            .await
+            .context("reading revocations")?;
+    Ok(r.is_some_and(|(at,)| issued_at + 5 * 60 <= at))
+}
+
 /// Client side of enrollment: generate a key locally, send only the CSR, store
 /// key (0600), certificate and CA in `state_dir`. If `ca_cert` is given, it is
 /// added as a TLS root for the request to `--ground` (a reverse proxy's local
@@ -105,20 +154,7 @@ pub async fn enroll(
     }
     let key_pair = rcgen::KeyPair::generate_for(&rcgen::PKCS_ECDSA_P256_SHA256)
         .context("generating probe key")?;
-    let mut csr_params =
-        rcgen::CertificateParams::new(vec![host.to_string()]).context("building CSR params")?;
-    csr_params.distinguished_name = rcgen::DistinguishedName::new();
-    csr_params
-        .distinguished_name
-        .push(rcgen::DnType::CommonName, host);
-    csr_params
-        .distinguished_name
-        .push(rcgen::DnType::OrganizationName, "PulseEngine Probe");
-    let csr = csr_params
-        .serialize_request(&key_pair)
-        .context("serializing CSR")?
-        .pem()
-        .context("serializing CSR to PEM")?;
+    let csr = csr_pem(host, &key_pair)?;
 
     let url = format!("{}/api/probe/enroll", ground.trim_end_matches('/'));
     let mut client = reqwest::Client::builder();

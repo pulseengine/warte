@@ -180,6 +180,12 @@ pub enum ProbeCommands {
     /// only a verb ("editing", "waiting for you") for this agent. Never
     /// fails, prints nothing (REQ-PROBE-009)
     Hook,
+    /// On the ground station: refuse every certificate the host holds now,
+    /// for reports and renewal; it needs a new token to enroll again
+    Revoke {
+        #[arg(long)]
+        host: String,
+    },
     /// On the ground station: mint a one-time enrollment token for a host
     /// (valid 15 minutes, used once; only its hash is stored)
     Token {

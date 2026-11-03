@@ -36,6 +36,10 @@ struct Mock {
     etags: Arc<Mutex<bool>>,
     /// Send `x-ratelimit-remaining` (and a reset 10 min ahead).
     remaining: Arc<Mutex<Option<i64>>>,
+    /// The runners listing answers this status instead (403 or 404).
+    runners_status: Arc<Mutex<Option<u16>>>,
+    /// Run 10 also has a job for an ARC runner group with no self-hosted label.
+    arc: Arc<Mutex<bool>>,
 }
 
 /// The mock behind ETags and rate-limit headers, as GitHub answers: a 200
@@ -95,6 +99,19 @@ async fn answer(State(m): State<Mock>, req: Request) -> Response {
     let path = req.uri().path();
     let q = req.uri().query().unwrap_or_default();
     let body = match path {
+        "/orgs/acme/actions/runners" if m.runners_status.lock().unwrap().is_some() => {
+            let code = m.runners_status.lock().unwrap().unwrap();
+            return (
+                StatusCode::from_u16(code).unwrap(),
+                axum::Json(json!({"message": "Not Found"})),
+            )
+                .into_response();
+        }
+        "/repos/acme/spar/actions/runs/10/jobs" if *m.arc.lock().unwrap() => json!({"jobs": [
+            {"name": "build", "status": "queued", "labels": ["self-hosted", "rust-cpu"], "created_at": iso(t - 120)},
+            {"name": "lint", "status": "queued", "labels": ["ubuntu-latest"], "created_at": iso(t - 60)},
+            {"name": "gpu", "status": "queued", "labels": ["ARC-large"], "created_at": iso(t - 30)}
+        ]}),
         "/orgs/acme/actions/runners" if *m.runners_forbidden.lock().unwrap() => {
             return (
                 StatusCode::FORBIDDEN,
@@ -244,7 +261,8 @@ async fn refused_tokens_and_rate_limits_are_told_apart() {
     *m.runners_forbidden.lock().unwrap() = true;
     let c = Client::new(&cfg(&base)).unwrap();
     let s = ghsource::snapshot(&c, &cfg(&base)).await.unwrap();
-    assert!(s.runners.is_empty() && s.queue.is_some());
+    // only the busy runner, seen through its running job (REQ-GHSRC-004)
+    assert!(s.runners_inferred && s.runners.len() == 1 && s.queue.is_some());
     assert!(
         s.errors
             .iter()
@@ -296,6 +314,76 @@ async fn a_second_scan_reuses_etags_and_the_reserve_stops_the_scan() {
     let c = Client::new(&cfg(&base)).unwrap();
     ghsource::snapshot(&c, &cfg(&base)).await.unwrap();
     assert_eq!(GithubConfig::default().interval_s, 120);
+}
+
+// rivet: verifies REQ-GHSRC-004
+#[tokio::test]
+async fn running_self_hosted_work_is_seen_without_the_runner_list() {
+    for code in [403u16, 404] {
+        let (m, base) = mock().await;
+        *m.runners_status.lock().unwrap() = Some(code);
+        let c = Client::new(&cfg(&base)).unwrap();
+        let s = ghsource::snapshot(&c, &cfg(&base)).await.unwrap();
+        assert!(s.runners_inferred, "{code}");
+        assert!(
+            s.errors
+                .iter()
+                .any(|e| e.contains(&format!("runners not listed ({code})"))
+                    && e.contains("idle ones are unknown")),
+            "{:?}",
+            s.errors
+        );
+        // run 11's test job runs on r1: a busy runner with its job's context
+        assert_eq!(s.runners.len(), 1, "{:?}", s.runners);
+        let r = &s.runners[0];
+        assert!(r.local_busy && r.unit == "r1");
+        let ctx = r.ctx.as_ref().unwrap();
+        assert_eq!(
+            (ctx.repo.as_str(), ctx.run_id, ctx.branch.as_str()),
+            ("acme/spar", 11, "main")
+        );
+        // Ask / eta: a branch running on a self-hosted pool is running, not not_queued
+        let a = warte::hub::eta::answer(&s, "acme", "spar", None, Some("main"), now());
+        assert_eq!(a.status, "running", "{code}: {a:?}");
+        // admission counts the run as in flight
+        let q = warte::admission::queue(&s, now(), now(), Some("spar"));
+        assert_eq!(q.repo.unwrap().running_runs, 1);
+        assert_eq!(q.self_hosted.busy, 1);
+        // and the Overview says jobs running, not runways 1/1
+        let d = tempfile::tempdir().unwrap();
+        let hub = warte::hub::Hub::open(d.path().to_str().unwrap(), "acme").unwrap();
+        hub.ingest_snapshot(s);
+        let html = warte::dashboard::fleet::overview(Some(&hub));
+        assert!(html.contains("Self-hosted jobs running"), "{html}");
+        assert!(html.contains("idle runners unknown"));
+        assert!(!html.contains("Runways in use"));
+    }
+}
+
+// rivet: verifies REQ-GHSRC-005
+#[tokio::test]
+async fn configured_labels_make_a_job_self_hosted() {
+    let (m, base) = mock().await;
+    *m.arc.lock().unwrap() = true;
+    let c = Client::new(&cfg(&base)).unwrap();
+    let q = ghsource::snapshot(&c, &cfg(&base))
+        .await
+        .unwrap()
+        .queue
+        .unwrap();
+    assert_eq!(q.pools["hosted"].jobs_queued, 2, "unconfigured: hosted");
+    let conf = GithubConfig {
+        self_hosted_labels: vec!["arc-*".into()],
+        ..cfg(&base)
+    };
+    let c = Client::new(&conf).unwrap();
+    let q = ghsource::snapshot(&c, &conf).await.unwrap().queue.unwrap();
+    assert_eq!(q.pools["hosted"].jobs_queued, 1);
+    assert_eq!(q.pools["arc-large"].jobs_queued, 1, "{:?}", q.pools);
+    assert!(q
+        .queued
+        .iter()
+        .any(|e| e.pool == "arc-large" && e.pr == Some(511)));
 }
 
 // rivet: verifies REQ-GHSRC-001

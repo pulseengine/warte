@@ -165,6 +165,41 @@ pub fn pool_of(labels: &[String]) -> String {
     }
 }
 
+/// `pattern` with `*` for any run of characters, case-insensitive.
+pub fn label_matches(pattern: &str, label: &str) -> bool {
+    let (p, l) = (pattern.to_ascii_lowercase(), label.to_ascii_lowercase());
+    let parts: Vec<&str> = p.split('*').collect();
+    if parts.len() == 1 {
+        return p == l;
+    }
+    let (first, last) = (parts[0], parts[parts.len() - 1]);
+    if !l.starts_with(first) || l.len() < first.len() + last.len() || !l.ends_with(last) {
+        return false;
+    }
+    let mut rest = &l[first.len()..l.len() - last.len()];
+    for mid in &parts[1..parts.len() - 1] {
+        match rest.find(mid) {
+            Some(i) => rest = &rest[i + mid.len()..],
+            None => return false,
+        }
+    }
+    true
+}
+
+/// [`pool_of`], with jobs whose labels match one of `self_hosted` counted as
+/// self-hosted although they carry no `self-hosted` label (REQ-GHSRC-005).
+pub fn pool_with(labels: &[String], self_hosted: &[String]) -> String {
+    let marked = labels
+        .iter()
+        .any(|l| self_hosted.iter().any(|p| label_matches(p, l)));
+    if marked && !labels.iter().any(|l| l.eq_ignore_ascii_case("self-hosted")) {
+        let mut v = labels.to_vec();
+        v.push("self-hosted".into());
+        return pool_of(&v);
+    }
+    pool_of(labels)
+}
+
 /// `relatime` / `noatime` / `atime` for a mount point in /proc/<pid>/mountinfo.
 pub fn mount_atime(mountinfo: &str, mount_point: &str) -> Option<String> {
     let needle = format!(" {} ", mount_point);
@@ -555,6 +590,30 @@ mod tests {
             rfc3339_utc("2026-03-29T01:00:00Z").unwrap()
                 - rfc3339_utc("2026-03-28T01:00:00Z").unwrap(),
             86400
+        );
+    }
+
+    // rivet: verifies REQ-GHSRC-005
+    #[test]
+    fn configured_labels_mark_jobs_self_hosted() {
+        let l = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert!(label_matches("ARC-*", "arc-linux-large"));
+        assert!(label_matches("*-gpu", "build-GPU"));
+        assert!(label_matches("a*b*c", "axxbyyc"));
+        assert!(!label_matches("a*b*c", "axxc"));
+        assert!(!label_matches("arc-*", "ubuntu-latest"));
+        assert!(!label_matches("arc", "arc-large"));
+        let pats = l(&["arc-*"]);
+        assert_eq!(
+            pool_with(&l(&["arc-linux-large"]), &pats),
+            "arc-linux-large"
+        );
+        assert_eq!(pool_with(&l(&["ubuntu-latest"]), &pats), "hosted");
+        // empty keeps today's behaviour
+        assert_eq!(pool_with(&l(&["arc-linux-large"]), &[]), "hosted");
+        assert_eq!(
+            pool_with(&l(&["self-hosted", "rust-cpu"]), &pats),
+            "rust-cpu"
         );
     }
 }

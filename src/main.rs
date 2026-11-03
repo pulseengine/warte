@@ -170,6 +170,14 @@ async fn main() -> anyhow::Result<()> {
                     warte::probe::enroll::TOKEN_TTL_S / 60
                 );
             }
+            warte::cli::ProbeCommands::Revoke { host } => {
+                let config = Config::load()?;
+                let db = Database::connect(&config.db_path).await?;
+                warte::probe::enroll::revoke(&db, &host, chrono::Utc::now().timestamp()).await?;
+                eprintln!(
+                    "{host} revoked: its reports and renewals are refused until it enrolls with a new token (warte probe token --host {host})"
+                );
+            }
             warte::cli::ProbeCommands::Enroll {
                 token,
                 ground,
