@@ -124,6 +124,10 @@ pub struct GithubConfig {
     /// Where the scanned state is kept when there is no `[hub]`.
     #[serde(default = "default_github_data_dir")]
     pub data_dir: String,
+    /// Stop the scan while GitHub reports this many requests or fewer left,
+    /// so other users of the token keep headroom (REQ-GHSRC-003).
+    #[serde(default = "default_github_rate_reserve")]
+    pub rate_reserve: i64,
 }
 
 impl Default for GithubConfig {
@@ -138,6 +142,7 @@ impl Default for GithubConfig {
             ca_bundle: None,
             status_url: default_github_status_url(),
             data_dir: default_github_data_dir(),
+            rate_reserve: default_github_rate_reserve(),
         }
     }
 }
@@ -146,7 +151,10 @@ fn default_github_api_url() -> String {
     "https://api.github.com".into()
 }
 fn default_github_interval_s() -> u64 {
-    60
+    120
+}
+fn default_github_rate_reserve() -> i64 {
+    150
 }
 fn default_github_active_days() -> i64 {
     7
@@ -277,6 +285,9 @@ impl Config {
             }
             if let Some(v) = env("WARTE_GITHUB_STATUS_URL") {
                 g.status_url = v;
+            }
+            if let Some(v) = env("WARTE_GITHUB_RATE_RESERVE").and_then(|v| v.parse().ok()) {
+                g.rate_reserve = v;
             }
         }
         if let Ok(tls) = std::env::var("WARTE_TLS_ENABLED") {

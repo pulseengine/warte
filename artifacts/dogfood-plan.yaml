@@ -1105,7 +1105,7 @@ artifacts:
   - id: REQ-GHSRC-003
     type: requirement
     title: "The GitHub scan stays inside the rate limit: conditional requests and a reserve"
-    status: approved
+    status: implemented
     release: v1.5.0
     description: "The scan SHALL send If-None-Match with cached ETags (304s are free against the primary limit), track x-ratelimit-remaining/reset, and stop at a configurable reserve (default 150) so other users of the token keep headroom; the default interval SHALL be 120 s. Measured on a GHE tenant: ~450 requests/min against 5000/h stalled the scan; with ETags ~54 requests per scan. Tests for 304 reuse and the reserve guard."
     fields:
