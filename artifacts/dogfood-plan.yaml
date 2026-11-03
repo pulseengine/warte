@@ -1258,3 +1258,22 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-11-03T18:28:09Z
+
+  - id: REQ-PROBE-009
+    type: requirement
+    title: Agent activity as verbs, and walking agents on the airport
+    status: approved
+    release: v1.5.0
+    description: warte probe hook SHALL map an agent's hook event to a verb (editing, reading, running tests, building, using git, thinking, waiting for you, ...) and SHALL write only that verb and a time, keyed by the agent's pid; no prompt, command, file name or path SHALL leave the machine. The probe SHALL join the verb and the repo's folder name (last path component only) onto each session; a verb older than 10 minutes SHALL be dropped except 'waiting for you'. The airport SHALL draw agents as walkers whose speech bubble says repo and verb, and waiting agents with a beacon.
+    fields:
+      category: functional
+      priority: should
+    links:
+      - type: depends-on
+        target: REQ-PROBE-006
+      - type: depends-on
+        target: DD-PROBE-003
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-03T19:38:43Z

@@ -10,6 +10,7 @@
 //! start time and working-directory name, never command lines: those can
 //! carry prompts and tokens.
 
+pub mod activity;
 pub mod enroll;
 pub mod send;
 
@@ -87,6 +88,9 @@ pub struct Session {
     pub started_at: u64,
     /// The working directory's last component, e.g. the repo.
     pub dir: Option<String>,
+    /// What the agent is doing, as a verb from its hook (REQ-PROBE-009).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub activity: Option<String>,
 }
 
 /// The first `x.y` or `x.y.z` token, without a leading `v`:
@@ -241,10 +245,19 @@ pub async fn collect() -> Report {
                     .cwd()
                     .and_then(|c| c.file_name())
                     .map(|n| n.to_string_lossy().into_owned()),
+                activity: None,
             })
         })
         .collect();
     sessions.sort_by_key(|s| s.pid);
+    if let Some(dir) = activity::dir() {
+        let now = chrono::Utc::now().timestamp();
+        for s in &mut sessions {
+            s.activity = activity::current(&dir, s.pid, now);
+        }
+        let live: Vec<u32> = sessions.iter().map(|s| s.pid).collect();
+        activity::sweep(&dir, &live);
+    }
 
     let mut tools = Vec::new();
     for name in TOOLS {

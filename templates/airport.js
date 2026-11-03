@@ -38,7 +38,7 @@
     ['VIP lane', cx - ringR - 75, cy - 8, 'M12 3l2.8 5.8 6.2.9-4.5 4.4 1 6.2L12 17.4 6.5 20.3l1-6.2L3 9.7l6.2-.9z', 'Planes from people you care about most are shown first. They still show their passport like everyone else.', 'Planned: watched authors and repos first in Reviews (REQ-REVIEWS-001).']
   ];
 
-  var sel = null, last = null;
+  var sel = null, last = null, WAITING = 'waiting for you';
   function el(tag, cls, css, text) {
     var e = document.createElement(tag);
     if (cls) e.className = cls;
@@ -54,6 +54,13 @@
     if (stroke) { p.setAttribute('fill', 'none'); p.setAttribute('stroke', stroke); p.setAttribute('stroke-width', '2.4'); p.setAttribute('stroke-linecap', 'round'); p.setAttribute('stroke-linejoin', 'round'); }
     else p.setAttribute('fill', fill);
     s.appendChild(p); return s;
+  }
+  function person(shirt) {
+    var ns = 'http://www.w3.org/2000/svg', s = document.createElementNS(ns, 'svg');
+    s.setAttribute('width', 16); s.setAttribute('height', 22); s.setAttribute('viewBox', '0 0 16 22'); s.setAttribute('aria-hidden', 'true');
+    var head = document.createElementNS(ns, 'circle'); head.setAttribute('cx', 8); head.setAttribute('cy', 4); head.setAttribute('r', 3.4); head.setAttribute('fill', '#f1c8a5');
+    var body = document.createElementNS(ns, 'path'); body.setAttribute('d', 'M3 21v-7a5 5 0 0 1 10 0v7z'); body.setAttribute('fill', shirt);
+    s.appendChild(head); s.appendChild(body); return s;
   }
   function rad(a) { return a * Math.PI / 180; }
   function at(a, d, off) {
@@ -148,8 +155,11 @@
       });
       for (var i = 0; i < Math.min(p.agents, dense ? 4 : 6); i++) {
         var side = i % 2 ? 1 : -1, xy = at(ang, hubR + 40 + Math.floor(i / 2) * 36, side * (w / 2 + 16));
+        var waits = p.sessions && p.sessions[i] && p.sessions[i].activity === WAITING;
         var pl = el('span', 'ap-plane', 'left:' + (xy[0] - 12) + 'px;top:' + (xy[1] - 12) + 'px');
-        pl.appendChild(svg(PLANE, 24, C.blue, ang + 90 * side + 90)); stage.appendChild(pl);
+        pl.appendChild(svg(PLANE, 24, waits ? '#f08c00' : C.blue, ang + 90 * side + 90));
+        if (waits) pl.appendChild(el('span', 'ap-beacon'));
+        stage.appendChild(pl);
       }
     });
 
@@ -184,6 +194,37 @@
       }
       b.addEventListener('click', function () { pick(story(p)); });
       stage.appendChild(b);
+    });
+
+    // pilots: agents walking between their pier and the hall, saying what they do
+    var nw = 0;
+    laid.forEach(function (pa) {
+      var p = pa[0], ang = pa[1], len = lenOf(p), w = widthOf(p), list = p.sessions || [];
+      var busy = list.filter(function (s) { return s.activity; });
+      var show = (busy.length ? busy : list.slice(0, 2)).slice(0, dense ? 2 : 4);
+      show.forEach(function (s, j) {
+        var waiting = s.activity === WAITING, say = (s.repo ? s.repo + ' · ' : '') + (s.activity || dur(s.minutes * 60));
+        var walker = el('button', 'ap-walker' + (waiting ? ' waiting' : ''));
+        walker.type = 'button'; walker.setAttribute('aria-label', s.agent + ' on ' + p.name + ': ' + say);
+        if (waiting) {
+          var xy = at(ang, hubR + len + 4, (j % 2 ? 1 : -1) * (w / 2 + 14));
+          walker.style.cssText = 'left:' + (xy[0] - 8) + 'px;top:' + (xy[1] - 22) + 'px';
+        } else {
+          var off = (j % 2 ? 1 : -1) * (w / 2 + 6 + Math.floor(j / 2) * 10);
+          var a1 = at(ang, hubR + len - 24, off), a2 = at(ang, hubR - 2, off), hall = at(ang + (j % 2 ? 24 : -24), hubR - 26, 0);
+          var path = 'M' + a1.join(' ') + ' L' + a2.join(' ') + ' L' + hall.join(' ') + ' L' + a2.join(' ') + ' Z';
+          walker.style.cssText = 'left:0;top:0;offset-path:path(\'' + path + '\');offset-rotate:0deg;animation:apwalk ' + (22 + (nw % 3) * 5) + 's linear infinite;animation-delay:' + (-nw * 6) + 's';
+        }
+        var fig = el('span', 'ap-fig'); fig.appendChild(person(waiting ? '#f08c00' : nw % 2 ? C.purple : C.blue)); walker.appendChild(fig);
+        walker.appendChild(el('span', 'ap-say', null, say));
+        walker.addEventListener('click', function () {
+          pick({ title: s.agent + ' on ' + p.name, view: 'Agents',
+            story: waiting ? 'This pilot has finished and is waiting for you' + (s.repo ? ' in ' + s.repo : '') + '.'
+              : 'This pilot is ' + (s.activity || 'busy') + (s.repo ? ' in ' + s.repo : '') + '. They started ' + dur(s.minutes * 60) + ' ago.',
+            adult: s.agent + ' session, ' + dur(s.minutes * 60) + ' old' + (s.repo ? ', in ' + s.repo : '') + (s.activity ? ', last hook: ' + s.activity : ', no hook installed') + '.' });
+        });
+        stage.appendChild(walker); nw++;
+      });
     });
 
     stage.appendChild(el('div', 'ap-fence'));

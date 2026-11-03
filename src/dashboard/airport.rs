@@ -22,11 +22,23 @@ pub struct Pier {
     pub boards: Vec<String>,
     /// Agent sessions the machine's probe reports.
     pub agents: u32,
+    /// The sessions, for the walkers (REQ-PROBE-009): waiting first, then
+    /// those with a verb. Repo is the folder name only; no pid, no path.
+    pub sessions: Vec<Walker>,
     pub ground_station: bool,
     /// Reporting now (a probe, or the CI host's agent).
     pub reporting: bool,
     /// What is wrong with it, for its label (findings, "not reporting").
     pub note: String,
+}
+
+#[derive(Serialize, Debug, Clone, PartialEq)]
+pub struct Walker {
+    pub agent: String,
+    pub repo: String,
+    /// A verb from the agent's hook, or empty.
+    pub activity: String,
+    pub minutes: u64,
 }
 
 #[derive(Serialize, Debug, Clone, PartialEq)]
@@ -60,6 +72,26 @@ fn kind_of(report: &crate::probe::Report) -> &'static str {
     }
 }
 
+fn walkers_of(r: &crate::probe::Report, now: i64) -> Vec<Walker> {
+    let mut w: Vec<Walker> = r
+        .sessions
+        .iter()
+        .map(|s| Walker {
+            agent: s.agent.clone(),
+            repo: s.dir.clone().unwrap_or_default(),
+            activity: s.activity.clone().unwrap_or_default(),
+            minutes: (now as u64).saturating_sub(s.started_at) / 60,
+        })
+        .collect();
+    let rank = |w: &Walker| match w.activity.as_str() {
+        crate::probe::activity::WAITING => 0,
+        "" => 2,
+        _ => 1,
+    };
+    w.sort_by_key(|w| (rank(w), w.minutes));
+    w
+}
+
 pub fn build(
     fleet: Option<&crate::fleet::Fleet>,
     machines: &[crate::probe::Seen],
@@ -78,6 +110,11 @@ pub fn build(
     let reporting =
         |h: &str| seen(h).is_some() || (!ci_host.is_empty() && ci_host.eq_ignore_ascii_case(h));
     let agents = |h: &str| seen(h).map(|m| m.report.sessions.len() as u32).unwrap_or(0);
+    let walkers = |h: &str| {
+        seen(h)
+            .map(|m| walkers_of(&m.report, now))
+            .unwrap_or_default()
+    };
     let findings = crate::probe::findings(machines, now);
     let note = |h: &str, up: bool| {
         if !up {
@@ -104,6 +141,7 @@ pub fn build(
                     runners: m.runners.unwrap_or(0),
                     boards: m.boards.iter().map(|b| b.catalog.clone()).collect(),
                     agents: agents(&m.host),
+                    sessions: walkers(&m.host),
                     ground_station: m.ground_station,
                     reporting: up,
                     note: note(&m.host, up),
@@ -120,6 +158,7 @@ pub fn build(
                 runners: 0,
                 boards: vec![],
                 agents: m.report.sessions.len() as u32,
+                sessions: walkers_of(&m.report, now),
                 ground_station: m.via == "local",
                 reporting: true,
                 note: note(&m.report.host, true),
@@ -161,6 +200,7 @@ pub fn build(
                 runners: runner_total,
                 boards: vec![],
                 agents: 0,
+                sessions: vec![],
                 ground_station: false,
                 reporting: true,
                 note: String::new(),
@@ -200,6 +240,7 @@ mod tests {
                 pid: i as u32,
                 started_at: 0,
                 dir: None,
+                activity: None,
             });
         }
         crate::probe::Seen {
