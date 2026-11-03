@@ -102,15 +102,26 @@
         if (r) {
           var n = per[r.flight] || 1, size = n >= 7 ? 'L' : n >= 3 ? 'M' : 'S', px = size === 'L' ? 46 : size === 'M' ? 36 : 26;
           var pos = Math.min(r.elapsed_s / 1800, 1), long = r.elapsed_s > 3600, tone = long ? C.orange : C.blue;
-          lane.appendChild(el('span', 'ap-trail', 'width:calc((100% - 230px) * ' + pos + ');background:' + tone));
-          var craft = el('div', 'ap-craft', 'left:calc(70px + (100% - 230px) * ' + pos + ');width:' + px + 'px;height:' + px + 'px;margin:-' + px / 2 + 'px 0 0 -' + px / 2 + 'px');
+          // the plane rolls along the left part of the lane; its sign stands at the far end
+          var travel = '(100% - 520px) * ' + pos;
+          lane.appendChild(el('span', 'ap-trail', 'width:calc(' + travel + ');background:' + tone));
+          var craft = el('div', 'ap-craft', 'left:calc(70px + ' + travel + ');width:' + px + 'px;height:' + px + 'px;margin:-' + px / 2 + 'px 0 0 -' + px / 2 + 'px');
           craft.appendChild(el('span', 'ap-shadow'));
           var body = el('span', 'ap-body'); body.appendChild(svg(PLANE, px, tone, 90)); craft.appendChild(body);
-          var sign = el('span', 'ap-runsign', 'border-color:' + tone);
-          sign.appendChild(el('b', null, null, (r.flight || 'job') + ' · ' + r.job));
-          var bar = el('span', 'ap-bar'); bar.appendChild(el('span', null, 'width:' + Math.round(pos * 100) + '%;background:' + tone)); sign.appendChild(bar);
-          sign.appendChild(el('span', long ? 'warn' : null, null, size + ' · ' + n + (n === 1 ? ' job' : ' jobs') + ' · ' + dur(r.elapsed_s) + ' on the runway'));
-          craft.appendChild(sign); lane.appendChild(craft);
+          lane.appendChild(craft);
+          var what = (r.flight || 'job') + ' · ' + r.job, jobs = n + (n === 1 ? ' job' : ' jobs');
+          var sign = el('button', 'ap-runsign', 'border-color:' + tone); sign.type = 'button';
+          sign.setAttribute('aria-label', r.id + ': ' + what + ', ' + dur(r.elapsed_s));
+          sign.appendChild(el('b', null, null, what));
+          sign.appendChild(el('span', long ? 'warn' : null, null, size + ' · ' + dur(r.elapsed_s)));
+          (function (r, what, jobs, size, long) {
+            sign.addEventListener('click', function () {
+              pick({ title: r.id + ' · ' + (r.flight || 'a job'), view: 'Queue',
+                story: 'A plane on runway ' + r.id + ' is taking off: ' + r.job + '. It has been rolling for ' + dur(r.elapsed_s) + (long ? ', which is a long time.' : '.') ,
+                adult: what + ': ' + jobs + ' of this PR running now (plane size ' + size + '), ' + dur(r.elapsed_s) + ' on the runner.', open: true });
+            });
+          })(r, what, jobs, size, long);
+          lane.appendChild(sign);
         }
         tilt.appendChild(lane);
       }
@@ -165,7 +176,7 @@
       badge.appendChild(svg(ICON[p.kind] || ICON.server, 13, null, 0, '#fff')); head.appendChild(badge); head.appendChild(el('b', null, null, p.name)); b.appendChild(head);
       var sub = [p.reporting ? kind[0] : kind[0] + ' · not reporting'];
       if (p.agents) sub.push(p.agents + ' agents'); if (p.runners) sub.push(p.runners + ' runways'); if (p.note && p.reporting) sub.push(p.note);
-      b.appendChild(el('span', p.reporting && !p.note ? 'ap-sub' : 'ap-sub warn', null, sub.join(' · ')));
+      var subEl = el('span', p.reporting && !p.note ? 'ap-sub' : 'ap-sub warn', null, sub.join(' · ')); subEl.title = sub.join(' · '); b.appendChild(subEl);
       if (p.boards.length) {
         var devs = el('span', 'ap-devs');
         (dense ? p.boards.slice(0, 2) : p.boards).forEach(function (d) { devs.appendChild(el('span', null, null, d)); });
@@ -207,6 +218,18 @@
 
     root.replaceChildren(stage);
     fit();
+    placeFieldLabel(stage);
+  }
+  // The 3D field's projected top edge, and the run signs standing above it,
+  // depend on how many lanes there are: measure them and put the label above.
+  function placeFieldLabel(stage) {
+    var label = stage.querySelector('.ap-fieldlabel'), sr = stage.getBoundingClientRect();
+    if (!label || !sr.height) return;
+    var k = sr.height / H, top = H;
+    stage.querySelectorAll('.ap-tilt, .ap-runsign').forEach(function (e) {
+      var r = e.getBoundingClientRect(); if (r.height) top = Math.min(top, (r.top - sr.top) / k);
+    });
+    label.style.top = Math.round(top - 24) + 'px';
   }
   function toggle() {
     if (document.fullscreenElement) document.exitFullscreen();
