@@ -161,6 +161,100 @@ pub fn queue(hub: Option<&Hub>) -> String {
 
 /// Critical-path inputs: which repos hold the queue, and how long each pool
 /// really makes jobs wait (p50, p90, max on one scale).
+/// The chain of dependent repos holding a release (REQ-CRIT-001,
+/// REQ-DASH-006): the longest chain where each repo depends on the next and
+/// at least one has CI queued or running, its bottleneck, and a lower bound
+/// on release time from the measured pool waits.
+pub fn critical_chain(hub: Option<&Hub>, deps: &[crate::critpath::RepoDependency]) -> String {
+    use crate::critpath::{CriticalPathComputer, RepoNode};
+    if deps.is_empty() {
+        return r#"<section class="panel"><h3>Dependency chain</h3><p class="empty">No repo dependencies declared. Add <code>repo_dependencies = [{ repo = "a", depends_on = ["b"] }]</code> to warte.toml to see which chain of repos holds a release.</p></section>"#.into();
+    }
+    let Some((s, _)) = hub.and_then(Hub::snapshot) else {
+        return r#"<section class="panel"><h3>Dependency chain</h3><p class="empty">No CI data yet.</p></section>"#.into();
+    };
+    let bare = |r: &str| r.rsplit('/').next().unwrap_or(r).to_string();
+    // per repo: queued jobs, the slowest p50 wait of the pools it waits in, running
+    let mut seen: std::collections::BTreeMap<String, (u32, i64, u32)> = Default::default();
+    if let Some(q) = &s.queue {
+        for e in &q.queued {
+            let r = seen.entry(bare(&e.repo)).or_default();
+            r.0 += e.jobs;
+            r.1 = r.1.max(q.waits.get(&e.pool).map(|w| w.p50).unwrap_or(0));
+        }
+        for j in q.hosted.iter().filter(|j| j.status == "in_progress") {
+            seen.entry(bare(&j.repo)).or_default().2 += 1;
+        }
+    }
+    for c in s
+        .runners
+        .iter()
+        .filter(|r| busy(r))
+        .filter_map(|r| r.ctx.as_ref())
+    {
+        seen.entry(bare(&c.repo)).or_default().2 += 1;
+    }
+    let mut cp = CriticalPathComputer::new();
+    let mut names: std::collections::BTreeSet<String> = Default::default();
+    for d in deps {
+        cp.add_dependency(d.clone());
+        names.insert(d.repo.clone());
+        names.extend(d.depends_on.iter().cloned());
+    }
+    for n in names {
+        let (queued, _, running) = seen.get(&n).copied().unwrap_or_default();
+        cp.add_node(RepoNode {
+            status: if queued + running > 0 {
+                "pending"
+            } else {
+                "green"
+            }
+            .into(),
+            queue_depth: queued,
+            name: n,
+        });
+    }
+    let p = cp.compute();
+    if p.chain.is_empty() {
+        return r#"<section class="panel"><h3>Dependency chain</h3><p class="empty">No declared chain has CI queued or running: nothing holds a release.</p></section>"#.into();
+    }
+    let min_s: i64 = p
+        .chain
+        .iter()
+        .map(|r| seen.get(r).map(|v| v.1).unwrap_or(0))
+        .sum();
+    let steps: String = p
+        .chain
+        .iter()
+        .map(|r| {
+            let (queued, _, running) = seen.get(r).copied().unwrap_or_default();
+            let cls = if p.bottleneck.as_deref() == Some(r.as_str()) {
+                "chip hot"
+            } else if queued + running > 0 {
+                "chip warn"
+            } else {
+                "chip"
+            };
+            let what = match (queued, running) {
+                (0, 0) => "green".to_string(),
+                (q, 0) => format!("{q} queued"),
+                (0, n) => format!("{n} running"),
+                (q, n) => format!("{q} queued · {n} running"),
+            };
+            format!(
+                r#"<span class="{cls}">{} <small>{what}</small></span>"#,
+                esc(r)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(r#" <span class="dim">→</span> "#);
+    format!(
+        r#"<section class="panel"><h3>Dependency chain · each repo depends on the next</h3><p class="chain">{steps}</p><p>Bottleneck: <b>{}</b> · release no sooner than <b>{}</b> <span class="dim">(queue waits along the chain at the measured p50; run times are not modelled)</span></p></section>"#,
+        esc(p.bottleneck.as_deref().unwrap_or("—")),
+        dur(min_s),
+    )
+}
+
 pub fn bottlenecks(hub: Option<&Hub>) -> String {
     let (s, at) = match snap(hub) {
         Ok(v) => v,

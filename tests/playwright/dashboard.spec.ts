@@ -101,6 +101,20 @@ test.describe("the view is in the URL", () => {
   });
 });
 
+test.describe("critical path", () => {
+  test("draws the declared chain and names its bottleneck", async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.goto("/");
+    await openView(page, "Critical Path");
+    const chain = page.locator("#content .chain");
+    await expect(chain).toContainText("jess");
+    await expect(chain).toContainText("rivet");
+    await expect(chain).toContainText("spar");
+    await expect(page.locator("#content")).toContainText("Bottleneck: spar");
+    expect(errors).toEqual([]);
+  });
+});
+
 test.describe("airport", () => {
   test("the map draws the fleet; a sign tells its story and opens its view", async ({ page }) => {
     const errors = collectErrors(page);

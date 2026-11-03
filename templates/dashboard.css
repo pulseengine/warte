@@ -404,6 +404,9 @@ p.empty {
 .chip.on { color: var(--text); border-color: var(--accent-dim); }
 .chip.off { opacity: .45; text-decoration: line-through; }
 .chip.warn { color: var(--amber); border-color: rgba(255, 184, 77, .5); }
+.chip.hot { color: var(--red); border-color: var(--red); font-weight: 600; }
+.chain { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
+.chain small { opacity: .75; font-weight: 400; }
 .mvia { font: .62rem var(--mono); color: var(--dim); letter-spacing: .08em; }
 .machine .hbar { grid-template-columns: 6.5rem minmax(60px, 1fr) max-content; gap: .6rem; font-size: .7rem; }
 .machine .hbar .dim { display: none; }

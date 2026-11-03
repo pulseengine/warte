@@ -27,7 +27,19 @@ bind = "10.0.0.2:8080"
 db_path = ".warte/state.db"
 tls_enabled = false  # TLS terminated at edge proxy
 sync_peers = ["https://10.0.0.3:8080"]
+# which repo depends on which, for the Critical Path view (top of the file)
+repo_dependencies = [
+  { repo = "jess", depends_on = ["relay", "gale"] },
+]
 ```
+
+The Critical Path view draws the longest chain of declared dependencies
+on which at least one repo has CI queued or running, names its
+bottleneck (the deepest such repo: every repo before it waits on it), and
+gives a lower bound on release time: the measured p50 queue wait of each
+repo's pools along the chain. Run times are not modelled. Only declared
+dependencies are used so far; rivet externals and GitHub's dependency
+graph as sources are still open (REQ-CRIT-001).
 
 ## Without a smithy agent: GitHub's API as the CI source
 

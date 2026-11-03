@@ -793,3 +793,59 @@ async fn machines_publish_no_paths_pids_or_dirs_and_no_cross_origin_reads() {
         );
     }
 }
+
+// rivet: partially-verifies REQ-CRIT-001
+// rivet: verifies REQ-DASH-006
+#[test]
+fn critical_path_draws_the_declared_chain_with_its_bottleneck() {
+    use warte::critpath::RepoDependency;
+    let s = fleet_snapshot();
+    let (_d, hub) = hub_with(&s);
+    let queued: Vec<String> = s
+        .queue
+        .as_ref()
+        .unwrap()
+        .queued
+        .iter()
+        .map(|e| e.repo.rsplit('/').next().unwrap().to_string())
+        .collect();
+    let blocked = queued[0].clone();
+    let dep = |r: &str, d: &str| RepoDependency {
+        repo: r.into(),
+        depends_on: vec![d.into()],
+    };
+    // <script> -> mid -> <blocked repo>; an all-green side chain is longer
+    let deps = vec![
+        dep("<script>", "mid"),
+        dep("mid", &blocked),
+        dep("g1", "g2"),
+        dep("g2", "g3"),
+        dep("g3", "g4"),
+        dep("g4", "g5"),
+    ];
+    let html = fleet::critical_chain(Some(&hub), &deps);
+    assert_escaped(&html, "critical chain");
+    let at = |w: &str| {
+        html.find(w)
+            .unwrap_or_else(|| panic!("{w} missing: {html}"))
+    };
+    assert!(at("&lt;script&gt;") < at(">mid ") && at(">mid ") < at(&format!(">{blocked} ")));
+    assert!(
+        html.contains(&format!("Bottleneck: <b>{blocked}</b>")),
+        "{html}"
+    );
+    assert!(html.contains("release no sooner than"));
+    assert!(
+        !html.contains("g1"),
+        "an all-green chain holds nothing: {html}"
+    );
+    // nothing declared, or nothing in flight on any declared chain: said so
+    assert!(fleet::critical_chain(Some(&hub), &[]).contains("No repo dependencies declared"));
+    assert!(fleet::critical_chain(Some(&hub), &deps[2..]).contains("nothing holds a release"));
+    // the setting parses as documented
+    let c: warte::config::Config = toml::from_str(
+        r#"repo_dependencies = [{ repo = "jess", depends_on = ["relay", "gale"] }]"#,
+    )
+    .unwrap();
+    assert_eq!(c.repo_dependencies[0].depends_on, ["relay", "gale"]);
+}
