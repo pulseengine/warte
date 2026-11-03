@@ -215,20 +215,27 @@ impl Default for Config {
 impl Config {
     /// Load configuration from `warte.toml` in the current directory,
     /// falling back to defaults. Environment variables override file values.
+    /// `warte.toml` in the working directory, then the environment. No file
+    /// means defaults; a file that cannot be read or parsed is an error, never
+    /// silently the defaults: that once ran the ground station without its
+    /// hub, fleet model and jobs (2026-11-03).
     pub fn load() -> anyhow::Result<Self> {
-        let mut config = Self::load_from_file().unwrap_or_default();
+        let mut config = Self::from_path(std::path::Path::new("warte.toml"))?.unwrap_or_default();
         config.apply_env_overrides();
         Ok(config)
     }
 
-    fn load_from_file() -> anyhow::Result<Self> {
-        let path = PathBuf::from("warte.toml");
+    /// The config in `path`: None if there is no such file.
+    pub fn from_path(path: &std::path::Path) -> anyhow::Result<Option<Self>> {
+        use anyhow::Context;
         if !path.exists() {
-            anyhow::bail!("no warte.toml found");
+            return Ok(None);
         }
-        let content = std::fs::read_to_string(&path)?;
-        let config: Config = toml::from_str(&content)?;
-        Ok(config)
+        let content =
+            std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
+        let config: Config = toml::from_str(&content)
+            .with_context(|| format!("{} is not a valid warte config", path.display()))?;
+        Ok(Some(config))
     }
 
     fn apply_env_overrides(&mut self) {
@@ -320,4 +327,39 @@ fn default_rate_limit_per_ip() -> u32 {
 }
 fn default_rate_limit_per_agent() -> u32 {
     1000
+}
+
+#[cfg(test)]
+mod load_tests {
+    use super::*;
+
+    // rivet: verifies REQ-DEPLOY-002
+    #[test]
+    fn a_config_that_does_not_parse_is_an_error_not_the_defaults() {
+        let d = tempfile::tempdir().unwrap();
+        let p = d.path().join("warte.toml");
+        assert!(
+            Config::from_path(&p).unwrap().is_none(),
+            "no file: defaults"
+        );
+        // the 2026-11-03 case: a JSON object where TOML needs an inline table
+        std::fs::write(
+            &p,
+            "bind = \"127.0.0.1:1\"\n[jobs]\ndir = \"j\"\nhosts = {\"mini\": \"Mac\"}\n",
+        )
+        .unwrap();
+        let e = Config::from_path(&p).unwrap_err();
+        assert!(
+            format!("{e:#}").contains("not a valid warte config"),
+            "{e:#}"
+        );
+        std::fs::write(
+            &p,
+            "bind = \"127.0.0.1:1\"\n[jobs]\ndir = \"j\"\nhosts = { \"mini\" = \"Mac\" }\n",
+        )
+        .unwrap();
+        let c = Config::from_path(&p).unwrap().unwrap();
+        assert_eq!(c.bind, "127.0.0.1:1");
+        assert_eq!(c.jobs.unwrap().hosts["mini"], "Mac");
+    }
 }
