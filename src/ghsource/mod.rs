@@ -16,7 +16,9 @@ use crate::hub::model::{
 };
 use crate::hub::parse::{age_stats, pool_of, rfc3339_utc};
 use serde_json::Value;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
+use std::sync::atomic::{AtomicI64, AtomicU32, AtomicU64, Ordering};
+use std::sync::Mutex;
 use std::time::Duration;
 
 /// Hosted jobs kept per snapshot, as the agent keeps them.
@@ -61,11 +63,31 @@ pub fn extra_roots(path: &std::path::Path) -> Result<Vec<reqwest::Certificate>, 
     Ok(certs)
 }
 
+/// A 200 answer kept for a conditional request (REQ-GHSRC-003).
+struct Cached {
+    etag: String,
+    body: Value,
+    next: Option<String>,
+    /// The scan that last used it; older entries are dropped.
+    scan: u64,
+}
+
 pub struct Client {
     http: reqwest::Client,
     base: String,
     token: String,
-    pub calls: std::sync::atomic::AtomicU32,
+    /// Requests sent.
+    pub calls: AtomicU32,
+    /// Of those, answered 304 from the ETag cache (free against the primary
+    /// rate limit).
+    pub not_modified: AtomicU32,
+    reserve: i64,
+    /// `x-ratelimit-remaining` and `-reset` of the last answer; `i64::MAX`
+    /// until GitHub has said.
+    remaining: AtomicI64,
+    reset: AtomicI64,
+    scan: AtomicU64,
+    cache: Mutex<HashMap<String, Cached>>,
 }
 
 /// The `rel="next"` URL of a `Link` header.
@@ -101,19 +123,57 @@ impl Client {
             base: cfg.api_url.trim_end_matches('/').to_string(),
             token,
             calls: Default::default(),
+            not_modified: Default::default(),
+            reserve: cfg.rate_reserve,
+            remaining: AtomicI64::new(i64::MAX),
+            reset: AtomicI64::new(0),
+            scan: AtomicU64::new(0),
+            cache: Mutex::new(HashMap::new()),
         })
     }
 
+    /// Start a scan: cached answers not used by the previous scan go (run
+    /// and job listings change with every scan; the cache stays bounded by
+    /// what two scans ask for).
+    pub fn begin_scan(&self) {
+        let n = self.scan.fetch_add(1, Ordering::Relaxed) + 1;
+        if let Ok(mut c) = self.cache.lock() {
+            c.retain(|_, e| e.scan + 1 >= n);
+        }
+    }
+
+    /// Requests GitHub says are left in this window, if it has said.
+    pub fn remaining(&self) -> Option<i64> {
+        Some(self.remaining.load(Ordering::Relaxed)).filter(|r| *r != i64::MAX)
+    }
+
     /// One GET of an absolute URL: the JSON body and the next page, if any.
+    ///
+    /// A cached ETag goes out as `If-None-Match`; a 304 reuses the cached
+    /// body. No request is sent while GitHub reports `rate_reserve` or fewer
+    /// requests left before its reset (REQ-GHSRC-003).
     async fn get_url(&self, url: &str) -> Result<(Value, Option<String>), GhError> {
-        self.calls
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        let r = self
+        let now = crate::hub::now();
+        let reset = self.reset.load(Ordering::Relaxed);
+        if self.remaining.load(Ordering::Relaxed) <= self.reserve && now < reset {
+            return Err(GhError::RateLimited { until: reset });
+        }
+        let etag = self
+            .cache
+            .lock()
+            .ok()
+            .and_then(|c| c.get(url).map(|e| e.etag.clone()));
+        self.calls.fetch_add(1, Ordering::Relaxed);
+        let mut req = self
             .http
             .get(url)
             .bearer_auth(&self.token)
             .header("Accept", "application/vnd.github+json")
-            .header("X-GitHub-Api-Version", "2022-11-28")
+            .header("X-GitHub-Api-Version", "2022-11-28");
+        if let Some(e) = &etag {
+            req = req.header("If-None-Match", e);
+        }
+        let r = req
             .send()
             .await
             .map_err(|e| GhError::Other(format!("GET {url}: {e}")))?;
@@ -124,7 +184,23 @@ impl Client {
                 .and_then(|v| v.to_str().ok())
                 .map(String::from)
         };
-        let now = crate::hub::now();
+        if let Some(v) = h("x-ratelimit-remaining").and_then(|v| v.parse().ok()) {
+            self.remaining.store(v, Ordering::Relaxed);
+        }
+        if let Some(v) = h("x-ratelimit-reset").and_then(|v| v.parse().ok()) {
+            self.reset.store(v, Ordering::Relaxed);
+        }
+        let scan = self.scan.load(Ordering::Relaxed);
+        if status == 304 {
+            if let Some(e) = self.cache.lock().ok().as_mut().and_then(|c| c.get_mut(url)) {
+                self.not_modified.fetch_add(1, Ordering::Relaxed);
+                e.scan = scan;
+                return Ok((e.body.clone(), e.next.clone()));
+            }
+            return Err(GhError::Other(format!(
+                "GET {url}: HTTP 304 without a cached answer"
+            )));
+        }
         if status == 403 || status == 429 {
             // rate limits are 403/429 with remaining 0 or a retry-after
             if let Some(s) = h("retry-after").and_then(|v| v.parse::<i64>().ok()) {
@@ -150,10 +226,22 @@ impl Client {
             return Err(GhError::Other(format!("GET {url}: HTTP {status}")));
         }
         let next = next_link(h("link").as_deref());
+        let new_etag = h("etag");
         let v = r
             .json::<Value>()
             .await
             .map_err(|e| GhError::Other(format!("GET {url}: {e}")))?;
+        if let (Some(etag), Ok(mut c)) = (new_etag, self.cache.lock()) {
+            c.insert(
+                url.to_string(),
+                Cached {
+                    etag,
+                    body: v.clone(),
+                    next: next.clone(),
+                    scan,
+                },
+            );
+        }
         Ok((v, next))
     }
 
@@ -434,6 +522,7 @@ impl Client {
 /// One scan as a ground-station snapshot. Errors land in `errors`, where the
 /// Health and Outages views show them, instead of an empty-looking fleet.
 pub async fn snapshot(c: &Client, cfg: &GithubConfig) -> Result<Snapshot, GhError> {
+    c.begin_scan();
     let now = crate::hub::now();
     let mut errors = vec![];
     let runners = match c.runners(&cfg.org).await {
@@ -469,8 +558,18 @@ pub fn spawn(hub: crate::hub::Hub, cfg: GithubConfig) -> Result<(), String> {
     let client = Client::new(&cfg)?;
     tokio::spawn(async move {
         loop {
+            let (calls, cached) = (
+                client.calls.load(Ordering::Relaxed),
+                client.not_modified.load(Ordering::Relaxed),
+            );
             let wait = match snapshot(&client, &cfg).await {
                 Ok(s) => {
+                    tracing::debug!(
+                        requests = client.calls.load(Ordering::Relaxed) - calls,
+                        not_modified = client.not_modified.load(Ordering::Relaxed) - cached,
+                        remaining = ?client.remaining(),
+                        "GitHub scan"
+                    );
                     hub.ingest_snapshot(s);
                     Duration::from_secs(cfg.interval_s)
                 }
