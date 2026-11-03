@@ -368,7 +368,9 @@ pub async fn critical_path_partial(State(state): State<crate::server::AppState>)
         r#"<div class="overview">
   <h2>Critical Path</h2>
   {}
+  {}
 </div>"#,
+        fleet::critical_chain(state.hub.as_ref(), &state.config.repo_dependencies),
         fleet::bottlenecks(state.hub.as_ref()),
     );
     Html(html).into_response()

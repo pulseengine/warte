@@ -68,6 +68,12 @@ pub struct Config {
     #[serde(default)]
     pub jobs: Option<JobsConfig>,
 
+    /// Which repo depends on which, for the Critical Path view
+    /// (REQ-CRIT-001): `repo_dependencies = [{ repo = "jess", depends_on =
+    /// ["relay", "gale"] }]`, at the top of the file, before any section.
+    #[serde(default)]
+    pub repo_dependencies: Vec<crate::critpath::RepoDependency>,
+
     /// GitHub's API as a CI source, for teams without a smithy agent (#81).
     /// Set by a `[github]` section or by `WARTE_GITHUB_ORG` + `WARTE_GITHUB_TOKEN`.
     #[serde(default)]
@@ -220,6 +226,7 @@ impl Default for Config {
             rate_limit_per_agent: default_rate_limit_per_agent(),
             fleet_model: None,
             jobs: None,
+            repo_dependencies: vec![],
             github: None,
             hub: None,
         }
