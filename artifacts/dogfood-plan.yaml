@@ -718,7 +718,7 @@ artifacts:
   - id: REQ-JOBS-001
     type: requirement
     title: "Jobs view: scheduled jobs across hosts, overdue when a success is missing"
-    status: implemented
+    status: verified
     release: v1.5.0
     description: "warte SHALL show every scheduled job reported by the hosts' probes (from each host's jobs/<name>.json: name, host, started, finished, exit, duration_s, expect_within_s): last run, last success, exit code and time until overdue, red once overdue; GET /api/jobs SHALL return the same as JSON with a count of overdue jobs. A job is overdue when no success was recorded within expect_within_s, so a host that is down or a timer that stopped shows up as overdue, not as silence. Job states travel in the probe report (REQ-PROBE-001), not by a separate collection."
     fields:
@@ -1156,7 +1156,7 @@ artifacts:
   - id: REQ-PROBE-006
     type: requirement
     title: Probe reports are signed and verified against the enrolled certificate
-    status: implemented
+    status: verified
     release: v1.5.0
     description: warte probe send SHALL post its report to /api/probe/report signed (ECDSA P-256) with its enrolled key; the ground station SHALL verify the signature against the probe's enrolled certificate before storing it. A signature (not mTLS) keeps it working behind a TLS-terminating proxy; /api/probe/enroll and /api/probe/report SHALL be documented as usable without the dashboard's login.
     fields:
@@ -1262,7 +1262,7 @@ artifacts:
   - id: REQ-PROBE-009
     type: requirement
     title: Agent activity as verbs, and walking agents on the airport
-    status: approved
+    status: verified
     release: v1.5.0
     description: warte probe hook SHALL map an agent's hook event to a verb (editing, reading, running tests, building, using git, thinking, waiting for you, ...) and SHALL write only that verb and a time, keyed by the agent's pid; no prompt, command, file name or path SHALL leave the machine. The probe SHALL join the verb and the repo's folder name (last path component only) onto each session; a verb older than 10 minutes SHALL be dropped except 'waiting for you'. The airport SHALL draw agents as walkers whose speech bubble says repo and verb, and waiting agents with a beacon.
     fields:
@@ -1314,7 +1314,7 @@ artifacts:
   - id: REQ-DEPLOY-002
     type: requirement
     title: A config file that does not parse stops warte from starting
-    status: implemented
+    status: verified
     release: v1.5.0
     description: "When warte.toml exists but cannot be read or parsed, warte SHALL refuse to start and name the file and the error; it SHALL NOT fall back to defaults. No file means defaults. Field case 2026-11-03: a JSON-rendered table made fourpi's warte run four minutes without hub, fleet model or jobs while looking healthy."
     fields:
