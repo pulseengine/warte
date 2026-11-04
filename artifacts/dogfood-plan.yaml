@@ -1298,11 +1298,12 @@ artifacts:
     type: requirement
     title: Signed releases ship linux-amd64, linux-arm64 and macos-arm64
     status: implemented
-    release: v1.5.0
+    release: v1.6.0
     description: Every release SHALL publish warte for linux-amd64, linux-arm64 and macos-arm64, each covered by the cosign-signed SHA256SUMS, so every probe host (the Raspberry Pis and the ground station included) installs a signed release rather than a local build. Verified at the next tag by the assets being present and listed in SHA256SUMS.
     fields:
       category: functional
       priority: must
+      verification-note: "Evidence is the published release itself: the assets of the first release built with the linux-arm64 matrix entry (v1.5.0). Moved out of v1.5.0 because the tag run's gate cannot see its own assets (owner's decision 2026-11-04); verified from v1.5.0's assets after publishing."
     links:
       - type: depends-on
         target: REQ-RELEASE-001
