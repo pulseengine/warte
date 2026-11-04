@@ -2,6 +2,13 @@
 
 Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red (#34); their "Cuttable" claims were checked only by a local rivet.
 
+## Unreleased
+
+- **Release assets the pulseengine varve layer can carry.**
+  - The signed checksums are now `SHA256SUMS.txt` and `SHA256SUMS.txt.cosign.bundle`, the PulseEngine release standard. varve's layer deposit reads only those names, so under the old ones the pulseengine realm could not carry warte. **Anyone who fetches `SHA256SUMS` or `SHA256SUMS.cosign.bundle` by name must switch to the new names.**
+  - `sbom.json` is in the checksums, so the cosign signature now covers the SBOM.
+  - Each binary has SLSA build provenance: `gh attestation verify warte-<version>-<platform> --repo pulseengine/warte`.
+
 ## v1.5.0 — 2026-11-04
 
 Probes on every machine: they enroll, send signed reports, renew their own certificates and report disk IO. warte also runs on GitHub Enterprise without runner-admin rights and without burning the token's rate limit. Not started items moved to v1.6.0 (owner's decision 2026-11-04): QUIC/relay-sec transport, sigil signing, the varve layer, live push, Devices, Topology, mDNS, advisories.
