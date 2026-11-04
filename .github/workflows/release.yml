@@ -113,9 +113,13 @@ jobs:
           name: warte-${{ matrix.target }}
           path: dist/
 
+  # The sums are named SHA256SUMS.txt, with SHA256SUMS.txt.cosign.bundle beside
+  # them: the PulseEngine release standard, and the only names varve's layer
+  # deposit looks for. Under any other name the pulseengine realm cannot carry
+  # warte. The SBOM is summed too, so the signature covers it.
   checksums:
-    name: Generate SHA256SUMS
-    needs: build
+    name: Generate SHA256SUMS.txt
+    needs: [build, sbom]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
@@ -123,17 +127,18 @@ jobs:
           path: dist/
           merge-multiple: true
 
-      - name: Generate SHA256SUMS
+      - name: Generate SHA256SUMS.txt
         run: |
           cd dist
-          sha256sum warte-* > SHA256SUMS
-          cat SHA256SUMS
+          test -s sbom.json
+          sha256sum warte-* sbom.json > SHA256SUMS.txt
+          cat SHA256SUMS.txt
 
-      - name: Upload SHA256SUMS
+      - name: Upload SHA256SUMS.txt
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: checksums
-          path: dist/SHA256SUMS
+          path: dist/SHA256SUMS.txt
 
   sbom:
     name: Generate SBOM
@@ -179,19 +184,39 @@ jobs:
       - name: Install cosign
         uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
 
-      - name: Sign SHA256SUMS
+      - name: Sign SHA256SUMS.txt
         run: |
-          cosign sign-blob --yes --bundle dist/SHA256SUMS.cosign.bundle dist/SHA256SUMS
+          cosign sign-blob --yes --bundle dist/SHA256SUMS.txt.cosign.bundle dist/SHA256SUMS.txt
 
       - name: Upload signature
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: signatures
-          path: dist/SHA256SUMS.cosign.bundle
+          path: dist/SHA256SUMS.txt.cosign.bundle
+
+  # SLSA build provenance for every binary, so `gh attestation verify
+  # warte-<version>-<platform> --repo pulseengine/warte` answers for each one.
+  attest:
+    name: Attest build provenance
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          path: dist/
+          merge-multiple: true
+
+      - name: Attest
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
+        with:
+          subject-path: "dist/warte-*"
 
   release:
     name: Create GitHub release
-    needs: [build, checksums, sbom, sign]
+    needs: [build, checksums, sbom, sign, attest]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -206,8 +231,8 @@ jobs:
         with:
           files: |
             release-artifacts/warte-*
-            release-artifacts/SHA256SUMS
+            release-artifacts/SHA256SUMS.txt
             release-artifacts/sbom.json
-            release-artifacts/SHA256SUMS.cosign.bundle
+            release-artifacts/SHA256SUMS.txt.cosign.bundle
           fail_on_unmatched_files: true
           generate_release_notes: true

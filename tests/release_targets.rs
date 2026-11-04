@@ -21,7 +21,11 @@ fn the_release_matrix_builds_every_probe_platform() {
         );
     }
     // every built asset is checksummed and published (the globs cover them)
-    assert!(wf.contains("sha256sum warte-* > SHA256SUMS"));
+    // ...and the SBOM is summed too, under the names varve's deposit reads
+    assert!(wf.contains("sha256sum warte-* sbom.json > SHA256SUMS.txt"));
+    assert!(wf.contains("--bundle dist/SHA256SUMS.txt.cosign.bundle dist/SHA256SUMS.txt"));
+    assert!(wf.contains("release-artifacts/SHA256SUMS.txt.cosign.bundle"));
+    assert!(wf.contains("subject-path: \"dist/warte-*\""));
     assert!(wf.contains("release-artifacts/warte-*"));
 }
 
