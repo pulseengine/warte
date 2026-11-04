@@ -738,7 +738,7 @@ artifacts:
   - id: REQ-COSTS-001
     type: requirement
     title: "Costs view: notional cost of agent chats and subagents, labelled as not billed"
-    status: approved
+    status: verified
     release: v1.5.0
     description: "warte SHALL show the latest notional-cost report a workstation job sends: notional $ per day for the last 30 days, the top sessions, repositories, models and subagent task categories, and the share of subagent calls and dollars on a cheaper tier than the caller. Every view of it SHALL say \"notional list price, not billed\" and show the report's age. The report arrives either as a file the job copies to the ground station over ssh ([hub] costs_file, re-read when it changes) or by POST /api/costs behind bearer-token auth (REQ-API-002). The read API is unauthenticated (#46), so warte SHALL reject a report with unknown fields, free text in a name, or a negative or non-finite amount, store nothing from it, and never quote the rejected input in the reason it shows."
     fields:
@@ -1211,7 +1211,7 @@ artifacts:
   - id: REQ-DASH-016
     type: requirement
     title: Ask refreshes its result and in-flight list without wiping the form
-    status: approved
+    status: implemented
     release: v1.5.0
     description: The Ask view SHALL refresh its result and the in-flight list on its own every 30 s while visible, leaving the form untouched; placeholders SHALL be neutral.
     fields:

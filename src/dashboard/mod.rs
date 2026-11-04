@@ -201,44 +201,79 @@ pub async fn artifacts_partial(State(state): State<crate::server::AppState>) -> 
     Html(html).into_response()
 }
 
-/// HTMX partial: ask form result.
-pub async fn ask_partial(
-    State(state): State<crate::server::AppState>,
-    axum::extract::Query(form): axum::extract::Query<std::collections::HashMap<String, String>>,
-) -> Response {
+/// The Ask query: repo (bare name), PR, branch, from `?repo=&pr=&branch=`.
+fn ask_query(
+    form: &std::collections::HashMap<String, String>,
+) -> (String, Option<u32>, Option<String>) {
     let repo = form.get("repo").map(|r| r.trim()).unwrap_or_default();
     // "pulseengine/spar" and "spar" both mean the repo; the hub wants the bare name
-    let repo = repo.rsplit('/').next().unwrap_or_default();
+    let repo = repo.rsplit('/').next().unwrap_or_default().to_string();
     let pr = form
         .get("pr")
         .and_then(|p| p.trim().parse::<u32>().ok())
         .filter(|n| *n > 0);
     let branch = form
         .get("branch")
-        .map(|b| b.trim())
+        .map(|b| b.trim().to_string())
         .filter(|b| !b.is_empty());
+    (repo, pr, branch)
+}
+
+/// The part of Ask that refreshes on its own: the answer and the in-flight
+/// list. The form is outside it, so what is typed stays (REQ-DASH-016).
+fn ask_live_html(
+    state: &crate::server::AppState,
+    form: &std::collections::HashMap<String, String>,
+) -> String {
+    let (repo, pr, branch) = ask_query(form);
     let result = if repo.is_empty() {
         String::new()
     } else {
-        fleet::ask(state.hub.as_ref(), repo, pr, branch)
+        fleet::ask(state.hub.as_ref(), &repo, pr, branch.as_deref())
     };
+    let (picker, _) = fleet::ask_picker(state.hub.as_ref());
+    format!(r#"<div id="ask-result">{result}</div>{picker}"#)
+}
+
+/// HTMX partial: Ask's answer and in-flight list only, for its 30 s refresh.
+pub async fn ask_live(
+    State(state): State<crate::server::AppState>,
+    axum::extract::Query(form): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> Response {
+    Html(ask_live_html(&state, &form)).into_response()
+}
+
+/// HTMX partial: ask form result.
+pub async fn ask_partial(
+    State(state): State<crate::server::AppState>,
+    axum::extract::Query(form): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> Response {
+    let (repo, pr, branch) = ask_query(&form);
     let v = |k: &str| fleet::esc(form.get(k).map(|s| s.trim()).unwrap_or_default());
-    let (picker, repos) = fleet::ask_picker(state.hub.as_ref());
+    let (_, repos) = fleet::ask_picker(state.hub.as_ref());
+    let live = ask_live_html(&state, &form);
+    // the refresh asks the same question again, read back from the query
+    let mut q = format!("repo={}", fleet::qv(&repo));
+    if let Some(n) = pr {
+        q += &format!("&amp;pr={n}");
+    }
+    if let Some(b) = &branch {
+        q += &format!("&amp;branch={}", fleet::qv(b));
+    }
     Html(format!(
         r##"<div class="overview">
   <h2>Ask</h2>
   <div class="ask-form">
   <h3>When will this PR run?</h3>
   <form hx-get="api/dashboard/ask-partial" hx-target="#content" hx-swap="innerHTML">
-    <label>Repo: <input type="text" name="repo" placeholder="rivet" value="{}" list="ask-repos" autocomplete="off" required></label>
-    <label>PR: <input type="number" name="pr" placeholder="511" value="{}"></label>
-    <label>or branch: <input type="text" name="branch" placeholder="main" value="{}"></label>
+    <label>Repo: <input type="text" name="repo" placeholder="repository" value="{}" list="ask-repos" autocomplete="off" required></label>
+    <label>PR: <input type="number" name="pr" placeholder="number" value="{}"></label>
+    <label>or branch: <input type="text" name="branch" placeholder="branch" value="{}"></label>
     <button type="submit" class="btn">Estimate</button>
   </form>
   <datalist id="ask-repos">{repos}</datalist>
-  <div id="ask-result">{result}</div>
   </div>
-  {picker}
+  <div id="ask-live" hx-get="api/dashboard/ask-live?{q}" hx-trigger="every 30s [!document.hidden], refresh" hx-swap="innerHTML">{live}</div>
 </div>"##,
         v("repo"),
         v("pr"),

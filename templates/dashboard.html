@@ -47,7 +47,8 @@
   <script>
     // Active nav button, and a periodic refresh of the current view. Live push
     // (warte watch / long-poll, v1.4.1) replaces the timer later. Ask is not
-    // refreshed: it would wipe what you typed.
+    // reloaded whole: it would wipe what you typed; its answer and in-flight
+    // list refresh on their own (#ask-live).
     // The view lives in the URL (#machines, #queue, ...): a reload, a bookmark
     // or a shared link opens that view, and back/forward move between views.
     var buttons = Array.prototype.slice.call(document.querySelectorAll('.nav-btn'));

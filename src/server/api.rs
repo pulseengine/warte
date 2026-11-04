@@ -81,6 +81,7 @@ pub fn build_routes() -> Router<AppState> {
             // a read-only query: GET, so it needs no auth (REQ-API-002 covers mutations)
             get(crate::dashboard::ask_partial),
         )
+        .route("/api/dashboard/ask-live", get(crate::dashboard::ask_live))
         .route(
             "/api/dashboard/queue-partial",
             get(crate::dashboard::queue_partial),
