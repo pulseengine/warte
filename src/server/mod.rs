@@ -36,6 +36,8 @@ pub struct AppState {
     pub fleet: Option<Arc<Result<crate::fleet::Fleet, String>>>,
     /// The latest notional-cost report (REQ-COSTS-001), with the ground station.
     pub costs: Option<Arc<crate::costs::Costs>>,
+    /// temper's latest report, when `[temper]` and `[hub]` are configured.
+    pub temper: Option<Arc<crate::temper::Store>>,
 }
 
 /// Build the Axum router with all routes.
@@ -161,6 +163,11 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
         ))
     });
 
+    let temper = match (&config.temper, &config.hub) {
+        (Some(_), Some(h)) => Some(Arc::new(crate::temper::Store::open(&h.data_dir))),
+        _ => None,
+    };
+
     // A model that cannot be read is shown as a problem, not a startup failure:
     // the CI views do not depend on it.
     // The detail (path, OS error) goes to the server log only: the read API
@@ -182,6 +189,7 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
         machines,
         fleet,
         costs,
+        temper,
         agents: Arc::new(AgentRegistry::with_ca(
             pool.clone(),
             instance_id.clone(),

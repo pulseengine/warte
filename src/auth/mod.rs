@@ -21,10 +21,15 @@ use std::sync::Arc;
 
 /// POST routes that carry their own authentication and pass without a
 /// bearer token: enrollment (one-time token, DD-PROBE-002), signed reports
-/// (REQ-PROBE-006) and renewals (REQ-PROBE-007). An auth proxy in front must
+/// (REQ-PROBE-006), renewals (REQ-PROBE-007) and signed feeds such as
+/// temper's report (REQ-TEMPER-002). An auth proxy in front must
 /// leave exactly these open (docs: deployment, REQ-DOCS-010).
-pub const PROBE_OPEN_PATHS: [&str; 3] =
-    ["/api/probe/enroll", "/api/probe/report", "/api/probe/renew"];
+pub const PROBE_OPEN_PATHS: [&str; 4] = [
+    "/api/probe/enroll",
+    "/api/probe/report",
+    "/api/probe/renew",
+    "/api/probe/feed/temper",
+];
 
 /// Token payload.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -151,13 +156,9 @@ pub async fn auth_middleware(
     // The exemptions: probe enrollment authenticates with its one-time
     // token, checked by the handler (DD-PROBE-002). Exact path and method.
     // Signed probe reports authenticate with the enrolled key, checked by the
-    // handler (REQ-PROBE-006), and so do renewals (REQ-PROBE-007).
-    if method == axum::http::Method::POST
-        && matches!(
-            req.uri().path(),
-            "/api/probe/enroll" | "/api/probe/report" | "/api/probe/renew"
-        )
-    {
+    // handler (REQ-PROBE-006), and so do renewals (REQ-PROBE-007) and feeds
+    // (REQ-TEMPER-002). One list: PROBE_OPEN_PATHS, which the docs test reads.
+    if method == axum::http::Method::POST && PROBE_OPEN_PATHS.contains(&req.uri().path()) {
         return Ok(next.run(req).await);
     }
 

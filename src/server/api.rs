@@ -53,6 +53,12 @@ pub fn build_routes() -> Router<AppState> {
         .route("/probe/enroll", post(api_probe_enroll))
         .route("/probe/report", post(api_probe_report))
         .route("/probe/renew", post(api_probe_renew))
+        // temper's report as CCSDS packets: up to 1 MiB, base64 in JSON
+        .route(
+            "/probe/feed/temper",
+            post(api_probe_feed_temper).layer(axum::extract::DefaultBodyLimit::max(3 << 20)),
+        )
+        .route("/compliance", get(api_compliance))
         .route("/openapi.json", get(api_openapi));
     // /api/ws and /api/events are not mounted: they broadcast agent and
     // access events without authentication, and nothing uses them (agents
@@ -118,6 +124,10 @@ pub fn build_routes() -> Router<AppState> {
         .route(
             "/api/dashboard/machines-partial",
             get(crate::dashboard::machines_partial),
+        )
+        .route(
+            "/api/dashboard/compliance-partial",
+            get(crate::dashboard::compliance_partial),
         )
         .route(
             "/api/dashboard/costs-partial",
@@ -490,6 +500,110 @@ async fn api_probe_renew(
         Err(e) => {
             tracing::warn!(host = %r.host, error = %e, "probe renewal: bad certificate request");
             plain(StatusCode::BAD_REQUEST, "not a valid certificate request")
+        }
+    }
+}
+
+/// temper's report, forwarded by the configured host's probe as a signed CCSDS
+/// sequence (REQ-TEMPER-002). One answer for every refusal; the reason goes
+/// to the server log, never the input.
+async fn api_probe_feed_temper(
+    State(state): State<AppState>,
+    Json(f): Json<crate::probe::send::SignedFeed>,
+) -> axum::response::Response {
+    let refused = || plain(StatusCode::FORBIDDEN, "feed refused");
+    let (Some(store), Some(cfg)) = (state.temper.clone(), state.config.temper.as_ref()) else {
+        return plain(StatusCode::SERVICE_UNAVAILABLE, "no temper feed configured");
+    };
+    if f.name != "temper" || f.cert.len() > 16 * 1024 || f.sig.len() > 512 {
+        return refused();
+    }
+    let now = crate::hub::now();
+    let v = match crate::probe::send::verify_feed(state.ca.ca_cert_der(), &f, now) {
+        Ok(v) => v,
+        Err(e) => {
+            tracing::warn!(error = %e, "temper feed refused");
+            return refused();
+        }
+    };
+    if !v.host.eq_ignore_ascii_case(&cfg.host) {
+        tracing::warn!(host = %v.host, "temper feed refused: not from the configured host");
+        return refused();
+    }
+    match crate::probe::enroll::revoked(&state.db, &v.host, v.issued_at).await {
+        Ok(false) => {}
+        Ok(true) => {
+            tracing::warn!(host = %v.host, "temper feed refused: host revoked");
+            return refused();
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "temper feed: revocation store");
+            return plain(StatusCode::SERVICE_UNAVAILABLE, "feed unavailable");
+        }
+    }
+    let report = match crate::temper::report::parse(&v.data) {
+        Ok(r) => r,
+        Err(why) => {
+            tracing::warn!(%why, "temper feed refused: report");
+            return plain(
+                StatusCode::UNPROCESSABLE_ENTITY,
+                &format!("report rejected: {why}"),
+            );
+        }
+    };
+    match store.record(crate::temper::Stored {
+        received_at: now,
+        at: f.at,
+        host: v.host,
+        report,
+    }) {
+        Ok(true) => StatusCode::NO_CONTENT.into_response(),
+        Ok(false) => {
+            tracing::warn!("temper feed refused: not newer than the last (replay?)");
+            refused()
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "temper feed: store");
+            plain(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "could not store the report",
+            )
+        }
+    }
+}
+
+/// The latest temper report and how old it is (REQ-TEMPER-002).
+async fn api_compliance(State(state): State<AppState>) -> axum::response::Response {
+    let Some(store) = state.temper.as_ref() else {
+        return Json(serde_json::json!({"configured": false})).into_response();
+    };
+    let now = crate::hub::now();
+    let stale_after = state
+        .config
+        .temper
+        .as_ref()
+        .map(|t| t.stale_after_s)
+        .unwrap_or(26 * 3600);
+    match store.latest() {
+        None => Json(serde_json::json!({"configured": true, "report": null})).into_response(),
+        Some(s) => {
+            let sweep_age = s
+                .report
+                .source
+                .last_sweep_at
+                .as_deref()
+                .and_then(crate::temper::report::time)
+                .map(|t| now - t);
+            Json(serde_json::json!({
+                "configured": true,
+                "received_at": s.received_at,
+                "host": s.host,
+                "sweep_age_s": sweep_age,
+                "stale": sweep_age.is_none_or(|a| a > stale_after),
+                "failures": s.report.failures().len(),
+                "report": s.report,
+            }))
+            .into_response()
         }
     }
 }

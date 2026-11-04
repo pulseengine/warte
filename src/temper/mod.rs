@@ -9,6 +9,8 @@
 //! - Warte access control can read temper's config.yml for role mapping
 //! - Warte CLI can query temper's API for repo compliance status
 
+pub mod report;
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
@@ -211,5 +213,55 @@ mod tests {
         assert_eq!(parsed.organization, "pulseengine");
         assert_eq!(parsed.compliance_rate, 0.8);
         assert_eq!(parsed.failing_checks.len(), 2);
+    }
+}
+
+/// The latest temper report received from the configured host's probe
+/// (REQ-TEMPER-002), persisted as `temper-report.json` next to the hub state.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Stored {
+    pub received_at: i64,
+    /// The probe's signed send time; a feed must be newer than the last one.
+    pub at: i64,
+    pub host: String,
+    pub report: report::Report,
+}
+
+pub struct Store {
+    latest: std::sync::Mutex<Option<Stored>>,
+    path: std::path::PathBuf,
+}
+
+impl Store {
+    pub fn open(data_dir: &str) -> Self {
+        let path = std::path::Path::new(data_dir).join("temper-report.json");
+        let latest = std::fs::read(&path)
+            .ok()
+            .and_then(|b| serde_json::from_slice(&b).ok());
+        Store {
+            latest: std::sync::Mutex::new(latest),
+            path,
+        }
+    }
+
+    /// Store a report sent at `at`; refused (false) unless newer than the last.
+    pub fn record(&self, s: Stored) -> std::io::Result<bool> {
+        let mut g = self.latest.lock().unwrap_or_else(|e| e.into_inner());
+        if g.as_ref().is_some_and(|l| s.at <= l.at) {
+            return Ok(false);
+        }
+        let b = serde_json::to_vec(&s).map_err(std::io::Error::other)?;
+        let tmp = self.path.with_extension("json.tmp");
+        std::fs::write(&tmp, b)?;
+        std::fs::rename(&tmp, &self.path)?;
+        *g = Some(s);
+        Ok(true)
+    }
+
+    pub fn latest(&self) -> Option<Stored> {
+        self.latest
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
     }
 }

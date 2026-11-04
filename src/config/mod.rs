@@ -68,6 +68,11 @@ pub struct Config {
     #[serde(default)]
     pub jobs: Option<JobsConfig>,
 
+    /// temper's compliance report, forwarded by one machine's probe
+    /// (REQ-TEMPER-002).
+    #[serde(default)]
+    pub temper: Option<TemperFeedConfig>,
+
     /// Which repo depends on which, for the Critical Path view
     /// (REQ-CRIT-001): `repo_dependencies = [{ repo = "jess", depends_on =
     /// ["relay", "gale"] }]`, at the top of the file, before any section.
@@ -97,6 +102,22 @@ pub struct JobsConfig {
     /// Job host directory name -> machine name, e.g. `mini = "Mac.fritz.box"`.
     #[serde(default)]
     pub hosts: std::collections::BTreeMap<String, String>,
+}
+
+/// Where temper's report comes from (REQ-TEMPER-002).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TemperFeedConfig {
+    /// The enrolled probe host whose `temper` feed is accepted; any other
+    /// probe's is refused.
+    pub host: String,
+    /// The report counts as stale when its last full sweep is older than
+    /// this (default 26 h: a daily sweep plus slack).
+    #[serde(default = "default_temper_stale_after_s")]
+    pub stale_after_s: i64,
+}
+
+fn default_temper_stale_after_s() -> i64 {
+    26 * 3600
 }
 
 /// GitHub's REST API as a CI source (#81). The scan fills the same model as
@@ -226,6 +247,7 @@ impl Default for Config {
             rate_limit_per_agent: default_rate_limit_per_agent(),
             fleet_model: None,
             jobs: None,
+            temper: None,
             repo_dependencies: vec![],
             github: None,
             hub: None,

@@ -138,16 +138,17 @@ address or a DNS name, or pin the name in `/etc/hosts`.
 ### Authentication in front, probe routes left open
 
 warte's dashboard and read API have no login of their own yet (#46). Put
-one in front, for example HTTP basic auth in Caddy, and leave the three
+one in front, for example HTTP basic auth in Caddy, and leave the four
 probe routes open: they carry their own authentication (a one-time token
-for enrollment, a signature by the enrolled key for reports and renewals)
+for enrollment, a signature by the enrolled key for reports, renewals and
+feeds)
 and probes cannot answer a password prompt.
 
 ```caddyfile
 warte.example.internal {
 	@guarded not {
 		method POST
-		path /api/probe/enroll /api/probe/report /api/probe/renew
+		path /api/probe/enroll /api/probe/report /api/probe/renew /api/probe/feed/temper
 	}
 	# caddy hash-password --plaintext '<password>'
 	basic_auth @guarded {
