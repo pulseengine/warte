@@ -493,3 +493,53 @@ fn docs_and_contract_list_each_routes_right() {
     }
     assert!(docs.contains("agents:any") && docs.contains("--any-agent"));
 }
+
+/// Register `name` with `bearer`; the id the server assigned.
+async fn register_id(s: &Server, name: &str, bearer: &str) -> String {
+    let r = reqwest::Client::new()
+        .post(format!("{}/api/agents/register", s.base))
+        .bearer_auth(bearer)
+        .json(&serde_json::json!({"name": name, "identity_type": "token", "public_key": "k"}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(r.status().as_u16(), 200);
+    r.json::<serde_json::Value>().await.unwrap()["agent_id"]
+        .as_str()
+        .unwrap()
+        .to_string()
+}
+
+/// The real client flow (factory-notice): a default token for a name, register
+/// that name, then write to the UUID the server assigned. The token names the
+/// agent; the path names its row; the row's name must match.
+#[tokio::test]
+async fn a_default_token_writes_to_the_uuid_its_own_registration_got() {
+    let s = start(tempfile::tempdir().unwrap()).await;
+    let t = mint_agent_token(&config_in(s.dir.path()), "notice-repo", 24).unwrap();
+    let mine = register_id(&s, "notice-repo", &t).await;
+    assert_ne!(mine, "notice-repo", "the server assigns its own id");
+    let other_t = mint_agent_token(&config_in(s.dir.path()), "other-repo", 24).unwrap();
+    let theirs = register_id(&s, "other-repo", &other_t).await;
+    for tail in ["heartbeat", "data"] {
+        let path = format!("/api/agents/{mine}/{tail}");
+        assert!(
+            post_as(&s, &path, "", Some(&t)).await < 300,
+            "{tail} as self"
+        );
+        let path = format!("/api/agents/{theirs}/{tail}");
+        assert_eq!(
+            post_as(&s, &path, "", Some(&t)).await,
+            403,
+            "{tail} as other"
+        );
+    }
+    // An id no row has is refused, not a server error.
+    let none = "/api/agents/00000000-0000-0000-0000-000000000000/data";
+    assert_eq!(post_as(&s, none, "", Some(&t)).await, 403);
+    // agents:any is the override, and an unknown id is then a 404, not a 500.
+    let any = token_with(&s, "notice-repo", &["agents:data", "agents:any"]);
+    let path = format!("/api/agents/{theirs}/data");
+    assert!(post_as(&s, &path, "", Some(&any)).await < 300);
+    assert_eq!(post_as(&s, none, "", Some(&any)).await, 404);
+}

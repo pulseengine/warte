@@ -838,6 +838,22 @@ async fn capture_data(
     Path(agent_id): Path<String>,
     Json(req): Json<CaptureDataRequest>,
 ) -> impl IntoResponse {
+    // No such agent is a 404, not the foreign-key failure's 500.
+    match state.agents.get(&agent_id).await {
+        Ok(Some(_)) => {}
+        Ok(None) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({ "error": "unknown agent" })),
+            )
+        }
+        Err(_) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": "internal error" })),
+            )
+        }
+    }
     let id = uuid::Uuid::now_v7().to_string();
     let now = Utc::now();
 

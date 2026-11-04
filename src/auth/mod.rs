@@ -141,7 +141,8 @@ pub const RIGHT_ANY_AGENT: &str = "agents:any";
 pub enum Binding {
     /// The request names no agent (the right alone decides).
     None,
-    /// The `{id}` segment of the path.
+    /// The `{id}` segment of the path is an agents row id; the name of that
+    /// row must be the token's agent (an unknown id is refused).
     PathId,
     /// The `name` in the JSON body: register mints its own agent ids, so the
     /// identity a caller asks for is the name it registers.
@@ -268,11 +269,12 @@ fn pct_decode(s: &str) -> Option<String> {
 /// Largest register body the binding check reads (a name and a key).
 const REGISTER_BODY_LIMIT: usize = 64 * 1024;
 
-/// May this token call `rule`, naming `path_id` / `body_name` as the agent?
+/// May this token call `rule`? `row_name` is the name of the agents row the path
+/// names, `body_name` the name register was asked for.
 fn authorize(
     info: &AuthInfo,
     rule: &RouteRule,
-    path_id: Option<&str>,
+    row_name: Option<&str>,
     body_name: Option<&str>,
 ) -> bool {
     let has = |r: &str| info.rights.iter().any(|x| x == r);
@@ -281,7 +283,7 @@ fn authorize(
     }
     let named = match rule.binding {
         Binding::None => return true,
-        Binding::PathId => path_id,
+        Binding::PathId => row_name,
         Binding::BodyName => body_name,
     };
     has(RIGHT_ANY_AGENT) || named == Some(info.agent_id.as_str())
@@ -455,7 +457,21 @@ pub async fn auth_middleware(
         body_name = serde_json::from_slice::<Named>(&bytes).ok().map(|n| n.name);
         req = Request::from_parts(parts, axum::body::Body::from(bytes));
     }
-    if !authorize(&info, rule, path_id.as_deref(), body_name.as_deref()) {
+    // The path names the agents row (register assigned the id); the token
+    // names the agent by the name it registered under. Resolve one to the
+    // other, and skip the lookup for a token the binding does not apply to.
+    let mut row_name = None;
+    if rule.binding == Binding::PathId && !info.rights.iter().any(|r| r == RIGHT_ANY_AGENT) {
+        if let Some(id) = path_id.as_deref() {
+            row_name = state
+                .agents
+                .get(id)
+                .await
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+                .map(|a| a.name);
+        }
+    }
+    if !authorize(&info, rule, row_name.as_deref(), body_name.as_deref()) {
         return Err(StatusCode::FORBIDDEN);
     }
 

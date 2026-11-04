@@ -34,10 +34,11 @@ warte token mint <agent-id> [--valid-hours 720] [--any-agent] [--right <r>]...
   enough for an agent, not for `access:*`, `sync:update` or `costs:write`.
   `--right <r>` (repeatable) adds a right, e.g. `--right costs:write`; a name
   that is not in the table is refused at mint time.
-- The agent binding: on `/api/agents/{id}/...` the `{id}` must equal the
-  token's agent id, and on `/api/agents/register` the `name` in the body
-  must (register mints its own ids; the name is the identity asked for).
-  Otherwise `403`. `--any-agent` adds `agents:any`, which lifts the binding
+- The agent binding: a token names an agent by the name it registers under.
+  On `/api/agents/register` the `name` in the body must equal the token's
+  agent id. Register assigns its own id (a UUID); on `/api/agents/{id}/...`
+  the `name` of the agents row `{id}` must equal the token's agent id, and an
+  unknown `{id}` is refused. Otherwise `403`. `--any-agent` adds `agents:any`, which lifts the binding
   for a token that also holds the route's right, e.g. one workstation token
   that posts notices for many repositories. It is not a right to any route.
 - `--valid-hours` is 1 to 8760; the default is 24.
