@@ -1297,7 +1297,7 @@ artifacts:
   - id: REQ-RELEASE-006
     type: requirement
     title: Signed releases ship linux-amd64, linux-arm64 and macos-arm64
-    status: implemented
+    status: verified
     release: v1.6.0
     description: Every release SHALL publish warte for linux-amd64, linux-arm64 and macos-arm64, each covered by the cosign-signed SHA256SUMS, so every probe host (the Raspberry Pis and the ground station included) installs a signed release rather than a local build. Verified at the next tag by the assets being present and listed in SHA256SUMS.
     fields:

@@ -518,3 +518,17 @@ artifacts:
     links:
       - type: verifies
         target: REQ-CRIT-002
+
+  - id: TEST-RELEASE-006
+    type: verification
+    title: "v1.5.0 release assets: linux-amd64, linux-arm64 and macos-arm64, checksummed and cosign-signed"
+    status: accepted
+    release: v1.6.0
+    description: "Checked 2026-11-04 on the published v1.5.0 release (run 41776247342, all jobs success, tag on f7f676d). Assets: warte-1.5.0-linux-amd64, warte-1.5.0-linux-arm64 (ELF aarch64), warte-1.5.0-macos-arm64, SHA256SUMS, SHA256SUMS.cosign.bundle, sbom.json. shasum -a 256 -c SHA256SUMS: all three OK. cosign verify-blob (identity github.com/pulseengine/warte workflow, issuer token.actions.githubusercontent.com): Verified OK. The macos-arm64 binary prints 'warte 1.5.0' and its probe help lists enroll, send, hook, token, revoke."
+    links:
+      - type: verifies
+        target: REQ-RELEASE-006
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-04T05:12:24Z
