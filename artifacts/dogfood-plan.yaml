@@ -86,7 +86,7 @@ artifacts:
     type: requirement
     title: Agent registry and access policies are stored as rivet artifacts
     status: proposed
-    release: v1.5.0
+    release: v1.6.0
     description: Agent registrations and access-policy grants and revocations SHALL be stored as rivet artifacts under a warte schema, validated by rivet validate, and read and written only through the pinned rivet. A revocation SHALL be a status change visible in git history.
     fields:
       category: functional
@@ -122,7 +122,7 @@ artifacts:
     type: requirement
     title: Artifacts are distributed via varve/OCI, not stored as blobs in warte
     status: proposed
-    release: v1.5.0
+    release: v1.6.0
     description: warte SHALL NOT store artifact bytes. It SHALL reference artifacts by varve layer and OCI digest and SHALL show their verification state as reported by varve (verify, inspect, status).
     fields:
       category: functional
@@ -158,7 +158,7 @@ artifacts:
     type: design-decision
     title: Durable state in rivet YAML; CI telemetry in a disposable cache
     status: proposed
-    release: v1.5.0
+    release: v1.6.0
     description: Agents/registry, access policies, schedule, friction and captured sessions are stored as rivet artifacts under a warte schema and read and written through the pinned rivet. CI telemetry is already out of warte's database since v1.4.0 (ground station ledger, REQ-STORE-002). Supersedes DD-ARCH-002.
     fields:
       rationale: Dogfoods rivet as the backend (#37). Git history replaces the hand-rolled CRDT/OR-Set tombstones as the audit and sync trail. High-frequency telemetry doesn't belong in git commits.
@@ -178,7 +178,7 @@ artifacts:
     type: design-decision
     title: varve is warte's artifact distribution backend
     status: proposed
-    release: v1.5.0
+    release: v1.6.0
     description: Drop the SQLite artifact blob store and the integrity code that re-implements varve. Resolve and verify artifacts through varve layers on ghcr.io/pulseengine.
     fields:
       rationale: varve already provides signed, digest-pinned OCI distribution with attestations and SBOMs (#38). Keeping a second store means two trust paths to audit.
@@ -464,7 +464,7 @@ artifacts:
     type: requirement
     title: Scheduled advisory sweep over every repo and every published varve layer
     status: proposed
-    release: v1.5.0
+    release: v1.6.0
     description: warte SHALL query OSV.dev (RustSec and GHSA) on a schedule for the Cargo.lock on every repo's default branch and for every published varve layer's signed SBOM (varve sbom), and record each advisory as a rivet supply-chain vulnerability that affects the sbom-components a release-artifact (layer) contains.
     fields:
       category: functional
@@ -479,7 +479,7 @@ artifacts:
     type: requirement
     title: "Advisory response: per-repo issue, per-layer notice, VEX status"
     status: proposed
-    release: v1.5.0
+    release: v1.6.0
     description: For each advisory warte SHALL track vuln-status (unresolved, investigating, patched, mitigated, not-affected with a reason). It SHALL open one deduplicated issue per affected repo, name the affected published layers and the first layer that fixes them, and show open advisories in the dashboard, the API and warte watch.
     fields:
       category: functional
@@ -529,7 +529,7 @@ artifacts:
     type: requirement
     title: Ground-station telemetry is authenticated and replay-proof per probe (relay-sec)
     status: approved
-    release: v1.5.0
+    release: v1.6.0
     description: Every probe SHALL connect to the ground station over QUIC with mutual TLS 1.3 under its own identity, and every telemetry packet SHALL additionally be sealed with relay-sec (Ascon tag, anti-replay counter) under that probe's own security association (SPI), verified before ingest. Frames failing either check SHALL be rejected and counted by kind (TLS identity, bad tag, replay, unknown SPI). The source-IP allow-list stays as an extra filter only.
     fields:
       category: constraint
@@ -547,7 +547,7 @@ artifacts:
     type: requirement
     title: warte probe reports metrics and inventory from every machine, built on relay
     status: approved
-    release: v1.5.0
+    release: v1.6.0
     description: "A read-only warte probe SHALL run on Linux and macOS hosts and report machine metrics (CPU, memory, swap, network, disks), disk health (fill, SMART), driver and firmware versions (kernel, GPU, USB/debug-probe), agent inventory (Claude Code, Copilot CLI, plugin versions) and toolchain inventory (varve pin and layer versus the binaries first on PATH). Telemetry SHALL use relay: relay-ccsds framing, relay-hk housekeeping, relay-sec authentication."
     fields:
       category: functional
@@ -565,7 +565,7 @@ artifacts:
     type: requirement
     title: Probes find the ground station via mDNS on the LAN, explicit address elsewhere
     status: approved
-    release: v1.5.0
+    release: v1.6.0
     description: warte SHALL advertise its ground station via mDNS/DNS-SD on the physical LAN (reusing src/discovery's signed TXT records) and probes SHALL find it there. Remote probes (e.g. Hetzner over WireGuard) SHALL be configured with an explicit address; mDNS SHALL NOT be relied on across WireGuard.
     fields:
       category: interface
@@ -580,7 +580,7 @@ artifacts:
     type: requirement
     title: Machines view with drift warnings; Beszel retired after parity
     status: approved
-    release: v1.5.0
+    release: v1.6.0
     description: warte SHALL show every machine with metrics, freshness, versions, disk health and drivers, and SHALL warn on drift (agent CLI behind the newest in use, layer behind its pin, PATH shadowing, degrading disk, driver mismatch), using relay-lc limit checks. Beszel SHALL run side by side until warte covers what it shows, then be retired.
     fields:
       category: functional
@@ -595,7 +595,7 @@ artifacts:
     type: requirement
     title: Release binaries are signed with sigil and carry a build attestation
     status: approved
-    release: v1.5.0
+    release: v1.6.0
     description: The release SHALL sign the Linux binary with wsc (keyless, GitHub OIDC; --format elf) and record wsc build-env / attest provenance. The macOS binary SHALL be covered by the cosign-signed SHA256SUMS until sigil supports Mach-O (sigil#330).
     fields:
       category: constraint
@@ -613,7 +613,7 @@ artifacts:
     type: design-decision
     title: "Fleet security on our own stack: relay-sec for telemetry, sigil for binaries, varve for installs"
     status: approved
-    release: v1.5.0
+    release: v1.6.0
     description: Probe-to-ground telemetry uses relay-sec (one SPI per probe). Release binaries are signed with sigil and attested. warte and the probe ship in the varve layer, so every machine installs a verified, digest-pinned build; deploys install from the layer.
     fields:
       rationale: "Owner direction, 2026-10-28: use relay and sigil, not new code. relay-sec already provides Kani-proved anti-replay and authenticated frames for exactly this transport. sigil and varve already give signed, attested, rollback-protected distribution. A warte-specific MAC scheme or install path would add a second trust path to audit."
@@ -635,7 +635,7 @@ artifacts:
     type: design-decision
     title: "Probe telemetry: CCSDS packets over QUIC, sealed per packet with relay-sec"
     status: approved
-    release: v1.5.0
+    release: v1.6.0
     description: Probes dial out to the ground station over QUIC (quinn) with mutual TLS 1.3, one identity per probe. Housekeeping telemetry (relay-ccsds/relay-hk packets) goes in QUIC DATAGRAM frames (RFC 9221, unreliable, no head-of-line blocking); the job ledger, inventory snapshots and later operator commands go on reliable streams. Every packet is also sealed with relay-sec (per-probe SPI, anti-replay), so authenticity survives storage and forwarding beyond the connection. The interface is described in WIT (spar-generated from the AADL model per the feature loop), keeping wRPC's QUIC transport an option. Interoperability with SDLS, Yamcs or CryptoLib is explicitly not a goal.
     fields:
       rationale: "Owner decision, 2026-10-28: CCSDS over QUIC, interoperability with other ground systems not required. Raw UDP authenticates by source IP only (#41) and loses ledger frames silently; QUIC adds mutual authentication, encryption, replay protection, congestion control, connection migration for laptops, and a reliable channel without a CFDP implementation. quinn is already in our audited dependency trees (kiln, sigil), and wRPC's QUIC transport is already in rules_wasm_component. relay-sec stays as the per-packet seal: QUIC protects the link, relay-sec protects the packet after it leaves the link."
@@ -652,7 +652,7 @@ artifacts:
   - id: DD-PROBE-001
     type: design-decision
     title: Agent state comes from the agents' own hooks, not from the terminal
-    status: approved
+    status: accepted
     release: v1.5.0
     description: "warte probe SHALL learn each agent session's state (working, waiting for input, idle, ended) from a small hook it installs in the agent's own config (Claude Code hooks in ~/.claude/settings.json; Copilot CLI hooks in ~/.copilot/hooks/; Codex when its hooks are confirmed). The hook appends {agent, session_id, event, cwd, pid, ts} to a local state file the probe reads. Mapping: UserPromptSubmit/PreToolUse -> working; Notification(permission_prompt)/PermissionRequest -> waiting; Stop -> idle; SessionEnd -> gone. ps finds agents without the hook and their versions. The probe SHALL check that its hook is still installed (Claude Code may rewrite settings.json) and report when it is not."
     fields:
@@ -668,7 +668,7 @@ artifacts:
   - id: DD-PROBE-002
     type: design-decision
     title: Probes enroll with a one-time token; the probe makes its own key
-    status: approved
+    status: accepted
     release: v1.5.0
     description: The operator runs 'warte probe token' on the ground station, which prints a short-lived single-use token; on the machine, 'warte probe enroll <token> --ground <address>' generates the probe's key locally, sends a certificate request with the token, and receives a certificate signed by warte's CA plus its relay-sec SPI. The private key never leaves the machine. Tokens expire (default 15 min), are single use, and are stored hashed. Ansible (smithy) runs the same two commands for hosts it manages.
     fields:
@@ -687,7 +687,7 @@ artifacts:
     type: design-decision
     title: The probe offers its agent hooks; the user confirms
     status: approved
-    release: v1.5.0
+    release: v1.6.0
     description: "'warte probe install-hooks' shows the exact change to each agent's config (Claude Code ~/.claude/settings.json, Copilot CLI ~/.copilot/hooks/) and writes it only after confirmation; it keeps existing hooks (including iTerm2's cc-status) and backs the file up first. The probe never edits agent config on its own; it reports when its hook is missing (Claude Code can rewrite settings.json) and the dashboard shows that machine's agent state as unknown."
     fields:
       rationale: "Owner decision 2026-10-28: nothing edits a developer's agent config silently. A missing hook is reported, not repaired."
@@ -828,7 +828,7 @@ artifacts:
     type: requirement
     title: The fleet is modelled in AADL; warte loads spar's instance and shows model against reality
     status: approved
-    release: v1.5.0
+    release: v1.6.0
     description: "The fleet a deployment intends (machines, kind, location, capacity, runners, and which bench board is attached to which machine) SHALL be an AADL instance of the Warte_Fleet types (architecture/fleet/warte_fleet.aadl), instantiated with spar (instance --format json). warte SHALL load that instance from a configured file and SHALL report every difference against what probes and registries report: a modelled machine not reporting, a reporting machine not in the model, a board attached elsewhere than modelled, a location (LAN/tunnel) other than modelled. warte renders the model itself (Machines, Topology, the airport map); spar does the modelling, not the drawing. A deployment's own instance lives with that deployment, not in this repository."
     fields:
       category: functional
@@ -861,7 +861,7 @@ artifacts:
     type: requirement
     title: "Topology view: where each machine is and how far, in hops and round-trip time"
     status: approved
-    release: v1.5.0
+    release: v1.6.0
     description: "warte SHALL show every probe's path to the ground station: path class (LAN via mDNS, WireGuard tunnel, direct over the internet), round-trip time from the probe's QUIC connection, and hop count from a periodic unprivileged trace (tracepath on Linux, traceroute on macOS; at most hourly). It SHALL flag a jump in round-trip time or hops and a path that changes class. The view and its API SHALL show names and path classes, never IP addresses or intermediate routers, and no real topology SHALL appear in the repository's docs or tests."
     fields:
       category: functional
@@ -880,7 +880,7 @@ artifacts:
     type: requirement
     title: "Devices view: bench hardware from with-device registries, presence, claims and usage over time"
     status: approved
-    release: v1.5.0
+    release: v1.6.0
     description: "warte SHALL show every bench device the hosts' with-device registries declare: the host it is registered on, whether it is present (registered but not attached is a finding), free or claimed and by whom (from with-device --status --format json), its part identity from the hardware catalogue, its last use and a usage timeline (from with-device's claim log once it has one). The probe on each bench host reads these and sends them in its report. warte SHALL show who, when and how long, never the free-text purpose of a claim."
     fields:
       category: functional
@@ -1041,7 +1041,7 @@ artifacts:
     type: design-decision
     title: "Bench hardware is two layers: the debug adapter on USB and the target behind it"
     status: approved
-    release: v1.5.0
+    release: v1.6.0
     description: "The fleet model and the Devices view SHALL distinguish the debug adapter (USB-visible: VID:PID, serial) from the target it is wired to (board, MCU), which USB does not reveal. The target is declared (registry, fleet model) and confirmed only by an explicit check that drives the probe (e.g. probe-rs info reading the chip ID code) under a with-device claim; warte's probe never drives a debug probe on its own. Declared vs confirmed, and an adapter whose target is undeclared, are findings."
     fields:
       rationale: "Owner, 2026-10-30: an ST-Link is only the debug adapter and does not tell what is connected. Naming boards after their adapters is jess#266's vacuous-lock problem; probing a target is a claimed operation (jess devices.yaml rule 1)."
@@ -1105,7 +1105,7 @@ artifacts:
   - id: REQ-GHSRC-003
     type: requirement
     title: "The GitHub scan stays inside the rate limit: conditional requests and a reserve"
-    status: implemented
+    status: verified
     release: v1.5.0
     description: "The scan SHALL send If-None-Match with cached ETags (304s are free against the primary limit), track x-ratelimit-remaining/reset, and stop at a configurable reserve (default 150) so other users of the token keep headroom; the default interval SHALL be 120 s. Measured on a GHE tenant: ~450 requests/min against 5000/h stalled the scan; with ETags ~54 requests per scan. Tests for 304 reuse and the reserve guard."
     fields:
@@ -1122,7 +1122,7 @@ artifacts:
   - id: REQ-GHSRC-004
     type: requirement
     title: Running self-hosted work is visible without runner-admin rights
-    status: implemented
+    status: verified
     release: v1.5.0
     description: "When the org runner list is unreadable (403/404 for ordinary members), warte SHALL infer running self-hosted work from workflow jobs: Queue shows running jobs (hosted and self-hosted) and runners in use by runs-on label; Overview shows jobs running instead of runways 0/0; Ask and /api/eta count running self-hosted jobs (a PR running on a self-hosted pool must not answer not_queued). Admission, critical path, traffic and the telemetry wire format SHALL count them too."
     fields:
@@ -1139,7 +1139,7 @@ artifacts:
   - id: REQ-GHSRC-005
     type: requirement
     title: Self-hosted jobs are classified by configurable runner labels
-    status: implemented
+    status: verified
     release: v1.5.0
     description: self_hosted_labels (env WARTE_SELF_HOSTED_LABELS), wildcard and case-insensitive, SHALL mark jobs whose labels match as self-hosted, for runner groups whose jobs carry no self-hosted label; empty keeps today's behaviour.
     fields:
@@ -1175,7 +1175,7 @@ artifacts:
   - id: REQ-PROBE-007
     type: requirement
     title: Probe certificates are renewed before they expire
-    status: implemented
+    status: verified
     release: v1.5.0
     description: An enrolled probe SHALL renew its certificate before expiry (e.g. at two thirds of its 30-day life) by signing a new CSR with its current key, without a new token; an expired or revoked certificate SHALL need a new enrollment.
     fields:
@@ -1194,7 +1194,7 @@ artifacts:
   - id: REQ-PROBE-008
     type: requirement
     title: Probe IO and IO pressure, with findings
-    status: implemented
+    status: verified
     release: v1.5.0
     description: "Probe reports SHALL carry disk IO rates (from /proc/diskstats, averaged since the previous report), IO pressure (PSI), the backing device and whether it is rotational; findings: amber for a rotational disk at least 60 % busy or 100 ms await, red at 90 %; amber for PSI some-avg60 at least 20 %, red at 50 %. New fields are optional, so old probes and old servers keep working; public_report() SHALL expose or explicitly hide every Report field, checked by a test."
     fields:
@@ -1211,7 +1211,7 @@ artifacts:
   - id: REQ-DASH-016
     type: requirement
     title: Ask refreshes its result and in-flight list without wiping the form
-    status: implemented
+    status: verified
     release: v1.5.0
     description: The Ask view SHALL refresh its result and the in-flight list on its own every 30 s while visible, leaving the form untouched; placeholders SHALL be neutral.
     fields:
@@ -1228,7 +1228,7 @@ artifacts:
   - id: REQ-DOCS-010
     type: requirement
     title: Enterprise deployment notes
-    status: approved
+    status: verified
     release: v1.5.0
     description: Docs SHALL cover a GHE data-residency base URL with a CA bundle example, a static musl build that runs on older and newer Linux, and putting auth in front (e.g. Caddy basic auth) with the probe routes left open.
     fields:
@@ -1281,7 +1281,7 @@ artifacts:
   - id: DD-JOBS-001
     type: design-decision
     title: Job states are read where they land, against a manifest
-    status: approved
+    status: accepted
     release: v1.5.0
     description: warte reads <dir>/<host>/<job>.json and the manifest (<path> <window_s>) on request; host directory names map to machine names through [jobs] hosts. Supersedes the 'travel in the probe report' clause of REQ-JOBS-001.
     fields:

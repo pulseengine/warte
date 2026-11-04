@@ -19,6 +19,13 @@ use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+/// POST routes that carry their own authentication and pass without a
+/// bearer token: enrollment (one-time token, DD-PROBE-002), signed reports
+/// (REQ-PROBE-006) and renewals (REQ-PROBE-007). An auth proxy in front must
+/// leave exactly these open (docs: deployment, REQ-DOCS-010).
+pub const PROBE_OPEN_PATHS: [&str; 3] =
+    ["/api/probe/enroll", "/api/probe/report", "/api/probe/renew"];
+
 /// Token payload.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TokenPayload {

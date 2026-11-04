@@ -460,7 +460,7 @@ artifacts:
   - id: REQ-DASH-006
     type: requirement
     title: Dashboard critical path view — longest chain of dependent gates
-    status: implemented
+    status: verified
     release: v1.5.0
     description: "The dashboard SHALL provide a Critical Path view showing the longest chain of dependent repos that holds a release. The view SHALL compute the critical path from: (a) the repo dependency graph (REQ-CRIT-001), (b) CI state per repo from the ground station (queued or running = not green), (c) queue depth per repo. The critical path is the longest chain of repos where each depends on the next and at least one is not green. The view SHALL show the chain (repo → repo → repo), the bottleneck repo, and a lower bound on release time from the measured pool waits. It refreshes with the other views (every 30 s); live push is REQ-REALTIME-001 (an earlier version of this requirement asked for SSE, which never worked, #50)."
     links:
@@ -569,7 +569,7 @@ artifacts:
     type: requirement
     title: Critical path dependency graph — real repo dependencies from rivet/GitHub
     status: approved
-    release: v1.5.0
+    release: v1.6.0
     description: "The critical path view SHALL compute the real dependency graph between repos, not just ci_status heuristics. Data sources: (a) rivet externals (rivet sync / rivet externals shows cross-repo dependencies), (b) GitHub dependency graph API (dependabot alerts show dependencies), (c) manual dependency declaration in warte.toml (repo_dependencies = [{repo='jess', depends_on=['relay','gale']}]). The critical path SHALL be the longest chain of repos where each depends on the next and at least one gate is not green. The view SHALL show: the chain (repo → repo → repo), the bottleneck repo, the estimated minimum release time."
     links:
       - type: satisfies
