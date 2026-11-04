@@ -569,7 +569,7 @@ artifacts:
     type: requirement
     title: Critical path dependency graph — real repo dependencies from rivet/GitHub
     status: approved
-    release: v1.5.0
+    release: v1.6.0
     description: "The critical path view SHALL compute the real dependency graph between repos, not just ci_status heuristics. Data sources: (a) rivet externals (rivet sync / rivet externals shows cross-repo dependencies), (b) GitHub dependency graph API (dependabot alerts show dependencies), (c) manual dependency declaration in warte.toml (repo_dependencies = [{repo='jess', depends_on=['relay','gale']}]). The critical path SHALL be the longest chain of repos where each depends on the next and at least one gate is not green. The view SHALL show: the chain (repo → repo → repo), the bottleneck repo, the estimated minimum release time."
     links:
       - type: satisfies
