@@ -19,6 +19,25 @@ use std::path::PathBuf;
 pub const FRESH_S: i64 = 10 * 60;
 pub const WAITING: &str = "waiting for you";
 
+/// Every verb [`verb_of`] can produce: nothing else is ever written.
+pub const VERBS: [&str; 15] = [
+    "thinking",
+    WAITING,
+    "starting",
+    "editing",
+    "reading",
+    "searching the web",
+    "asking a helper",
+    "planning",
+    "running tests",
+    "building",
+    "using git",
+    "talking to GitHub",
+    "visiting another machine",
+    "running a command",
+    "working",
+];
+
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Activity {
     pub verb: String,
@@ -192,6 +211,29 @@ mod tests {
             None
         );
         assert_eq!(verb_of("not json"), None);
+        // every verb produced is in VERBS
+        for (ev, tool, cmd) in [
+            ("UserPromptSubmit", "", ""),
+            ("Stop", "", ""),
+            ("SessionStart", "", ""),
+            ("PreToolUse", "Edit", ""),
+            ("PreToolUse", "Read", ""),
+            ("PreToolUse", "WebFetch", ""),
+            ("PreToolUse", "Agent", ""),
+            ("PreToolUse", "TodoWrite", ""),
+            ("PreToolUse", "Bash", "cargo test"),
+            ("PreToolUse", "Bash", "cargo build"),
+            ("PreToolUse", "Bash", "git log"),
+            ("PreToolUse", "Bash", "gh pr list"),
+            ("PreToolUse", "Bash", "ssh host"),
+            ("PreToolUse", "Bash", "ls"),
+            ("PreToolUse", "Other", ""),
+        ] {
+            let v = v(serde_json::json!({"hook_event_name": ev, "tool_name": tool,
+                "tool_input": {"command": cmd}}))
+            .unwrap();
+            assert!(VERBS.contains(&v), "{v} not in VERBS");
+        }
     }
 
     // rivet: verifies REQ-PROBE-009

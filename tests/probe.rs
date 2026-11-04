@@ -41,8 +41,8 @@ fn sessions_carry_no_command_lines() {
         if let Some(a) = s.get("activity") {
             let verb = a.as_str().unwrap();
             assert!(
-                verb.len() <= 32 && verb.chars().all(|c| c.is_ascii_lowercase() || c == ' '),
-                "activity must be a plain verb: {s}"
+                warte::probe::activity::VERBS.contains(&verb),
+                "activity must be one of the probe's verbs: {s}"
             );
             keys.retain(|k| *k != "activity");
         }
