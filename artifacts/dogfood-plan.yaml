@@ -1194,7 +1194,7 @@ artifacts:
   - id: REQ-PROBE-008
     type: requirement
     title: Probe IO and IO pressure, with findings
-    status: approved
+    status: implemented
     release: v1.5.0
     description: "Probe reports SHALL carry disk IO rates (from /proc/diskstats, averaged since the previous report), IO pressure (PSI), the backing device and whether it is rotational; findings: amber for a rotational disk at least 60 % busy or 100 ms await, red at 90 %; amber for PSI some-avg60 at least 20 %, red at 50 %. New fields are optional, so old probes and old servers keep working; public_report() SHALL expose or explicitly hide every Report field, checked by a test."
     fields:

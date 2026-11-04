@@ -12,6 +12,7 @@
 
 pub mod activity;
 pub mod enroll;
+pub mod io;
 pub mod send;
 
 use serde::{Deserialize, Serialize};
@@ -36,6 +37,9 @@ pub struct Report {
     pub disks: Vec<Disk>,
     pub tools: Vec<Tool>,
     pub sessions: Vec<Session>,
+    /// Disk IO and IO pressure, Linux only (REQ-PROBE-008).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub io: Option<io::Io>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -192,8 +196,10 @@ async fn tool(name: &str) -> Tool {
     }
 }
 
-/// Collect a report of this machine.
-pub async fn collect() -> Report {
+/// Collect a report of this machine. `io_prev`: where the previous IO
+/// sample is kept, for rates since the last report (REQ-PROBE-008); `None`
+/// reports devices and pressure without rates.
+pub async fn collect(io_prev: Option<&std::path::Path>) -> Report {
     use sysinfo::{Disks, ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
     let mut sys = System::new();
     sys.refresh_memory();
@@ -263,6 +269,13 @@ pub async fn collect() -> Report {
     for name in TOOLS {
         tools.push(tool(name).await);
     }
+    let mounts: Vec<String> = disks.iter().map(|d| d.mount.clone()).collect();
+    let io = io::collect_at(
+        std::path::Path::new("/"),
+        &mounts,
+        io_prev,
+        chrono::Utc::now().timestamp_millis(),
+    );
 
     Report {
         probe_version: env!("CARGO_PKG_VERSION").into(),
@@ -287,6 +300,7 @@ pub async fn collect() -> Report {
         disks,
         tools,
         sessions,
+        io,
     }
 }
 
@@ -315,6 +329,29 @@ pub fn text(r: &Report) -> String {
             "disk  {} {:.0}% of {} GB ({})",
             d.mount, d.used_pct, d.size_gb, d.fs
         );
+    }
+    if let Some(io) = &r.io {
+        for d in &io.devices {
+            let _ = writeln!(
+                o,
+                "io    {} ({}){}: {}",
+                d.name,
+                d.mounts.join(", "),
+                if d.rotational == Some(true) {
+                    " spinning"
+                } else {
+                    ""
+                },
+                match (d.busy_pct, d.await_ms) {
+                    (Some(b), Some(w)) => format!("{b:.0}% busy, {w:.0} ms per request"),
+                    (Some(b), None) => format!("{b:.0}% busy"),
+                    _ => "rates from the next report".into(),
+                }
+            );
+        }
+        if let Some(p) = io.psi_some_avg60 {
+            let _ = writeln!(o, "io    pressure {p:.1}% (some, 60 s)");
+        }
     }
     for t in &r.tools {
         let v = match (&t.path, &t.version, &t.error) {
@@ -449,9 +486,10 @@ impl Machines {
 
 /// Probe this machine every `every` and record it as `local`.
 pub fn spawn_self(machines: std::sync::Arc<Machines>, every: Duration) {
+    let io_prev = machines.path.with_file_name("io-prev.json");
     tokio::spawn(async move {
         loop {
-            let r = collect().await;
+            let r = collect(Some(&io_prev)).await;
             machines.record(r, "local", chrono::Utc::now().timestamp());
             tokio::time::sleep(every).await;
         }
@@ -511,6 +549,11 @@ pub fn findings(seen: &[Seen], now: i64) -> Vec<Finding> {
                     r.memory.avail_mb, r.memory.total_mb
                 ),
             ));
+        }
+        if let Some(io) = &r.io {
+            for (sev, text) in io::findings(io) {
+                out.push(f(&r.host, sev, text));
+            }
         }
         if r.cpu.ncpu > 0 && r.cpu.load[1] > r.cpu.ncpu as f64 {
             out.push(f(

@@ -52,6 +52,27 @@ fn card(s: &Seen, mine: &[&Finding], now: i64) -> String {
             d.used_pct >= 85.0,
         );
     }
+    // IO (REQ-PROBE-008): per backing device, and pressure
+    if let Some(io) = &r.io {
+        for d in io.devices.iter().filter(|d| d.busy_pct.is_some()) {
+            let busy = d.busy_pct.unwrap_or(0.0);
+            let spin = d.rotational == Some(true);
+            body += &meter(
+                &format!("io {}{}", esc(&d.name), if spin { " (hdd)" } else { "" }),
+                format!(
+                    "{busy:.0}% busy{}",
+                    d.await_ms
+                        .map(|w| format!(" · {w:.0} ms"))
+                        .unwrap_or_default()
+                ),
+                busy,
+                spin && (busy >= 60.0 || d.await_ms.unwrap_or(0.0) >= 100.0),
+            );
+        }
+        if let Some(p) = io.psi_some_avg60 {
+            body += &meter("io pressure", format!("{p:.1}% stalled"), p, p >= 20.0);
+        }
+    }
     let tools: String = r
         .tools
         .iter()

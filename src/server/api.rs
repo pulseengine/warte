@@ -291,10 +291,22 @@ async fn api_watch(
     }
 }
 
+/// Report fields `/api/machines` does not publish as they are, each on
+/// purpose (REQ-PROBE-008: every field is exposed or listed here, checked by
+/// a test). `tools` and `sessions` are published reduced.
+pub const HIDDEN_REPORT_FIELDS: [&str; 3] = [
+    // the probe's own version: not the machine's state
+    "probe_version",
+    // reduced to name, installed, version (no paths, no error output)
+    "tools",
+    // reduced to a count per agent (no pids, no directories, no activity)
+    "sessions",
+];
+
 /// What `/api/machines` publishes of a report. The read API has no auth
 /// (warte#46), so it leaves out what only helps an attacker map a machine:
 /// tool paths, tool error output, process ids and working directories.
-fn public_report(r: &crate::probe::Report) -> serde_json::Value {
+pub fn public_report(r: &crate::probe::Report) -> serde_json::Value {
     let mut sessions: std::collections::BTreeMap<&str, usize> = Default::default();
     for s in &r.sessions {
         *sessions.entry(s.agent.as_str()).or_default() += 1;
@@ -313,6 +325,7 @@ fn public_report(r: &crate::probe::Report) -> serde_json::Value {
             "version": t.version,
         })).collect::<Vec<_>>(),
         "sessions": sessions,
+        "io": r.io,
     })
 }
 
