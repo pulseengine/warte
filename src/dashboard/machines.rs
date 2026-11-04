@@ -13,7 +13,7 @@ fn meter(label: &str, value: String, pct: f64, hot: bool) -> String {
     )
 }
 
-fn card(s: &Seen, mine: &[&Finding], now: i64) -> String {
+fn card(s: &Seen, mine: &[&Finding], ci: Option<&str>, now: i64) -> String {
     let r = &s.report;
     let age = now - s.received_at;
     let (pill, word) = if age <= MACHINE_STALE_S {
@@ -118,7 +118,7 @@ fn card(s: &Seen, mine: &[&Finding], now: i64) -> String {
         format!("up {}", dur(r.uptime_s as i64))
     };
     format!(
-        r#"<div class="machine{}"><div class="mhead"><span class="mname">{}</span><span class="{pill}">{word} · {} ago</span></div><div class="mos">{} · {} · {} · {uptime}</div>{notes}<div class="hbars">{body}</div><div class="mtools">{tools}</div><div class="msess">{sessions}</div><div class="mvia">via {}</div></div>"#,
+        r#"<div class="machine{}"><div class="mhead"><span class="mname">{}</span><span class="{pill}">{word} · {} ago</span></div><div class="mos">{} · {} · {} · {uptime}</div>{notes}<div class="hbars">{body}</div><div class="mtools">{tools}</div><div class="msess">{sessions}</div><div class="mvia">via {}{}</div></div>"#,
         if mine.iter().any(|f| f.severity == "red") {
             " red"
         } else if mine.is_empty() {
@@ -132,7 +132,23 @@ fn card(s: &Seen, mine: &[&Finding], now: i64) -> String {
         esc(&r.os.kernel),
         esc(&r.os.arch),
         esc(&s.via),
+        ci.unwrap_or_default(),
     )
+}
+
+/// The smithy agent's runner line for a CI host that also runs a probe: the
+/// host keeps one card, and the agent's view adds what only it knows.
+fn ci_line(hub: &crate::hub::Hub) -> Option<(String, String)> {
+    let (s, _) = hub.snapshot()?;
+    let busy = s.runners.iter().filter(|r| r.local_busy).count();
+    Some((
+        s.host.clone(),
+        format!(
+            " · CI host, {busy}/{} runners busy (smithy agent {}, CCSDS; details under Health)",
+            s.runners.len(),
+            esc(&s.agent_version)
+        ),
+    ))
 }
 
 /// The CI host as the smithy agent reports it: a smaller card, no tools.
@@ -181,15 +197,27 @@ pub fn view(machines: Option<&Machines>, hub: Option<&crate::hub::Hub>) -> Strin
     let now = chrono::Utc::now().timestamp();
     let seen = machines.map(Machines::list).unwrap_or_default();
     let all = findings(&seen, now);
+    let ci = hub.and_then(ci_line);
+    let probed = |host: &str| {
+        seen.iter()
+            .any(|s| s.report.host.eq_ignore_ascii_case(host))
+    };
     let mut cards: String = seen
         .iter()
         .map(|s| {
             let mine: Vec<&Finding> = all.iter().filter(|f| f.host == s.report.host).collect();
-            card(s, &mine, now)
+            let line = ci
+                .as_ref()
+                .filter(|(h, _)| h.eq_ignore_ascii_case(&s.report.host))
+                .map(|(_, l)| l.as_str());
+            card(s, &mine, line, now)
         })
         .collect();
-    if let Some(c) = hub.and_then(|h| ci_card(h, now)) {
-        cards += &c;
+    // A CI host without a probe still shows, from the agent alone.
+    if !ci.as_ref().is_some_and(|(h, _)| probed(h)) {
+        if let Some(c) = hub.and_then(|h| ci_card(h, now)) {
+            cards += &c;
+        }
     }
     let summary = if all.is_empty() {
         r#"<div class="allclear"><span class="pill">no drift</span> Every machine reporting is current and consistent.</div>"#.to_string()
