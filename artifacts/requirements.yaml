@@ -694,3 +694,37 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-11-04T19:20:17Z
+
+  - id: REQ-QUEUE-003
+    type: requirement
+    title: Classify hosted jobs never acquired by a runner as infra:not-acquired, and count them (#122)
+    status: approved
+    release: v1.6.0
+    description: "warte SHALL classify a job as infra:not-acquired when its conclusion is cancelled, runner_name is empty, it ran no step, and its annotations contain 'not acquired by Runner'; SHALL show it so in the queue view and /api/queue, distinct from a code failure; and SHALL count it per hosted pool (runs-on label) and per UTC day, so the data decides whether a required hosted-macOS check is worth keeping. Read-only: no GitHub writes. Evidence: relay 2026-11-04, Test (macos) cancelled 3x, merge-group runs 41856213098 and 41870555941 ejected relay#636."
+    fields:
+      category: functional
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-04T21:42:20Z
+    links:
+      - type: depends-on
+        target: REQ-HIST-001
+
+  - id: REQ-QUEUE-004
+    type: requirement
+    title: Bounded re-queue after a merge-group ejection caused only by infra:not-acquired, with notices (#122)
+    status: proposed
+    release: v1.6.0
+    description: "When a merge-group ejection was caused only by infra:not-acquired jobs, the PR SHALL be re-enqueued with backoff (30, 60, 120 min), at most 3 times per PR per UTC day, passing no gate (every required check must still pass in the queue); a PR with any other failure is never re-queued. Each re-queue sends a factory-notice; exhausted retries escalate. Kill criterion: a re-queued PR ejected for any other reason stops auto re-queue for that repo until a person has looked. OPEN: who performs the enqueue. warte holds a read-only token by design; the proposal is that warte decides and notifies, and the PR's owning agent (or a scoped smithy job) enqueues."
+    fields:
+      category: functional
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-04T21:42:20Z
+    links:
+      - type: depends-on
+        target: REQ-QUEUE-003
+      - type: depends-on
+        target: REQ-ALERT-001
