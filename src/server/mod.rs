@@ -204,8 +204,8 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
         realtime: Arc::new(crate::realtime::EventBroadcaster::new()),
         status: Arc::new(
             match config.github.as_ref().map(|g| g.status_url.as_str()) {
-                Some(url) if url != "off" => crate::status::StatusClient::new(url),
-                _ => crate::status::StatusClient::github(),
+                Some(url) => crate::status::StatusClient::new(url),
+                None => crate::status::StatusClient::github(),
             },
         ),
         config: config.clone(),
