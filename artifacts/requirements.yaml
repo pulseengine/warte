@@ -633,3 +633,19 @@ artifacts:
     links:
       - type: satisfies
         target: SC-006
+
+  - id: REQ-SECFEED-001
+    type: requirement
+    title: "Security findings feed: hosts report detector findings through the probe; warte shows and alerts (#114)"
+    status: approved
+    release: v1.6.0
+    description: warte SHALL accept security findings (drift check, AIDE, Falco) from enrolled probes as a signed --feed with a bounded, metadata-only schema (source, rule, severity, subject, first_seen, last_seen, count; no field for file contents or secret values), SHALL show open findings per host newest first with acknowledge / accept-into-baseline and history, and SHALL alert on new high-severity findings and on a host whose detector stops reporting. warte detects nothing itself.
+    fields:
+      category: functional
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-04T16:03:35Z
+    links:
+      - type: depends-on
+        target: REQ-TEMPER-002
