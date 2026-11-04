@@ -211,6 +211,16 @@ artifacts:
       - type: verifies
         target: REQ-API-003
 
+  - id: TEST-API-004
+    type: verification
+    title: tests/agent_token.rs — 403 per route without its right, agent binding, mint flags, table completeness
+    status: accepted
+    release: v1.6.0
+    description: "Integration tests post to each of the seven mutating routes: a token lacking only that right gets 403, no token 401, a token with only that right is not refused. A token writes as its own agent (register name, heartbeat and data id) and gets 403 as another unless it holds agents:any, which alone is no right to a route. A bare mint gets 403 on access/grant, access/revoke, sync/update and costs. The mint CLI keeps the default rights, adds agents:any and repeated --right, and rejects an unknown right without printing a token. The real client flow is covered: a default token for a name registers that name, gets the server-assigned UUID and writes heartbeat and data to it (2xx), gets 403 on another agent's UUID or an unknown one, and 404 on data for an unknown id with agents:any. A scrape of build_routes() fails if a mutating route has no table row or no refusal-free path with every right. Docs and contract must list each right. Negative controls run 2026-11-04: skipping the agent comparison, skipping the right check, and adding a route without a row each turned a test red."
+    links:
+      - type: verifies
+        target: REQ-API-004
+
   - id: TEST-AADL-001
     type: verification
     title: spar parse + spar analyze — AADL model validates with 0 errors

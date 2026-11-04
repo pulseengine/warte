@@ -11,11 +11,36 @@ Write routes (`POST /api/agents/register`, `/api/agents/{id}/heartbeat`,
 operator mints one on the ground station host:
 
 ```
-warte token mint <agent-id> [--valid-hours 720]   # prints only the token
+warte token mint <agent-id> [--valid-hours 720] [--any-agent] [--right <r>]...
 ```
 
-- Rights in the token: `agents:register`, `agents:data`, `agents:heartbeat`.
-  The write routes check signature and expiry today, not the rights.
+- Each write route needs one right in the token (REQ-API-004). A token
+  without it gets `403`; a missing or invalid token stays `401`.
+
+  | Route | Right |
+  |---|---|
+  | `POST /api/agents/register` | `agents:register` |
+  | `POST /api/agents/{id}/heartbeat` | `agents:heartbeat` |
+  | `POST /api/agents/{id}/data` | `agents:data` |
+  | `POST /api/access/grant` | `access:grant` |
+  | `POST /api/access/revoke` | `access:revoke` |
+  | `POST /api/sync/update` | `sync:update` |
+  | `POST /api/costs` | `costs:write` |
+
+  A write route with no row in that table (`MUTATING_ROUTES` in
+  `src/auth/mod.rs`) is refused with `403`. The probe routes authenticate
+  themselves and are not in it.
+- A bare mint carries `agents:register`, `agents:data` and `agents:heartbeat`:
+  enough for an agent, not for `access:*`, `sync:update` or `costs:write`.
+  `--right <r>` (repeatable) adds a right, e.g. `--right costs:write`; a name
+  that is not in the table is refused at mint time.
+- The agent binding: a token names an agent by the name it registers under.
+  On `/api/agents/register` the `name` in the body must equal the token's
+  agent id. Register assigns its own id (a UUID); on `/api/agents/{id}/...`
+  the `name` of the agents row `{id}` must equal the token's agent id, and an
+  unknown `{id}` is refused. Otherwise `403`. `--any-agent` adds `agents:any`, which lifts the binding
+  for a token that also holds the route's right, e.g. one workstation token
+  that posts notices for many repositories. It is not a right to any route.
 - `--valid-hours` is 1 to 8760; the default is 24.
 - The signing seed is a file, `token-seed` next to the CA key
   (`<state-dir>/token-seed`) unless `token_seed_path` in `warte.toml` or
