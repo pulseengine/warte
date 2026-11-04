@@ -9,6 +9,7 @@ Commands:
   agents    List registered agents
   schedule  Show the weekly cron schedule
   watch     Block until a PR's or branch's CI changes, then print JSON and exit
+  token     Mint bearer tokens for agents (operator, on the ground station)
   access    Manage access rights
   migrate   Migrate data from an existing system
   probe     What this machine is and runs: hardware, disks, agent CLIs, sessions
@@ -38,6 +39,7 @@ Options:
 warte serve --bind 0.0.0.0:8080
 warte status --format json
 warte agents --health unhealthy
+warte token mint <agent-id> --valid-hours 720   # see api-reference.md
 warte access grant <agent-id> --rights "artifacts:download"
 warte migrate temper --path /etc/temper/config.yml
 warte hub --udp <wireguard-address>:8092 --allow <ci-host-tunnel-ip> --data-dir /var/lib/smithy-hub

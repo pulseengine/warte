@@ -83,6 +83,12 @@ pub enum Commands {
         ca_cert: Option<std::path::PathBuf>,
     },
 
+    /// Operator tools for bearer tokens (run on the ground station host)
+    Token {
+        #[command(subcommand)]
+        action: TokenCommands,
+    },
+
     /// Manage access rights
     Access {
         #[command(subcommand)]
@@ -157,6 +163,19 @@ pub enum FleetCommands {
     Show {
         /// `spar instance --format json` output
         instance: std::path::PathBuf,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum TokenCommands {
+    /// Mint a bearer token for an agent; prints only the token on stdout.
+    /// Reads (or creates, 0600) the signing seed the server uses.
+    Mint {
+        /// The agent id the token names
+        agent_id: String,
+        /// How long the token is valid, in hours (1..=8760)
+        #[arg(long, default_value_t = 24)]
+        valid_hours: i64,
     },
 }
 

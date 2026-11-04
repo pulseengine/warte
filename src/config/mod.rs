@@ -22,6 +22,13 @@ pub struct Config {
     #[serde(default = "default_ca_key_path")]
     pub ca_key_path: PathBuf,
 
+    /// File holding the bearer-token signing seed (64 hex digits, created with
+    /// mode 0600 on first start; never commit it). Default: `token-seed` next
+    /// to the CA key. Env: `WARTE_TOKEN_SEED_PATH`. Tokens survive restarts
+    /// only because this file does.
+    #[serde(default)]
+    pub token_seed_path: Option<PathBuf>,
+
     /// Agent certificate validity in hours (default: 24).
     #[serde(default = "default_cert_validity_hours")]
     pub cert_validity_hours: u64,
@@ -236,6 +243,7 @@ impl Default for Config {
             db_path: default_db_path(),
             ca_cert_path: default_ca_path(),
             ca_key_path: default_ca_key_path(),
+            token_seed_path: None,
             cert_validity_hours: default_cert_validity_hours(),
             revocation_timeout_secs: default_revocation_timeout_secs(),
             sync_peers: Vec::new(),
@@ -281,6 +289,13 @@ impl Config {
         Ok(Some(config))
     }
 
+    /// Where the token-signing seed lives.
+    pub fn token_seed_file(&self) -> PathBuf {
+        self.token_seed_path
+            .clone()
+            .unwrap_or_else(|| self.ca_key_path.with_file_name("token-seed"))
+    }
+
     fn apply_env_overrides(&mut self) {
         if let Ok(bind) = std::env::var("WARTE_BIND") {
             self.bind = bind;
@@ -289,6 +304,9 @@ impl Config {
             self.db_path = PathBuf::from(db);
         }
         let env = |k: &str| std::env::var(k).ok().filter(|v| !v.is_empty());
+        if let Some(v) = env("WARTE_TOKEN_SEED_PATH") {
+            self.token_seed_path = Some(v.into());
+        }
         if let Some(v) = env("WARTE_FLEET_MODEL") {
             self.fleet_model = Some(v.into());
         }

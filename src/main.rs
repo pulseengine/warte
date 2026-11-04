@@ -158,6 +158,17 @@ async fn main() -> anyhow::Result<()> {
             }
         },
 
+        Commands::Token { action } => match action {
+            warte::cli::TokenCommands::Mint {
+                agent_id,
+                valid_hours,
+            } => {
+                let config = Config::load()?;
+                let t = warte::auth::mint_agent_token(&config, &agent_id, valid_hours)?;
+                println!("{t}");
+            }
+        },
+
         Commands::Probe { action } => match action {
             warte::cli::ProbeCommands::Token { host } => {
                 let config = Config::load()?;

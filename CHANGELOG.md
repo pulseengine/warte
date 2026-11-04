@@ -2,6 +2,10 @@
 
 Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red (#34); their "Cuttable" claims were checked only by a local rivet.
 
+## Unreleased
+
+- **Agent bearer tokens can be minted** (REQ-API-003). The server signed and verified tokens but nothing issued one, so every agent write got 401. `warte token mint <agent-id> [--valid-hours N]` prints a token on the ground station host. The signing key was a fresh random key per start; it is now a seed file (`token-seed`, mode 0600, created on first start), so tokens survive restarts. Deleting that file invalidates every token.
+
 ## v1.5.1 — 2026-11-04
 
 - **temper's compliance report, via its host's probe** (REQ-TEMPER-002, DD-TEMPER-002). temper drops its HTML dashboard; its results reach warte instead. temper writes `temper-report.v1` (enums, identifiers, times and hex only) on its own host, and that host's probe sends it with `warte probe send --feed temper=<path>`: one CCSDS segmented sequence on APID 0x400, the relay-ccsds codec of the CI agent's telemetry, signed with the probe key. warte accepts it only from the `[temper] host` probe, fresh, not replayed, from an unrevoked certificate, and valid against the schema (rejected whole otherwise, the input never quoted). The new **Compliance** view and `GET /api/compliance` show failed checks worst first, temper's failed or stuck tasks, its reviews and its own GitHub API use, and say when the last full sweep is older than 26 h. warte makes no GitHub API calls for it.
