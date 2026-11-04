@@ -68,7 +68,10 @@ async fn serve() -> Server {
     };
     let db = warte::db::Database::connect(&config.db_path).await.unwrap();
     let state = warte::server::build_state(config, db).unwrap();
-    let token = state.tokens.issue_token("costs-job", vec![]).unwrap();
+    let token = state
+        .tokens
+        .issue_token("costs-job", vec!["costs:write".into()])
+        .unwrap();
     let app = warte::server::build_router(state);
     let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base = format!("http://{}", l.local_addr().unwrap());

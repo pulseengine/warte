@@ -128,9 +128,164 @@ impl TokenManager {
     }
 }
 
-/// Rights an agent token carries for the three write routes an agent uses.
-/// The write routes check the signature and expiry, not the rights.
+/// Rights an agent token carries by default: the three write routes an agent
+/// uses, for its own agent id only (REQ-API-004).
 pub const AGENT_RIGHTS: [&str; 3] = ["agents:register", "agents:data", "agents:heartbeat"];
+
+/// The right that lifts the agent binding: a token holding it may write as
+/// any agent id, not only its own. The right to the route is still required.
+pub const RIGHT_ANY_AGENT: &str = "agents:any";
+
+/// Whose id a route's request names, which must be the token's agent.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Binding {
+    /// The request names no agent (the right alone decides).
+    None,
+    /// The `{id}` segment of the path.
+    PathId,
+    /// The `name` in the JSON body: register mints its own agent ids, so the
+    /// identity a caller asks for is the name it registers.
+    BodyName,
+}
+
+/// One mutating route and what a token needs to call it.
+#[derive(Debug, Clone, Copy)]
+pub struct RouteRule {
+    pub method: &'static str,
+    /// The full path, with `{id}` for the agent segment.
+    pub pattern: &'static str,
+    pub right: &'static str,
+    pub binding: Binding,
+}
+
+/// REQ-API-004: every mutating route and the right it needs, in one place.
+/// A mutating request that matches no row here is refused (403) even with a
+/// valid token, so a route added without a row is closed, not open; the
+/// test `every_mutating_route_in_the_router_has_a_right` also fails.
+/// The probe routes (`PROBE_OPEN_PATHS`) authenticate themselves and are not here.
+pub const MUTATING_ROUTES: [RouteRule; 7] = [
+    RouteRule {
+        method: "POST",
+        pattern: "/api/agents/register",
+        right: "agents:register",
+        binding: Binding::BodyName,
+    },
+    RouteRule {
+        method: "POST",
+        pattern: "/api/agents/{id}/heartbeat",
+        right: "agents:heartbeat",
+        binding: Binding::PathId,
+    },
+    RouteRule {
+        method: "POST",
+        pattern: "/api/agents/{id}/data",
+        right: "agents:data",
+        binding: Binding::PathId,
+    },
+    RouteRule {
+        method: "POST",
+        pattern: "/api/access/grant",
+        right: "access:grant",
+        binding: Binding::None,
+    },
+    RouteRule {
+        method: "POST",
+        pattern: "/api/access/revoke",
+        right: "access:revoke",
+        binding: Binding::None,
+    },
+    RouteRule {
+        method: "POST",
+        pattern: "/api/sync/update",
+        right: "sync:update",
+        binding: Binding::None,
+    },
+    RouteRule {
+        method: "POST",
+        pattern: "/api/costs",
+        right: "costs:write",
+        binding: Binding::None,
+    },
+];
+
+/// Is `right` one a token can carry: a route's right or `agents:any`?
+pub fn is_known_right(right: &str) -> bool {
+    right == RIGHT_ANY_AGENT || MUTATING_ROUTES.iter().any(|r| r.right == right)
+}
+
+/// Every right a token can carry, for messages and docs.
+pub fn known_rights() -> Vec<&'static str> {
+    let mut v: Vec<&str> = MUTATING_ROUTES.iter().map(|r| r.right).collect();
+    v.push(RIGHT_ANY_AGENT);
+    v
+}
+
+/// The rule for a request, and the `{id}` segment (percent-decoded) if the
+/// pattern has one. `None` when no row matches.
+fn find_rule(method: &str, path: &str) -> Option<(&'static RouteRule, Option<String>)> {
+    'rules: for rule in MUTATING_ROUTES.iter().filter(|r| r.method == method) {
+        let want: Vec<&str> = rule.pattern.split('/').collect();
+        let got: Vec<&str> = path.split('/').collect();
+        if want.len() != got.len() {
+            continue;
+        }
+        let mut id = None;
+        for (w, g) in want.iter().zip(&got) {
+            if *w == "{id}" {
+                // An id the router would decode differently than we do is no
+                // match: the request is refused, never compared wrongly.
+                match pct_decode(g).filter(|d| !d.is_empty()) {
+                    Some(d) => id = Some(d),
+                    None => continue 'rules,
+                }
+            } else if w != g {
+                continue 'rules;
+            }
+        }
+        return Some((rule, id));
+    }
+    None
+}
+
+/// Percent-decode as the router does before a handler sees a path segment.
+fn pct_decode(s: &str) -> Option<String> {
+    let b = s.as_bytes();
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'%' {
+            let hex = s.get(i + 1..i + 3)?;
+            out.push(u8::from_str_radix(hex, 16).ok()?);
+            i += 3;
+        } else {
+            out.push(b[i]);
+            i += 1;
+        }
+    }
+    String::from_utf8(out).ok()
+}
+
+/// Largest register body the binding check reads (a name and a key).
+const REGISTER_BODY_LIMIT: usize = 64 * 1024;
+
+/// May this token call `rule`, naming `path_id` / `body_name` as the agent?
+fn authorize(
+    info: &AuthInfo,
+    rule: &RouteRule,
+    path_id: Option<&str>,
+    body_name: Option<&str>,
+) -> bool {
+    let has = |r: &str| info.rights.iter().any(|x| x == r);
+    if !has(rule.right) {
+        return false;
+    }
+    let named = match rule.binding {
+        Binding::None => return true,
+        Binding::PathId => path_id,
+        Binding::BodyName => body_name,
+    };
+    has(RIGHT_ANY_AGENT) || named == Some(info.agent_id.as_str())
+}
 
 /// Longest validity `warte token mint` accepts: one year.
 pub const MAX_TOKEN_HOURS: i64 = 24 * 365;
@@ -182,22 +337,45 @@ pub fn load_or_create_seed(path: &std::path::Path) -> anyhow::Result<[u8; 32]> {
         .map_err(|_| anyhow::anyhow!("{} is not 64 hex digits", path.display()))
 }
 
-/// Mint an agent token from the seed file of `config`, valid `hours`.
+/// Mint an agent token from the seed file of `config`, valid `hours`, with
+/// the default `AGENT_RIGHTS`.
 pub fn mint_agent_token(
     config: &crate::Config,
     agent_id: &str,
     hours: i64,
+) -> anyhow::Result<String> {
+    mint_agent_token_with(config, agent_id, hours, &[])
+}
+
+/// Like `mint_agent_token`, plus `extra` rights (`agents:any`, `costs:write`,
+/// ...). A right no route knows is an error: a typo would otherwise mint a
+/// token that silently grants nothing.
+pub fn mint_agent_token_with(
+    config: &crate::Config,
+    agent_id: &str,
+    hours: i64,
+    extra: &[String],
 ) -> anyhow::Result<String> {
     anyhow::ensure!(!agent_id.trim().is_empty(), "agent id is empty");
     anyhow::ensure!(
         (1..=MAX_TOKEN_HOURS).contains(&hours),
         "--valid-hours must be between 1 and {MAX_TOKEN_HOURS}"
     );
+    for r in extra {
+        anyhow::ensure!(
+            is_known_right(r),
+            "unknown right {r:?}; known rights: {}",
+            known_rights().join(", ")
+        );
+    }
+    let mut rights: Vec<String> = AGENT_RIGHTS.iter().map(|r| r.to_string()).collect();
+    for r in extra {
+        if !rights.contains(r) {
+            rights.push(r.clone());
+        }
+    }
     let seed = load_or_create_seed(&config.token_seed_file())?;
-    TokenManager::from_seed(&seed, hours).issue_token(
-        agent_id,
-        AGENT_RIGHTS.iter().map(|r| r.to_string()).collect(),
-    )
+    TokenManager::from_seed(&seed, hours).issue_token(agent_id, rights)
 }
 
 /// Extracted auth info from a request.
@@ -251,11 +429,38 @@ pub async fn auth_middleware(
         .verify_token(token)
         .map_err(|_| StatusCode::UNAUTHORIZED)?;
 
-    // Insert auth info into request extensions
-    req.extensions_mut().insert(AuthInfo {
+    let info = AuthInfo {
         agent_id: payload.agent_id,
         rights: payload.rights,
-    });
+    };
+
+    // REQ-API-004: the route's right, then the agent binding. A missing
+    // right is 403; the 401s above are for a missing or invalid token.
+    let path = req.uri().path().to_string();
+    let Some((rule, path_id)) = find_rule(method.as_str(), &path) else {
+        return Err(StatusCode::FORBIDDEN);
+    };
+    let mut body_name = None;
+    if rule.binding == Binding::BodyName {
+        let (parts, body) = req.into_parts();
+        let bytes = axum::body::to_bytes(body, REGISTER_BODY_LIMIT)
+            .await
+            .map_err(|_| StatusCode::PAYLOAD_TOO_LARGE)?;
+        #[derive(Deserialize)]
+        struct Named {
+            name: String,
+        }
+        // A body with no name cannot register (the handler refuses it), so
+        // it is compared as "no name" and, without agents:any, refused here.
+        body_name = serde_json::from_slice::<Named>(&bytes).ok().map(|n| n.name);
+        req = Request::from_parts(parts, axum::body::Body::from(bytes));
+    }
+    if !authorize(&info, rule, path_id.as_deref(), body_name.as_deref()) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    // Insert auth info into request extensions
+    req.extensions_mut().insert(info);
 
     Ok(next.run(req).await)
 }

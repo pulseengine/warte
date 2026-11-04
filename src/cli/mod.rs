@@ -176,6 +176,14 @@ pub enum TokenCommands {
         /// How long the token is valid, in hours (1..=8760)
         #[arg(long, default_value_t = 24)]
         valid_hours: i64,
+        /// Let the token write as any agent, not only its own id (adds
+        /// `agents:any`)
+        #[arg(long)]
+        any_agent: bool,
+        /// Add a right beyond the default agent rights, e.g. costs:write
+        /// (repeatable; an unknown right is an error)
+        #[arg(long = "right", value_name = "RIGHT")]
+        rights: Vec<String>,
     },
 }
 

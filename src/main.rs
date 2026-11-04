@@ -162,9 +162,15 @@ async fn main() -> anyhow::Result<()> {
             warte::cli::TokenCommands::Mint {
                 agent_id,
                 valid_hours,
+                any_agent,
+                mut rights,
             } => {
                 let config = Config::load()?;
-                let t = warte::auth::mint_agent_token(&config, &agent_id, valid_hours)?;
+                if any_agent {
+                    rights.push(warte::auth::RIGHT_ANY_AGENT.to_string());
+                }
+                let t =
+                    warte::auth::mint_agent_token_with(&config, &agent_id, valid_hours, &rights)?;
                 println!("{t}");
             }
         },

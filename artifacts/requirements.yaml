@@ -374,6 +374,26 @@ artifacts:
       - type: satisfies
         target: SC-001
 
+  - id: REQ-API-004
+    type: requirement
+    title: A token's rights and agent decide which write routes it may call, and as whom
+    status: implemented
+    release: v1.6.0
+    description: >
+      Every mutating route SHALL require a named right in the bearer token,
+      looked up in one table (agents:register, agents:heartbeat, agents:data,
+      access:grant, access:revoke, sync:update, costs:write). A token without
+      the right SHALL get 403; a missing or invalid token stays 401. A mutating
+      request matching no row SHALL be refused. On agents/{id}/* the id, and on
+      agents/register the name asked for, SHALL equal the token's agent id
+      unless the token holds agents:any. `warte token mint` SHALL issue the
+      agent rights by default, add agents:any with --any-agent and named rights
+      with --right, and reject an unknown right. The docs and the contract
+      SHALL list each route's right.
+    links:
+      - type: satisfies
+        target: SC-001
+
   # --- CLI ---
   - id: REQ-CLI-001
     type: requirement

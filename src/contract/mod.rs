@@ -43,6 +43,10 @@ pub struct ContractOperation {
     pub request_type: String,
     pub response_type: String,
     pub auth_required: bool,
+    /// The token right the route requires (REQ-API-004), if it takes a token.
+    /// Routes naming an agent (`{id}`, register) also bind the token's agent
+    /// id to that agent unless the token holds `agents:any`.
+    pub required_right: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -73,6 +77,16 @@ pub enum IntegrityGuarantee {
 /// The current agent contract version.
 pub const AGENT_CONTRACT_VERSION: &str = "0.1.0";
 
+/// The right the auth table requires for a route pattern (REQ-API-004), so
+/// the contract cannot list one the middleware does not enforce.
+fn right_for(pattern: &str) -> Option<String> {
+    let rule = crate::auth::MUTATING_ROUTES
+        .iter()
+        .find(|r| r.pattern == pattern)
+        .unwrap_or_else(|| panic!("{pattern} is not in auth::MUTATING_ROUTES"));
+    Some(rule.right.to_string())
+}
+
 /// Get the current agent contract.
 pub fn current_contract() -> AgentContract {
     AgentContract {
@@ -83,7 +97,9 @@ pub fn current_contract() -> AgentContract {
                 direction: OperationDirection::AgentToTower,
                 request_type: "RegisterRequest".to_string(),
                 response_type: "RegisterResponse".to_string(),
-                auth_required: false, // Registration is the auth bootstrap
+                // Since #116 a registration needs a minted token too.
+                auth_required: true,
+                required_right: right_for("/api/agents/register"),
             },
             ContractOperation {
                 name: "heartbeat".to_string(),
@@ -91,6 +107,7 @@ pub fn current_contract() -> AgentContract {
                 request_type: "()".to_string(),
                 response_type: "()".to_string(),
                 auth_required: true,
+                required_right: right_for("/api/agents/{id}/heartbeat"),
             },
             ContractOperation {
                 name: "download_artifact".to_string(),
@@ -98,6 +115,7 @@ pub fn current_contract() -> AgentContract {
                 request_type: "ArtifactDownloadRequest".to_string(),
                 response_type: "ArtifactDownload".to_string(),
                 auth_required: true,
+                required_right: None, // a read route: public (#79)
             },
             ContractOperation {
                 name: "capture_data".to_string(),
@@ -105,6 +123,7 @@ pub fn current_contract() -> AgentContract {
                 request_type: "CaptureDataRequest".to_string(),
                 response_type: "CaptureDataResponse".to_string(),
                 auth_required: true,
+                required_right: right_for("/api/agents/{id}/data"),
             },
             ContractOperation {
                 name: "query_data".to_string(),
@@ -112,6 +131,39 @@ pub fn current_contract() -> AgentContract {
                 request_type: "QueryDataRequest".to_string(),
                 response_type: "QueryDataResponse".to_string(),
                 auth_required: true,
+                required_right: None, // a read route: public (#79)
+            },
+            ContractOperation {
+                name: "grant_access".to_string(),
+                direction: OperationDirection::AgentToTower,
+                request_type: "GrantRequest".to_string(),
+                response_type: "{ policy_ids: string[] }".to_string(),
+                auth_required: true,
+                required_right: right_for("/api/access/grant"),
+            },
+            ContractOperation {
+                name: "revoke_access".to_string(),
+                direction: OperationDirection::AgentToTower,
+                request_type: "RevokeRequest".to_string(),
+                response_type: "()".to_string(),
+                auth_required: true,
+                required_right: right_for("/api/access/revoke"),
+            },
+            ContractOperation {
+                name: "sync_update".to_string(),
+                direction: OperationDirection::Bidirectional,
+                request_type: "SyncUpdate".to_string(),
+                response_type: "()".to_string(),
+                auth_required: true,
+                required_right: right_for("/api/sync/update"),
+            },
+            ContractOperation {
+                name: "post_costs".to_string(),
+                direction: OperationDirection::AgentToTower,
+                request_type: "CostReport".to_string(),
+                response_type: "{ stored: bool, sessions: number }".to_string(),
+                auth_required: true,
+                required_right: right_for("/api/costs"),
             },
         ],
         data_types: vec![
@@ -232,22 +284,22 @@ mod tests {
     fn test_agent_contract() {
         let contract = current_contract();
         assert_eq!(contract.version, "0.1.0");
-        assert_eq!(contract.operations.len(), 5);
+        assert_eq!(contract.operations.len(), 9);
         assert_eq!(contract.data_types.len(), 4);
 
-        // Registration must not require auth (it's the bootstrap)
-        let register = contract
-            .operations
-            .iter()
-            .find(|op| op.name == "register")
-            .unwrap();
-        assert!(!register.auth_required);
-
-        // All other operations require auth
+        // Every operation requires auth; every mutating route's right is listed.
         for op in &contract.operations {
-            if op.name != "register" {
-                assert!(op.auth_required, "{} should require auth", op.name);
-            }
+            assert!(op.auth_required, "{} should require auth", op.name);
+        }
+        for rule in crate::auth::MUTATING_ROUTES {
+            assert!(
+                contract
+                    .operations
+                    .iter()
+                    .any(|op| op.required_right.as_deref() == Some(rule.right)),
+                "contract omits {}",
+                rule.right
+            );
         }
     }
 
