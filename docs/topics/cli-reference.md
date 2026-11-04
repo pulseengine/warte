@@ -84,6 +84,16 @@ warte probe report
 warte --format json probe report
 ```
 
+On Linux the report also carries IO (REQ-PROBE-008): each block device
+backing a reported disk, whether it spins, and since the previous report
+its busy share, time per request and read/write rates (from
+`/proc/diskstats`; `probe send` keeps the last sample as `io-prev.json` in
+its state directory, so the first report after a start has no rates), and
+IO pressure (`/proc/pressure/io`, some/full avg60). The Machines view
+shows them; findings: a spinning disk at least 60 % busy or 100 ms per
+request is amber, 90 % busy red; IO pressure at least 20 % amber, 50 % red.
+The fields are optional, so older probes and ground stations keep working.
+
 ### Enrollment (DD-PROBE-002)
 
 On the ground station, mint a one-time token for the machine:
