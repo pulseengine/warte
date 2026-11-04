@@ -281,6 +281,31 @@ pub struct Point {
     /// Distinct PRs with at least one queued job.
     #[serde(default)]
     pub prs_waiting: Option<u32>,
+    /// GitHub-hosted [queued, running] per runs-on label (REQ-HIST-001), so a
+    /// past backlog can be attributed to macOS or Linux. At most
+    /// `HOSTED_LABELS_MAX` labels, the busiest.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub hosted_by_label: BTreeMap<String, [u32; 2]>,
+}
+
+/// Bound on the labels one history point carries.
+pub const HOSTED_LABELS_MAX: usize = 12;
+
+/// GitHub-hosted [queued, running] per runs-on label, over all hosted jobs
+/// (the groups, not the capped job list), the busiest `HOSTED_LABELS_MAX`.
+pub fn hosted_by_label(groups: &[HostedGroup]) -> BTreeMap<String, [u32; 2]> {
+    let mut all: BTreeMap<&str, [u32; 2]> = BTreeMap::new();
+    for g in groups {
+        let e = all.entry(g.labels.as_str()).or_default();
+        e[0] += g.queued;
+        e[1] += g.running;
+    }
+    let mut v: Vec<(&str, [u32; 2])> = all.into_iter().collect();
+    v.sort_by_key(|(l, c)| (std::cmp::Reverse(c[0] + c[1]), *l));
+    v.into_iter()
+        .take(HOSTED_LABELS_MAX)
+        .map(|(l, c)| (l.to_string(), c))
+        .collect()
 }
 
 impl Point {
@@ -324,6 +349,11 @@ impl Point {
                     .map(|(_, p)| p.jobs_queued)
                     .sum()
             }),
+            hosted_by_label: s
+                .queue
+                .as_ref()
+                .map(|q| hosted_by_label(&q.hosted_groups))
+                .unwrap_or_default(),
             hosted_queued: s.queue.as_ref().map(|q| q.hosted_queued),
             hosted_running: s.queue.as_ref().map(|q| q.hosted_running),
             sh_oldest_s: s.queue.as_ref().map(|q| {

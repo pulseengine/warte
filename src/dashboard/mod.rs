@@ -45,6 +45,15 @@ pub async fn overview_partial(State(state): State<crate::server::AppState>) -> R
         .filter(|a| a.health_status == crate::agent::HealthStatus::Unhealthy)
         .count();
 
+    // REQ-DASH-017: Outages at a glance, above the fold
+    let fleet_found = state
+        .hub
+        .as_ref()
+        .and_then(fleet::detected)
+        .map(|(l, _)| l)
+        .unwrap_or_default();
+    let gh = state.status.get_status().await.map_err(|e| e.to_string());
+    let strip = fleet::outages_summary(&fleet_found, gh.as_ref().map_err(Clone::clone));
     let html = format!(
         r#"<div class="overview">
   <h2>Overview</h2>
@@ -56,7 +65,7 @@ pub async fn overview_partial(State(state): State<crate::server::AppState>) -> R
   </div></section>
   <p class="freshness">Rendered {}</p>
 </div>"#,
-        fleet::overview(state.hub.as_ref()),
+        strip + &fleet::overview(state.hub.as_ref()),
         agents.len(),
         healthy,
         unhealthy,

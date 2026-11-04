@@ -11,6 +11,8 @@ use std::sync::Arc;
 
 /// Cached status with timestamp.
 type StatusCache = Arc<RwLock<Option<(GitHubStatus, DateTime<Utc>)>>>;
+/// The last failure's message and time.
+type FailCache = Arc<RwLock<Option<(String, DateTime<Utc>)>>>;
 use tokio::sync::RwLock;
 
 /// GitHub status (from status.github.com API).
@@ -137,6 +139,9 @@ pub struct StatusClient {
     cache: StatusCache,
     /// Cache TTL (default: 5 minutes).
     cache_ttl: Duration,
+    /// When the last fetch failed: a failure is not retried for a minute, so
+    /// an offline status page does not slow every page that shows it.
+    failed: FailCache,
 }
 
 impl StatusClient {
@@ -155,6 +160,7 @@ impl StatusClient {
                 .unwrap_or_default(),
             cache: Arc::new(RwLock::new(None)),
             cache_ttl: Duration::minutes(5),
+            failed: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -173,8 +179,21 @@ impl StatusClient {
             }
         }
 
+        if let Some((e, at)) = self.failed.read().await.as_ref() {
+            if Utc::now() - *at < Duration::minutes(1) {
+                anyhow::bail!("{e}");
+            }
+        }
+
         // Fetch fresh status
-        let status = self.fetch_status().await?;
+        let status = match self.fetch_status().await {
+            Ok(s) => s,
+            Err(e) => {
+                *self.failed.write().await = Some((e.to_string(), Utc::now()));
+                return Err(e);
+            }
+        };
+        *self.failed.write().await = None;
 
         // Update cache
         {

@@ -653,7 +653,7 @@ artifacts:
   - id: REQ-ALERT-001
     type: requirement
     title: Detected problems notify the owner, not only when Outages is open
-    status: approved
+    status: verified
     release: v1.6.0
     description: "warte SHALL push a notification when a finding in Outages appears or escalates (a red finding, a GitHub incident with major/critical impact, GitHub-hosted jobs queued past the threshold) and when it clears, deduplicated per finding and rate-limited, honouring the owner's attention settings (#63). Evaluated on every snapshot in the server, not on page load. Motivated by 2026-11-04: 61 hosted jobs queued during a GitHub Actions incident and nobody was told."
     fields:
@@ -669,7 +669,7 @@ artifacts:
   - id: REQ-DASH-017
     type: requirement
     title: Overview summarises the detected problems and GitHub's status
-    status: approved
+    status: verified
     release: v1.6.0
     description: The Overview SHALL show, above the fold, the count and worst severity of the findings in Outages (Detected now and GitHub status), linking to Outages, so a degraded fleet or a GitHub incident is visible without opening another view.
     fields:
@@ -685,7 +685,7 @@ artifacts:
   - id: REQ-HIST-001
     type: requirement
     title: Queue history per GitHub-hosted runner type
-    status: approved
+    status: verified
     release: v1.6.0
     description: "The hub history SHALL record queued and running GitHub-hosted jobs per runs-on label (e.g. macos-latest, ubuntu-latest), not only totals, so a past backlog can be attributed to a runner type (2026-11-04: 61 hosted jobs queued, type unknowable afterwards). Bounded label set; existing totals unchanged."
     fields:

@@ -438,20 +438,41 @@ pub fn health_view(hub: Option<&Hub>) -> String {
 }
 
 /// Problems the ground station can see right now, worst first.
-pub fn incidents(hub: Option<&Hub>) -> String {
-    let Some((hub, (s, at))) = hub.and_then(|h| h.snapshot().map(|v| (h, v))) else {
-        return format!(r#"<section class="panel">{}</section>"#, unavailable(hub));
-    };
+/// One thing the ground station detects as wrong (REQ-DASH-008). `key` is
+/// stable while the problem lasts (numbers in `text` may change), so alerts
+/// can deduplicate on it; `text` is plain and escaped only when rendered.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Detected {
+    pub key: String,
+    /// 2 = down (red), 1 = degraded (amber).
+    pub sev: u8,
+    pub text: String,
+}
+
+fn found(list: &mut Vec<Detected>, key: impl Into<String>, sev: u8, text: String) {
+    list.push(Detected {
+        key: key.into(),
+        sev,
+        text,
+    });
+}
+
+/// What the latest snapshot and the telemetry link show as wrong, worst
+/// first, with the snapshot's time. None without a hub or a snapshot.
+pub fn detected(hub: &Hub) -> Option<(Vec<Detected>, i64)> {
+    let (s, at) = hub.snapshot()?;
     let t = now();
-    let mut list: Vec<(u8, String)> = Vec::new(); // 2 = red, 1 = amber
+    let mut list: Vec<Detected> = Vec::new();
     if t - at > STALE_AFTER_S {
-        list.push((
+        found(
+            &mut list,
+            "telemetry-stale",
             2,
             format!(
                 "No telemetry for {}: the agent or the link is down.",
                 dur(t - at)
             ),
-        ));
+        );
     }
     let offline: Vec<String> = s
         .runners
@@ -460,24 +481,33 @@ pub fn incidents(hub: Option<&Hub>) -> String {
         .map(|r| format!("runner{}", r.id))
         .collect();
     if !offline.is_empty() {
-        list.push((2, format!("Offline runners: {}.", offline.join(", "))));
+        found(
+            &mut list,
+            "runners-offline",
+            2,
+            format!("Offline runners: {}.", offline.join(", ")),
+        );
     }
     for r in &s.runners {
         if let Some(st) = r.stats.as_ref().filter(|st| st.oom_kills > 0) {
-            list.push((
+            found(
+                &mut list,
+                format!("oom:runner{}", r.id),
                 1,
                 format!(
                     "runner{}: {} job(s) OOM-killed since the service started.",
                     r.id, st.oom_kills
                 ),
-            ));
+            );
         }
     }
     for d in s.machine.disks.iter().filter(|d| d.used_pct >= 85.0) {
-        list.push((
+        found(
+            &mut list,
+            format!("disk:{}", d.mount),
             if d.used_pct >= 95.0 { 2 } else { 1 },
-            format!("Disk {} is {:.0}% full.", esc(&d.mount), d.used_pct),
-        ));
+            format!("Disk {} is {:.0}% full.", d.mount, d.used_pct),
+        );
     }
     let psi = &s.machine.psi;
     for (name, v) in [
@@ -486,15 +516,22 @@ pub fn incidents(hub: Option<&Hub>) -> String {
         ("IO", psi.io.avg60),
     ] {
         if v >= 10.0 {
-            list.push((1, format!("{name} pressure {v:.1}%: tasks are stalling.")));
+            found(
+                &mut list,
+                format!("pressure:{name}"),
+                1,
+                format!("{name} pressure {v:.1}%: tasks are stalling."),
+            );
         }
     }
     if let Some(q) = &s.queue {
         if !q.queued_complete {
-            list.push((
+            found(
+                &mut list,
+                "queue-scan-incomplete",
                 1,
                 "The last queue scan was incomplete: Ask and the boards may miss runs.".into(),
-            ));
+            );
         }
         let overdue = q
             .queued
@@ -502,12 +539,14 @@ pub fn incidents(hub: Option<&Hub>) -> String {
             .filter(|e| q.waits.get(&e.pool).is_some_and(|w| t - e.since > w.p90))
             .count();
         if overdue > 0 {
-            list.push((
+            found(
+                &mut list,
+                "queue-overdue",
                 1,
                 format!(
                     "{overdue} queued run(s) waited longer than 90% of recent jobs in their pool."
                 ),
-            ));
+            );
         }
         // GitHub-hosted jobs stuck in the queue, per runner type
         let mut stuck: std::collections::BTreeMap<&str, (u32, i64)> = Default::default();
@@ -521,42 +560,86 @@ pub fn incidents(hub: Option<&Hub>) -> String {
             e.1 = e.1.max(t - j.since);
         }
         for (labels, (n, oldest)) in stuck {
-            list.push((
+            let labels = if labels.is_empty() { "runner" } else { labels };
+            found(
+                &mut list,
+                format!("hosted-queued:{labels}"),
                 1,
                 format!(
-                    "GitHub-hosted {}: {n} job(s) queued, the oldest for {}. GitHub's capacity, the org's concurrency limit for this runner type, or an Actions incident (see GitHub status).",
-                    esc(if labels.is_empty() { "runner" } else { labels }),
+                    "GitHub-hosted {labels}: {n} job(s) queued, the oldest for {}. GitHub's capacity, the org's concurrency limit for this runner type, or an Actions incident (see GitHub status).",
                     dur(oldest)
                 ),
-            ));
+            );
         }
     }
     for l in hub.link() {
         let rate = l.lost as f64 * 100.0 / (l.received + l.lost).max(1) as f64;
         if rate >= 1.0 {
-            list.push((
+            found(
+                &mut list,
+                format!("link-loss:{}", l.apid),
                 1,
                 format!(
                     "Telemetry stream {} ({}) loses {rate:.1}% of packets.",
-                    esc(&l.apid),
-                    esc(&l.stream)
+                    l.apid, l.stream
                 ),
-            ));
+            );
         }
     }
-    for e in &s.errors {
-        list.push((1, format!("Agent could not collect: {}", esc(e))));
+    for (i, e) in s.errors.iter().enumerate() {
+        found(
+            &mut list,
+            format!("agent-error:{i}"),
+            1,
+            format!("Agent could not collect: {e}"),
+        );
     }
-    list.sort_by_key(|i| std::cmp::Reverse(i.0));
+    list.sort_by_key(|d| std::cmp::Reverse(d.sev));
+    Some((list, at))
+}
+
+/// GitHub's unresolved incidents and impaired components as findings, so
+/// alerts and the Overview treat them like the fleet's own.
+pub fn github_detected(st: &crate::status::GitHubStatus) -> Vec<Detected> {
+    let mut list = Vec::new();
+    for i in &st.incidents {
+        found(
+            &mut list,
+            format!("github-incident:{}", i.url),
+            if matches!(i.impact.as_str(), "major" | "critical") {
+                2
+            } else {
+                1
+            },
+            format!("GitHub: {} ({})", i.title, i.status),
+        );
+    }
+    for c in &st.components {
+        found(
+            &mut list,
+            format!("github-component:{}", c.name),
+            1,
+            format!("GitHub {}: {}", c.name, c.status),
+        );
+    }
+    list
+}
+
+pub fn incidents(hub: Option<&Hub>) -> String {
+    let Some((list, at)) = hub.and_then(detected) else {
+        return format!(r#"<section class="panel">{}</section>"#, unavailable(hub));
+    };
     let body = if list.is_empty() {
         r#"<div class="allclear"><span class="pill">all clear</span> Nothing the ground station can see is wrong.</div>"#.to_string()
     } else {
         list.iter()
-            .map(|(sev, msg)| {
+            .map(|d| {
                 format!(
-                    r#"<div class="incident sev{sev}"><span class="badge {}">{}</span>{msg}</div>"#,
-                    if *sev == 2 { "red" } else { "yellow" },
-                    if *sev == 2 { "down" } else { "degraded" }
+                    r#"<div class="incident sev{}"><span class="badge {}">{}</span>{}</div>"#,
+                    d.sev,
+                    if d.sev == 2 { "red" } else { "yellow" },
+                    if d.sev == 2 { "down" } else { "degraded" },
+                    esc(&d.text)
                 )
             })
             .collect()
@@ -564,6 +647,40 @@ pub fn incidents(hub: Option<&Hub>) -> String {
     format!(
         r#"<section class="panel"><h3>Detected now · CI fleet and ground station</h3>{body}<div class="note">From the latest snapshot and the telemetry link; GitHub's own status is below.</div></section>{}"#,
         freshness(at)
+    )
+}
+
+/// The Overview's one-line summary of Outages (REQ-DASH-017): how many
+/// findings, the worst, and GitHub's status, linking to the Outages view.
+pub fn outages_summary(
+    fleet: &[Detected],
+    gh: Result<&crate::status::GitHubStatus, String>,
+) -> String {
+    let gh_list = gh.as_ref().map(|s| github_detected(s)).unwrap_or_default();
+    let n = fleet.len() + gh_list.len();
+    let worst = fleet
+        .iter()
+        .chain(&gh_list)
+        .map(|d| d.sev)
+        .max()
+        .unwrap_or(0);
+    let (cls, word) = match worst {
+        2 => ("red", "down"),
+        1 => ("yellow", "degraded"),
+        _ => ("green", "all clear"),
+    };
+    let gh_word = match &gh {
+        Ok(s) => esc(&s.status),
+        Err(_) => "unknown".into(),
+    };
+    let top = fleet
+        .iter()
+        .chain(&gh_list)
+        .next()
+        .map(|d| format!(" · {}", esc(&d.text)))
+        .unwrap_or_default();
+    format!(
+        r##"<button type="button" class="outages-strip" hx-get="api/dashboard/outages-partial" hx-target="#content" hx-swap="innerHTML"><span class="badge {cls}">{word}</span> Outages: {n} finding(s){top} <span class="dim">· GitHub {gh_word}</span></button>"##
     )
 }
 

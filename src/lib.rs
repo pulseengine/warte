@@ -8,6 +8,7 @@
 pub mod access;
 pub mod admission;
 pub mod agent;
+pub mod alerts;
 pub mod artifact;
 pub mod auth;
 pub mod ca;
