@@ -714,9 +714,9 @@ artifacts:
   - id: REQ-QUEUE-004
     type: requirement
     title: Bounded re-queue after a merge-group ejection caused only by infra:not-acquired, with notices (#122)
-    status: proposed
+    status: approved
     release: v1.6.0
-    description: "When a merge-group ejection was caused only by infra:not-acquired jobs, the PR SHALL be re-enqueued with backoff (30, 60, 120 min), at most 3 times per PR per UTC day, passing no gate (every required check must still pass in the queue); a PR with any other failure is never re-queued. Each re-queue sends a factory-notice; exhausted retries escalate. Kill criterion: a re-queued PR ejected for any other reason stops auto re-queue for that repo until a person has looked. OPEN: who performs the enqueue. warte holds a read-only token by design; the proposal is that warte decides and notifies, and the PR's owning agent (or a scoped smithy job) enqueues."
+    description: "When a merge-group ejection was caused only by infra:not-acquired jobs, warte SHALL decide that the PR may be re-enqueued, with backoff (30, 60, 120 min) and at most 3 times per PR per UTC day, and SHALL send a factory-notice naming the PR, the attempt (n/3) and the earliest time; the agent that owns the PR performs the enqueue. warte stays read-only on GitHub (decision 2026-11-04, owner). No gate is passed: every required check must still pass in the queue; a PR with any other failure is never offered for re-queue. Exhausted retries escalate. Kill criterion: a re-queued PR ejected for any other reason stops re-queue offers for that repo until a person has looked."
     fields:
       category: functional
     provenance:
