@@ -2,10 +2,30 @@
 
 Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red (#34); their "Cuttable" claims were checked only by a local rivet.
 
-## Unreleased — v1.5.0
+## v1.5.0 — 2026-11-04
 
-- **Airport map** (REQ-DASH-015, first part): a new Airport view draws the fleet as an airport. The ground station is the tower; each machine is a pier (from the fleet model if there is one, so silent machines are drawn dashed); boards are stands, agent sessions planes, busy runners planes on 3D runways with their PR, job and time on the runway; the queue is a holding pattern. Signs in the hall open their views. Data from `GET /api/airport`; every string is drawn as text, never markup. Runway planes show elapsed time, not progress: the expected duration comes with REQ-TIMING-001.
-- **Probe enrollment** (DD-PROBE-002): `warte probe token --host <h>` on the ground station mints a one-time token (15 min, single use, bound to the host, stored as its SHA-256); `warte probe enroll <token> --ground <url>` on the machine makes its key locally and sends only a certificate request to `POST /api/probe/enroll`, which warte's CA signs for the token's host (30 days). The private key never leaves the machine. Every refusal answers the same 403. Enrollment is the one POST exempt from bearer auth (exact path); the token is its credential.
+Probes on every machine: they enroll, send signed reports, renew their own certificates and report disk IO. warte also runs on GitHub Enterprise without runner-admin rights and without burning the token's rate limit. Not started items moved to v1.6.0 (owner's decision 2026-11-04): QUIC/relay-sec transport, sigil signing, the varve layer, live push, Devices, Topology, mDNS, advisories.
+
+- **Probes enroll, send and renew.**
+  - **Enrollment** (DD-PROBE-002): `warte probe token --host <h>` on the ground station mints a one-time token (15 min, single use, bound to the host, stored as its SHA-256). `warte probe enroll <token> --ground <url>` on the machine makes its key locally (0600) and sends only a certificate request; warte's CA signs a 30-day certificate for the token's host.
+  - **Signed reports** (REQ-PROBE-006): `warte probe send` signs its report with that key and posts it to `POST /api/probe/report`. It is stored only if the certificate is warte's and valid, names the report's host, the signature verifies, and the report is fresh and newer than the last one (no replays). A signature, not mutual TLS, so it works behind a reverse proxy.
+  - **Renewal** (REQ-PROBE-007): at two thirds of its life, `probe send` renews first: a CSR for the same key, signed with it, to `POST /api/probe/renew`, no token. An expired certificate needs a new token. `warte probe revoke --host <h>` refuses every certificate the host holds now (migration 007).
+  - The release build fails unless `warte probe --help` lists `enroll`, `send` and `hook`: v1.4.0 had only `report` and broke a probe host it was installed on.
+  - Releases ship `linux-arm64` too, for probes on Raspberry Pis (REQ-RELEASE-006).
+- **Probe IO** (REQ-PROBE-008): on Linux, reports carry each block device behind a reported disk, whether it spins, its busy share, time per request and rates since the previous report, and IO pressure (PSI). Findings: a spinning disk at 60 % busy or 100 ms per request is amber, 90 % red; IO pressure at 20 % amber, 50 % red. Optional fields: old probes and ground stations keep working. `/api/machines` publishes `io`; a test fails when a report field is neither published nor listed as hidden on purpose.
+- **Walking agents that say what they do** (REQ-PROBE-009): `warte probe hook`, run by Claude Code's hooks, records only a verb ("editing", "running tests", "waiting for you") per agent; the airport shows agents walking with their repo and verb.
+- **Airport map** (REQ-DASH-015, part 1): the fleet as an airport, from live data: the ground station as the tower, machines as piers, boards as stands, agent sessions as planes, busy runners as planes on runways with their PR, job and time, the queue as a holding pattern. Full screen with `f`. Every string is drawn as text, never markup.
+- **Jobs view** (REQ-JOBS-001): scheduled jobs across hosts from the state files `pe-job` writes, against a manifest: ok, failing, overdue (no success within its window) or missing. A stopped timer or a dead host shows as overdue, not as silence.
+- **GitHub as the CI source, at enterprise scale.**
+  - **Rate limits** (REQ-GHSRC-003): every listing is asked again with its ETag; an unchanged one is a 304, which GitHub does not count. warte sends nothing while `rate_reserve` (150) or fewer requests are left, so other users of the token keep headroom. The default interval is now 120 s.
+  - **Without runner-admin rights** (REQ-GHSRC-004): when the org runner list is unreadable (403, or 404 for ordinary members), busy self-hosted runners are taken from their running jobs, so Queue, Ask, `/api/eta` and admission count running self-hosted work. The Overview shows "self-hosted jobs running" instead of runways 0/0.
+  - **Runner groups without a `self-hosted` label** (REQ-GHSRC-005): `self_hosted_labels` (`WARTE_SELF_HOSTED_LABELS`), `*` wildcards, case-insensitive.
+- **Critical Path draws the chain** (REQ-DASH-006, #44): `repo_dependencies` in warte.toml declares which repo depends on which. The view shows the longest chain with a repo queued or running, its bottleneck, and a lower bound on release time from the measured pool waits. The path search now walks every simple path and needs a blocking repo, as the requirement says. rivet externals and GitHub's dependency graph as sources follow (REQ-CRIT-001, v1.6.0).
+- **Ask refreshes itself** (REQ-DASH-016): its answer and in-flight list re-ask every 30 s while visible; the form stays as typed.
+- **smithy-hub retired** (REQ-MIGRATE-001, REQ-SMITHY-004): warte's ground station replaced it in place, reading its data directory as-is, after a parallel run in which one smithy agent fed both and a full UTC day of ledgers matched (6765 records, 0 differences).
+- **A config file that does not parse stops warte from starting** (REQ-DEPLOY-002). Before, warte fell back to its defaults and ran for minutes without its hub, fleet model and jobs while looking healthy.
+- **Docs:** enterprise deployment notes (REQ-DOCS-010): GHE data residency behind a TLS-intercepting proxy, a static musl build, HTTP basic auth in front with the three probe routes left open (the documented Caddy matcher is checked against the server's exempt paths).
+- **CI:** all GitHub Actions pinned to commit SHAs.
 
 ## v1.4.0 — 2026-10-29
 
