@@ -198,4 +198,27 @@ mod tests {
     fn test_unknown_topic() {
         assert!(get_topic("nonexistent").is_none());
     }
+
+    // rivet: verifies REQ-DOCS-010
+    #[test]
+    fn enterprise_notes_cover_ghe_musl_and_the_probe_routes_auth_leaves_open() {
+        let d = include_str!("../../docs/topics/deployment.md");
+        let notes = &d[d.find("## Enterprise deployment notes").expect("section")..];
+        assert!(notes.contains("api_url = \"https://api.<tenant>.ghe.com\""));
+        assert!(notes.contains("ca_bundle = "));
+        assert!(notes.contains("--target x86_64-unknown-linux-musl"));
+        assert!(notes.contains("basic_auth @guarded"));
+        // the Caddy example leaves open exactly what the server exempts
+        let caddy = &notes[notes.find("```caddyfile").unwrap()..];
+        let caddy = &caddy[..caddy[3..].find("```").unwrap()];
+        let line = caddy
+            .lines()
+            .find(|l| l.trim_start().starts_with("path "))
+            .unwrap();
+        let mut documented: Vec<&str> = line.split_whitespace().skip(1).collect();
+        let mut exempt = crate::auth::PROBE_OPEN_PATHS.to_vec();
+        documented.sort();
+        exempt.sort();
+        assert_eq!(documented, exempt);
+    }
 }

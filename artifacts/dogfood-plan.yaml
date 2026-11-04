@@ -1228,7 +1228,7 @@ artifacts:
   - id: REQ-DOCS-010
     type: requirement
     title: Enterprise deployment notes
-    status: approved
+    status: implemented
     release: v1.5.0
     description: Docs SHALL cover a GHE data-residency base URL with a CA bundle example, a static musl build that runs on older and newer Linux, and putting auth in front (e.g. Caddy basic auth) with the probe routes left open.
     fields:

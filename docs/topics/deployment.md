@@ -93,6 +93,73 @@ The base is set, never guessed from a web URL. The same settings as a
   bundled roots. A file without a certificate stops startup.
 - `[hub]` and `[github]` are exclusive: one CI source per instance.
 
+## Enterprise deployment notes
+
+### GitHub Enterprise Cloud with data residency, behind a proxy
+
+The API base of a data-residency tenant is `https://api.<tenant>.ghe.com`
+(no `/api/v3`). Where a TLS-intercepting proxy re-signs traffic, give warte
+the proxy's CA as PEM; it is trusted in addition to the bundled roots:
+
+```toml
+# warte.toml
+[github]
+api_url = "https://api.<tenant>.ghe.com"
+org = "<org>"
+ca_bundle = "/etc/ssl/certs/corp-proxy-ca.pem"
+# runner groups whose jobs carry no `self-hosted` label
+self_hosted_labels = ["<group-prefix>-*"]
+```
+
+```bash
+WARTE_GITHUB_TOKEN=<read-only token> warte serve
+```
+
+A token without "Self-hosted runners: read" still works: running
+self-hosted work is taken from the jobs (see above).
+
+### One Linux binary for older and newer distributions
+
+The release's Linux binaries link glibc and need a glibc at least as new as
+the build image's for the symbols they use. For older distributions, or
+one binary across many, build a static musl binary:
+
+```bash
+cargo install cargo-zigbuild        # needs zig on PATH
+cargo zigbuild --release --target x86_64-unknown-linux-musl
+cargo zigbuild --release --target aarch64-unknown-linux-musl
+file target/x86_64-unknown-linux-musl/release/warte   # "statically linked"
+```
+
+A static binary does not use the system's name service switch, so `.local`
+names (mDNS) do not resolve: give the probe the ground station by an
+address or a DNS name, or pin the name in `/etc/hosts`.
+
+### Authentication in front, probe routes left open
+
+warte's dashboard and read API have no login of their own yet (#46). Put
+one in front, for example HTTP basic auth in Caddy, and leave the three
+probe routes open: they carry their own authentication (a one-time token
+for enrollment, a signature by the enrolled key for reports and renewals)
+and probes cannot answer a password prompt.
+
+```caddyfile
+warte.example.internal {
+	@guarded not {
+		method POST
+		path /api/probe/enroll /api/probe/report /api/probe/renew
+	}
+	# caddy hash-password --plaintext '<password>'
+	basic_auth @guarded {
+		admin <bcrypt hash>
+	}
+	reverse_proxy 127.0.0.1:8080
+}
+```
+
+Only `POST` to exactly those paths passes without the password; everything
+else, including `GET` on the same paths, asks for it.
+
 ## Deployment steps
 
 See `docs/deployment.md` for the full deployment guide.
