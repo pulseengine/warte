@@ -1,4 +1,4 @@
-//! GitHub status API integration — real status from status.github.com.
+//! GitHub status integration: real status from githubstatus.com (statuspage.io).
 //!
 //! REQ-STATUS-001: The outages view SHALL query the real GitHub status
 //! from status.github.com (or GHE status page) instead of hardcoded
@@ -18,7 +18,10 @@ use tokio::sync::RwLock;
 pub struct GitHubStatus {
     /// Overall status: "operational", "degraded", "outage".
     pub status: String,
-    /// Active incidents.
+    /// Components that are not operational, e.g. Actions "partial outage".
+    #[serde(default)]
+    pub components: Vec<Component>,
+    /// Unresolved incidents.
     pub incidents: Vec<Incident>,
     /// When the status was fetched.
     pub fetched_at: DateTime<Utc>,
@@ -26,19 +29,34 @@ pub struct GitHubStatus {
     pub source: String,
 }
 
+/// A status-page component that is not operational.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Component {
+    pub name: String,
+    pub status: String,
+}
+
 /// A GitHub status incident.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Incident {
     pub title: String,
     pub status: String,
+    /// none, minor, major or critical.
+    #[serde(default)]
+    pub impact: String,
     pub started_at: Option<DateTime<Utc>>,
     pub url: String,
 }
 
-/// GitHub status API response (from status.github.com/api/v2/status.json).
+/// statuspage.io `summary.json`: overall indicator, components, and the
+/// incidents that are not resolved, in one request.
 #[derive(Debug, Deserialize)]
-struct StatusApiResponse {
+struct SummaryApi {
     status: StatusApiStatus,
+    #[serde(default)]
+    components: Vec<ComponentApi>,
+    #[serde(default)]
+    incidents: Vec<IncidentApi>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -48,18 +66,65 @@ struct StatusApiStatus {
     description: String,
 }
 
-/// GitHub incidents API response (from status.github.com/api/v2/incidents.json).
 #[derive(Debug, Deserialize)]
-struct IncidentsApiResponse {
-    incidents: Vec<IncidentApi>,
+struct ComponentApi {
+    name: String,
+    status: String,
+    #[serde(default)]
+    group: bool,
 }
 
 #[derive(Debug, Deserialize)]
 struct IncidentApi {
     name: String,
     status: String,
+    #[serde(default)]
+    impact: String,
     created_at: String,
+    #[serde(default)]
     shortlink: String,
+}
+
+/// Parse a statuspage.io `summary.json` body. Only unresolved incidents and
+/// components that are not operational are kept.
+pub fn parse_summary(body: &str, source: &str) -> anyhow::Result<GitHubStatus> {
+    let s: SummaryApi = serde_json::from_str(body)?;
+    let status = match s.status.indicator.as_str() {
+        "none" => "operational",
+        "minor" => "degraded",
+        "major" | "critical" => "outage",
+        _ => "unknown",
+    };
+    let components = s
+        .components
+        .into_iter()
+        .filter(|c| !c.group && c.status != "operational")
+        .map(|c| Component {
+            name: c.name,
+            status: c.status.replace('_', " "),
+        })
+        .collect();
+    let incidents = s
+        .incidents
+        .into_iter()
+        .filter(|i| i.status != "resolved" && i.status != "postmortem")
+        .map(|i| Incident {
+            title: i.name,
+            status: i.status,
+            impact: i.impact,
+            started_at: DateTime::parse_from_rfc3339(&i.created_at)
+                .ok()
+                .map(|d| d.with_timezone(&Utc)),
+            url: i.shortlink,
+        })
+        .collect();
+    Ok(GitHubStatus {
+        status: status.to_string(),
+        components,
+        incidents,
+        fetched_at: Utc::now(),
+        source: source.to_string(),
+    })
 }
 
 /// GitHub status client with caching.
@@ -77,14 +142,17 @@ pub struct StatusClient {
 impl StatusClient {
     /// Create a new status client for github.com.
     pub fn github() -> Self {
-        Self::new("https://status.github.com/api/v2")
+        Self::new("https://www.githubstatus.com/api/v2")
     }
 
     /// Create a new status client for a custom status page (e.g., GHE).
     pub fn new(api_base: &str) -> Self {
         Self {
             api_base: api_base.trim_end_matches('/').to_string(),
-            client: reqwest::Client::new(),
+            client: reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(5))
+                .build()
+                .unwrap_or_default(),
             cache: Arc::new(RwLock::new(None)),
             cache_ttl: Duration::minutes(5),
         }
@@ -92,6 +160,9 @@ impl StatusClient {
 
     /// Get the current GitHub status (cached).
     pub async fn get_status(&self) -> anyhow::Result<GitHubStatus> {
+        if self.api_base == "off" {
+            anyhow::bail!("not monitored here (status_url = \"off\")");
+        }
         // Check cache
         {
             let cache = self.cache.read().await;
@@ -114,51 +185,19 @@ impl StatusClient {
         Ok(status)
     }
 
-    /// Fetch fresh status from the API.
+    /// Fetch fresh status from the status page (not GitHub's API: no rate
+    /// limit is spent).
     async fn fetch_status(&self) -> anyhow::Result<GitHubStatus> {
-        // Fetch overall status
-        let status_url = format!("{}/status.json", self.api_base);
-        let status_resp: StatusApiResponse =
-            self.client.get(&status_url).send().await?.json().await?;
-
-        let overall = match status_resp.status.indicator.as_str() {
-            "none" => "operational",
-            "minor" => "degraded",
-            "major" => "outage",
-            "critical" => "outage",
-            _ => "unknown",
-        };
-
-        // Fetch active incidents
-        let incidents_url = format!("{}/incidents.json", self.api_base);
-        let incidents_resp: IncidentsApiResponse = self
+        let url = format!("{}/summary.json", self.api_base);
+        let body = self
             .client
-            .get(&incidents_url)
+            .get(&url)
             .send()
             .await?
-            .json()
-            .await
-            .unwrap_or(IncidentsApiResponse { incidents: vec![] });
-
-        let incidents: Vec<Incident> = incidents_resp
-            .incidents
-            .iter()
-            .map(|inc| Incident {
-                title: inc.name.clone(),
-                status: inc.status.clone(),
-                started_at: DateTime::parse_from_rfc3339(&inc.created_at)
-                    .ok()
-                    .map(|d| d.with_timezone(&Utc)),
-                url: inc.shortlink.clone(),
-            })
-            .collect();
-
-        Ok(GitHubStatus {
-            status: overall.to_string(),
-            incidents,
-            fetched_at: Utc::now(),
-            source: self.api_base.clone(),
-        })
+            .error_for_status()?
+            .text()
+            .await?;
+        parse_summary(&body, &self.api_base)
     }
 
     /// Invalidate the cache (force fresh fetch on next call).
@@ -175,7 +214,7 @@ mod tests {
     #[test]
     fn test_status_client_creation() {
         let client = StatusClient::github();
-        assert_eq!(client.api_base, "https://status.github.com/api/v2");
+        assert_eq!(client.api_base, "https://www.githubstatus.com/api/v2");
         assert_eq!(client.cache_ttl, Duration::minutes(5));
     }
 
@@ -189,6 +228,7 @@ mod tests {
     fn test_status_serialization() {
         let status = GitHubStatus {
             status: "operational".to_string(),
+            components: vec![],
             incidents: vec![],
             fetched_at: Utc::now(),
             source: "https://status.github.com/api/v2".to_string(),
@@ -205,6 +245,7 @@ mod tests {
         let incident = Incident {
             title: "Test incident".to_string(),
             status: "investigating".to_string(),
+            impact: "major".to_string(),
             started_at: None,
             url: "https://status.github.com/incidents/123".to_string(),
         };

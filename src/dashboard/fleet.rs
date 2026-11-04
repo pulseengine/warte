@@ -12,6 +12,10 @@ use crate::hub::{now, Hub};
 
 /// A snapshot older than this is shown as stale (the agent sends one a minute).
 const STALE_AFTER_S: i64 = 5 * 60;
+/// A GitHub-hosted job queued this long is degraded: hosted runners normally
+/// start within a minute or two, so this is GitHub's capacity, the org's
+/// concurrency limit for that runner type (macOS is small), or an incident.
+pub const HOSTED_WAIT_S: i64 = 15 * 60;
 
 pub fn esc(s: &str) -> String {
     s.replace('&', "&amp;")
@@ -505,6 +509,27 @@ pub fn incidents(hub: Option<&Hub>) -> String {
                 ),
             ));
         }
+        // GitHub-hosted jobs stuck in the queue, per runner type
+        let mut stuck: std::collections::BTreeMap<&str, (u32, i64)> = Default::default();
+        for j in q
+            .hosted
+            .iter()
+            .filter(|j| j.status == "queued" && t - j.since >= HOSTED_WAIT_S)
+        {
+            let e = stuck.entry(j.labels.as_str()).or_default();
+            e.0 += 1;
+            e.1 = e.1.max(t - j.since);
+        }
+        for (labels, (n, oldest)) in stuck {
+            list.push((
+                1,
+                format!(
+                    "GitHub-hosted {}: {n} job(s) queued, the oldest for {}. GitHub's capacity, the org's concurrency limit for this runner type, or an Actions incident (see GitHub status).",
+                    esc(if labels.is_empty() { "runner" } else { labels }),
+                    dur(oldest)
+                ),
+            ));
+        }
     }
     for l in hub.link() {
         let rate = l.lost as f64 * 100.0 / (l.received + l.lost).max(1) as f64;
@@ -537,8 +562,64 @@ pub fn incidents(hub: Option<&Hub>) -> String {
             .collect()
     };
     format!(
-        r#"<section class="panel"><h3>Detected now · CI fleet and ground station</h3>{body}<div class="note">From the latest snapshot and the telemetry link. GitHub's own status is not monitored yet.</div></section>{}"#,
+        r#"<section class="panel"><h3>Detected now · CI fleet and ground station</h3>{body}<div class="note">From the latest snapshot and the telemetry link; GitHub's own status is below.</div></section>{}"#,
         freshness(at)
+    )
+}
+
+/// GitHub's status page (REQ-STATUS-001): overall, components that are not
+/// operational, unresolved incidents. `Err` says why it could not be read.
+pub fn github_status(st: Result<&crate::status::GitHubStatus, String>) -> String {
+    let st = match st {
+        Ok(s) => s,
+        Err(e) => {
+            return format!(
+                r#"<section class="panel"><h3>GitHub status</h3><div class="incident sev1"><span class="badge yellow">unknown</span>GitHub's status page could not be read: {}</div></section>"#,
+                esc(&e)
+            )
+        }
+    };
+    let mut body = String::new();
+    for i in &st.incidents {
+        let sev = if matches!(i.impact.as_str(), "major" | "critical") {
+            2
+        } else {
+            1
+        };
+        body += &format!(
+            r#"<div class="incident sev{sev}"><span class="badge {}">{}</span><b>{}</b>&nbsp;{}{} <a href="{}" rel="noopener noreferrer">details</a></div>"#,
+            if sev == 2 { "red" } else { "yellow" },
+            esc(if i.impact.is_empty() {
+                "incident"
+            } else {
+                &i.impact
+            }),
+            esc(&i.title),
+            esc(&i.status),
+            i.started_at
+                .map(|s| format!(", since {}", dur((chrono::Utc::now() - s).num_seconds())))
+                .unwrap_or_default(),
+            esc(if i.url.starts_with("https://") {
+                &i.url
+            } else {
+                "https://www.githubstatus.com"
+            }),
+        );
+    }
+    for c in &st.components {
+        body += &format!(
+            r#"<div class="incident sev1"><span class="badge yellow">{}</span><b>{}</b></div>"#,
+            esc(&c.status),
+            esc(&c.name)
+        );
+    }
+    if body.is_empty() {
+        body = r#"<div class="allclear"><span class="pill">operational</span> GitHub reports no incident.</div>"#.into();
+    }
+    format!(
+        r#"<section class="panel"><h3>GitHub status · {}</h3>{body}<div class="note">From githubstatus.com, fetched {} ago (cached 5 min); no GitHub API calls.</div></section>"#,
+        esc(&st.status),
+        dur((chrono::Utc::now() - st.fetched_at).num_seconds().max(0))
     )
 }
 

@@ -529,13 +529,16 @@ pub async fn outages_partial(State(state): State<crate::server::AppState>) -> Re
             unhealthy.join(", ")
         )
     };
+    let gh = state.status.get_status().await.map_err(|e| e.to_string());
     Html(format!(
         r#"<div class="overview">
   <h2>Outages</h2>
   {}
+  {}
   <section class="panel"><h3>Registered agents</h3>{agents_line}</section>
 </div>"#,
         fleet::incidents(state.hub.as_ref()),
+        fleet::github_status(gh.as_ref().map_err(Clone::clone)),
     ))
     .into_response()
 }
