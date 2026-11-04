@@ -130,6 +130,39 @@ within 10 minutes and is newer than the last one from that host (no
 replays). A signature, not mutual TLS, so it works behind a reverse proxy
 that terminates TLS.
 
+### Feeds: forwarding temper's report (REQ-TEMPER-002)
+
+A probe can also forward a file another service on its machine writes.
+Today that is temper's compliance report on temper's host:
+
+```bash
+warte probe send --ground https://<host>/warte \
+  --feed temper=/var/lib/temper/report.json
+```
+
+After the machine report, the probe sends the file as one CCSDS segmented
+sequence on APID 0x400 (the relay-ccsds codec the smithy agent's telemetry
+uses), signed with its key, to `POST /api/probe/feed/temper`. A missing or
+refused feed fails the run but does not hold back the machine report. Only
+known feeds are accepted (`temper`); an unknown name is a usage error.
+
+On the ground station, name the one host whose temper feed counts:
+
+```toml
+[temper]
+host = "<the enrolled probe host on temper's machine>"
+stale_after_s = 93600   # the last full sweep may be this old (26 h)
+```
+
+warte accepts the feed only from that host's probe, fresh, newer than the
+last, from an unrevoked certificate, and only a valid `temper-report.v1`:
+enums, identifiers, RFC 3339 times and hex, at most 500 repos with 40
+checks each and 1 MiB. Anything else is rejected whole, nothing is stored,
+and the input is never quoted back. The Compliance view and `GET
+/api/compliance` show failed checks worst first, undecided checks, temper's
+failed or stuck tasks, its review counts and its own GitHub API use. warte
+itself makes no GitHub calls for this.
+
 ### Renewal and revocation (REQ-PROBE-007)
 
 Certificates last 30 days. Once two thirds have passed, `warte probe send`
@@ -147,8 +180,8 @@ warte probe revoke --host <host>     # on the ground station
 refuses every certificate the host holds now, for reports and renewals,
 until it enrolls again with a new token (`warte probe token --host <host>`).
 
-`POST /api/probe/enroll`, `POST /api/probe/report` and `POST
-/api/probe/renew` are the only write endpoints usable without the
+`POST /api/probe/enroll`, `/api/probe/report`, `/api/probe/renew` and
+`/api/probe/feed/temper` are the only write endpoints usable without the
 dashboard's login: the one-time token and the signatures are their
 authentication. Every refusal gets the same answer;
 the reason is in the server log. Agent working/waiting state from hooks

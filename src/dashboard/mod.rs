@@ -10,6 +10,7 @@
 //! Views refresh every 30 s and show the age of the data they render.
 
 pub mod airport;
+pub mod compliance;
 pub mod costs;
 pub mod fleet;
 pub mod jobs;
@@ -102,6 +103,24 @@ pub async fn machines_partial(State(state): State<crate::server::AppState>) -> R
 pub async fn jobs_partial(State(state): State<crate::server::AppState>) -> Response {
     let jobs = crate::server::api::jobs_now(&state);
     Html(jobs::view(jobs.as_deref(), crate::hub::now())).into_response()
+}
+
+/// HTMX partial: compliance from temper's report (REQ-TEMPER-002).
+pub async fn compliance_partial(State(state): State<crate::server::AppState>) -> Response {
+    let latest = state.temper.as_ref().and_then(|t| t.latest());
+    let stale = state
+        .config
+        .temper
+        .as_ref()
+        .map(|t| t.stale_after_s)
+        .unwrap_or(26 * 3600);
+    Html(compliance::view(
+        state.temper.is_some(),
+        latest.as_ref(),
+        stale,
+        crate::hub::now(),
+    ))
+    .into_response()
 }
 
 /// HTMX partial: costs (REQ-COSTS-001).

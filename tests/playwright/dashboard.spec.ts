@@ -10,6 +10,7 @@ import { collectErrors, waitForHtmx } from "./helpers";
 const VIEWS = [
   "Overview",
   "Jobs",
+  "Compliance",
   "Ask",
   "Queue",
   "Machines",

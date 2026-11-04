@@ -1325,3 +1325,35 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-11-03T20:55:58Z
+
+  - id: DD-TEMPER-002
+    type: design-decision
+    title: temper's results reach warte as a report its host's probe forwards, as CCSDS packets; no HTML in temper, no GitHub calls in warte for it
+    status: approved
+    release: v1.5.1
+    description: "temper (the GitHub App on its own host) keeps the GitHub side: webhooks and a rare sweep, on the App installation's own rate limit. It writes temper-report.v1 (enums, identifiers, times and hex only) to a local file. The enrolled warte probe on that host sends it as one CCSDS segmented sequence on APID 0x400 (relay-ccsds codec, the same as the smithy agent's telemetry), signed with the probe key, to POST /api/probe/feed/temper. warte accepts it only from the configured host, checks freshness, replay, revocation and the schema, and shows a Compliance view. temper's dashboard and its per-repo CI/PR/check calls go: warte already has those from the CI host. When DD-TRANSPORT-001 lands, the same packets move to QUIC + relay-sec unchanged. Supersedes the HTTP pull of DD-TEMPER-001."
+    fields:
+      rationale: "Owner, 2026-11-04: remove the HTML from temper, move its data via the probe, use as little GitHub API as possible (the personal token ran out at 05:56 UTC that day), and use the same CCSDS conventions between warte and temper. A warte-side re-run of temper's checks would spend the token warte and the agents share; temper's App has its own limit. Agreed with the temper session the same day; deployment through smithy (smithy#69)."
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-04T06:06:22Z
+    links:
+      - type: satisfies
+        target: REQ-TEMPER-002
+
+  - id: REQ-TEMPER-002
+    type: requirement
+    title: temper's compliance report arrives via its host's probe and is shown in warte
+    status: implemented
+    release: v1.5.1
+    description: warte SHALL accept temper-report.v1 only from the probe enrolled for the configured [temper] host, as a signed CCSDS segmented sequence on APID 0x400 (probe send --feed temper=<path>), fresh within 10 min, newer than the last, from an unrevoked certificate. It SHALL reject the whole report on any unknown field, any string that is not an enum, identifier, RFC 3339 time or hex, more than 500 repos or 40 checks, or more than 1 MiB, store nothing from it, and never quote the input. It SHALL show failed checks worst first, undecided checks, temper's task failures, review counts and its API use, and mark the report stale when its last full sweep is older than stale_after_s (26 h). warte SHALL make no GitHub API calls for it.
+    links:
+      - type: satisfies
+        target: SC-006
+      - type: implements
+        target: DD-TEMPER-002
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-04T06:06:22Z

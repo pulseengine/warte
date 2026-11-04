@@ -205,8 +205,9 @@ async fn main() -> anyhow::Result<()> {
                 ground,
                 state_dir,
                 ca_cert,
+                feeds,
             } => {
-                warte::probe::send::send(&ground, &state_dir, ca_cert.as_deref()).await?;
+                warte::probe::send::send(&ground, &state_dir, ca_cert.as_deref(), &feeds).await?;
             }
             warte::cli::ProbeCommands::Hook => {
                 use std::io::Read;

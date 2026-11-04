@@ -39,6 +39,11 @@ pub const APID_DISPATCHER: u16 = 0x301;
 pub const APID_WATCHDOG: u16 = 0x302;
 pub const APID_BAZEL: u16 = 0x303;
 pub const APID_TRACE: u16 = 0x304;
+/// temper's compliance report, forwarded by a probe (REQ-TEMPER-002): one
+/// CCSDS segmented sequence (first / continuation / last), so the same codec
+/// carries it now inside the probe's signed envelope and later over the
+/// QUIC + relay-sec transport (DD-TRANSPORT-001).
+pub const APID_FEED_TEMPER: u16 = 0x400;
 /// Sent LAST in every burst: tells the hub a snapshot is complete.
 pub const APID_FRAME_END: u16 = 0x3F0;
 /// Stay under the WireGuard MTU so no packet is IP-fragmented.
@@ -59,6 +64,7 @@ pub fn apid_name(apid: u16) -> String {
         APID_BAZEL => "bazel-sweep".into(),
         APID_TRACE => "trace-rollout".into(),
         APID_FRAME_END => "frame-end".into(),
+        APID_FEED_TEMPER => "feed-temper".into(),
         a if (APID_HOSTED_BASE..APID_HOSTED_BASE + HOSTED_CHUNKS).contains(&a) => {
             format!("hosted{}", a - APID_HOSTED_BASE)
         }
@@ -90,6 +96,93 @@ pub fn packet(apid: u16, seq: u16, payload: &[u8]) -> Vec<u8> {
     let c = compute_checksum(&v);
     v.push(c);
     v
+}
+
+/// Split `data` into one CCSDS segmented sequence on `apid`: sequence flags
+/// 01 first, 00 continuation, 10 last, 11 when it fits one packet; counts
+/// 0, 1, 2, ... At most 2^14 packets.
+pub fn segment(apid: u16, data: &[u8]) -> Result<Vec<u8>, String> {
+    let chunks: Vec<&[u8]> = if data.is_empty() {
+        vec![&[][..]]
+    } else {
+        data.chunks(MAX_PAYLOAD).collect()
+    };
+    if chunks.len() > SEQ_MOD as usize {
+        return Err("too large for one CCSDS sequence".into());
+    }
+    let n = chunks.len();
+    let mut out = Vec::with_capacity(data.len() + 7 * n);
+    for (i, c) in chunks.into_iter().enumerate() {
+        let flags = match (i == 0, i + 1 == n) {
+            (true, true) => 0b11,
+            (true, false) => 0b01,
+            (false, true) => 0b10,
+            (false, false) => 0b00,
+        };
+        let hdr = CcsdsHeader {
+            version: 0,
+            packet_type: PacketType::Telemetry,
+            sec_header_flag: false,
+            apid,
+            sequence_flags: flags,
+            sequence_count: i as u16,
+            data_length: c.len() as u16,
+        };
+        let mut h = [0u8; 6];
+        encode_header(&hdr, &mut h);
+        let start = out.len();
+        out.extend_from_slice(&h);
+        out.extend_from_slice(c);
+        let sum = compute_checksum(&out[start..]);
+        out.push(sum);
+    }
+    Ok(out)
+}
+
+/// Reassemble a stream of packets written by [`segment`]: every packet must
+/// pass [`open`], carry `apid`, count up from 0 without a gap and have the
+/// right sequence flags. Anything else rejects the whole stream.
+pub fn reassemble(apid: u16, mut stream: &[u8]) -> Result<Vec<u8>, String> {
+    let mut out = vec![];
+    let mut i: u32 = 0;
+    loop {
+        let h = decode_header(stream).map_err(|e| format!("packet {i}: header: {e:?}"))?;
+        let len = 6 + h.data_length as usize + 1;
+        if stream.len() < len {
+            return Err(format!("packet {i}: truncated"));
+        }
+        let (h, payload) = open(&stream[..len]).map_err(|e| format!("packet {i}: {e}"))?;
+        if h.apid != apid {
+            return Err(format!("packet {i}: wrong APID 0x{:03x}", h.apid));
+        }
+        if h.sequence_count as u32 != i {
+            return Err(format!("packet {i}: sequence count {}", h.sequence_count));
+        }
+        let want_first = i == 0;
+        stream = &stream[len..];
+        let last = stream.is_empty();
+        let ok = match h.sequence_flags {
+            0b11 => want_first && last,
+            0b01 => want_first && !last,
+            0b00 => !want_first && !last,
+            0b10 => !want_first && last,
+            _ => false,
+        };
+        if !ok {
+            return Err(format!(
+                "packet {i}: sequence flags {:02b}",
+                h.sequence_flags
+            ));
+        }
+        out.extend_from_slice(payload);
+        if last {
+            return Ok(out);
+        }
+        i += 1;
+        if i >= SEQ_MOD {
+            return Err("more packets than one CCSDS sequence holds".into());
+        }
+    }
 }
 
 /// Validate a received packet; returns header and payload.
@@ -1342,5 +1435,47 @@ mod tests {
         assert_eq!(g.errors, s.errors);
         assert_eq!(a.rejected, 0);
         assert!(a.link.values().all(|l| l.lost == 0));
+    }
+
+    // rivet: verifies REQ-TEMPER-002
+    #[test]
+    fn a_feed_travels_as_one_segmented_ccsds_sequence() {
+        let data: Vec<u8> = (0..5000u32).map(|i| (i % 251) as u8).collect();
+        let s = segment(APID_FEED_TEMPER, &data).unwrap();
+        // 5000 bytes at 1293 per packet: 4 packets, each with header and checksum
+        assert_eq!(s.len(), 5000 + 4 * 7);
+        let flags: Vec<u8> = {
+            let mut v = vec![];
+            let mut rest = &s[..];
+            while !rest.is_empty() {
+                let (h, p) =
+                    open(&rest[..6 + decode_header(rest).unwrap().data_length as usize + 1])
+                        .unwrap();
+                assert!(
+                    6 + p.len() < MAX_PACKET,
+                    "the packet with its checksum fits the MTU"
+                );
+                v.push(h.sequence_flags);
+                rest = &rest[6 + p.len() + 1..];
+            }
+            v
+        };
+        assert_eq!(flags, [0b01, 0b00, 0b00, 0b10]);
+        assert_eq!(reassemble(APID_FEED_TEMPER, &s).unwrap(), data);
+        let one = segment(APID_FEED_TEMPER, b"{}").unwrap();
+        assert_eq!(reassemble(APID_FEED_TEMPER, &one).unwrap(), b"{}");
+        // wrong APID, a flipped byte, a dropped or reordered packet, trailing bytes
+        assert!(reassemble(APID_HOST, &s).is_err());
+        let mut x = s.clone();
+        x[100] ^= 1;
+        assert!(reassemble(APID_FEED_TEMPER, &x).is_err());
+        let p = 6 + 1293 + 1;
+        let dropped = [&s[..p], &s[2 * p..]].concat();
+        assert!(reassemble(APID_FEED_TEMPER, &dropped).is_err());
+        let swapped = [&s[p..2 * p], &s[..p], &s[2 * p..]].concat();
+        assert!(reassemble(APID_FEED_TEMPER, &swapped).is_err());
+        assert!(reassemble(APID_FEED_TEMPER, &[s.clone(), vec![0]].concat()).is_err());
+        assert!(reassemble(APID_FEED_TEMPER, &s[..s.len() - 1]).is_err());
+        assert_eq!(apid_name(APID_FEED_TEMPER), "feed-temper");
     }
 }

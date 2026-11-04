@@ -175,6 +175,11 @@ pub enum ProbeCommands {
         /// PEM CA to trust for --ground (a reverse proxy's local CA)
         #[arg(long, env = "WARTE_CA_CERT")]
         ca_cert: Option<std::path::PathBuf>,
+        /// Also send a file another service here writes, signed, as
+        /// `<name>=<path>` (e.g. `temper=/var/lib/temper/report.json`);
+        /// repeatable (REQ-TEMPER-002)
+        #[arg(long = "feed", value_parser = parse_feed)]
+        feeds: Vec<(String, std::path::PathBuf)>,
     },
     /// Called by Claude Code's hooks: reads the event on stdin and records
     /// only a verb ("editing", "waiting for you") for this agent. Never
@@ -248,4 +253,18 @@ pub enum ArtifactCommands {
         #[arg(long, default_value = ".")]
         output: String,
     },
+}
+
+/// `<name>=<path>` for `probe send --feed`.
+fn parse_feed(s: &str) -> Result<(String, std::path::PathBuf), String> {
+    let (name, path) = s
+        .split_once('=')
+        .ok_or("expected <name>=<path>, e.g. temper=/var/lib/temper/report.json")?;
+    if crate::probe::send::feed_apid(name).is_none() {
+        return Err(format!("unknown feed {name:?} (known: temper)"));
+    }
+    if path.is_empty() {
+        return Err("empty path".into());
+    }
+    Ok((name.to_string(), path.into()))
 }

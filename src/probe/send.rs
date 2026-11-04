@@ -197,6 +197,122 @@ pub fn verify_renew(ca_der: &[u8], req: &RenewRequest, now: i64) -> anyhow::Resu
     })
 }
 
+/// Body of POST /api/probe/feed/<name> (REQ-TEMPER-002): a file another
+/// service on the probe's machine writes (temper's report), sent signed with
+/// the probe's key.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SignedFeed {
+    pub cert: String,
+    /// The feed's name, e.g. `temper`; it is part of what is signed.
+    pub name: String,
+    /// The file as one CCSDS segmented sequence on the feed's APID
+    /// (`hub::telemetry::segment`), base64. The same packets will travel over
+    /// the QUIC + relay-sec transport (DD-TRANSPORT-001).
+    pub ccsds: String,
+    /// Unix seconds when it was sent; within [`MAX_SKEW_S`].
+    pub at: i64,
+    /// Signature over [`feed_message`], hex.
+    pub sig: String,
+}
+
+/// The bytes a feed signs: a fixed prefix, so neither a report nor a renewal
+/// signature can pass as one, and the name, so a feed cannot be replayed
+/// under another.
+pub fn feed_message(name: &str, at: i64, packets: &[u8]) -> Vec<u8> {
+    let mut m = format!("warte-probe-feed\n{name}\n{at}\n").into_bytes();
+    m.extend_from_slice(packets);
+    m
+}
+
+/// The APID a feed travels on; only known feeds have one.
+pub fn feed_apid(name: &str) -> Option<u16> {
+    match name {
+        "temper" => Some(crate::hub::telemetry::APID_FEED_TEMPER),
+        _ => None,
+    }
+}
+
+/// What a feed verified: the sending host, its certificate's issue time,
+/// and the reassembled file.
+#[derive(Debug)]
+pub struct VerifiedFeed {
+    pub host: String,
+    pub issued_at: i64,
+    pub data: Vec<u8>,
+}
+
+/// Verify a feed: a known feed name, a current certificate from warte's CA,
+/// a fresh request signed by its key, and a complete CCSDS sequence on the
+/// feed's APID. The caller checks the host is the one the feed may come
+/// from, revocation and replay.
+pub fn verify_feed(ca_der: &[u8], f: &SignedFeed, now: i64) -> anyhow::Result<VerifiedFeed> {
+    let apid = feed_apid(&f.name).ok_or_else(|| anyhow!("unknown feed"))?;
+    let c = check_cert(ca_der, &f.cert, now)?;
+    if (f.at - now).abs() > MAX_SKEW_S {
+        return Err(anyhow!("feed too old or from the future"));
+    }
+    use base64::Engine;
+    let packets = base64::engine::general_purpose::STANDARD
+        .decode(&f.ccsds)
+        .context("feed packets base64")?;
+    verify_sig(
+        &c.public_key,
+        &feed_message(&f.name, f.at, &packets),
+        &f.sig,
+    )
+    .map_err(|_| anyhow!("feed signature does not verify"))?;
+    let data = crate::hub::telemetry::reassemble(apid, &packets)
+        .map_err(|e| anyhow!("feed packets: {e}"))?;
+    Ok(VerifiedFeed {
+        host: c.cn,
+        issued_at: c.not_before,
+        data,
+    })
+}
+
+/// Client side: send the file at `path` as feed `name`.
+pub async fn send_feed(
+    client: &reqwest::Client,
+    ground: &str,
+    state_dir: &std::path::Path,
+    name: &str,
+    path: &std::path::Path,
+    now: i64,
+) -> anyhow::Result<()> {
+    let apid = feed_apid(name).ok_or_else(|| anyhow!("unknown feed {name:?} (known: temper)"))?;
+    let key = std::fs::read_to_string(state_dir.join("probe-key.pem"))?;
+    let cert = std::fs::read_to_string(state_dir.join("probe-cert.pem"))?;
+    let meta =
+        std::fs::metadata(path).with_context(|| format!("feed {name}: {}", path.display()))?;
+    if meta.len() > 2 << 20 {
+        return Err(anyhow!(
+            "feed {name}: {} is larger than 2 MiB",
+            path.display()
+        ));
+    }
+    let body = std::fs::read(path).with_context(|| format!("feed {name}: {}", path.display()))?;
+    let packets =
+        crate::hub::telemetry::segment(apid, &body).map_err(|e| anyhow!("feed {name}: {e}"))?;
+    use base64::Engine;
+    let f = SignedFeed {
+        sig: hex::encode(sign_bytes(&key, &feed_message(name, now, &packets))?),
+        cert,
+        name: name.into(),
+        ccsds: base64::engine::general_purpose::STANDARD.encode(&packets),
+        at: now,
+    };
+    let url = format!("{}/api/probe/feed/{name}", ground.trim_end_matches('/'));
+    let resp = client.post(&url).json(&f).send().await?;
+    if !resp.status().is_success() {
+        let status = resp.status();
+        return Err(anyhow!(
+            "feed {name} refused by {ground}: {status} {}",
+            resp.text().await.unwrap_or_default()
+        ));
+    }
+    Ok(())
+}
+
 /// True once two thirds of the certificate's life have passed.
 pub fn renewal_due(cert_pem: &str, now: i64) -> anyhow::Result<bool> {
     let der = pem_body(cert_pem, "CERTIFICATE")?;
@@ -258,6 +374,7 @@ pub async fn send(
     ground: &str,
     state_dir: &std::path::Path,
     ca_cert: Option<&std::path::Path>,
+    feeds: &[(String, std::path::PathBuf)],
 ) -> anyhow::Result<()> {
     let mut client = reqwest::Client::builder();
     if let Some(p) = ca_cert {
@@ -306,6 +423,17 @@ pub async fn send(
             "report refused by {ground}: {status} {}",
             resp.text().await.unwrap_or_default()
         ));
+    }
+    // feeds after the report: a missing or refused feed does not hold the
+    // machine's own report back, but the run still fails so it is seen
+    let mut failed = vec![];
+    for (name, path) in feeds {
+        if let Err(e) = send_feed(&client, ground, state_dir, name, path, now).await {
+            failed.push(format!("{e:#}"));
+        }
+    }
+    if !failed.is_empty() {
+        return Err(anyhow!("{}", failed.join("; ")));
     }
     Ok(())
 }
