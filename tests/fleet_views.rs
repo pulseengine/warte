@@ -904,3 +904,64 @@ async fn ask_refreshes_its_answer_and_list_but_never_the_form() {
     .unwrap();
     assert_escaped(&x, "ask-live");
 }
+
+// rivet: verifies REQ-PROBE-003
+#[test]
+fn a_ci_host_with_a_probe_gets_one_card_with_the_agents_runners() {
+    let mut s = fleet_snapshot();
+    s.host = "ci-01".into();
+    let (_d, hub) = hub_with(&s);
+    let busy = s.runners.iter().filter(|r| r.local_busy).count();
+    let runners = format!("{busy}/{} runners busy", s.runners.len());
+
+    // the agent alone: its own card
+    let alone = warte::dashboard::machines::view(None, Some(&hub));
+    assert_eq!(
+        alone.matches(r#"<span class="mname">ci-01</span>"#).count(),
+        1
+    );
+    assert!(alone.contains("via smithy agent"));
+
+    // the probe too: one card, the probe's, carrying the agent's runner count
+    let dir = tempfile::tempdir().unwrap();
+    let m = warte::probe::Machines::open(dir.path().to_str().unwrap());
+    let mut r = warte::probe::Report {
+        probe_version: "t".into(),
+        host: "CI-01".into(),
+        taken_at: 1,
+        os: warte::probe::Os {
+            name: "L".into(),
+            kernel: "6.1".into(),
+            arch: "a".into(),
+        },
+        uptime_s: 1,
+        cpu: warte::probe::Cpu {
+            ncpu: 32,
+            load: [0.0; 3],
+        },
+        memory: warte::probe::Memory {
+            total_mb: 1,
+            avail_mb: 1,
+            swap_total_mb: 0,
+            swap_used_mb: 0,
+        },
+        disks: vec![],
+        tools: vec![],
+        sessions: vec![],
+        io: None,
+    };
+    m.record(r.clone(), "probe", now());
+    let both = warte::dashboard::machines::view(Some(&m), Some(&hub));
+    assert_eq!(both.matches(r#"class="mname""#).count(), 1, "{both}");
+    assert!(both.contains("CI-01") && both.contains(&runners));
+    assert!(!both.contains("via smithy agent"));
+
+    // a probe on another host leaves the CI host's own card in place
+    r.host = "laptop".into();
+    let m2dir = tempfile::tempdir().unwrap();
+    let m2 = warte::probe::Machines::open(m2dir.path().to_str().unwrap());
+    m2.record(r, "probe", now());
+    let other = warte::dashboard::machines::view(Some(&m2), Some(&hub));
+    assert_eq!(other.matches(r#"class="mname""#).count(), 2);
+    assert!(other.contains("via smithy agent"));
+}
