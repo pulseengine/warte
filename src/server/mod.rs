@@ -183,6 +183,8 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
                 }),
         )
     });
+    // A stored seed, not a fresh key per start: tokens survive a restart.
+    let token_seed = crate::auth::load_or_create_seed(&config.token_seed_file())?;
     let state = AppState {
         ca: ca.clone(),
         hub,
@@ -198,7 +200,7 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
         access: Arc::new(AccessControl::new(pool.clone(), instance_id.clone())),
         artifacts: Arc::new(ArtifactStore::new(pool.clone())),
         sync: Arc::new(SyncService::new(pool.clone(), instance_id.clone())),
-        tokens: Arc::new(crate::auth::TokenManager::new(24)),
+        tokens: Arc::new(crate::auth::TokenManager::from_seed(&token_seed, 24)),
         realtime: Arc::new(crate::realtime::EventBroadcaster::new()),
         status: Arc::new(
             match config.github.as_ref().map(|g| g.status_url.as_str()) {

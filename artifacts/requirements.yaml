@@ -357,6 +357,23 @@ artifacts:
       - type: satisfies
         target: SC-007
 
+  - id: REQ-API-003
+    type: requirement
+    title: Agent bearer tokens are minted by the operator and survive restarts
+    status: accepted
+    release: v1.5.1
+    description: >
+      The token-signing key SHALL come from a seed file (mode 0600, created on
+      first start, refused if other users can read it), not a fresh random key
+      per start, so an issued token stays valid across restarts. The operator
+      SHALL mint an agent token with `warte token mint <agent-id>` on the
+      ground station host; there SHALL be no HTTP endpoint that mints one. A
+      request with no token, a tampered token, an expired token, or a token
+      from another seed SHALL get 401 on the write routes.
+    links:
+      - type: satisfies
+        target: SC-001
+
   # --- CLI ---
   - id: REQ-CLI-001
     type: requirement

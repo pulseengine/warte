@@ -201,6 +201,16 @@ artifacts:
       - type: verifies
         target: REQ-API-002
 
+  - id: TEST-API-003
+    type: verification
+    title: tests/agent_token.rs — minted token accepted, four 401 negative controls, restart, seed file
+    status: accepted
+    release: v1.5.1
+    description: "Integration tests mint a token with the operator function and with the binary, post to register, heartbeat and data (2xx), and check 401 for no token, a tampered signature, a spliced payload, an expired token and a token from another seed. A second server on the same directory accepts the earlier token. The seed file is 0600, stable, and refused when group-readable or malformed without quoting it."
+    links:
+      - type: verifies
+        target: REQ-API-003
+
   - id: TEST-AADL-001
     type: verification
     title: spar parse + spar analyze — AADL model validates with 0 errors

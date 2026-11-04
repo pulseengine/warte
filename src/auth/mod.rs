@@ -128,6 +128,78 @@ impl TokenManager {
     }
 }
 
+/// Rights an agent token carries for the three write routes an agent uses.
+/// The write routes check the signature and expiry, not the rights.
+pub const AGENT_RIGHTS: [&str; 3] = ["agents:register", "agents:data", "agents:heartbeat"];
+
+/// Longest validity `warte token mint` accepts: one year.
+pub const MAX_TOKEN_HOURS: i64 = 24 * 365;
+
+/// Load the 32-byte signing seed from `path`; create it (random, mode 0600,
+/// never overwriting) if there is none. A seed that is not 64 hex digits, or
+/// that other users can read, is an error that never quotes its contents.
+/// Without a stored seed every restart would invalidate every issued token.
+pub fn load_or_create_seed(path: &std::path::Path) -> anyhow::Result<[u8; 32]> {
+    use anyhow::Context;
+    if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("creating {}", parent.display()))?;
+    }
+    if !path.exists() {
+        let mut seed = [0u8; 32];
+        rand::RngCore::fill_bytes(&mut rand::rngs::OsRng, &mut seed);
+        let mut opts = std::fs::OpenOptions::new();
+        opts.write(true).create_new(true);
+        #[cfg(unix)]
+        std::os::unix::fs::OpenOptionsExt::mode(&mut opts, 0o600);
+        match opts.open(path) {
+            Ok(mut f) => {
+                use std::io::Write;
+                writeln!(f, "{}", hex::encode(seed))
+                    .with_context(|| format!("writing {}", path.display()))?;
+            }
+            // Another process created it between exists() and open(): read theirs.
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(e) => return Err(e).with_context(|| format!("creating {}", path.display())),
+        }
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = std::fs::metadata(path)?.permissions().mode();
+        anyhow::ensure!(
+            mode & 0o077 == 0,
+            "{} is readable by other users (mode {:o}); chmod 600 it",
+            path.display(),
+            mode & 0o777
+        );
+    }
+    let text =
+        std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
+    let bytes = hex::decode(text.trim())
+        .map_err(|_| anyhow::anyhow!("{} is not 64 hex digits", path.display()))?;
+    <[u8; 32]>::try_from(bytes.as_slice())
+        .map_err(|_| anyhow::anyhow!("{} is not 64 hex digits", path.display()))
+}
+
+/// Mint an agent token from the seed file of `config`, valid `hours`.
+pub fn mint_agent_token(
+    config: &crate::Config,
+    agent_id: &str,
+    hours: i64,
+) -> anyhow::Result<String> {
+    anyhow::ensure!(!agent_id.trim().is_empty(), "agent id is empty");
+    anyhow::ensure!(
+        (1..=MAX_TOKEN_HOURS).contains(&hours),
+        "--valid-hours must be between 1 and {MAX_TOKEN_HOURS}"
+    );
+    let seed = load_or_create_seed(&config.token_seed_file())?;
+    TokenManager::from_seed(&seed, hours).issue_token(
+        agent_id,
+        AGENT_RIGHTS.iter().map(|r| r.to_string()).collect(),
+    )
+}
+
 /// Extracted auth info from a request.
 #[derive(Debug, Clone)]
 pub struct AuthInfo {

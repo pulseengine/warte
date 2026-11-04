@@ -3,6 +3,29 @@
 All endpoints return JSON. Mutating endpoints (POST, PUT, DELETE) require
 authentication (mTLS or signed bearer token).
 
+## Bearer tokens for agents
+
+Write routes (`POST /api/agents/register`, `/api/agents/{id}/heartbeat`,
+`/api/agents/{id}/data`, `/api/costs`, ...) answer `401` without
+`Authorization: Bearer <token>`. Nothing issues a token over HTTP; the
+operator mints one on the ground station host:
+
+```
+warte token mint <agent-id> [--valid-hours 720]   # prints only the token
+```
+
+- Rights in the token: `agents:register`, `agents:data`, `agents:heartbeat`.
+  The write routes check signature and expiry today, not the rights.
+- `--valid-hours` is 1 to 8760; the default is 24.
+- The signing seed is a file, `token-seed` next to the CA key
+  (`<state-dir>/token-seed`) unless `token_seed_path` in `warte.toml` or
+  `WARTE_TOKEN_SEED_PATH` names another. The server and `token mint` create it
+  with mode 0600 if missing and refuse a seed other users can read. Tokens
+  survive restarts as long as the file does. Back it up like the CA key and
+  never commit it; deleting it invalidates every token.
+- Give the agent the token through its environment or a 0600 file, not the
+  command line, e.g. `PULSEENGINE_WARTE_TOKEN_FILE=<path>`.
+
 ## Health
 
 ```
