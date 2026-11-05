@@ -163,7 +163,7 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
                 if let Some(d) = config.history.as_ref().and_then(|c| c.keep_days) {
                     h.set_keep_days(d);
                 }
-                h.spawn_upkeep();
+                // upkeep starts below, after the ground station's import
                 m.attach_history(h);
             }
             Err(e) => tracing::warn!(error = %e, "machine history unavailable"),
@@ -174,8 +174,11 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
         m
     });
 
-    if let (Some(hub), Some(h)) = (&hub, machines.as_ref().and_then(|m| m.history())) {
-        hub.attach_history(h.clone());
+    if let Some(h) = machines.as_ref().and_then(|m| m.history()) {
+        if let Some(hub) = &hub {
+            hub.attach_history(h.clone());
+        }
+        h.spawn_upkeep();
     }
 
     let costs = config.hub.as_ref().map(|h| {

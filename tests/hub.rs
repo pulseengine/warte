@@ -612,6 +612,7 @@ fn hub_points_land_in_history_and_import_once() {
     hub.ingest_snapshot(snapshot("ci-01"));
     let h = warte::history::History::open(data).unwrap();
     hub.attach_history(h.clone());
+    h.sync();
     assert!(h.meta("hub_imported").is_some());
     assert!(
         h.metrics("ci-01").contains(&"runners.online".to_string()),
@@ -620,6 +621,7 @@ fn hub_points_land_in_history_and_import_once() {
     );
     // a new snapshot goes straight in
     hub.ingest_snapshot(snapshot("ci-01"));
+    h.sync();
     let now = warte::hub::now();
     let s = h.series("ci-01", &["runners.online".into()], now - 120, now + 60);
     assert!(s[0].values.iter().any(|v| v.is_some()));

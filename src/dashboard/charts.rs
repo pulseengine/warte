@@ -76,21 +76,35 @@ pub fn title(metric: &str) -> String {
 }
 
 /// Average values into at most `n` buckets; `(start index, value)` per bucket.
+/// A bucket is a gap when it holds a run of missing points as long as
+/// `GAP_RUN` (or the whole bucket, if shorter): an outage of a few minutes
+/// still breaks a day-long line, a single late report does not.
 pub fn bucket(values: &[Option<f64>], n: usize) -> Vec<(usize, Option<f64>)> {
     if values.is_empty() || n == 0 {
         return Vec::new();
     }
     let per = values.len().div_ceil(n);
+    let gap = GAP_RUN.min(per);
     values
         .chunks(per)
         .enumerate()
         .map(|(i, c)| {
+            let mut run = 0;
+            let mut longest = 0;
+            for v in c {
+                run = if v.is_none() { run + 1 } else { 0 };
+                longest = longest.max(run);
+            }
             let got: Vec<f64> = c.iter().flatten().copied().collect();
-            let v = (!got.is_empty()).then(|| got.iter().sum::<f64>() / got.len() as f64);
+            let v = (longest < gap && !got.is_empty())
+                .then(|| got.iter().sum::<f64>() / got.len() as f64);
             (i * per, v)
         })
         .collect()
 }
+
+/// Consecutive missing points that make a bucket a gap.
+pub const GAP_RUN: usize = 3;
 
 fn top(values: &[(usize, Option<f64>)], unit: &str) -> f64 {
     let m = values

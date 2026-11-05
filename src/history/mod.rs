@@ -78,7 +78,21 @@ struct Names {
     by_name: HashMap<String, u32>,
     by_id: HashMap<u32, String>,
     host_series: BTreeSet<(String, u32)>,
+    /// The next free series id: the persisted maximum plus one.
+    next_id: u32,
 }
+
+/// What the writer thread does, in order.
+enum Cmd {
+    Record(String, i64, Vec<(String, f64)>),
+    Maintain(i64, std::sync::mpsc::SyncSender<()>),
+    Flush(std::sync::mpsc::SyncSender<()>),
+    Meta(String, i64, std::sync::mpsc::SyncSender<()>),
+    Sync(std::sync::mpsc::SyncSender<()>),
+}
+
+/// Samples waiting for the writer; beyond this a sample is dropped and counted.
+pub const QUEUE: usize = 4096;
 
 struct Inner {
     db: Database,
@@ -86,6 +100,7 @@ struct Inner {
     errors: AtomicU64,
     last_error_at: AtomicI64,
     keep_hours_s: AtomicI64,
+    tx: std::sync::mpsc::SyncSender<Cmd>,
 }
 
 /// The history store. Cheap to clone.
@@ -151,7 +166,7 @@ fn dec_hour(b: &[u8]) -> Vec<(u32, f64, f64, f64)> {
 }
 
 impl History {
-    /// Open or create `history.redb` in `data_dir`.
+    /// Open or create `history.redb` in `data_dir` and start its writer thread.
     pub fn open(data_dir: &str) -> Res<History> {
         let path = std::path::Path::new(data_dir).join("history.redb");
         let db = Database::create(&path).map_err(|x| format!("{}: {x}", path.display()))?;
@@ -169,6 +184,7 @@ impl History {
             by_name: HashMap::new(),
             by_id: HashMap::new(),
             host_series: BTreeSet::new(),
+            next_id: 0,
         };
         {
             let r = db.begin_read().map_err(e)?;
@@ -176,6 +192,7 @@ impl History {
                 let (k, v) = row.map_err(e)?;
                 names.by_name.insert(k.value().to_string(), v.value());
                 names.by_id.insert(v.value(), k.value().to_string());
+                names.next_id = names.next_id.max(v.value() + 1);
             }
             for row in r.open_table(HOST_SERIES).map_err(e)?.iter().map_err(e)? {
                 let (k, _) = row.map_err(e)?;
@@ -183,13 +200,69 @@ impl History {
                 names.host_series.insert((h.to_string(), id));
             }
         }
-        Ok(History(Arc::new(Inner {
+        let (tx, rx) = std::sync::mpsc::sync_channel(QUEUE);
+        let inner = Arc::new(Inner {
             db,
             names: Mutex::new(names),
             errors: AtomicU64::new(0),
             last_error_at: AtomicI64::new(0),
             keep_hours_s: AtomicI64::new(HOUR_KEEP_S),
-        })))
+            tx,
+        });
+        // The writer holds only a weak reference: when the last History is
+        // dropped, the sender goes with it and the thread ends, closing the file.
+        let weak = Arc::downgrade(&inner);
+        std::thread::Builder::new()
+            .name("warte-history".into())
+            .spawn(move || {
+                while let Ok(cmd) = rx.recv() {
+                    let Some(inner) = weak.upgrade() else { break };
+                    let h = History(inner);
+                    let reply = match cmd {
+                        Cmd::Record(host, t, series) => {
+                            if let Err(x) = h.write_sample(&host, t, &series) {
+                                h.fail("record", x);
+                            }
+                            None
+                        }
+                        Cmd::Maintain(now, r) => {
+                            if let Err(x) = h.try_maintain(now) {
+                                h.fail("maintain", x);
+                            }
+                            Some(r)
+                        }
+                        Cmd::Flush(r) => {
+                            if let Err(x) = h.try_flush() {
+                                h.fail("flush", x);
+                            }
+                            Some(r)
+                        }
+                        Cmd::Meta(k, v, r) => {
+                            if let Err(x) = h.try_set_meta(&k, v) {
+                                h.fail("meta", x);
+                            }
+                            Some(r)
+                        }
+                        Cmd::Sync(r) => Some(r),
+                    };
+                    // let go of the store before answering, so a caller that
+                    // drops its last handle next really closes the file
+                    drop(h);
+                    if let Some(r) = reply {
+                        let _ = r.send(());
+                    }
+                }
+            })
+            .map_err(e)?;
+        Ok(History(inner))
+    }
+
+    /// Send `cmd` and wait until the writer has done it and everything before it.
+    fn ask(&self, cmd: impl FnOnce(std::sync::mpsc::SyncSender<()>) -> Cmd) {
+        let (tx, rx) = std::sync::mpsc::sync_channel(1);
+        if self.0.tx.send(cmd(tx)).is_ok() {
+            let _ = rx.recv();
+        }
     }
 
     /// Keep hourly rows this many days (at least 8, so they outlive minutes).
@@ -209,7 +282,7 @@ impl History {
         }
     }
 
-    /// Store errors since start.
+    /// Store errors since start (dropped samples included).
     pub fn errors(&self) -> u64 {
         self.0.errors.load(Ordering::Relaxed)
     }
@@ -231,20 +304,52 @@ impl History {
         })
     }
 
-    /// Record one sample. `t` is bucketed to the minute; a second sample in
-    /// the same minute replaces the first. Never fails the caller.
+    /// Queue one sample and return at once: the report path never waits for
+    /// the store. `t` is bucketed to the minute; per series, a later sample in
+    /// the same minute replaces an earlier one, other series in that minute
+    /// are kept. A full queue drops the sample and counts it as an error.
     pub fn record(&self, host: &str, t: i64, series: &[(String, f64)]) {
-        if let Err(x) = self.try_record(host, t, series) {
-            self.fail("record", x);
+        match self
+            .0
+            .tx
+            .try_send(Cmd::Record(host.to_string(), t, series.to_vec()))
+        {
+            Ok(()) => {}
+            Err(std::sync::mpsc::TrySendError::Full(_)) => {
+                self.fail("record", "queue full, sample dropped".into())
+            }
+            Err(std::sync::mpsc::TrySendError::Disconnected(_)) => {
+                self.fail("record", "writer stopped".into())
+            }
         }
     }
 
-    fn try_record(&self, host: &str, t: i64, series: &[(String, f64)]) -> Res<()> {
+    /// Queue one sample, waiting for room: for bulk imports, never for reports.
+    pub fn record_waiting(&self, host: &str, t: i64, series: &[(String, f64)]) {
+        if self
+            .0
+            .tx
+            .send(Cmd::Record(host.to_string(), t, series.to_vec()))
+            .is_err()
+        {
+            self.fail("record", "writer stopped".into());
+        }
+    }
+
+    /// Wait until every sample queued so far is written (not yet durable).
+    pub fn sync(&self) {
+        self.ask(Cmd::Sync);
+    }
+
+    fn write_sample(&self, host: &str, t: i64, series: &[(String, f64)]) -> Res<()> {
         let t = t - t.rem_euclid(60);
         let mut w = self.0.db.begin_write().map_err(e)?;
         w.set_durability(Durability::None).map_err(e)?;
+        // names new to the store; applied to memory only after the commit
+        let mut new_names: Vec<(String, u32)> = Vec::new();
+        let mut new_host_series: Vec<u32> = Vec::new();
         {
-            let mut names = self.0.names.lock().unwrap_or_else(|p| p.into_inner());
+            let names = self.0.names.lock().unwrap_or_else(|p| p.into_inner());
             let mut nt = w.open_table(NAMES).map_err(e)?;
             let mut hs = w.open_table(HOST_SERIES).map_err(e)?;
             let mut row = Vec::with_capacity(series.len());
@@ -254,20 +359,25 @@ impl History {
                 }
                 let id = match names.by_name.get(name) {
                     Some(id) => *id,
-                    None => {
-                        let id = names.by_name.len() as u32;
-                        nt.insert(name.as_str(), id).map_err(e)?;
-                        names.by_name.insert(name.clone(), id);
-                        names.by_id.insert(id, name.clone());
-                        id
-                    }
+                    None => match new_names.iter().find(|(n, _)| n == name) {
+                        Some((_, id)) => *id,
+                        None => {
+                            let id = names.next_id + new_names.len() as u32;
+                            nt.insert(name.as_str(), id).map_err(e)?;
+                            new_names.push((name.clone(), id));
+                            id
+                        }
+                    },
                 };
-                if !names.host_series.contains(&(host.to_string(), id)) {
+                if !names.host_series.contains(&(host.to_string(), id))
+                    && !new_host_series.contains(&id)
+                {
                     hs.insert((host, id), ()).map_err(e)?;
-                    names.host_series.insert((host.to_string(), id));
+                    new_host_series.push(id);
                 }
                 row.push((id, *v));
             }
+            drop(names);
             // merge per series: a probe and the ground station may both
             // report the same host in the same minute
             let mut table = w.open_table(MINUTE).map_err(e)?;
@@ -284,28 +394,46 @@ impl History {
             table
                 .insert((host, t), enc_min(&row).as_slice())
                 .map_err(e)?;
+            // a minute in an hour that is already rolled up and will not be
+            // re-rolled (an import, a late report): mark it for the next run
+            let mut meta = w.open_table(META).map_err(e)?;
+            let rolled_to = meta.get("rolled_to").map_err(e)?.map(|g| g.value());
+            if rolled_to.is_some_and(|r| t < r - 3600) {
+                let dirty = meta.get("dirty_from").map_err(e)?.map(|g| g.value());
+                if dirty.is_none_or(|d| t < d) {
+                    meta.insert("dirty_from", t).map_err(e)?;
+                }
+            }
         }
+        w.commit().map_err(e)?;
+        let mut names = self.0.names.lock().unwrap_or_else(|p| p.into_inner());
+        for (n, id) in new_names {
+            names.by_id.insert(id, n.clone());
+            names.by_name.insert(n, id);
+            names.next_id = names.next_id.max(id + 1);
+        }
+        for id in new_host_series {
+            names.host_series.insert((host.to_string(), id));
+        }
+        Ok(())
+    }
+
+    /// Make every sample queued so far durable.
+    pub fn flush(&self) {
+        self.ask(Cmd::Flush);
+    }
+
+    fn try_flush(&self) -> Res<()> {
+        let w = self.0.db.begin_write().map_err(e)?;
         w.commit().map_err(e)
     }
 
-    /// Make every buffered sample durable.
-    pub fn flush(&self) {
-        let r = (|| -> Res<()> {
-            let w = self.0.db.begin_write().map_err(e)?;
-            w.commit().map_err(e)
-        })();
-        if let Err(x) = r {
-            self.fail("flush", x);
-        }
-    }
-
     /// Roll finished hours up to min/avg/max and drop rows past retention.
-    /// Idempotent; re-rolls the hour before the last rolled one, so a late
-    /// minute still lands in its hour.
+    /// Idempotent. Re-rolls the hour before the last rolled one, and every
+    /// hour from the earliest minute written into an already-rolled hour.
+    /// Waits for the samples queued before it.
     pub fn maintain(&self, now: i64) {
-        if let Err(x) = self.try_maintain(now) {
-            self.fail("maintain", x);
-        }
+        self.ask(|r| Cmd::Maintain(now, r));
     }
 
     fn try_maintain(&self, now: i64) -> Res<()> {
@@ -315,9 +443,13 @@ impl History {
         {
             let mut meta = w.open_table(META).map_err(e)?;
             let rolled_to = meta.get("rolled_to").map_err(e)?.map(|g| g.value());
+            let dirty = meta.get("dirty_from").map_err(e)?.map(|g| g.value());
             let mut minute = w.open_table(MINUTE).map_err(e)?;
             let mut hour = w.open_table(HOUR).map_err(e)?;
-            let from = rolled_to.map(|r| r - 3600).unwrap_or(i64::MIN);
+            let mut from = rolled_to.map(|r| r - 3600).unwrap_or(i64::MIN);
+            if let Some(d) = dirty {
+                from = from.min(d - d.rem_euclid(3600));
+            }
             let mut acc: BTreeMap<(String, i64), Acc> = BTreeMap::new();
             for row in minute.iter().map_err(e)? {
                 let (k, v) = row.map_err(e)?;
@@ -349,11 +481,15 @@ impl History {
             if end > rolled_to.unwrap_or(i64::MIN) {
                 meta.insert("rolled_to", end).map_err(e)?;
             }
+            if dirty.is_some() {
+                meta.remove("dirty_from").map_err(e)?;
+            }
             let keep_h = self.0.keep_hours_s.load(Ordering::Relaxed);
             minute
-                .retain(|(_, t), _| t >= now - MINUTE_KEEP_S)
+                .retain(|(_, t), _| t >= now - MINUTE_KEEP_S && t <= now + 86_400)
                 .map_err(e)?;
-            hour.retain(|(_, t), _| t >= now - keep_h).map_err(e)?;
+            hour.retain(|(_, t), _| t >= now - keep_h && t <= now + 86_400)
+                .map_err(e)?;
         }
         w.commit().map_err(e)
     }
@@ -365,18 +501,18 @@ impl History {
         t.get(key).ok().flatten().map(|g| g.value())
     }
 
+    /// Set a marker, after every sample queued before it.
     pub fn set_meta(&self, key: &str, value: i64) {
-        let r = (|| -> Res<()> {
-            let w = self.0.db.begin_write().map_err(e)?;
-            w.open_table(META)
-                .map_err(e)?
-                .insert(key, value)
-                .map_err(e)?;
-            w.commit().map_err(e)
-        })();
-        if let Err(x) = r {
-            self.fail("meta", x);
-        }
+        self.ask(|r| Cmd::Meta(key.to_string(), value, r));
+    }
+
+    fn try_set_meta(&self, key: &str, value: i64) -> Res<()> {
+        let w = self.0.db.begin_write().map_err(e)?;
+        w.open_table(META)
+            .map_err(e)?
+            .insert(key, value)
+            .map_err(e)?;
+        w.commit().map_err(e)
     }
 
     /// Hosts with any series, sorted.
@@ -400,7 +536,8 @@ impl History {
     }
 
     /// The given series of `host` over `[from, to]`: per minute when the range
-    /// is at most 7 days, per hour (with min and max) beyond.
+    /// is at most 7 days, per hour (with min and max) beyond. Times outside
+    /// 0 .. 2^40 s, an inverted range or one over 400 days answer nothing.
     pub fn series(&self, host: &str, metrics: &[String], from: i64, to: i64) -> Vec<Series> {
         match self.try_series(host, metrics, from, to) {
             Ok(s) => s,
@@ -412,7 +549,11 @@ impl History {
     }
 
     fn try_series(&self, host: &str, metrics: &[String], from: i64, to: i64) -> Res<Vec<Series>> {
-        if to < from || to.saturating_sub(from) > MAX_RANGE_S {
+        const T_MAX: i64 = 1 << 40;
+        if !(0..=T_MAX).contains(&from) || !(0..=T_MAX).contains(&to) {
+            return Ok(Vec::new());
+        }
+        if to < from || to - from > MAX_RANGE_S {
             return Ok(Vec::new());
         }
         let hourly = to - from > MINUTE_RANGE_S;
@@ -474,30 +615,29 @@ impl History {
             .collect())
     }
 
-    /// Flush every `FLUSH_EVERY_S` and maintain every hour, until the process ends.
+    /// Roll up at start and just after every full hour, flush every
+    /// `FLUSH_EVERY_S`, until the process ends.
     pub fn spawn_upkeep(&self) {
         let h = self.clone();
         tokio::spawn(async move {
-            // roll up at start too: a restart must not leave long ranges empty
-            let h0 = h.clone();
-            let _ = tokio::task::spawn_blocking(move || {
-                h0.maintain(chrono::Utc::now().timestamp());
-                h0.flush();
-            })
-            .await;
-            let mut i: u64 = 1;
+            let mut rolled_hour = i64::MIN;
             loop {
-                tokio::time::sleep(std::time::Duration::from_secs(FLUSH_EVERY_S)).await;
+                let now = chrono::Utc::now().timestamp();
+                let hour = now.div_euclid(3600);
                 let h2 = h.clone();
-                let maintain = i.is_multiple_of(3600 / FLUSH_EVERY_S);
+                let roll = hour != rolled_hour;
                 let _ = tokio::task::spawn_blocking(move || {
-                    if maintain {
-                        h2.maintain(chrono::Utc::now().timestamp());
+                    if roll {
+                        h2.maintain(now);
                     }
                     h2.flush();
                 })
                 .await;
-                i += 1;
+                rolled_hour = hour;
+                // wake at the next 5-minute mark or just after the hour, whichever is first
+                let to_hour = 3600 - now.rem_euclid(3600) + 30;
+                let wait = (FLUSH_EVERY_S as i64).min(to_hour).max(1) as u64;
+                tokio::time::sleep(std::time::Duration::from_secs(wait)).await;
             }
         });
     }

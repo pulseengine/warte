@@ -294,7 +294,7 @@ impl Hub {
             };
             if let Some(host) = host {
                 for p in &pts {
-                    h.record(&host, p.t, &crate::history::project::from_point(p));
+                    h.record_waiting(&host, p.t, &crate::history::project::from_point(p));
                 }
                 h.flush();
                 h.set_meta("hub_imported", now());
@@ -305,7 +305,11 @@ impl Hub {
 
     fn to_history(&self, host: &str, p: &Point) {
         if let Some(h) = self.history.get() {
-            h.record(host, p.t, &crate::history::project::from_point(p));
+            h.record(
+                host,
+                crate::history::project::minute(p.t, now()),
+                &crate::history::project::from_point(p),
+            );
         }
     }
 

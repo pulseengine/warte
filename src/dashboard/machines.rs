@@ -16,11 +16,9 @@ fn meter(label: &str, value: String, pct: f64, hot: bool) -> String {
 /// What the history panel says when there is no store or it cannot be read.
 pub const HISTORY_UNAVAILABLE: &str = r#"<p class="dim">history unavailable on this warte</p>"#;
 
-/// An id-safe form of a host name.
+/// An id-safe, collision-free form of a host name (hex of its bytes).
 fn slug(host: &str) -> String {
-    host.chars()
-        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
-        .collect()
+    host.bytes().map(|b| format!("{b:02x}")).collect()
 }
 
 /// Percent-encode a query value.

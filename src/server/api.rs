@@ -873,8 +873,15 @@ pub fn history_range(
     to: Option<i64>,
     now: i64,
 ) -> Result<(i64, i64), &'static str> {
+    // times are unix seconds between 1970 and a day from now; checked before
+    // any arithmetic, so no request can overflow
+    let ok = |t: i64| (0..=now + 86_400).contains(&t);
+    if !from.is_none_or(ok) || !to.is_none_or(ok) {
+        return Err("from and to are unix seconds between 0 and now");
+    }
     let to = to.unwrap_or(now);
-    let from = from.unwrap_or(to - 86_400);
+    let from = from.unwrap_or((to - 86_400).max(0));
+
     if from > to {
         return Err("from must not be after to");
     }

@@ -21,6 +21,7 @@ fn points_read_back_with_gaps_as_null() {
     let (_t, h) = open();
     h.record("box", 0, &s("load.1", 1.0));
     h.record("box", 180, &s("load.1", 2.0));
+    h.sync();
     let r = h.series("box", &["load.1".into()], 0, 240);
     assert_eq!(r.len(), 1);
     assert_eq!((r[0].t0, r[0].step), (0, 60));
@@ -35,10 +36,12 @@ fn same_minute_replaces() {
     let (_t, h) = open();
     h.record("box", 10, &s("load.1", 1.0));
     h.record("box", 50, &s("load.1", 2.0));
+    h.sync();
     let r = h.series("box", &["load.1".into()], 0, 59);
     assert_eq!(r[0].values, vec![Some(2.0)]);
     // another source's series in the same minute is kept, not wiped
     h.record("box", 30, &s("runners.busy", 3.0));
+    h.sync();
     let r = h.series("box", &["load.1".into(), "runners.busy".into()], 0, 59);
     assert_eq!((r[0].values[0], r[1].values[0]), (Some(2.0), Some(3.0)));
 }
@@ -51,6 +54,7 @@ fn long_ranges_use_hourly_rollups() {
         h.record("box", m * 60, &s("mem.used_pct", m as f64));
     }
     h.maintain(3 * H);
+    h.sync();
     let r = h.series("box", &["mem.used_pct".into()], 0, 8 * D);
     assert_eq!((r[0].t0, r[0].step), (0, 3600));
     assert_eq!(r[0].values[0], Some(29.5));
@@ -69,12 +73,15 @@ fn pruning_drops_old_minutes_keeps_hours() {
         h.record("box", m * 60, &s("load.1", 1.0));
     }
     h.maintain(8 * D);
+    h.sync();
     let minutes = h.series("box", &["load.1".into()], 0, H);
     assert!(minutes[0].values.iter().all(|v| v.is_none()));
+    h.sync();
     let hours = h.series("box", &["load.1".into()], 0, 8 * D);
     assert_eq!(hours[0].values[0], Some(1.0));
     // and hours go after the retention
     h.maintain(91 * D);
+    h.sync();
     let hours = h.series("box", &["load.1".into()], 0, 8 * D);
     assert!(hours[0].values.iter().all(|v| v.is_none()));
 }
@@ -89,6 +96,7 @@ fn a_late_minute_is_rolled_into_its_hour_again() {
     h.maintain(H + 30);
     h.record("box", 60, &s("load.1", 3.0));
     h.maintain(H + 90);
+    h.sync();
     let r = h.series("box", &["load.1".into()], 0, 8 * D);
     assert_eq!(r[0].values[0], Some(2.0));
 }
@@ -123,11 +131,13 @@ fn hosts_and_metrics_list_what_was_recorded() {
         ],
     );
     h.record("b", 0, &s("sessions", 2.0));
+    h.sync();
     assert_eq!(h.hosts(), vec!["a".to_string(), "b".to_string()]);
     assert_eq!(
         h.metrics("a"),
         vec!["disk.used_pct{mount=/}".to_string(), "load.1".to_string()]
     );
+    h.sync();
     assert!(h.metrics("nobody").is_empty());
     assert_eq!(h.errors(), 0);
 }
@@ -185,6 +195,7 @@ fn reports_through_machines_land_in_history() {
     let r = report("box");
     let at = r.taken_at;
     m.record(r, "probe", at + 5);
+    h.sync();
     let got = h.series("box", &["load.1".into()], at - 60, at + 60);
     assert!(got[0].values.contains(&Some(1.0)), "{:?}", got[0].values);
 }
@@ -235,6 +246,7 @@ async fn api_series_shape_and_discovery() {
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     h.record("box", t, &s("mem.used_pct", 40.0));
     h.record("box", t + 180, &s("mem.used_pct", 41.0));
+    h.sync();
     let (c, b) = get(format!("{base}/api/history/machines")).await;
     assert_eq!(c, 200);
     assert!(b.contains(r#""box""#), "{b}");
@@ -265,6 +277,7 @@ async fn api_series_shape_and_discovery() {
 async fn api_rejects_bad_requests() {
     let (_d, base, h) = serve_with_history().await;
     h.record("box", 600, &s("load.1", 1.0));
+    h.sync();
     let u = |q: &str| format!("{base}/api/history/machines/box/series?{q}");
     assert_eq!(get(u("metric=load.1&from=900&to=600")).await.0, 400);
     assert_eq!(
@@ -274,6 +287,15 @@ async fn api_rejects_bad_requests() {
         400
     );
     assert_eq!(get(u("from=0&to=60")).await.0, 400);
+    // times that would overflow are refused before any arithmetic
+    assert_eq!(get(u("metric=load.1&to=-9223372036854775808")).await.0, 400);
+    assert_eq!(
+        get(u("metric=load.1&from=-9223372036854775808&to=0"))
+            .await
+            .0,
+        400
+    );
+    assert_eq!(get(u("metric=load.1&to=9223372036854775807")).await.0, 400);
     assert_eq!(
         get(format!(
             "{base}/api/history/machines/nobody/series?metric=load.1"
@@ -315,6 +337,9 @@ fn machine_view(with_history: bool) -> (tempfile::TempDir, String) {
     m.record(r.clone(), "probe", now - 120);
     r.taken_at = now;
     m.record(r, "probe", now);
+    if let Some(h) = m.history() {
+        h.sync();
+    }
     let html = warte::dashboard::machines::view_range(Some(&m), None, Some("7d"));
     (t, html)
 }
@@ -344,6 +369,7 @@ fn the_history_panel_groups_charts() {
     let now = chrono::Utc::now().timestamp();
     let r = report("box");
     h.record("box", now - 60, &project::from_report(&r));
+    h.sync();
     let html = warte::dashboard::machines::history_panel(&h, "box", Some("1h"));
     for g in [
         "<h4>CPU</h4>",
@@ -363,10 +389,81 @@ fn the_history_panel_groups_charts() {
 fn extreme_ranges_do_not_panic() {
     let (_t, h) = open();
     h.record("box", 0, &s("load.1", 1.0));
+    h.sync();
     let r = h.series("box", &["load.1".into()], i64::MIN / 2, i64::MAX / 2);
     assert!(r.is_empty() || r[0].values.len() <= 1_000_000);
     assert!(h
         .series("box", &["load.1".into()], 10, 0)
         .iter()
         .all(|x| x.values.is_empty()));
+}
+
+// rivet: verifies REQ-MHIST-001
+#[test]
+fn minutes_written_into_rolled_hours_are_rolled_up_later() {
+    // the ground station's import arrives after the store has rolled up to now
+    let (_t, h) = open();
+    h.maintain(10 * H);
+    for m in 0..60 {
+        h.record_waiting("ci", 2 * H + m * 60, &s("runners.busy", 2.0));
+    }
+    h.maintain(10 * H + 60);
+    let r = h.series("ci", &["runners.busy".into()], 0, 8 * D);
+    assert_eq!(r[0].values[2], Some(2.0), "{:?}", &r[0].values[..4]);
+}
+
+// rivet: verifies REQ-MHIST-001
+#[test]
+fn a_new_series_id_survives_reopen_and_is_not_reused() {
+    let t = tempfile::tempdir().unwrap();
+    let dir = t.path().to_str().unwrap();
+    {
+        let h = History::open(dir).unwrap();
+        h.record("a", 60, &[("x".into(), 1.0), ("y".into(), 2.0)]);
+        h.flush();
+    }
+    let h = History::open(dir).unwrap();
+    h.record("a", 120, &s("z", 3.0));
+    h.sync();
+    let r = h.series("a", &["x".into(), "y".into(), "z".into()], 60, 120);
+    assert_eq!(r[0].values, vec![Some(1.0), None]);
+    assert_eq!(r[1].values, vec![Some(2.0), None]);
+    assert_eq!(r[2].values, vec![None, Some(3.0)]);
+}
+
+// rivet: verifies REQ-MHIST-003
+#[test]
+fn a_twenty_minute_outage_shows_on_a_day_long_sparkline() {
+    use warte::dashboard::charts::{bucket, path};
+    let mut v = vec![Some(1.0); 1440];
+    for x in &mut v[600..620] {
+        *x = None;
+    }
+    // one late report alone is no gap
+    v[100] = None;
+    let d = path(&bucket(&v, 60), 2.0, 120.0, 24.0);
+    assert_eq!(d.matches('M').count(), 2, "{d}");
+}
+
+// rivet: verifies REQ-MHIST-003
+#[test]
+fn similar_host_names_get_different_chart_anchors() {
+    let t = tempfile::tempdir().unwrap();
+    let dir = t.path().to_str().unwrap();
+    let m = warte::probe::Machines::open(dir);
+    m.attach_history(History::open(dir).unwrap());
+    let now = chrono::Utc::now().timestamp();
+    for host in ["web.1", "web-1"] {
+        let mut r = report(host);
+        r.taken_at = now;
+        m.record(r, "probe", now);
+    }
+    m.history().unwrap().sync();
+    let html = warte::dashboard::machines::view_range(Some(&m), None, None);
+    let ids: Vec<&str> = html
+        .match_indices(r#"id="hist-"#)
+        .map(|(i, _)| &html[i..i + 24])
+        .collect();
+    assert_eq!(ids.len(), 2, "{ids:?}");
+    assert_ne!(ids[0], ids[1]);
 }
