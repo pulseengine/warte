@@ -1,5 +1,72 @@
 {
-  "history": [],
+  "history": [
+    {
+      "disk_runners_pct": null,
+      "gh_busy": 0,
+      "hosted_queued": 0,
+      "hosted_running": 0,
+      "jobs_queued": 7,
+      "load1": 0.0,
+      "local_busy": 1,
+      "online": 2,
+      "prs_waiting": 1,
+      "psi_cpu": 0.0,
+      "psi_mem": 0.0,
+      "runner_cpu": {},
+      "runner_mem": {},
+      "runners": 2,
+      "sh_oldest_s": 900,
+      "sh_queued": 7,
+      "t": 1792999880,
+      "wait_p50": {
+        "rust-cpu": 60
+      }
+    },
+    {
+      "disk_runners_pct": null,
+      "gh_busy": 0,
+      "hosted_queued": 0,
+      "hosted_running": 0,
+      "jobs_queued": 7,
+      "load1": 0.0,
+      "local_busy": 1,
+      "online": 2,
+      "prs_waiting": 1,
+      "psi_cpu": 0.0,
+      "psi_mem": 0.0,
+      "runner_cpu": {},
+      "runner_mem": {},
+      "runners": 2,
+      "sh_oldest_s": 900,
+      "sh_queued": 7,
+      "t": 1792999940,
+      "wait_p50": {
+        "rust-cpu": 60
+      }
+    },
+    {
+      "disk_runners_pct": null,
+      "gh_busy": 0,
+      "hosted_queued": 0,
+      "hosted_running": 0,
+      "jobs_queued": 7,
+      "load1": 0.0,
+      "local_busy": 1,
+      "online": 2,
+      "prs_waiting": 1,
+      "psi_cpu": 0.0,
+      "psi_mem": 0.0,
+      "runner_cpu": {},
+      "runner_mem": {},
+      "runners": 2,
+      "sh_oldest_s": 900,
+      "sh_queued": 7,
+      "t": 1793000000,
+      "wait_p50": {
+        "rust-cpu": 60
+      }
+    }
+  ],
   "latest": {
     "agent_version": "0.1.0",
     "automation": {
@@ -64,14 +131,14 @@
           "pr": 511,
           "repo": "spar",
           "run_id": 9,
-          "since": 1793163201,
+          "since": 1793918416,
           "workflow": "<img src=x onerror=alert(1)>"
         }
       ],
       "queued_complete": true,
       "repos_scanned": 0,
       "runs_queued": 1,
-      "scanned_at": 1793163801,
+      "scanned_at": 1793919016,
       "top_runs": [],
       "truncated": false,
       "waits": {
@@ -117,7 +184,7 @@
         "unit": ""
       }
     ],
-    "taken_at": 1793163801
+    "taken_at": 1793919016
   },
   "received_at": 1793000000
 }

@@ -254,6 +254,8 @@ pub struct Hub {
     tick: Arc<tokio::sync::watch::Sender<u64>>,
     /// Held `/api/watch` requests on this hub.
     watch_slots: Arc<crate::watch::Slots>,
+    /// Where each snapshot's numbers go over time (REQ-MHIST-001).
+    history: Arc<std::sync::OnceLock<crate::history::History>>,
 }
 
 impl Hub {
@@ -277,7 +279,34 @@ impl Hub {
             state_path: path.into(),
             tick: Arc::new(tokio::sync::watch::channel(0).0),
             watch_slots: Default::default(),
+            history: Default::default(),
         })
+    }
+
+    /// Send every snapshot's numbers to `h` from now on. The first time a
+    /// store sees this hub, the points the hub already holds are imported.
+    pub fn attach_history(&self, h: crate::history::History) {
+        if h.meta("hub_imported").is_none() {
+            let (host, pts) = {
+                let g = lk(&self.shared);
+                let host = g.p.latest.as_ref().map(|s| s.host.clone());
+                (host, g.p.history.iter().cloned().collect::<Vec<_>>())
+            };
+            if let Some(host) = host {
+                for p in &pts {
+                    h.record(&host, p.t, &crate::history::project::from_point(p));
+                }
+                h.flush();
+                h.set_meta("hub_imported", now());
+            }
+        }
+        let _ = self.history.set(h);
+    }
+
+    fn to_history(&self, host: &str, p: &Point) {
+        if let Some(h) = self.history.get() {
+            h.record(host, p.t, &crate::history::project::from_point(p));
+        }
     }
 
     /// Bind the telemetry socket and ingest on a dedicated thread.
@@ -318,7 +347,9 @@ impl Hub {
             lk(&self.ledger).ingest(recs);
         }
         if let Some(snap) = snap {
-            g.p.history.push_back(Point::from_snapshot(&snap));
+            let point = Point::from_snapshot(&snap);
+            let host = snap.host.clone();
+            g.p.history.push_back(point.clone());
             while g.p.history.len() > HISTORY_MAX {
                 g.p.history.pop_front();
             }
@@ -329,6 +360,7 @@ impl Hub {
                 save(&self.state_path, &g.p);
             }
             drop(g);
+            self.to_history(&host, &point);
             self.tick.send_modify(|n| *n += 1);
         }
     }
@@ -337,8 +369,10 @@ impl Hub {
     /// API scan, #81): stored and announced exactly like an assembled one.
     pub fn ingest_snapshot(&self, snap: Snapshot) {
         let t = now();
+        let point = Point::from_snapshot(&snap);
+        let host = snap.host.clone();
         let mut g = lk(&self.shared);
-        g.p.history.push_back(Point::from_snapshot(&snap));
+        g.p.history.push_back(point.clone());
         while g.p.history.len() > HISTORY_MAX {
             g.p.history.pop_front();
         }
@@ -349,6 +383,7 @@ impl Hub {
             save(&self.state_path, &g.p);
         }
         drop(g);
+        self.to_history(&host, &point);
         self.tick.send_modify(|n| *n += 1);
     }
 

@@ -18,7 +18,7 @@
     <nav class="nav">
       <button hx-get="api/dashboard/overview-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn active">Overview</button>
       <button hx-get="api/dashboard/airport-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn" data-no-refresh>Airport</button>
-      <button hx-get="api/dashboard/machines-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Machines</button>
+      <button hx-get="api/dashboard/machines-partial" hx-vals="js:{range: warteRange()}" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Machines</button>
       <button hx-get="api/dashboard/jobs-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Jobs</button>
       <button hx-get="api/dashboard/compliance-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Compliance</button>
       <button hx-get="api/dashboard/ask-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn" data-no-refresh>Ask</button>
@@ -46,6 +46,16 @@
     <span id="refresh-status" class="sse-status">refreshes every 30 s</span>
   </footer>
 
+  <script>
+    // The Machines view's history range, remembered per viewer when the
+    // browser lets us (REQ-MHIST-003); 24 h otherwise.
+    function warteRange() {
+      try { return localStorage.getItem('warte.range') || '24h'; } catch (e) { return '24h'; }
+    }
+    function warteSetRange(r) {
+      try { localStorage.setItem('warte.range', r); } catch (e) {}
+    }
+  </script>
   <script>
     // Active nav button, and a periodic refresh of the current view. Live push
     // (warte watch / long-poll, v1.4.1) replaces the timer later. Ask is not

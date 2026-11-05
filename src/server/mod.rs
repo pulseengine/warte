@@ -86,6 +86,7 @@ pub async fn serve(config: Config, db: Database) -> anyhow::Result<()> {
     let state = build_state(config.clone(), db)?;
     let instance_id = state.config.instance_id();
     crate::alerts::spawn(state.clone()); // REQ-ALERT-001
+    let history = state.machines.as_ref().and_then(|m| m.history().cloned());
     let app = build_router(state);
     let listener = tokio::net::TcpListener::bind(&config.bind).await?;
 
@@ -99,6 +100,10 @@ pub async fn serve(config: Config, db: Database) -> anyhow::Result<()> {
     .with_graceful_shutdown(shutdown_signal())
     .await?;
 
+    // buffered history samples become durable (REQ-MHIST-001)
+    if let Some(h) = history {
+        h.flush();
+    }
     Ok(())
 }
 
@@ -152,11 +157,26 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
     }
     .map(|(dir, probe_self)| {
         let m = Arc::new(crate::probe::Machines::open(&dir));
+        // history next to machines.json; without it warte works as before
+        match crate::history::History::open(&dir) {
+            Ok(h) => {
+                if let Some(d) = config.history.as_ref().and_then(|c| c.keep_days) {
+                    h.set_keep_days(d);
+                }
+                h.spawn_upkeep();
+                m.attach_history(h);
+            }
+            Err(e) => tracing::warn!(error = %e, "machine history unavailable"),
+        }
         if probe_self {
             crate::probe::spawn_self(m.clone(), std::time::Duration::from_secs(60));
         }
         m
     });
+
+    if let (Some(hub), Some(h)) = (&hub, machines.as_ref().and_then(|m| m.history())) {
+        hub.attach_history(h.clone());
+    }
 
     let costs = config.hub.as_ref().map(|h| {
         Arc::new(crate::costs::Costs::open(

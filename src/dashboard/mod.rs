@@ -10,6 +10,7 @@
 //! Views refresh every 30 s and show the age of the data they render.
 
 pub mod airport;
+pub mod charts;
 pub mod compliance;
 pub mod costs;
 pub mod fleet;
@@ -18,7 +19,7 @@ pub mod machines;
 pub mod skills;
 
 use axum::{
-    extract::State,
+    extract::{Query, State},
     http::header,
     response::{Html, IntoResponse, Response},
 };
@@ -94,12 +95,22 @@ pub async fn airport_js() -> Response {
 }
 
 /// HTMX partial: machines (REQ-PROBE-001/003).
-pub async fn machines_partial(State(state): State<crate::server::AppState>) -> Response {
+pub async fn machines_partial(
+    State(state): State<crate::server::AppState>,
+    Query(q): Query<std::collections::HashMap<String, String>>,
+) -> Response {
     let model = machines::model_panel(
         state.fleet.as_deref(),
         &crate::server::api::reporting_hosts(&state),
     );
-    let page = machines::view(state.machines.as_deref(), state.hub.as_ref());
+    let range = q.get("range").map(String::as_str);
+    let (m, hub) = (state.machines.clone(), state.hub.clone());
+    let range = range.map(String::from);
+    let page = tokio::task::spawn_blocking(move || {
+        machines::view_range(m.as_deref(), hub.as_ref(), range.as_deref())
+    })
+    .await
+    .unwrap_or_default();
     // the model panel and the modelled-but-silent cards go before the live cards
     Html(page.replacen(
         r#"<div class="machines">"#,
@@ -107,6 +118,23 @@ pub async fn machines_partial(State(state): State<crate::server::AppState>) -> R
         1,
     ))
     .into_response()
+}
+
+/// HTMX partial: one machine's full history charts (REQ-MHIST-003).
+pub async fn machine_history_partial(
+    State(state): State<crate::server::AppState>,
+    Query(q): Query<std::collections::HashMap<String, String>>,
+) -> Response {
+    let Some(h) = state.machines.as_ref().and_then(|m| m.history()).cloned() else {
+        return Html(machines::HISTORY_UNAVAILABLE.to_string()).into_response();
+    };
+    let host = q.get("host").cloned().unwrap_or_default();
+    let range = q.get("range").cloned();
+    let html =
+        tokio::task::spawn_blocking(move || machines::history_panel(&h, &host, range.as_deref()))
+            .await
+            .unwrap_or_else(|_| machines::HISTORY_UNAVAILABLE.to_string());
+    Html(html).into_response()
 }
 
 /// HTMX partial: scheduled jobs (REQ-JOBS-001).

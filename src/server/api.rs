@@ -55,6 +55,9 @@ pub fn build_routes() -> Router<AppState> {
         .route("/admission", get(api_admission))
         .route("/watch", get(api_watch))
         .route("/machines", get(api_machines))
+        .route("/history/machines", get(api_history_hosts))
+        .route("/history/machines/{host}/metrics", get(api_history_metrics))
+        .route("/history/machines/{host}/series", get(api_history_series))
         .route("/fleet", get(api_fleet))
         .route("/airport", get(api_airport))
         .route("/jobs", get(api_jobs))
@@ -132,6 +135,10 @@ pub fn build_routes() -> Router<AppState> {
         .route(
             "/api/dashboard/machines-partial",
             get(crate::dashboard::machines_partial),
+        )
+        .route(
+            "/api/dashboard/machine-history-partial",
+            get(crate::dashboard::machine_history_partial),
         )
         .route(
             "/api/dashboard/compliance-partial",
@@ -809,6 +816,112 @@ async fn api_fleet(State(state): State<AppState>) -> axum::response::Response {
     }
 }
 
+// ── Machine history (REQ-MHIST-002) ────────────────────────────────
+
+fn history(state: &AppState) -> Option<&crate::history::History> {
+    state.machines.as_ref().and_then(|m| m.history())
+}
+
+fn no_history() -> axum::response::Response {
+    plain(StatusCode::NOT_FOUND, "no machine history on this warte")
+}
+
+/// A host the store knows. Hosts are keys, never paths.
+fn known_host(h: &crate::history::History, host: &str) -> bool {
+    h.hosts().iter().any(|k| k == host)
+}
+
+fn unknown_host() -> axum::response::Response {
+    plain(StatusCode::NOT_FOUND, "no history for this machine")
+}
+
+async fn api_history_hosts(State(state): State<AppState>) -> axum::response::Response {
+    match history(&state) {
+        Some(h) => Json(serde_json::json!({ "machines": h.hosts() })).into_response(),
+        None => no_history(),
+    }
+}
+
+async fn api_history_metrics(
+    State(state): State<AppState>,
+    axum::extract::Path(host): axum::extract::Path<String>,
+) -> axum::response::Response {
+    let Some(h) = history(&state) else {
+        return no_history();
+    };
+    if !known_host(h, &host) {
+        return unknown_host();
+    }
+    let metrics: Vec<serde_json::Value> = h
+        .metrics(&host)
+        .into_iter()
+        .map(|m| serde_json::json!({ "unit": crate::history::unit(&m), "metric": m }))
+        .collect();
+    Json(serde_json::json!({ "host": host, "metrics": metrics })).into_response()
+}
+
+#[derive(Deserialize)]
+struct SeriesQuery {
+    metric: Option<String>,
+    from: Option<i64>,
+    to: Option<i64>,
+}
+
+/// `from`/`to` defaults and limits, shared with the dashboard. Err: a 400 message.
+pub fn history_range(
+    from: Option<i64>,
+    to: Option<i64>,
+    now: i64,
+) -> Result<(i64, i64), &'static str> {
+    let to = to.unwrap_or(now);
+    let from = from.unwrap_or(to - 86_400);
+    if from > to {
+        return Err("from must not be after to");
+    }
+    if to - from > crate::history::MAX_RANGE_S {
+        return Err("the range is limited to 400 days");
+    }
+    Ok((from, to))
+}
+
+async fn api_history_series(
+    State(state): State<AppState>,
+    axum::extract::Path(host): axum::extract::Path<String>,
+    Query(q): Query<SeriesQuery>,
+) -> axum::response::Response {
+    let Some(h) = history(&state) else {
+        return no_history();
+    };
+    if !known_host(h, &host) {
+        return unknown_host();
+    }
+    let metrics: Vec<String> = q
+        .metric
+        .as_deref()
+        .unwrap_or("")
+        .split(',')
+        .map(str::trim)
+        .filter(|m| !m.is_empty())
+        .map(String::from)
+        .collect();
+    if metrics.is_empty() || metrics.len() > 32 {
+        return plain(StatusCode::BAD_REQUEST, "give 1 to 32 metrics: metric=a,b");
+    }
+    let (from, to) = match history_range(q.from, q.to, crate::hub::now()) {
+        Ok(r) => r,
+        Err(m) => return plain(StatusCode::BAD_REQUEST, m),
+    };
+    let h = h.clone();
+    let host2 = host.clone();
+    match tokio::task::spawn_blocking(move || h.series(&host2, &metrics, from, to)).await {
+        Ok(series) => {
+            Json(serde_json::json!({ "host": host, "from": from, "to": to, "series": series }))
+                .into_response()
+        }
+        Err(_) => plain(StatusCode::INTERNAL_SERVER_ERROR, "history read failed"),
+    }
+}
+
 /// Every machine the ground station hears from, with drift findings.
 async fn api_machines(State(state): State<AppState>) -> axum::response::Response {
     let Some(m) = state.machines.as_ref() else {
@@ -832,9 +945,11 @@ async fn api_machines(State(state): State<AppState>) -> axum::response::Response
             })
         })
         .collect();
+    let mut findings = crate::probe::findings(&seen, now);
+    findings.extend(m.history().and_then(|h| h.finding(now)));
     Json(serde_json::json!({
         "machines": machines,
-        "findings": crate::probe::findings(&seen, now),
+        "findings": findings,
     }))
     .into_response()
 }

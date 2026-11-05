@@ -112,6 +112,30 @@ GET /api/admission?repo=spar&kind=docs           # {verdict: open|batch|hold, re
   the reason says the data is stale.
 - `503` when no ground station is configured or no snapshot has arrived.
 
+## Machine history (REQ-MHIST-002)
+
+Every machine's numbers over time, kept by warte itself (`history.redb` next to
+the machines state): per minute for 7 days, hourly min/avg/max for 90 days
+(`[history] keep_days`, at least 8). Read-only, same exposure as `/api/machines`:
+host names, series names and numbers only.
+
+```
+GET /api/history/machines                      # hosts with history
+GET /api/history/machines/<host>/metrics       # its series names and units
+GET /api/history/machines/<host>/series?metric=load.1,mem.used_pct&from=<unix>&to=<unix>
+```
+
+`series` answers `{host, from, to, series: [{metric, unit, t0, step, values, min?, max?}]}`.
+`to` defaults to now and `from` to 24 h before it. `step` is 60 s for ranges up to
+7 days and 3600 s beyond (then with `min` and `max`); value `i` is at
+`t0 + i*step`; a gap is `null`. Series names are dotted, with labels for mounts,
+devices and runners: `load.1`, `load.per_core`, `mem.used_pct`, `swap.used_mb`,
+`disk.used_pct{mount=/}`, `io.busy_pct{dev=sda}`, `psi.io.some`, `sessions`,
+`runners.busy`, `runner.cpu{id=3}`, `queue.self_hosted`.
+
+- `400` for `from` after `to`, a range over 400 days, or no `metric`.
+- `404` for a host without history, or when this warte keeps none.
+
 ## Ground station (`/ci`, when `[hub]` is configured)
 
 The absorbed smithy hub API, unchanged; the contract is `/ci/api/openapi.json`.

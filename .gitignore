@@ -9,3 +9,6 @@ machines.json
 
 # local agent state from sessions run inside tests/playwright
 tests/playwright/.claude/
+
+# machine history store (REQ-HIST-001), e.g. in the Playwright fixture
+history.redb

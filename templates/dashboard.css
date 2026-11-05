@@ -504,3 +504,27 @@ p.empty {
 .minv summary { cursor: pointer; color: var(--dim); }
 .minv .mjobs { margin: 4px 0 0; padding-left: 18px; }
 .minv .mjobs li.bad { color: var(--amber); }
+
+/* Machine history (REQ-MHIST-003) */
+.hrange { display: flex; gap: .4rem; align-items: center; margin: 0 0 .8rem; color: var(--dim); font-size: .85rem; }
+.rbtn { background: none; border: 1px solid var(--accent-dim); color: var(--dim); padding: .15rem .6rem; border-radius: 3px; cursor: pointer; font: inherit; }
+.rbtn.on, .rbtn:hover { color: var(--accent); border-color: var(--accent); }
+.sparks { display: grid; gap: .15rem; margin: .4rem 0; }
+.spark { display: grid; grid-template-columns: 6.5rem 1fr 4.5rem; gap: .5rem; align-items: center; font-size: .8rem; }
+.spark .name { color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.spark .n { text-align: right; }
+.spark svg { width: 100%; height: 24px; }
+.spark path, .hchart .line { fill: none; stroke: var(--accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.mhist { margin: .4rem 0; font-size: .85rem; }
+.mhist summary { cursor: pointer; color: var(--dim); }
+.hgroup h4 { margin: .6rem 0 .2rem; color: var(--dim); font-weight: 600; }
+.hchart { margin: .2rem 0 .6rem; }
+.hchart figcaption { font-size: .8rem; display: flex; justify-content: space-between; }
+.hchart svg { width: 100%; height: 60px; background: rgba(127,127,127,.06); }
+.hchart .band { stroke: var(--accent-dim); stroke-width: 3; opacity: .5; vector-effect: non-scaling-stroke; }
+.hchart .hover rect { fill: transparent; }
+.hchart .hover rect:hover { fill: rgba(127,127,127,.18); }
+.hchart .axis { display: flex; justify-content: space-between; color: var(--dim); font-size: .7rem; }
+.flink { font-size: .8rem; margin-left: .4rem; }
+.machine:has(.mhist[open]) { grid-column: 1 / -1; }
+.hcharts { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 0 1rem; }
