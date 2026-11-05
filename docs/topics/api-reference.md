@@ -6,7 +6,7 @@ authentication (mTLS or signed bearer token).
 ## Bearer tokens for agents
 
 Write routes (`POST /api/agents/register`, `/api/agents/{id}/heartbeat`,
-`/api/agents/{id}/data`, `/api/costs`, ...) answer `401` without
+`/api/agents/{id}/data`, `/api/costs`, `/api/skill-usage`, ...) answer `401` without
 `Authorization: Bearer <token>`. Nothing issues a token over HTTP; the
 operator mints one on the ground station host:
 
@@ -26,12 +26,13 @@ warte token mint <agent-id> [--valid-hours 720] [--any-agent] [--right <r>]...
   | `POST /api/access/revoke` | `access:revoke` |
   | `POST /api/sync/update` | `sync:update` |
   | `POST /api/costs` | `costs:write` |
+  | `POST /api/skill-usage` | `skills:write` |
 
   A write route with no row in that table (`MUTATING_ROUTES` in
   `src/auth/mod.rs`) is refused with `403`. The probe routes authenticate
   themselves and are not in it.
 - A bare mint carries `agents:register`, `agents:data` and `agents:heartbeat`:
-  enough for an agent, not for `access:*`, `sync:update` or `costs:write`.
+  enough for an agent, not for `access:*`, `sync:update`, `costs:write` or `skills:write`.
   `--right <r>` (repeatable) adds a right, e.g. `--right costs:write`; a name
   that is not in the table is refused at mint time.
 - The agent binding: a token names an agent by the name it registers under.

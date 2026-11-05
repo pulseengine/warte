@@ -82,6 +82,27 @@
         }
       }
     },
+    "/api/skill-usage": {
+      "get": {
+        "summary": "The latest skill-usage report of every source",
+        "description": "Which agent skills were invoked (model, user slash command, subagent), in how many sessions, and which installed skills were never used, from local agent transcripts. reports is empty until a workstation has pushed one.",
+        "responses": {
+          "200": {"description": "the stored reports with their ages"},
+          "503": {"description": "no ground station configured"}
+        }
+      },
+      "post": {
+        "summary": "Replace the skill-usage report of its source (a workstation job, nightly)",
+        "description": "Needs the skills:write right. The body is the whole report (schema skill-usage.v1). Unknown fields, free text, a source other than [a-z0-9-]{1,32} and a name other than [a-z0-9._:-]{1,64} are rejected. At most 1 MiB.",
+        "responses": {
+          "201": {"description": "stored"},
+          "400": {"description": "not a valid report; nothing stored"},
+          "401": {"description": "no valid token"},
+          "403": {"description": "the token lacks skills:write"},
+          "503": {"description": "no ground station configured"}
+        }
+      }
+    },
     "/api/fleet": {
       "get": {
         "summary": "The fleet model (a spar instance of the Warte_Fleet AADL types) and its differences from what reports in",

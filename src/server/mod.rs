@@ -35,6 +35,8 @@ pub struct AppState {
     pub fleet: Option<Arc<Result<crate::fleet::Fleet, String>>>,
     /// The latest notional-cost report (REQ-COSTS-001), with the ground station.
     pub costs: Option<Arc<crate::costs::Costs>>,
+    /// The latest skill-usage report per source (REQ-SKILLS-001).
+    pub skills: Option<Arc<crate::skills::Skills>>,
     /// temper's latest report, when `[temper]` and `[hub]` are configured.
     pub temper: Option<Arc<crate::temper::Store>>,
 }
@@ -163,6 +165,13 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
         ))
     });
 
+    let skills = config.hub.as_ref().map(|h| {
+        Arc::new(crate::skills::Skills::open(
+            &h.data_dir,
+            h.skill_usage_file.as_deref(),
+        ))
+    });
+
     let temper = match (&config.temper, &config.hub) {
         (Some(_), Some(h)) => Some(Arc::new(crate::temper::Store::open(&h.data_dir))),
         _ => None,
@@ -191,6 +200,7 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
         machines,
         fleet,
         costs,
+        skills,
         temper,
         agents: Arc::new(AgentRegistry::with_ca(
             pool.clone(),

@@ -752,6 +752,23 @@ artifacts:
       model: claude-opus-5-5
       timestamp: 2026-10-29T16:00:00Z
 
+  - id: REQ-SKILLS-001
+    type: requirement
+    title: "Skills view: which agent skills are actually used, from workstation transcripts"
+    status: implemented
+    release: v1.6.0
+    description: "warte SHALL show the latest skill-usage.v1 report of every source a workstation job sends: per skill the invocations (model, user slash command, subagent), the sessions and the SKILL.md reads, summed across sources and per source; the installed skills never invoked; the share of sessions using any skill; and the window and age of each report. The report arrives either as a file the job copies to the ground station ([hub] skill_usage_file, re-read when it changes) or by POST /api/skill-usage, which needs a bearer token holding the right skills:write (REQ-API-004); GET /api/skill-usage serves the latest report per source. The read API is unauthenticated (#46), so warte SHALL reject a report with unknown fields, a source other than [a-z0-9-]{1,32}, a skill, plugin or repository name other than [a-z0-9._:-]{1,64}, or a negative count, store nothing from it, and never quote the rejected input in the reason it shows."
+    fields:
+      category: functional
+      priority: should
+    links:
+      - type: satisfies
+        target: SC-006
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-05T16:00:00Z
+
   - id: REQ-EXP-001
     type: requirement
     title: Experiments view from structured experiment metadata

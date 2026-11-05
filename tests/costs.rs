@@ -63,6 +63,7 @@ async fn serve() -> Server {
             org: "pulseengine".into(),
             probe_self: false,
             costs_file: Some(costs_file.to_str().unwrap().into()),
+            skill_usage_file: None,
         }),
         ..Default::default()
     };

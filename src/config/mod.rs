@@ -230,6 +230,11 @@ pub struct HubConfig {
     /// re-read when it changes. None: only `POST /api/costs`.
     #[serde(default)]
     pub costs_file: Option<String>,
+    /// A `skill-usage.v1` report a workstation job copies here
+    /// (REQ-SKILLS-001); re-read when it changes. None: only
+    /// `POST /api/skill-usage`.
+    #[serde(default)]
+    pub skill_usage_file: Option<String>,
 }
 
 fn default_true() -> bool {

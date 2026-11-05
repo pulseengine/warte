@@ -457,6 +457,7 @@ async fn misconfiguration_is_refused_at_startup() {
             org: "acme".into(),
             probe_self: false,
             costs_file: None,
+            skill_usage_file: None,
         }),
         github: Some(cfg("http://127.0.0.1:9")),
         ..Default::default()

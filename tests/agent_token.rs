@@ -228,7 +228,7 @@ fn cli_prints_only_the_token_on_stdout() {
 // ── REQ-API-004: rights and agent binding on the mutating routes ─────────
 
 /// Every right a route can require, plus the agent-binding override.
-const ALL_RIGHTS: [&str; 8] = [
+const ALL_RIGHTS: [&str; 9] = [
     "agents:register",
     "agents:heartbeat",
     "agents:data",
@@ -236,11 +236,12 @@ const ALL_RIGHTS: [&str; 8] = [
     "access:revoke",
     "sync:update",
     "costs:write",
+    "skills:write",
     "agents:any",
 ];
 
 /// (path, right) of every mutating route. `{id}` is filled with the agent.
-const ROUTES: [(&str, &str); 7] = [
+const ROUTES: [(&str, &str); 8] = [
     ("/api/agents/register", "agents:register"),
     ("/api/agents/{id}/heartbeat", "agents:heartbeat"),
     ("/api/agents/{id}/data", "agents:data"),
@@ -248,6 +249,7 @@ const ROUTES: [(&str, &str); 7] = [
     ("/api/access/revoke", "access:revoke"),
     ("/api/sync/update", "sync:update"),
     ("/api/costs", "costs:write"),
+    ("/api/skill-usage", "skills:write"),
 ];
 
 fn token_with(s: &Server, agent: &str, rights: &[&str]) -> String {
@@ -310,7 +312,10 @@ async fn every_route_accepts_a_token_with_its_right() {
             "{path} with only {right}: {got}"
         );
         // costs and sync need a ground station / a real record: only "not refused".
-        if !path.ends_with("/costs") && !path.ends_with("/update") {
+        if !path.ends_with("/costs")
+            && !path.ends_with("/skill-usage")
+            && !path.ends_with("/update")
+        {
             assert!(got < 300, "{path} with only {right}: {got}");
         }
     }
@@ -331,6 +336,7 @@ async fn a_fresh_mint_cannot_grant_or_revoke_access() {
     assert_eq!(post_as(&s, "/api/access/grant", "a1", Some(&t)).await, 403);
     assert_eq!(post_as(&s, "/api/access/revoke", "a1", Some(&t)).await, 403);
     assert_eq!(post_as(&s, "/api/costs", "a1", Some(&t)).await, 403);
+    assert_eq!(post_as(&s, "/api/skill-usage", "a1", Some(&t)).await, 403);
     assert_eq!(post_as(&s, "/api/sync/update", "a1", Some(&t)).await, 403);
 }
 
