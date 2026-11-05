@@ -11,7 +11,7 @@
 
 ### 1.1 What warte synchronizes
 
-warte runs on multiple instances (today: Hetzner primary + Netcup secondary, behind an
+warte runs on multiple instances (today: a primary and a secondary instance, behind an
 edge proxy, connected by a private WireGuard VPN — see `docs/architecture.md` and
 `docs/deployment.md`). Each instance keeps a local SQLite database
 (`src/db/migrations/001_initial.sql`). The state that must sync across instances:
@@ -109,7 +109,7 @@ The `crdts` crate (v7) is already a dependency in `Cargo.toml`.
     receives them* are lost. Bounded by the sync interval; mitigated by WAL
     durability, anti-entropy on reconnect, and an optional Litestream backup.
   - *Known weaknesses of the current implementation:* LWW uses wall-clock
-    timestamps (vulnerable to NTP skew between Hetzner and Netcup); no tombstone
+    timestamps (vulnerable to NTP skew between instances); no tombstone
     garbage collection; no periodic anti-entropy sweep (a peer that was down at
     write time only catches up when it reconnects and pulls); `apply_remote_update`
     is still a TODO — the merge logic is not implemented yet.
@@ -461,7 +461,7 @@ Consul, rqlite's second port for Raft traffic).
 ### 8.2 Recommended architecture (target state)
 
 ```
-warte instance 1 (Hetzner)                 warte instance 2 (Netcup)
+warte instance 1                           warte instance 2 
 ┌───────────────────────────┐              ┌───────────────────────────┐
 │  Axum API                 │              │  Axum API                 │
 │  Access control           │              │  Access control           │
@@ -500,7 +500,7 @@ mTLS channel; per-instance certs; push-based revocation fast path (< 5 s).
      grant+revoke resolves to **revoked** — fail-safe (R3). Never LWW-by-wall-clock
      for authorization.
    - `agents`: LWW-Register per field with **hybrid logical clocks** (HLC) [13], not
-     wall clock — immune to NTP skew between Hetzner and Netcup. Registration itself
+     wall clock — immune to NTP skew between instances. Registration itself
      is an OR-Set add (idempotent re-registration).
    - `agent_data`: append-only log (OR-Set of records keyed by UUIDv7) — no conflicts
      by construction; partitionable by agent.
@@ -511,7 +511,7 @@ mTLS channel; per-instance certs; push-based revocation fast path (< 5 s).
    can be dropped once all live instances have seen it. Prevents unbounded growth of
    `access_policies` tombstones.
 4. **Durability layer: Litestream** [38] per instance → S3-compatible object storage
-   (Hetzner Object Storage or equivalent). Bounds the data-loss window (R5), gives
+   (object storage). Bounds the data-loss window (R5), gives
    point-in-time restore, and provides disaster recovery for a destroyed instance
    (restore from backup + anti-entropy catch-up).
 5. **Signed sync updates.** Each update carries the authorizing operator's sigil

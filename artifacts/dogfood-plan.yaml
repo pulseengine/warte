@@ -566,7 +566,7 @@ artifacts:
     title: Probes find the ground station via mDNS on the LAN, explicit address elsewhere
     status: approved
     release: v1.6.0
-    description: warte SHALL advertise its ground station via mDNS/DNS-SD on the physical LAN (reusing src/discovery's signed TXT records) and probes SHALL find it there. Remote probes (e.g. Hetzner over WireGuard) SHALL be configured with an explicit address; mDNS SHALL NOT be relied on across WireGuard.
+    description: warte SHALL advertise its ground station via mDNS/DNS-SD on the physical LAN (reusing src/discovery's signed TXT records) and probes SHALL find it there. Remote probes (e.g. a remote host over WireGuard) SHALL be configured with an explicit address; mDNS SHALL NOT be relied on across WireGuard.
     fields:
       category: interface
       priority: should

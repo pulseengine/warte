@@ -113,12 +113,12 @@ artifacts:
 
   - id: DD-ARCH-007
     type: design-decision
-    title: "Edge proxy as the sole internet-facing component (Hetzner/Netcup)"
+    title: Edge proxy as the sole internet-facing component
     status: accepted
     release: v0.1.0
-    description: >
-      The edge proxy (deployed on Hetzner/Netcup) is the ONLY component
-      exposed to the internet.
+    description: |
+      The edge proxy is the ONLY component exposed to the internet.
+
     fields:
       rationale: >
         Defense-in-depth: a single hardened entry point reduces the attack

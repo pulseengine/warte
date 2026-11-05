@@ -62,9 +62,9 @@ artifacts:
     type: asset
     title: Edge proxy TLS termination
     status: draft
-    description: >
-      The TLS termination and security enforcement at the edge proxy
-      (Hetzner/Netcup). Compromise exposes all internal traffic.
+    description: |
+      The TLS termination and security enforcement at the edge proxy. Compromise exposes all internal traffic.
+
     fields:
       asset-type: function
       cybersecurity-properties: [confidentiality, integrity, availability]
@@ -201,10 +201,9 @@ artifacts:
     type: sec-hazard
     title: Edge proxy compromised via unpatched vulnerability
     status: draft
-    description: >
-      The edge proxy (Hetzner/Netcup) runs an unpatched service or
-      misconfiguration that an attacker exploits to gain a foothold,
-      intercept traffic, or pivot to internal systems.
+    description: |
+      The edge proxy runs an unpatched service or misconfiguration that an attacker exploits to gain a foothold, intercept traffic, or pivot to internal systems.
+
     fields:
       cia-impact: [confidentiality, integrity, availability]
       severity: critical
@@ -294,9 +293,9 @@ artifacts:
     type: threat-scenario
     title: Attacker exploits edge proxy vulnerability
     status: draft
-    description: >
-      An attacker scans the edge proxy (Hetzner/Netcup), finds an unpatched
-      service or misconfiguration, and exploits it to gain access.
+    description: |
+      An attacker scans the edge proxy, finds an unpatched service or misconfiguration, and exploits it to gain access.
+
     fields:
       attack-vector: network
       attack-feasibility: high

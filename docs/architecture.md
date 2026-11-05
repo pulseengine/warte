@@ -33,7 +33,7 @@ The orchestrator (the human owner) uses warte to:
 │         └──────────────────┼───────────────────────┘                 │
 │                            │ mTLS (TLS 1.3)                          │
 │  ┌─────────────────────────▼─────────────────────────────────────┐   │
-│  │              EDGE PROXY (Hetzner / Netcup)                     │   │
+│  │              EDGE PROXY                                        │   │
 │  │  ┌─────────┐  ┌─────────────┐  ┌─────────┐  ┌──────────────┐  │   │
 │  │  │ TLS 1.3 │  │ Rate Limit  │  │ Request │  │ Attack       │  │   │
 │  │  │ Termin. │  │ (per-IP/    │  │ Schema  │  │ Detection    │  │   │
@@ -59,7 +59,7 @@ The orchestrator (the human owner) uses warte to:
 │  └─────────────────────────┼─────────────────────────────────────┘   │
 │                            │                                         │
 │  ┌─────────────────────────▼─────────────────────────────────────┐   │
-│  │              WARTE INSTANCE 2 (secondary, Hetzner)             │   │
+│  │              WARTE INSTANCE 2 (secondary)                      │   │
 │  │  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐  │   │
 │  │  │  API    │ │ Agent   │ │ Access  │ │ Artifact│ │  Sync   │  │   │
 │  │  │ Server  │ │ Registry│ │ Control │ │ Store   │ │ Service │  │   │
@@ -167,7 +167,7 @@ Sync protocol:
 3. Conflicts resolved deterministically (CRDT merge or LWW)
 4. Divergence beyond threshold triggers operator alert
 
-### 6. Edge Proxy (Hetzner/Netcup)
+### 6. Edge Proxy
 
 The sole internet-facing component. Runs:
 - **TLS 1.3 termination** (nginx or Caddy)
@@ -231,13 +231,13 @@ Command: `warte migrate temper --config /path/to/temper/config.yml`
 
 ## Deployment
 
-### Hetzner (primary instance)
+### Primary instance
 - 2 vCPU, 4 GB RAM, 40 GB SSD
 - Ubuntu 24.04 LTS
 - warte instance 1 (primary)
 - SQLite local state
 
-### Netcup (edge proxy + secondary instance)
+### Edge proxy + secondary instance
 - Edge proxy: 2 vCPU, 4 GB RAM (nginx/Caddy + WAF)
 - Secondary instance: 2 vCPU, 4 GB RAM (warte instance 2)
 - WireGuard VPN between edge and internal instances
@@ -262,7 +262,7 @@ Scope: 48 artifacts (12 design decisions + 27 requirements + 9 verifications).
 | Multi-instance sync | CRDT, version vectors, divergence detection | done |
 | Dashboard API | Overview, ask, queue, critical path | partial |
 | Migration | smithy import, temper import | pending |
-| Edge deployment | Hetzner/Netcup config, WireGuard, auto-patch | docs done |
+| Edge deployment | edge config, WireGuard, auto-patch | docs done |
 
 ### v0.2.0 — Toolchain integration, discovery, multi-platform
 

@@ -220,11 +220,9 @@ artifacts:
     title: Edge proxy terminates TLS 1.3 and enforces rate limiting
     status: accepted
     release: v0.1.0
-    description: >
-      The edge proxy (Hetzner/Netcup) SHALL terminate TLS 1.3 for all external
-      connections, enforce per-IP and per-agent rate limiting (configurable
-      limits, default: 100 req/min per IP, 1000 req/min per agent), and drop
-      connections exceeding limits.
+    description: |
+      The edge proxy SHALL terminate TLS 1.3 for all external connections, enforce per-IP and per-agent rate limiting (configurable limits, default: 100 req/min per IP, 1000 req/min per agent), and drop connections exceeding limits.
+
     links:
       - type: satisfies
         target: SC-007

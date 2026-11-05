@@ -218,7 +218,7 @@ success:
 [jobs]
 dir = "/var/lib/pulseengine/jobs"
 expected = "/etc/pulseengine/jobs-expected"   # "<path> <window_s>" per line
-hosts = { mini = "Mac.fritz.box", "netcup-vps" = "netcup" }  # dir -> machine
+hosts = { mini = "mini.local", "build-vps" = "build" }  # dir -> machine
 ```
 
 (`WARTE_JOBS_DIR`, `WARTE_JOBS_EXPECTED` work too.) The Jobs view and
