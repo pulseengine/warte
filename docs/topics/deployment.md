@@ -1,9 +1,10 @@
 # Deployment
 
-Warte deploys on Hetzner (edge proxy + primary instance) and Netcup
-(secondary instance), connected via WireGuard VPN.
+Warte can run behind an edge proxy with internal instances connected over
+WireGuard. Real hosts and addresses belong in the deployment's private
+infrastructure repository, not here.
 
-## Edge proxy (Hetzner)
+## Edge proxy
 
 - Caddy with TLS 1.3 termination
 - Rate limiting (100 req/min per IP, 1000 req/min per agent)
@@ -23,10 +24,10 @@ Warte deploys on Hetzner (edge proxy + primary instance) and Netcup
 
 ```toml
 # warte.toml
-bind = "10.0.0.2:8080"
+bind = "<instance1-tunnel-ip>:8080"
 db_path = ".warte/state.db"
 tls_enabled = false  # TLS terminated at edge proxy
-sync_peers = ["https://10.0.0.3:8080"]
+sync_peers = ["https://<instance2-tunnel-ip>:8080"]
 # which repo depends on which, for the Critical Path view (top of the file)
 repo_dependencies = [
   { repo = "jess", depends_on = ["relay", "gale"] },

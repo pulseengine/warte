@@ -1,18 +1,20 @@
-# Warte edge proxy deployment (Hetzner / Netcup)
+# Warte edge proxy deployment (example)
 #
 # The edge proxy is the ONLY internet-facing component. It terminates TLS 1.3,
 # enforces rate limiting, validates requests, and proxies to internal warte
 # instances over a private WireGuard VPN.
 #
-# Deploy on: Hetzner Cloud (edge) + Netcup VPS (secondary instance)
+# Example layout: one edge host + internal warte instances. Hosts, providers,
+# addresses and names here are placeholders; a real deployment keeps its own
+# values in its private infrastructure repository.
 # Internal:  WireGuard VPN between edge and internal instances
 
 ## Architecture
 #
-#   Internet → Edge Proxy (Hetzner, public IP)
-#                  │ WireGuard VPN (10.0.0.0/24)
-#                  ├──→ warte instance 1 (home-LAN instance, internal)
-#                  └──→ warte instance 2 (Netcup, internal)
+#   Internet → Edge Proxy (edge host)
+#                  │ WireGuard VPN (<tunnel-range>)
+#                  ├──→ warte instance 1 (internal)
+#                  └──→ warte instance 2 (internal)
 #
 #   Mobile (iOS/Android) ──mTLS──→ Edge Proxy ──→ warte instances
 #   Agents (worker machines) ──mTLS──→ Edge Proxy ──→ warte instances
@@ -22,10 +24,10 @@
 
 # /etc/caddy/Caddyfile
 {
-    email admin@pulseengine.eu
+    email admin@example.org
 }
 
-warte.pulseengine.eu {
+warte.example.org {
     # TLS 1.3 only
     tls {
         protocols tls1.3
@@ -50,7 +52,7 @@ warte.pulseengine.eu {
     }
 
     # Reverse proxy to internal warte instance (over WireGuard)
-    reverse_proxy 10.0.0.2:8080 10.0.0.3:8080 {
+    reverse_proxy <instance1-tunnel-ip>:8080 <instance2-tunnel-ip>:8080 {
         # Health check
         health_uri /api/health
         health_interval 30s
@@ -73,28 +75,28 @@ warte.pulseengine.eu {
 
 # /etc/wireguard/wg0.conf (on edge proxy)
 [Interface]
-Address = 10.0.0.1/24
+Address = <edge-tunnel-ip>/<prefix>
 ListenPort = 51820
 PrivateKey = <EDGE_PRIVATE_KEY>
 
-# Internal instance 1 (home-LAN instance)
+# Internal instance 1
 [Peer]
 PublicKey = <INSTANCE1_PUBLIC_KEY>
-AllowedIPs = 10.0.0.2/32
+AllowedIPs = <instance1-tunnel-ip>/32
 
-# Internal instance 2 (Netcup)
+# Internal instance 2
 [Peer]
 PublicKey = <INSTANCE2_PUBLIC_KEY>
-AllowedIPs = 10.0.0.3/32
+AllowedIPs = <instance2-tunnel-ip>/32
 
 # /etc/wireguard/wg0.conf (on warte instance 1)
 [Interface]
-Address = 10.0.0.2/24
+Address = <instance1-tunnel-ip>/<prefix>
 PrivateKey = <INSTANCE1_PRIVATE_KEY>
 
 [Peer]
 PublicKey = <EDGE_PUBLIC_KEY>
-AllowedIPs = 10.0.0.1/32
+AllowedIPs = <edge-tunnel-ip>/32
 Endpoint = <EDGE_PUBLIC_IP>:51820
 PersistentKeepalive = 25
 
@@ -128,23 +130,23 @@ ufw enable
 
 ## warte instance configuration (warte.toml on internal instances)
 
-# Instance 1 (home-LAN instance)
-# bind = "10.0.0.2:8080"
+# Instance 1
+# bind = "<instance1-tunnel-ip>:8080"
 # tls_enabled = false  # TLS terminated at edge proxy
-# sync_peers = ["https://10.0.0.3:8080"]
+# sync_peers = ["https://<instance2-tunnel-ip>:8080"]
 
-# Instance 2 (Netcup)
-# bind = "10.0.0.3:8080"
+# Instance 2
+# bind = "<instance2-tunnel-ip>:8080"
 # tls_enabled = false  # TLS terminated at edge proxy
-# sync_peers = ["https://10.0.0.2:8080"]
+# sync_peers = ["https://<instance1-tunnel-ip>:8080"]
 
 ## Deployment steps
 
-# 1. Provision Hetzner Cloud server (edge proxy)
+# 1. Provision the edge host
 #    - Ubuntu 24.04 LTS, 2 vCPU, 4 GB RAM, 40 GB SSD
 #    - Public IP, SSH key access
 #
-# 2. Provision Netcup VPS (secondary instance)
+# 2. Provision the second instance
 #    - Ubuntu 24.04 LTS, 2 vCPU, 4 GB RAM
 #    - Private network with edge proxy
 #
@@ -166,4 +168,4 @@ ufw enable
 #    dpkg-reconfigure unattended-upgrades
 #
 # 7. Verify
-#    curl https://warte.pulseengine.eu/api/health
+#    curl https://warte.example.org/api/health

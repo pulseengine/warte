@@ -6,8 +6,8 @@ orchestration, access control, multi-instance sync, and mobile access.
 ## System overview
 
 ```
-Internet → Edge Proxy (Hetzner, TLS 1.3 + rate limit + WAF)
-              │ WireGuard VPN (10.0.0.0/24)
+Internet → Edge Proxy (TLS 1.3 + rate limit + WAF)
+              │ WireGuard VPN (<tunnel-range>)
               ├──→ warte instance 1 (primary)
               └──→ warte instance 2 (secondary)
                    ↑ CRDT sync (version vectors, divergence detection)

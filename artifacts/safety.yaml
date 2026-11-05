@@ -147,7 +147,7 @@ artifacts:
 
   - id: H-007
     type: hazard
-    title: Edge server (Hetzner/Netcup) compromised
+    title: Edge server compromised
     status: draft
     description: >
       The edge server that exposes warte to the internet is compromised,
@@ -195,7 +195,7 @@ artifacts:
 
   - id: CTRL-004
     type: controller
-    title: Edge proxy (Hetzner/Netcup)
+    title: Edge proxy
     status: draft
     description: >
       The reverse proxy / edge server that terminates external connections,

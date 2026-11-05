@@ -3,13 +3,13 @@
 - **Date:** 2026-10-26
 - **Status:** Research report — no code written
 - **Scope:** Peer discovery for warte's multi-instance sync (edge, cloud and home-LAN instances) without hardcoded peer addresses
-- **Related docs:** `docs/architecture.md` (§5 Sync Service), `docs/deployment.md` (WireGuard 10.0.0.0/24), `src/sync/mod.rs`, `src/config/mod.rs` (`sync_peers`)
+- **Related docs:** `docs/architecture.md` (§5 Sync Service), `docs/deployment.md` (WireGuard <tunnel-range>), `src/sync/mod.rs`, `src/config/mod.rs` (`sync_peers`)
 
 ## TL;DR
 
 1. **Adopt `mdns-sd` for the wire protocol, build warte's discovery layer on top.** mDNS/DNS-SD (RFC 6762/6763) is a standard wire protocol with real complexity (probing, conflict resolution, tiebreaking, known-answer suppression, goodbye packets, rate limiting). `mdns-sd` is the strongest Rust crate for it: pure safe Rust, no async-runtime dependency, actively maintained (release 2026-10-19, commits through 2026-10-25), ~6.8M downloads, Apache-2.0/MIT, zero RustSec advisories, and it publishes an RFC-compliance table. The purpose-built, self-owned part is warte's discovery semantics: service type, TXT attestation, peer lifecycle, and integration with `SyncService`.
 2. **mDNS is a discovery mechanism, not a sync transport.** It answers "which warte instances exist and where do I reach them?" The sync channel stays mTLS over WireGuard. Because sync is already authenticated (per-instance certs, TS-006/CG-006), a spoofed mDNS record can at most cause a failed mTLS handshake — it cannot inject state.
-3. **mDNS does not cross WireGuard.** WireGuard is layer-3 and does not transport multicast. Keep static `sync_peers` for the 10.0.0.0/24 overlay (already deployed); use mDNS only on the physical LAN (the ground-station host segment). Advertise the WireGuard sync address in the TXT record so LAN-discovered peers sync over the VPN.
+3. **mDNS does not cross WireGuard.** WireGuard is layer-3 and does not transport multicast. Keep static `sync_peers` for the <tunnel-range> overlay (already deployed); use mDNS only on the physical LAN (the ground-station host segment). Advertise the WireGuard sync address in the TXT record so LAN-discovered peers sync over the VPN.
 4. **mDNS is unauthenticated by design** (RFC 6762 §21). Mitigations: treat all mDNS data as untrusted input, attest announcements with Ed25519 signatures (warte already depends on `ed25519-dalek`), enforce IP TTL=255 / source-port checks, keep 5353 off the WAN, and never let discovery bypass the mTLS sync handshake.
 5. **Fallback ladder:** mDNS (LAN, zero-config) → static `sync_peers` (exists today; primary on the VPN) → unicast DNS-SD/SRV on the edge (etcd pattern, future) → gossip/SWIM (only if the fleet grows) → operator CLI.
 
@@ -21,7 +21,7 @@
 
 **DNS-SD (RFC 6763)** layers service discovery on top: a service instance is a `PTR` → `SRV` → `TXT` (+ `A`/`AAAA`) record chain under a service type like `_http._tcp.local`. A browser sends one multicast query and learns instance name, host, port, and key/value attributes [2].
 
-**warte's problem:** `SyncService` (`src/sync/mod.rs`) synchronizes CRDT state across instances, but peer addresses come from the static `sync_peers` config list (`src/config/mod.rs`, `docs/deployment.md`). That works for the fixed WireGuard overlay (10.0.0.2, 10.0.0.3) but not for instances that appear on the local network without configuration — e.g., the the ground-station host Raspberry Pi replacement, a dev machine, or a future instance on the home LAN. mDNS is the standard zero-config answer to "find my peers on this link."
+**warte's problem:** `SyncService` (`src/sync/mod.rs`) synchronizes CRDT state across instances, but peer addresses come from the static `sync_peers` config list (`src/config/mod.rs`, `docs/deployment.md`). That works for the fixed WireGuard overlay (<instance1-tunnel-ip>, <instance2-tunnel-ip>) but not for instances that appear on the local network without configuration — e.g., the the ground-station host Raspberry Pi replacement, a dev machine, or a future instance on the home LAN. mDNS is the standard zero-config answer to "find my peers on this link."
 
 **What mDNS is not:** it is not a transport, not a membership protocol, and not a secure channel. It is a broadcast-based, unauthenticated, best-effort announcement/query mechanism scoped to a single link.
 
@@ -137,16 +137,16 @@ WireGuard is a layer-3, point-to-point routed VPN. It has no broadcast/multicast
 
 | Option | How it works | Assessment for warte |
 |---|---|---|
-| **A. Static config on the overlay (status quo)** | `sync_peers = ["https://10.0.0.3:8080"]` — already in `warte.toml` and `docs/deployment.md` | **Keep as primary for the VPN.** 3 instances, stable addresses, mTLS. Zero moving parts |
-| **B. Unicast DNS-SD on the edge (etcd/Tailscale pattern)** | Run a tiny DNS server (CoreDNS) on the edge (10.0.0.1) answering SRV/TXT for `_warte-sync._tcp.warte.internal`; instances resolve via unicast DNS over WG | **Best future option** if the overlay grows. Same DNS-SD semantics as mDNS, but over routed unicast — authenticated at the TLS/DNS layer, no multicast needed. This is exactly what etcd does with `--discovery-srv` [11] and what Tailscale built MagicDNS to avoid needing mDNS for [22] |
+| **A. Static config on the overlay (status quo)** | `sync_peers = ["https://<instance2-tunnel-ip>:8080"]` — already in `warte.toml` and `docs/deployment.md` | **Keep as primary for the VPN.** 3 instances, stable addresses, mTLS. Zero moving parts |
+| **B. Unicast DNS-SD on the edge (etcd/Tailscale pattern)** | Run a tiny DNS server (CoreDNS) on the edge (<edge-tunnel-ip>) answering SRV/TXT for `_warte-sync._tcp.warte.internal`; instances resolve via unicast DNS over WG | **Best future option** if the overlay grows. Same DNS-SD semantics as mDNS, but over routed unicast — authenticated at the TLS/DNS layer, no multicast needed. This is exactly what etcd does with `--discovery-srv` [11] and what Tailscale built MagicDNS to avoid needing mDNS for [22] |
 | **C. Avahi reflector / mdns-repeater between LAN and VPN** | A daemon with interfaces on both segments copies mDNS packets across [19][20] | **Not viable over WG** — a reflector needs layer-2 adjacency on both segments; WG is routed L3 point-to-point. Would only work LAN↔LAN (e.g., across VLANs at the ground-station host), which warte doesn't need for v1. Also note reflectors have their own bugs (e.g. `mdns-repeater` not setting IP TTL=255 [36]) and create trust boundaries (T7) |
 | **D. VXLAN (or other L2 tunnel) over WireGuard** | Create a VXLAN interface on top of `wg0` on each peer, bridge multicast across it [37] | **Rejected.** Adds a broadcast domain over a routed VPN: complexity, MTU/fragmentation issues, and it re-introduces exactly the multicast trust problems mDNS has, now across sites. A known homelab hack, not a server architecture |
-| **E. mDNS on the LAN, advertise the WG address** | Instance announces `_warte-sync._tcp.local` on its LAN interface; the TXT record carries its **WireGuard** sync address (10.0.0.x:8080) | **Recommended.** LAN peers discover each other via multicast, then sync over the VPN with mTLS. mDNS stays link-local; the sync traffic stays on the authenticated overlay |
+| **E. mDNS on the LAN, advertise the WG address** | Instance announces `_warte-sync._tcp.local` on its LAN interface; the TXT record carries its **WireGuard** sync address (tunnel-ip:8080) | **Recommended.** LAN peers discover each other via multicast, then sync over the VPN with mTLS. mDNS stays link-local; the sync traffic stays on the authenticated overlay |
 
 ### 5.3 Recommendation
 
 - **LAN segment (home-LAN host, dev machines):** mDNS announce + browse, option E.
-- **WireGuard overlay (Hetzner edge, Netcup, home-LAN instance):** static `sync_peers` (already deployed), mTLS sync. No mDNS on `wg0` — it cannot work, and we shouldn't pretend otherwise.
+- **WireGuard overlay (edge, internal instances):** static `sync_peers` (already deployed), mTLS sync. No mDNS on `wg0` — it cannot work, and we shouldn't pretend otherwise.
 - **Future, if instance count grows:** option B — unicast DNS-SD served by CoreDNS on the edge, discovered via WG. This is the etcd `--discovery-srv` pattern and the Tailscale MagicDNS lesson applied to warte's own overlay.
 
 ---
@@ -159,7 +159,7 @@ mDNS fails when: the link has no multicast (VPN, some cloud VPCs), the host fire
 |---|---|---|---|---|
 | 1 | **mDNS/DNS-SD on the LAN** | Same-link instances, zero config | Adopt `mdns-sd` + build `src/discovery/` | libp2p, ESPHome, Spotify Connect [17][19][4] |
 | 2 | **Static `sync_peers` config** | Known instances on the WireGuard overlay — **already implemented** in `src/config/mod.rs` and `docs/deployment.md` | None — exists | etcd `--initial-cluster` static bootstrap [11] |
-| 3 | **Unicast DNS SRV / DNS-SD on the edge** | Routed overlay grows beyond a handful of instances | CoreDNS on 10.0.0.1 + SRV/TXT records | etcd `--discovery-srv` [11][12]; Tailscale MagicDNS [22]; iroh pkarr (signed DNS TXT) [21] |
+| 3 | **Unicast DNS SRV / DNS-SD on the edge** | Routed overlay grows beyond a handful of instances | CoreDNS on <edge-tunnel-ip> + SRV/TXT records | etcd `--discovery-srv` [11][12]; Tailscale MagicDNS [22]; iroh pkarr (signed DNS TXT) [21] |
 | 4 | **Gossip membership (SWIM)** | Fleet grows to ~10+ instances, churn is high, config is a burden | Adopt `memberlist` (Rust port of HashiCorp's SWIM memberlist) or build a minimal SWIM core | Consul/Nomad/Swarm [13][14][15] |
 | 5 | **Operator action** | Everything else failed; human in the loop | `warte peers add/remove` CLI + dashboard; also used to pin instance keys | — |
 
@@ -197,7 +197,7 @@ src/discovery/mod.rs
 
 ```
 id=<instance_id uuidv7>
-wg=<wireguard sync address, e.g. 10.0.0.2:8080>   ← preferred sync target
+wg=<wireguard sync address, e.g. instance1-tunnel-ip:8080>   ← preferred sync target
 lan=<lan address:port>                              ← fallback if no WG route
 vv=<hex sha256 of current version vector>           ← informational, for dashboard
 ts=<unix seconds>                                   ← replay protection
