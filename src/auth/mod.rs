@@ -164,7 +164,7 @@ pub struct RouteRule {
 /// valid token, so a route added without a row is closed, not open; the
 /// test `every_mutating_route_in_the_router_has_a_right` also fails.
 /// The probe routes (`PROBE_OPEN_PATHS`) authenticate themselves and are not here.
-pub const MUTATING_ROUTES: [RouteRule; 7] = [
+pub const MUTATING_ROUTES: [RouteRule; 8] = [
     RouteRule {
         method: "POST",
         pattern: "/api/agents/register",
@@ -205,6 +205,12 @@ pub const MUTATING_ROUTES: [RouteRule; 7] = [
         method: "POST",
         pattern: "/api/costs",
         right: "costs:write",
+        binding: Binding::None,
+    },
+    RouteRule {
+        method: "POST",
+        pattern: "/api/skill-usage",
+        right: "skills:write",
         binding: Binding::None,
     },
 ];

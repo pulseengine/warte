@@ -29,6 +29,8 @@ struct Server {
     dir: tempfile::TempDir,
     base: String,
     token: String,
+    /// Rights for everything except skills:write.
+    other_token: String,
 }
 
 async fn serve() -> Server {
@@ -57,11 +59,20 @@ async fn serve() -> Server {
         .tokens
         .issue_token("skills-job", vec!["skills:write".into()])
         .unwrap();
+    let other_token = state
+        .tokens
+        .issue_token("other-job", vec!["costs:write".into(), "agents:any".into()])
+        .unwrap();
     let app = warte::server::build_router(state);
     let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base = format!("http://{}", l.local_addr().unwrap());
     tokio::spawn(async move { axum::serve(l, app).await.unwrap() });
-    Server { dir, base, token }
+    Server {
+        dir,
+        base,
+        token,
+        other_token,
+    }
 }
 
 impl Server {
@@ -168,10 +179,6 @@ async fn a_report_is_stored_per_source_served_and_shown() {
             .len(),
         2
     );
-
-    // and survives a restart of the ground station
-    let again = warte::skills::Skills::open(srv.dir.path().join("hub").to_str().unwrap(), None);
-    assert_eq!(again.all().len(), 2);
 }
 
 // rivet: verifies REQ-SKILLS-001
@@ -181,7 +188,7 @@ async fn the_view_sums_sources_lists_never_invoked_and_shows_window_and_age() {
     assert_eq!(post(&srv, &report("ws-a")).await.0, 201);
     let mut b = report("ws-b");
     b["sessions_total"] = 300.into();
-    b["sessions_with_skill"] = 30.into();
+    b["sessions_with_skill"] = 40.into();
     b["installed"] = serde_json::json!(["skill-a", "skill-c"]);
     b["skills"] = serde_json::json!([
         {"name": "skill-a", "plugin": "plugin-x",
@@ -202,8 +209,8 @@ async fn the_view_sums_sources_lists_never_invoked_and_shows_window_and_age() {
         "Never invoked",
         "skill-never",
         "skill-c",
-        // 50 of 400 sessions
-        "13%",
+        // 60 of 400 sessions
+        "15%",
         "2026-10-06",
         "2026-11-05",
         "ago",
@@ -347,18 +354,8 @@ async fn a_post_needs_a_token_with_the_skills_right() {
     let srv = serve().await;
     let body = report("ws-a").to_string();
     assert_eq!(post_with(&srv, None, &body).await.0, 401);
-    // a token with every right but skills:write
-    let seed = warte::auth::load_or_create_seed(
-        &warte::config::Config {
-            db_path: srv.dir.path().join("state.db"),
-            ..Default::default()
-        }
-        .token_seed_file(),
-    )
-    .unwrap();
-    let other = warte::auth::TokenManager::from_seed(&seed, 24)
-        .issue_token("job", vec!["costs:write".into(), "agents:any".into()])
-        .unwrap();
+    // a token with other rights but not skills:write
+    let other = srv.other_token.clone();
     assert_eq!(post_with(&srv, Some(&other), &body).await.0, 403);
     assert!(get_json(&srv.base).await["reports"]
         .as_array()

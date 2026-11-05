@@ -32,6 +32,7 @@ pub mod realtime;
 pub mod rivetext;
 pub mod server;
 pub mod sigil;
+pub mod skills;
 pub mod status;
 pub mod sync;
 pub mod temper;

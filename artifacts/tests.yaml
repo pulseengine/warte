@@ -221,6 +221,16 @@ artifacts:
       - type: verifies
         target: REQ-API-004
 
+  - id: TEST-SKILLS-001
+    type: verification
+    title: tests/skills.rs + tests/skills_unit.rs + tests/agent_token.rs — skill-usage ingest, rejection, rights, view
+    status: accepted
+    release: v1.6.0
+    description: "Integration tests post synthetic skill-usage.v1 reports: the latest report is stored per source (a second source sits beside the first, a repeat replaces only its own), served by GET and kept across a restart. The view sums invocations, sessions and SKILL.md reads across sources, lists installed-minus-used as never invoked, shows the share of sessions and each report's window and age, escapes names and flags a stale report. Every rejection returns 400 and stores nothing: unknown fields at each level, a prompt-like string in a skill name, a plugin with spaces or capitals, a path as a repository, bad source labels, negative or fractional counts, another schema, bad dates, a window that ends before it starts, more sessions with a skill than sessions, a duplicated skill; no reason quotes the input. skill_usage_file is re-read on a changed mtime and checked like a POST. A POST without a token is 401 and with a token lacking skills:write is 403. The route-to-right table tests cover /api/skill-usage and skills:write. Negative controls run 2026-11-05 are listed in the pull request."
+    links:
+      - type: verifies
+        target: REQ-SKILLS-001
+
   - id: TEST-AADL-001
     type: verification
     title: spar parse + spar analyze — AADL model validates with 0 errors

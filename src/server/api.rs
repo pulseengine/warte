@@ -29,6 +29,14 @@ pub fn build_routes() -> Router<AppState> {
             get(api_costs)
                 .post(api_costs_post)
                 .layer(axum::extract::DefaultBodyLimit::max(crate::costs::MAX_BODY)),
+        )
+        // a workstation job replaces its source's skill-usage report whole
+        // (REQ-SKILLS-001); GET serves the latest per source.
+        .route(
+            "/skill-usage",
+            get(api_skill_usage).post(api_skill_usage_post).layer(
+                axum::extract::DefaultBodyLimit::max(crate::skills::MAX_BODY),
+            ),
         );
 
     // Read-only routes — public (rate-limited at edge proxy)
@@ -132,6 +140,10 @@ pub fn build_routes() -> Router<AppState> {
         .route(
             "/api/dashboard/costs-partial",
             get(crate::dashboard::costs_partial),
+        )
+        .route(
+            "/api/dashboard/skills-partial",
+            get(crate::dashboard::skills_partial),
         )
         .route(
             "/api/dashboard/health-partial",
@@ -397,6 +409,67 @@ async fn api_costs_post(
             .into_response(),
         Err(e) => {
             tracing::error!(error = %e, "failed to store the costs report");
+            plain(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "could not store the report",
+            )
+        }
+    }
+}
+
+/// The latest skill-usage report of every source; `reports` is empty before
+/// the first push.
+async fn api_skill_usage(State(state): State<AppState>) -> axum::response::Response {
+    let Some(s) = state.skills.as_ref() else {
+        return plain(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "no ground station configured",
+        );
+    };
+    let now = crate::hub::now();
+    let reports: Vec<_> = s
+        .all()
+        .into_iter()
+        .map(|r| {
+            serde_json::json!({
+                "source": r.report.source,
+                "received_at": r.received_at,
+                "age_s": now - r.received_at,
+                "stale": now - r.received_at > crate::skills::STALE_S,
+                "report": r.report,
+            })
+        })
+        .collect();
+    Json(serde_json::json!({ "reports": reports, "rejected": s.rejected() })).into_response()
+}
+
+/// Replace the skill-usage report of its source. The read API is public
+/// (warte#46), so a report must hold counts and names only: unknown fields and
+/// free text are rejected with a 400, nothing is stored, and the reason never
+/// quotes the input.
+async fn api_skill_usage_post(
+    State(state): State<AppState>,
+    body: axum::body::Bytes,
+) -> axum::response::Response {
+    let Some(s) = state.skills.as_ref() else {
+        return plain(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "no ground station configured",
+        );
+    };
+    let report = match crate::skills::parse(&body) {
+        Ok(r) => r,
+        Err(why) => return plain(StatusCode::BAD_REQUEST, &why),
+    };
+    let (source, skills) = (report.source.clone(), report.skills.len());
+    match s.record(report, crate::hub::now()) {
+        Ok(()) => (
+            StatusCode::CREATED,
+            Json(serde_json::json!({ "stored": true, "source": source, "skills": skills })),
+        )
+            .into_response(),
+        Err(e) => {
+            tracing::error!(error = %e, "failed to store the skill-usage report");
             plain(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "could not store the report",

@@ -22,6 +22,7 @@ const VIEWS = [
   "Schedule",
   "Health",
   "Costs",
+  "Skills",
   "Agents",
   "Artifacts",
 ];

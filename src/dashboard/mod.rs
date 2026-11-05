@@ -15,6 +15,7 @@ pub mod costs;
 pub mod fleet;
 pub mod jobs;
 pub mod machines;
+pub mod skills;
 
 use axum::{
     extract::State,
@@ -130,6 +131,11 @@ pub async fn compliance_partial(State(state): State<crate::server::AppState>) ->
         crate::hub::now(),
     ))
     .into_response()
+}
+
+/// HTMX partial: skills (REQ-SKILLS-001).
+pub async fn skills_partial(State(state): State<crate::server::AppState>) -> Response {
+    Html(skills::view(state.skills.as_deref(), crate::hub::now())).into_response()
 }
 
 /// HTMX partial: costs (REQ-COSTS-001).
