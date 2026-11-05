@@ -96,6 +96,20 @@ pub struct Config {
     /// Resources, Ask and Overview views read from it (DD-SMITHY-001).
     #[serde(default)]
     pub hub: Option<HubConfig>,
+
+    /// Machine history (REQ-MHIST-001). On whenever machines are shown; this
+    /// section only tunes retention.
+    #[serde(default)]
+    pub history: Option<HistoryConfig>,
+}
+
+/// Machine history retention (REQ-MHIST-001).
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct HistoryConfig {
+    /// Keep hourly min/avg/max this many days (default 90, at least 8).
+    /// Per-minute points are always kept 7 days.
+    #[serde(default)]
+    pub keep_days: Option<u32>,
 }
 
 /// Where the hosts' job states land, and which must exist (REQ-JOBS-001).
@@ -264,6 +278,7 @@ impl Default for Config {
             repo_dependencies: vec![],
             github: None,
             hub: None,
+            history: None,
         }
     }
 }

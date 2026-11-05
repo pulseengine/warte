@@ -578,11 +578,19 @@ const PLAYWRIGHT_FIXTURE: &str =
 #[test]
 #[ignore]
 fn regenerate_playwright_fixture() {
+    // a few trend points, so machine history (REQ-MHIST-003) has series
+    let history: Vec<_> = (0..3)
+        .map(|k| {
+            let mut s = fleet_snapshot();
+            s.taken_at = 1_793_000_000 - 120 + 60 * k;
+            warte::hub::model::Point::from_snapshot(&s)
+        })
+        .collect();
     let state = serde_json::json!({
         "latest": fleet_snapshot(),
         // fixed receive time: the dashboard must show this data as stale
         "received_at": 1_793_000_000,
-        "history": [],
+        "history": history,
     });
     std::fs::write(
         format!("{PLAYWRIGHT_FIXTURE}/hub-state.json"),

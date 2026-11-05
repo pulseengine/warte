@@ -13,7 +13,123 @@ fn meter(label: &str, value: String, pct: f64, hot: bool) -> String {
     )
 }
 
-fn card(s: &Seen, mine: &[&Finding], ci: Option<&str>, now: i64) -> String {
+/// What the history panel says when there is no store or it cannot be read.
+pub const HISTORY_UNAVAILABLE: &str = r#"<p class="dim">history unavailable on this warte</p>"#;
+
+/// An id-safe, collision-free form of a host name (hex of its bytes).
+fn slug(host: &str) -> String {
+    host.bytes().map(|b| format!("{b:02x}")).collect()
+}
+
+/// Percent-encode a query value.
+fn qenc(v: &str) -> String {
+    v.bytes()
+        .map(|b| match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' => (b as char).to_string(),
+            _ => format!("%{b:02X}"),
+        })
+        .collect()
+}
+
+/// Findings that have a chart behind them (REQ-MHIST-003).
+fn charted(f: &Finding) -> bool {
+    ["disk ", "load ", "memory", "swap", "io ", "IO "]
+        .iter()
+        .any(|p| f.text.starts_with(p))
+}
+
+/// Three sparklines and the collapsed full history for one machine.
+fn trend(h: &crate::history::History, s: &Seen, key: &str, span: i64, now: i64) -> String {
+    let r = &s.report;
+    let fullest = r
+        .disks
+        .iter()
+        .max_by(|a, b| a.used_pct.total_cmp(&b.used_pct))
+        .map(|d| {
+            (
+                format!(
+                    "disk.used_pct{{mount={}}}",
+                    crate::history::project::label(&d.mount)
+                ),
+                format!("disk {}", d.mount),
+            )
+        });
+    let mut want = vec![
+        ("load.per_core".to_string(), "load/core".to_string()),
+        ("mem.used_pct".to_string(), "memory".to_string()),
+    ];
+    want.extend(fullest);
+    trend_for(h, &r.host, &want, key, span, now)
+}
+
+/// Sparklines of `want` (series, label) and the collapsed full history.
+fn trend_for(
+    h: &crate::history::History,
+    host: &str,
+    want: &[(String, String)],
+    key: &str,
+    span: i64,
+    now: i64,
+) -> String {
+    let names: Vec<String> = want.iter().map(|(m, _)| m.clone()).collect();
+    let series = h.series(host, &names, now - span, now);
+    let sparks: String = series
+        .iter()
+        .zip(want)
+        .map(|(x, (_, label))| super::charts::spark(label, x))
+        .collect();
+    let label = super::charts::RANGES
+        .iter()
+        .find(|(k, _, _)| *k == key)
+        .map(|(_, _, l)| *l)
+        .unwrap_or("24 h");
+    format!(
+        r#"<div class="sparks" title="last {label}">{sparks}</div><details class="mhist" id="hist-{}" hx-get="api/dashboard/machine-history-partial?host={}&amp;range={key}" hx-trigger="toggle once" hx-target="find .mhbody"><summary>history · {label}</summary><div class="mhbody"><span class="dim">loading…</span></div></details>"#,
+        slug(host),
+        qenc(host),
+    )
+}
+
+/// The full history of one machine, grouped (REQ-MHIST-003).
+pub fn history_panel(h: &crate::history::History, host: &str, range: Option<&str>) -> String {
+    let (_, span) = super::charts::range(range);
+    let now = chrono::Utc::now().timestamp();
+    let metrics = h.metrics(host);
+    if metrics.is_empty() {
+        return r#"<p class="dim">no history for this machine yet</p>"#.to_string();
+    }
+    const GROUPS: [(&str, &[&str]); 8] = [
+        ("CPU", &["load.", "psi.cpu"]),
+        ("Memory", &["mem.", "swap.", "psi.mem"]),
+        ("Disks", &["disk."]),
+        ("IO", &["io.", "psi.io"]),
+        ("Runners", &["runners.", "runner."]),
+        ("Queue", &["queue."]),
+        ("Agents", &["sessions"]),
+        ("Uptime", &["uptime"]),
+    ];
+    let series = h.series(host, &metrics, now - span, now);
+    let mut out = String::new();
+    for (title, prefixes) in GROUPS {
+        let charts: String = series
+            .iter()
+            .filter(|s| prefixes.iter().any(|p| s.metric.starts_with(p)))
+            .filter(|s| s.values.iter().any(Option::is_some))
+            .map(|s| super::charts::chart(&super::charts::title(&s.metric), s))
+            .collect();
+        if !charts.is_empty() {
+            out += &format!(
+                r#"<div class="hgroup"><h4>{title}</h4><div class="hcharts">{charts}</div></div>"#
+            );
+        }
+    }
+    if out.is_empty() {
+        return r#"<p class="dim">no data in this range; try a longer one</p>"#.to_string();
+    }
+    out
+}
+
+fn card(s: &Seen, mine: &[&Finding], ci: Option<&str>, now: i64, trend: &str) -> String {
     let r = &s.report;
     let age = now - s.received_at;
     let (pill, word) = if age <= MACHINE_STALE_S {
@@ -106,8 +222,16 @@ fn card(s: &Seen, mine: &[&Finding], ci: Option<&str>, now: i64) -> String {
     let notes: String = mine
         .iter()
         .map(|f| {
+            let link = if charted(f) && !trend.is_empty() {
+                format!(
+                    r#" <a class="flink" href="javascript:void(0)" onclick="var d=document.getElementById('hist-{}');if(d){{d.open=true;d.scrollIntoView({{block:'nearest'}})}}">chart</a>"#,
+                    slug(&r.host)
+                )
+            } else {
+                String::new()
+            };
             format!(
-                r#"<div class="finding {}">{}</div>"#,
+                r#"<div class="finding {}">{}{link}</div>"#,
                 f.severity,
                 esc(&f.text)
             )
@@ -119,7 +243,7 @@ fn card(s: &Seen, mine: &[&Finding], ci: Option<&str>, now: i64) -> String {
         format!("up {}", dur(r.uptime_s as i64))
     };
     format!(
-        r#"<div class="machine{}"><div class="mhead"><span class="mname">{}</span><span class="{pill}">{word} · {} ago</span></div><div class="mos">{} · {} · {} · {uptime}</div>{notes}<div class="hbars">{body}</div><div class="mtools">{tools}</div>{inv}<div class="msess">{sessions}</div><div class="mvia">via {}{}</div></div>"#,
+        r#"<div class="machine{}"><div class="mhead"><span class="mname">{}</span><span class="{pill}">{word} · {} ago</span></div><div class="mos">{} · {} · {} · {uptime}</div>{notes}<div class="hbars">{body}</div>{trend}<div class="mtools">{tools}</div>{inv}<div class="msess">{sessions}</div><div class="mvia">via {}{}</div></div>"#,
         if mine.iter().any(|f| f.severity == "red") {
             " red"
         } else if mine.is_empty() {
@@ -261,7 +385,11 @@ fn inventory(i: &crate::probe::inventory::Inventory) -> String {
 }
 
 /// The CI host as the smithy agent reports it: a smaller card, no tools.
-fn ci_card(hub: &crate::hub::Hub, now: i64) -> Option<String> {
+fn ci_card(
+    hub: &crate::hub::Hub,
+    now: i64,
+    hist: Option<(&crate::history::History, &str, i64)>,
+) -> Option<String> {
     let (s, at) = hub.snapshot()?;
     let m = &s.machine;
     let mut body = String::new();
@@ -293,8 +421,19 @@ fn ci_card(hub: &crate::hub::Hub, now: i64) -> Option<String> {
         );
     }
     let busy = s.runners.iter().filter(|r| r.local_busy).count();
+    let trend = hist
+        .map(|(h, key, span)| {
+            let want = [
+                ("load.1", "load"),
+                ("runners.busy", "busy runners"),
+                ("queue.self_hosted", "queued"),
+            ]
+            .map(|(m, l)| (m.to_string(), l.to_string()));
+            trend_for(h, &s.host, &want, key, span, now)
+        })
+        .unwrap_or_default();
     Some(format!(
-        r#"<div class="machine"><div class="mhead"><span class="mname">{}</span><span class="pill">live · {} ago</span></div><div class="mos">CI host · {busy}/{} runners busy</div><div class="hbars">{body}</div><div class="mvia">via smithy agent {} (CCSDS); details under Health</div></div>"#,
+        r#"<div class="machine"><div class="mhead"><span class="mname">{}</span><span class="pill">live · {} ago</span></div><div class="mos">CI host · {busy}/{} runners busy</div><div class="hbars">{body}</div>{trend}<div class="mvia">via smithy agent {} (CCSDS); details under Health</div></div>"#,
         esc(&s.host),
         dur(now - at),
         s.runners.len(),
@@ -303,9 +442,26 @@ fn ci_card(hub: &crate::hub::Hub, now: i64) -> Option<String> {
 }
 
 pub fn view(machines: Option<&Machines>, hub: Option<&crate::hub::Hub>) -> String {
+    view_range(machines, hub, None)
+}
+
+/// The Machines view with trend lines over `range` (`1h`, `24h`, `7d`, `90d`;
+/// default 24 h) when machine history is on (REQ-MHIST-003).
+pub fn view_range(
+    machines: Option<&Machines>,
+    hub: Option<&crate::hub::Hub>,
+    range: Option<&str>,
+) -> String {
     let now = chrono::Utc::now().timestamp();
+    let (key, span) = super::charts::range(range);
+    let hist = machines.and_then(Machines::history);
     let seen = machines.map(Machines::list).unwrap_or_default();
-    let all = findings(&seen, now);
+    let mut all = findings(&seen, now);
+    all.extend(
+        machines
+            .and_then(Machines::history)
+            .and_then(|h| h.finding(now)),
+    );
     let ci = hub.and_then(ci_line);
     let probed = |host: &str| {
         seen.iter()
@@ -319,12 +475,15 @@ pub fn view(machines: Option<&Machines>, hub: Option<&crate::hub::Hub>) -> Strin
                 .as_ref()
                 .filter(|(h, _)| h.eq_ignore_ascii_case(&s.report.host))
                 .map(|(_, l)| l.as_str());
-            card(s, &mine, line, now)
+            let t = hist
+                .map(|h| trend(h, s, key, span, now))
+                .unwrap_or_default();
+            card(s, &mine, line, now, &t)
         })
         .collect();
     // A CI host without a probe still shows, from the agent alone.
     if !ci.as_ref().is_some_and(|(h, _)| probed(h)) {
-        if let Some(c) = hub.and_then(|h| ci_card(h, now)) {
+        if let Some(c) = hub.and_then(|h| ci_card(h, now, hist.map(|x| (x, key, span)))) {
             cards += &c;
         }
     }
@@ -349,8 +508,22 @@ pub fn view(machines: Option<&Machines>, hub: Option<&crate::hub::Hub>) -> Strin
     } else {
         ""
     };
+    let switch = if hist.is_some() && !cards.is_empty() {
+        let b: String = super::charts::RANGES
+            .iter()
+            .map(|(k, _, l)| {
+                format!(
+                    r##"<button class="rbtn{}" hx-get="api/dashboard/machines-partial?range={k}" hx-target="#content" hx-swap="innerHTML" onclick="warteSetRange('{k}')">{l}</button>"##,
+                    if *k == key { " on" } else { "" }
+                )
+            })
+            .collect();
+        format!(r#"<div class="hrange" role="group" aria-label="history range">history {b}</div>"#)
+    } else {
+        String::new()
+    };
     format!(
-        r#"<div class="overview"><h2>Machines</h2><section class="panel"><h3>Drift and problems</h3>{summary}</section>{empty}<div class="machines">{cards}</div><div class="note">Each machine reports every minute with <code>warte probe</code>. Agent sessions show the agent and working directory only, never command lines. More machines appear as they are enrolled.</div></div>"#
+        r#"<div class="overview"><h2>Machines</h2>{switch}<section class="panel"><h3>Drift and problems</h3>{summary}</section>{empty}<div class="machines">{cards}</div><div class="note">Each machine reports every minute with <code>warte probe</code>. Agent sessions show the agent and working directory only, never command lines. More machines appear as they are enrolled.</div></div>"#
     )
 }
 

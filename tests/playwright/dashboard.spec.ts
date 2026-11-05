@@ -323,3 +323,33 @@ test.describe("behind a path prefix (the ground-station host: https://<host>/war
     expect(errors).toEqual([]);
   });
 });
+
+// rivet: verifies REQ-MHIST-003
+test.describe("machine history", () => {
+  test("the range switch redraws, is remembered, and the full history opens", async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.goto("/#machines");
+    await waitForHtmx(page);
+    const content = page.locator("#content");
+    const range = content.getByRole("group", { name: "history range" });
+    await expect(range.getByRole("button", { name: "24 h" })).toHaveClass(/on/);
+    await range.getByRole("button", { name: "1 h" }).click();
+    await waitForHtmx(page);
+    await expect(range.getByRole("button", { name: "1 h" })).toHaveClass(/on/);
+    // remembered across a reload and the periodic refresh
+    await page.reload();
+    await waitForHtmx(page);
+    await expect(range.getByRole("button", { name: "1 h" })).toHaveClass(/on/);
+    // the CI host's card has trend lines and opens its full history
+    await expect(content.locator(".sparks").first()).toContainText("busy runners");
+    // the fixture's points are days old: 24 h has none, 90 d has them as hourly rollups
+    await content.locator(".mhist summary").first().click();
+    await expect(content.locator(".mhist")).toContainText("no data in this range");
+    await range.getByRole("button", { name: "90 d" }).click();
+    await waitForHtmx(page);
+    await content.locator(".mhist summary").first().click();
+    await expect(content.locator(".mhist .hgroup h4", { hasText: "Runners" }).first()).toBeVisible();
+    await expect(content.locator(".mhist")).toContainText("runners busy");
+    expect(errors).toEqual([]);
+  });
+});

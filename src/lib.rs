@@ -23,6 +23,7 @@ pub mod discovery;
 pub mod docs;
 pub mod fleet;
 pub mod ghsource;
+pub mod history;
 pub mod hub;
 pub mod jobs;
 pub mod migrate;

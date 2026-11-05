@@ -446,6 +446,8 @@ pub const MACHINE_STALE_S: i64 = 3 * 60;
 pub struct Machines {
     seen: std::sync::Mutex<std::collections::BTreeMap<String, Seen>>,
     path: std::path::PathBuf,
+    /// Where accepted reports' numbers go over time (REQ-MHIST-001).
+    history: std::sync::OnceLock<crate::history::History>,
 }
 
 impl Machines {
@@ -458,10 +460,28 @@ impl Machines {
         Machines {
             seen: std::sync::Mutex::new(seen),
             path,
+            history: std::sync::OnceLock::new(),
         }
     }
 
+    /// Send every recorded report's numbers to `h` from now on.
+    pub fn attach_history(&self, h: crate::history::History) {
+        let _ = self.history.set(h);
+    }
+
+    /// The attached history store, if any.
+    pub fn history(&self) -> Option<&crate::history::History> {
+        self.history.get()
+    }
+
     pub fn record(&self, report: Report, via: &str, received_at: i64) {
+        if let Some(h) = self.history.get() {
+            h.record(
+                &report.host,
+                crate::history::project::minute(report.taken_at, received_at),
+                &crate::history::project::from_report(&report),
+            );
+        }
         let mut g = self.seen.lock().unwrap_or_else(|e| e.into_inner());
         g.insert(
             report.host.clone(),

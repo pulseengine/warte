@@ -601,3 +601,33 @@ async fn implausible_ledger_records_are_rejected() {
     assert!(t.elapsed().as_secs() < 5, "report took {:?}", t.elapsed());
     drop(base);
 }
+
+// rivet: verifies REQ-MHIST-001
+#[test]
+fn hub_points_land_in_history_and_import_once() {
+    let dir = tempfile::tempdir().unwrap();
+    let data = dir.path().to_str().unwrap();
+    let hub = Hub::open(data, "pulseengine").unwrap();
+    // a point the hub held before history existed
+    hub.ingest_snapshot(snapshot("ci-01"));
+    let h = warte::history::History::open(data).unwrap();
+    hub.attach_history(h.clone());
+    h.sync();
+    assert!(h.meta("hub_imported").is_some());
+    assert!(
+        h.metrics("ci-01").contains(&"runners.online".to_string()),
+        "{:?}",
+        h.metrics("ci-01")
+    );
+    // a new snapshot goes straight in
+    hub.ingest_snapshot(snapshot("ci-01"));
+    h.sync();
+    let now = warte::hub::now();
+    let s = h.series("ci-01", &["runners.online".into()], now - 120, now + 60);
+    assert!(s[0].values.iter().any(|v| v.is_some()));
+    // a second attach (restart) does not import again
+    let before = h.meta("hub_imported");
+    let hub2 = Hub::open(data, "pulseengine").unwrap();
+    hub2.attach_history(h.clone());
+    assert_eq!(h.meta("hub_imported"), before);
+}
