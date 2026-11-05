@@ -207,13 +207,22 @@ impl Client {
         }
         if status == 403 || status == 429 {
             // rate limits are 403/429 with remaining 0 or a retry-after
-            if let Some(s) = h("retry-after").and_then(|v| v.parse::<i64>().ok()) {
-                return Err(GhError::RateLimited { until: now + s });
-            }
-            if h("x-ratelimit-remaining").as_deref() == Some("0") {
-                let until = h("x-ratelimit-reset")
-                    .and_then(|v| v.parse().ok())
-                    .unwrap_or(now + 60);
+            // remembered, so no request goes out before the reset even when
+            // the scan loop wakes earlier to report the limit
+            let until = if let Some(s) = h("retry-after").and_then(|v| v.parse::<i64>().ok()) {
+                Some(now + s)
+            } else if h("x-ratelimit-remaining").as_deref() == Some("0") {
+                Some(
+                    h("x-ratelimit-reset")
+                        .and_then(|v| v.parse().ok())
+                        .unwrap_or(now + 60),
+                )
+            } else {
+                None
+            };
+            if let Some(until) = until {
+                self.remaining.store(0, Ordering::Relaxed);
+                self.reset.store(until, Ordering::Relaxed);
                 return Err(GhError::RateLimited { until });
             }
         }
@@ -631,9 +640,20 @@ pub fn spawn(hub: crate::hub::Hub, cfg: GithubConfig) -> Result<(), String> {
                     hub.ingest_snapshot(s);
                     Duration::from_secs(cfg.interval_s)
                 }
-                Err(GhError::RateLimited { until }) => {
+                Err(e @ GhError::RateLimited { until }) => {
+                    // shown as its own finding, not only as stale data; the
+                    // client sends nothing until the reset, so waking at the
+                    // normal interval to say so again costs no requests
                     tracing::warn!(until, "GitHub rate limit: pausing the scan");
-                    Duration::from_secs((until - crate::hub::now()).clamp(1, 3600) as u64)
+                    hub.ingest_snapshot(Snapshot {
+                        host: format!("github:{}", cfg.org),
+                        taken_at: crate::hub::now(),
+                        errors: vec![e.to_string()],
+                        ..Default::default()
+                    });
+                    Duration::from_secs(
+                        ((until - crate::hub::now()).max(1) as u64).min(cfg.interval_s.max(1)),
+                    )
                 }
                 Err(e) => {
                     tracing::warn!(error = %e, "GitHub scan failed");
