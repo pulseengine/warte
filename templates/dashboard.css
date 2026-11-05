@@ -370,6 +370,12 @@ td.viz { width: 34%; }
 .incident.sev2 { border-left-color: var(--err); }
 .allclear { display: flex; gap: .8rem; align-items: center; padding: .9rem; font-size: .9rem; color: var(--dim); }
 tr.warnrow td { color: var(--amber); }
+.outages-strip {
+  display: flex; gap: .6rem; align-items: center; width: 100%; margin: 0 0 1rem; padding: .6rem .8rem;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--raise); color: inherit;
+  font: inherit; font-size: .88rem; text-align: left; cursor: pointer; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 
 /* Views backed by warte's own database: panels and a real empty state */
 .resources-view, .friction-view, .schedule-view, .agents-view, .artifacts-view { display: grid; gap: 1rem; }

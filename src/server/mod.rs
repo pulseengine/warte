@@ -1,7 +1,6 @@
 //! HTTP API server (Axum).
 
 pub mod api;
-pub mod auth;
 
 use crate::access::AccessControl;
 use crate::agent::AgentRegistry;
@@ -84,6 +83,7 @@ pub fn build_router(state: AppState) -> Router {
 pub async fn serve(config: Config, db: Database) -> anyhow::Result<()> {
     let state = build_state(config.clone(), db)?;
     let instance_id = state.config.instance_id();
+    crate::alerts::spawn(state.clone()); // REQ-ALERT-001
     let app = build_router(state);
     let listener = tokio::net::TcpListener::bind(&config.bind).await?;
 
