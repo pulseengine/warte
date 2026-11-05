@@ -89,6 +89,7 @@ fn card(s: &Seen, mine: &[&Finding], ci: Option<&str>, now: i64) -> String {
             ),
         })
         .collect();
+    let inv = r.inventory.as_ref().map(inventory).unwrap_or_default();
     let mut agents: std::collections::BTreeMap<&str, usize> = Default::default();
     for x in &r.sessions {
         *agents.entry(x.agent.as_str()).or_default() += 1;
@@ -118,7 +119,7 @@ fn card(s: &Seen, mine: &[&Finding], ci: Option<&str>, now: i64) -> String {
         format!("up {}", dur(r.uptime_s as i64))
     };
     format!(
-        r#"<div class="machine{}"><div class="mhead"><span class="mname">{}</span><span class="{pill}">{word} · {} ago</span></div><div class="mos">{} · {} · {} · {uptime}</div>{notes}<div class="hbars">{body}</div><div class="mtools">{tools}</div><div class="msess">{sessions}</div><div class="mvia">via {}{}</div></div>"#,
+        r#"<div class="machine{}"><div class="mhead"><span class="mname">{}</span><span class="{pill}">{word} · {} ago</span></div><div class="mos">{} · {} · {} · {uptime}</div>{notes}<div class="hbars">{body}</div><div class="mtools">{tools}</div>{inv}<div class="msess">{sessions}</div><div class="mvia">via {}{}</div></div>"#,
         if mine.iter().any(|f| f.severity == "red") {
             " red"
         } else if mine.is_empty() {
@@ -149,6 +150,114 @@ fn ci_line(hub: &crate::hub::Hub) -> Option<(String, String)> {
             esc(&s.agent_version)
         ),
     ))
+}
+
+/// Plugins, scheduled jobs and varve shadowing, folded (REQ-PROBE-010).
+fn inventory(i: &crate::probe::inventory::Inventory) -> String {
+    let failed = i.scheduled.iter().filter(|j| j.failed).count();
+    let varve = match &i.shadowing {
+        None => "varve: no agent session seen".to_string(),
+        Some(s) if !s.shims_on_path => "varve: shims not on agents' PATH".into(),
+        Some(s) if s.tools.is_empty() => "varve: pinned".into(),
+        Some(s) => format!("varve: {} shadowed", s.tools.len()),
+    };
+    let mut summary = format!(
+        "{} plugin(s) · {} scheduled",
+        i.plugins.len(),
+        i.scheduled.len()
+    );
+    if failed > 0 {
+        summary += &format!(" ({failed} failed)");
+    }
+    summary += &format!(" · {varve}");
+    let plugins: String = i
+        .plugins
+        .iter()
+        .map(|p| {
+            format!(
+                r#"<span class="chip on" title="{}{}">{} {}</span>"#,
+                esc(&p.marketplace),
+                if p.scope.is_empty() {
+                    String::new()
+                } else {
+                    format!(", {} scope", esc(&p.scope))
+                },
+                esc(&p.name),
+                esc(&p.version)
+            )
+        })
+        .collect();
+    let jobs: String = i
+        .scheduled
+        .iter()
+        .map(|j| {
+            let state = if j.failed {
+                match j.last_exit {
+                    Some(x) if x < 0 => format!(" · killed ({x})"),
+                    Some(x) => format!(" · exited {x}"),
+                    None => " · failed".into(),
+                }
+            } else if j.running {
+                " · running".into()
+            } else {
+                String::new()
+            };
+            format!(
+                r#"<li class="{}">{} <span class="dim">{}{}</span></li>"#,
+                if j.failed { "bad" } else { "" },
+                esc(&j.name),
+                esc(if j.schedule.is_empty() {
+                    &j.via
+                } else {
+                    &j.schedule
+                }),
+                esc(&state)
+            )
+        })
+        .collect();
+    let shadowed: String = i
+        .shadowing
+        .iter()
+        .flat_map(|s| &s.tools)
+        .map(|t| {
+            format!(
+                r#"<span class="chip warn">{} {} · {}</span>"#,
+                esc(&t.tool),
+                esc(t.version.as_deref().unwrap_or("?")),
+                crate::probe::inventory::origin(&t.path)
+            )
+        })
+        .collect();
+    // the count only: error output can carry paths (warte#46)
+    let errors = if i.errors.is_empty() {
+        String::new()
+    } else {
+        format!(
+            r#"<div class="dim">{} source(s) could not be read; see <code>warte probe report</code> on the machine</div>"#,
+            i.errors.len()
+        )
+    };
+    format!(
+        r#"<details class="minv"><summary>{}</summary>{}{}{}{errors}</details>"#,
+        esc(&summary),
+        if shadowed.is_empty() {
+            String::new()
+        } else {
+            format!(
+                r#"<div class="mtools"><span class="dim">unpinned on agents' PATH:</span> {shadowed}</div>"#
+            )
+        },
+        if plugins.is_empty() {
+            String::new()
+        } else {
+            format!(r#"<div class="mtools">{plugins}</div>"#)
+        },
+        if jobs.is_empty() {
+            String::new()
+        } else {
+            format!(r#"<ul class="mjobs">{jobs}</ul>"#)
+        },
+    )
 }
 
 /// The CI host as the smithy agent reports it: a smaller card, no tools.

@@ -730,6 +730,20 @@ async fn machines_publish_no_paths_pids_or_dirs_and_no_cross_origin_reads() {
             activity: None,
         }],
         io: None,
+        inventory: Some(warte::probe::inventory::Inventory {
+            shadowing: Some(warte::probe::inventory::Shadowing {
+                at: 1,
+                shims_on_path: true,
+                tools: vec![warte::probe::inventory::Shadowed {
+                    tool: "rivet".into(),
+                    path: "/Users/secret/.cargo/bin/rivet".into(),
+                    version: Some("0.38.0".into()),
+                }],
+            }),
+            plugins: vec![],
+            scheduled: vec![],
+            errors: vec!["SECRET-ERROR in /Users/secret".into()],
+        }),
     };
     m.record(r.clone(), "probe", warte::hub::now());
     r.host = "other".into();
@@ -953,6 +967,7 @@ fn a_ci_host_with_a_probe_gets_one_card_with_the_agents_runners() {
         tools: vec![],
         sessions: vec![],
         io: None,
+        inventory: None,
     };
     m.record(r.clone(), "probe", now());
     let both = warte::dashboard::machines::view(Some(&m), Some(&hub));

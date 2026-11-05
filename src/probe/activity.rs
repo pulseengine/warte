@@ -126,6 +126,10 @@ fn agent_pid() -> Option<u32> {
 /// `warte probe hook`: read the event, write the verb. Never fails.
 pub fn hook(stdin: &str, now: i64) {
     let Some(verb) = verb_of(stdin) else { return };
+    // the toolchain as this agent sees it, once per session (REQ-PROBE-010)
+    if verb == "starting" {
+        super::inventory::record_shadowing(now);
+    }
     let (Some(pid), Some(dir)) = (agent_pid(), dir()) else {
         return;
     };
