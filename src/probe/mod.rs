@@ -12,6 +12,7 @@
 
 pub mod activity;
 pub mod enroll;
+pub mod inventory;
 pub mod io;
 pub mod send;
 
@@ -40,6 +41,9 @@ pub struct Report {
     /// Disk IO and IO pressure, Linux only (REQ-PROBE-008).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub io: Option<io::Io>,
+    /// Agent and toolchain inventory (REQ-PROBE-010).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub inventory: Option<inventory::Inventory>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -301,6 +305,7 @@ pub async fn collect(io_prev: Option<&std::path::Path>) -> Report {
         tools,
         sessions,
         io,
+        inventory: Some(inventory::collect(chrono::Utc::now().timestamp()).await),
     }
 }
 
@@ -564,6 +569,94 @@ pub fn findings(seen: &[Seen], now: i64) -> Vec<Finding> {
                     r.cpu.load[1], r.cpu.ncpu
                 ),
             ));
+        }
+    }
+    for s in seen {
+        let Some(inv) = &s.report.inventory else {
+            continue;
+        };
+        let host = s.report.host.as_str();
+        if let Some(sh) = &inv.shadowing {
+            let named = |t: &inventory::Shadowed| {
+                format!(
+                    "{}{} from {}",
+                    t.tool,
+                    t.version
+                        .as_deref()
+                        .map(|v| format!(" {v}"))
+                        .unwrap_or_default(),
+                    inventory::origin(&t.path)
+                )
+            };
+            if !sh.shims_on_path {
+                // one finding: the cause is the PATH, not each tool
+                let list: Vec<String> = sh.tools.iter().map(named).collect();
+                out.push(f(
+                    host,
+                    "amber",
+                    if list.is_empty() {
+                        "varve's shims are not on agents' PATH".into()
+                    } else {
+                        format!(
+                            "varve's shims are not on agents' PATH: {} tool(s) run unpinned ({})",
+                            list.len(),
+                            list.join(", ")
+                        )
+                    },
+                ));
+            } else {
+                for t in &sh.tools {
+                    out.push(f(
+                        host,
+                        "amber",
+                        format!("{} shadows varve's pinned shim on agents' PATH", named(t)),
+                    ));
+                }
+            }
+        }
+        for j in inv.scheduled.iter().filter(|j| j.failed) {
+            let how = match j.last_exit {
+                Some(x) if x < 0 => format!("killed by signal {}", -x),
+                Some(x) => format!("exited {x}"),
+                None => "failed".into(),
+            };
+            out.push(f(
+                host,
+                "amber",
+                format!("scheduled job {} last run {how}", j.name),
+            ));
+        }
+    }
+    // a plugin behind the newest version installed anywhere, including an
+    // older project-scoped install on the same machine
+    let mut plugins: std::collections::BTreeMap<&str, Vec<(&str, &str)>> = Default::default();
+    for s in seen {
+        for p in s.report.inventory.iter().flat_map(|i| &i.plugins) {
+            plugins
+                .entry(p.name.as_str())
+                .or_default()
+                .push((s.report.host.as_str(), p.version.as_str()));
+        }
+    }
+    // only dotted versions compare; a git hash says nothing about order
+    for have in plugins.values_mut() {
+        have.retain(|h| h.1.contains('.') && h.1.starts_with(|c: char| c.is_ascii_digit()));
+    }
+    for (name, have) in plugins {
+        if let Some(newest) = have.iter().map(|h| h.1).max_by_key(|v| vkey(v)) {
+            let mut behind: Vec<(&str, &str)> = have
+                .iter()
+                .filter(|h| vkey(h.1) < vkey(newest))
+                .cloned()
+                .collect();
+            behind.dedup();
+            for (host, v) in behind {
+                out.push(f(
+                    host,
+                    "amber",
+                    format!("plugin {name} {v} behind {newest}"),
+                ));
+            }
         }
     }
     // kernel drift between machines on the same OS

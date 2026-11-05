@@ -88,6 +88,7 @@ fn report(host: &str, kernel: &str, claude: Option<&str>) -> warte::probe::Repor
             .collect(),
         sessions: vec![],
         io: None,
+        inventory: None,
     }
 }
 

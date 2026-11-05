@@ -317,13 +317,15 @@ async fn api_watch(
 /// Report fields `/api/machines` does not publish as they are, each on
 /// purpose (REQ-PROBE-008: every field is exposed or listed here, checked by
 /// a test). `tools` and `sessions` are published reduced.
-pub const HIDDEN_REPORT_FIELDS: [&str; 3] = [
+pub const HIDDEN_REPORT_FIELDS: [&str; 4] = [
     // the probe's own version: not the machine's state
     "probe_version",
     // reduced to name, installed, version (no paths, no error output)
     "tools",
     // reduced to a count per agent (no pids, no directories, no activity)
     "sessions",
+    // reduced: binaries' origins instead of paths, a count of what was not read
+    "inventory",
 ];
 
 /// What `/api/machines` publishes of a report. The read API has no auth
@@ -349,6 +351,7 @@ pub fn public_report(r: &crate::probe::Report) -> serde_json::Value {
         })).collect::<Vec<_>>(),
         "sessions": sessions,
         "io": r.io,
+        "inventory": r.inventory.as_ref().map(crate::probe::inventory::public),
     })
 }
 
