@@ -483,3 +483,55 @@ async fn misconfiguration_is_refused_at_startup() {
     .unwrap();
     assert!(e.contains("WARTE_GITHUB_TOKEN"), "{e}");
 }
+
+// rivet: verifies REQ-ALERT-002
+#[tokio::test]
+async fn without_smithy_findings_come_from_github_and_say_so() {
+    let (m, base) = mock().await;
+    // a normal scan: no host telemetry, so no host findings can appear
+    let dir = tempfile::tempdir().unwrap();
+    let hub = warte::hub::Hub::open(dir.path().to_str().unwrap(), "acme").unwrap();
+    let c = Client::new(&cfg(&base)).unwrap();
+    hub.ingest_snapshot(ghsource::snapshot(&c, &cfg(&base)).await.unwrap());
+    let (found, _) = warte::dashboard::fleet::detected(&hub).unwrap();
+    for d in &found {
+        assert!(
+            !["disk:", "pressure:", "oom:", "link-loss", "telemetry-stale"]
+                .iter()
+                .any(|k| d.key.starts_with(k)),
+            "a finding GitHub cannot show: {d:?}"
+        );
+    }
+
+    // a secondary rate limit: the scan loop reports it as a finding worded for
+    // GitHub, and wakes again without sending a request before the reset
+    *m.fail.lock().unwrap() = Some((429, vec![("retry-after", "600".into())]));
+    let dir = tempfile::tempdir().unwrap();
+    let hub = warte::hub::Hub::open(dir.path().to_str().unwrap(), "acme").unwrap();
+    let mut g = cfg(&base);
+    g.interval_s = 1;
+    ghsource::spawn(hub.clone(), g).unwrap();
+    let mut said = None;
+    for _ in 0..40 {
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        if let Some((list, _)) = warte::dashboard::fleet::detected(&hub) {
+            said = list.into_iter().find(|d| d.key.starts_with("agent-error"));
+            if said.is_some() {
+                break;
+            }
+        }
+    }
+    let said = said.expect("the rate limit is a finding");
+    assert!(
+        said.text.starts_with("GitHub scan: GitHub API rate limit"),
+        "{}",
+        said.text
+    );
+    let n = m.seen.lock().unwrap().len();
+    tokio::time::sleep(std::time::Duration::from_millis(2500)).await;
+    assert_eq!(
+        m.seen.lock().unwrap().len(),
+        n,
+        "no request before the reset"
+    );
+}

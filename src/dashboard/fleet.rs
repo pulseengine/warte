@@ -463,15 +463,24 @@ pub fn detected(hub: &Hub) -> Option<(Vec<Detected>, i64)> {
     let (s, at) = hub.snapshot()?;
     let t = now();
     let mut list: Vec<Detected> = Vec::new();
+    // GitHub-only mode (no smithy): the snapshot comes from a GitHub scan
+    let github = s.host.starts_with("github:");
     if t - at > STALE_AFTER_S {
         found(
             &mut list,
             "telemetry-stale",
             2,
-            format!(
-                "No telemetry for {}: the agent or the link is down.",
-                dur(t - at)
-            ),
+            if github {
+                format!(
+                    "No GitHub scan for {}: the scan is failing or warte is not running it.",
+                    dur(t - at)
+                )
+            } else {
+                format!(
+                    "No telemetry for {}: the agent or the link is down.",
+                    dur(t - at)
+                )
+            },
         );
     }
     let offline: Vec<String> = s
@@ -578,7 +587,11 @@ pub fn detected(hub: &Hub) -> Option<(Vec<Detected>, i64)> {
             &mut list,
             format!("agent-error:{i}"),
             1,
-            format!("Agent could not collect: {e}"),
+            if github {
+                format!("GitHub scan: {e}")
+            } else {
+                format!("Agent could not collect: {e}")
+            },
         );
     }
     list.sort_by_key(|d| std::cmp::Reverse(d.sev));

@@ -83,14 +83,23 @@ The base is set, never guessed from a web URL. The same settings as a
   304, which GitHub does not count against the primary limit. warte reads
   `x-ratelimit-remaining` from every answer and sends nothing while
   `rate_reserve` or fewer are left before the reset, so other users of the
-  token keep headroom. On a primary or secondary rate limit the scan waits
-  for the reset; a refused token (401,
+  token keep headroom. On a primary or secondary rate limit no request goes
+  out until the reset, and the limit is shown in Outages as its own finding; a refused token (401,
   or 403 that is not a rate limit) is shown in Health and Outages and
   retried at the normal interval, so fixing the token needs no restart.
 - **TLS-intercepting proxy:** warte uses rustls with bundled Mozilla roots
   and does not read the system store. Point `WARTE_CA_BUNDLE` (or
   `ca_bundle`) at the proxy's PEM CA; it is trusted in addition to the
   bundled roots. A file without a certificate stops startup.
+- **Outages and alerts:** the same findings and notices as with smithy, from
+  what GitHub shows: GitHub-hosted jobs queued 15 min or more per runner
+  type, queued runs overdue for their pool, self-hosted runners offline (with
+  the runner scope), GitHub's status, and the scan itself failing or
+  rate-limited. Host findings (disk, pressure, OOM kills, link loss) need
+  host telemetry and do not appear. Alerts are recorded as `notice.v1` under
+  the agent `warte-alerts` on this instance; point `PULSEENGINE_WARTE_URL`
+  at it where `notice.py digest` runs. GitHub Enterprise Server has no
+  githubstatus.com: set `status_url = "off"`.
 - `[hub]` and `[github]` are exclusive: one CI source per instance.
 
 ## Enterprise deployment notes

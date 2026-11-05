@@ -728,3 +728,19 @@ artifacts:
         target: REQ-QUEUE-003
       - type: depends-on
         target: REQ-ALERT-001
+
+  - id: REQ-ALERT-002
+    type: requirement
+    title: Outage findings and alerts work without smithy, in GitHub-only mode, worded for that source
+    status: verified
+    release: v1.6.0
+    description: "With only the [github] source (no smithy agent, no host telemetry), warte SHALL detect and alert on what GitHub shows: hosted jobs stuck in the queue, overdue queued runs, self-hosted runners offline, GitHub's status, and a scan that is failing or rate-limited. It SHALL NOT report host-telemetry findings it cannot see, and SHALL word staleness and collection errors for GitHub (a scan), not for a smithy agent or a telemetry link. A rate limit SHALL be shown as its own finding rather than only as stale data. Motivated by the owner running warte at an employer on github.com (2026-11-05)."
+    fields:
+      category: functional
+    links:
+      - type: depends-on
+        target: REQ-ALERT-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-05T08:40:00Z
