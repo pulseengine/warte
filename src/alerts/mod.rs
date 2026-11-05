@@ -7,18 +7,43 @@
 //! opens, escalates or clears. The owner's `notice.py digest` / `review` read
 //! every agent's notices from warte, so the attention budget applies there.
 //!
-//! A finding opens only after it is seen on two consecutive evaluations and
-//! clears only after three without it, so a single flapping snapshot does
-//! not notify. A finding that stays open never notifies again unless its
-//! severity rises.
+//! A red finding opens after two consecutive evaluations and clears after
+//! three without it. An amber one waits longer both ways (five to open,
+//! fifteen to clear), so a value hovering at its threshold does not flap.
+//! A finding that stays open never notifies again unless its severity
+//! rises. One evaluation records at most [`MAX_PER_TICK`] notices; the rest
+//! are folded into one summary, so a fan-out cannot flood the owner.
 
 use crate::dashboard::fleet::Detected;
 use std::collections::HashMap;
 
-/// Consecutive evaluations a finding must be present before it opens.
+/// Consecutive evaluations a red finding must be present before it opens.
 pub const OPEN_AFTER: u32 = 2;
-/// Consecutive evaluations a finding must be absent before it clears.
+/// Consecutive evaluations an open red finding must be absent before it clears.
 pub const CLEAR_AFTER: u32 = 3;
+/// The same for amber (degraded) findings: slower both ways.
+pub const AMBER_OPEN_AFTER: u32 = 5;
+pub const AMBER_CLEAR_AFTER: u32 = 15;
+/// The most notices one evaluation records; the rest become one summary.
+pub const MAX_PER_TICK: usize = 5;
+
+/// Evaluations a finding of this severity must be present before it opens.
+pub fn open_after(sev: u8) -> u32 {
+    if sev >= 2 {
+        OPEN_AFTER
+    } else {
+        AMBER_OPEN_AFTER
+    }
+}
+
+/// Evaluations an open finding of this severity must be absent to clear.
+pub fn clear_after(sev: u8) -> u32 {
+    if sev >= 2 {
+        CLEAR_AFTER
+    } else {
+        AMBER_CLEAR_AFTER
+    }
+}
 /// The agent name alerts are recorded under.
 pub const AGENT: &str = "warte-alerts";
 
@@ -53,7 +78,7 @@ impl Tracker {
             tr.seen = tr.seen.saturating_add(1);
             let rose = tr.open && d.sev > tr.sev;
             tr.text = d.text.clone();
-            if !tr.open && tr.seen >= OPEN_AFTER {
+            if !tr.open && tr.seen >= open_after(d.sev) {
                 tr.open = true;
                 tr.sev = d.sev;
                 out.push(Event::Opened(d.clone()));
@@ -74,7 +99,7 @@ impl Tracker {
         {
             tr.missing += 1;
             tr.seen = 0;
-            if tr.missing >= CLEAR_AFTER || !tr.open {
+            if !tr.open || tr.missing >= clear_after(tr.sev) {
                 if tr.open {
                     out.push(Event::Cleared {
                         key: k.clone(),
@@ -133,6 +158,66 @@ pub fn notice(
     n
 }
 
+/// The notices for one evaluation's events, worst first, at most
+/// [`MAX_PER_TICK`]: beyond that the remainder is one summary notice.
+pub fn notices(
+    events: &[Event],
+    now: chrono::DateTime<chrono::Utc>,
+    link: Option<&str>,
+) -> Vec<serde_json::Value> {
+    let rank = |e: &Event| match e {
+        Event::Escalated(_) => 0,
+        Event::Opened(d) if d.sev >= 2 => 1,
+        Event::Opened(_) => 2,
+        Event::Cleared { .. } => 3,
+    };
+    let mut ev: Vec<&Event> = events.iter().collect();
+    ev.sort_by_key(|e| rank(e));
+    if ev.len() <= MAX_PER_TICK {
+        return ev.into_iter().map(|e| notice(e, now, link)).collect();
+    }
+    let keep = MAX_PER_TICK - 1;
+    let mut out: Vec<_> = ev[..keep].iter().map(|e| notice(e, now, link)).collect();
+    let rest = &ev[keep..];
+    let opened = rest
+        .iter()
+        .filter(|e| !matches!(e, Event::Cleared { .. }))
+        .count();
+    let cleared = rest.len() - opened;
+    let sample: Vec<String> = rest
+        .iter()
+        .take(10)
+        .map(|e| match e {
+            Event::Opened(d) | Event::Escalated(d) => d.text.clone(),
+            Event::Cleared { text, .. } => format!("Cleared: {text}"),
+        })
+        .collect();
+    let mut n = notice(
+        &Event::Opened(Detected {
+            key: "summary".into(),
+            sev: 1,
+            text: format!(
+                "{} more outage change(s): {opened} opened, {cleared} cleared.",
+                rest.len()
+            ),
+        }),
+        now,
+        link,
+    );
+    n["body"] = serde_json::json!(format!(
+        "{}\n\n{}{}",
+        n["title"].as_str().unwrap_or_default(),
+        sample.join("\n"),
+        if rest.len() > sample.len() {
+            "\n…"
+        } else {
+            ""
+        }
+    ));
+    out.push(n);
+    out
+}
+
 /// Run the evaluation loop: every minute, record notices for the events.
 pub fn spawn(state: crate::server::AppState) {
     tokio::spawn(async move {
@@ -166,8 +251,7 @@ pub fn spawn(state: crate::server::AppState) {
                 },
             };
             let _ = state.agents.heartbeat(&id).await;
-            for e in &events {
-                let n = notice(e, chrono::Utc::now(), None);
+            for n in notices(&events, chrono::Utc::now(), None) {
                 if let Err(err) = record(&state, &id, &n).await {
                     tracing::warn!(error = %err, "alert notice not recorded");
                 }

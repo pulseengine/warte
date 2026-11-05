@@ -1,8 +1,10 @@
 //! Outage alerts, the Overview's Outages strip, and hosted history per runner
 //! type (REQ-ALERT-001, REQ-DASH-017, REQ-HIST-001).
 
-use warte::alerts::{notice, Event, Tracker, AGENT, CLEAR_AFTER, OPEN_AFTER};
-use warte::dashboard::fleet::{outages_summary, Detected};
+use warte::alerts::{
+    clear_after, notice, notices, open_after, Event, Tracker, AGENT, MAX_PER_TICK,
+};
+use warte::dashboard::fleet::{link_loss, outages_summary, Detected};
 use warte::hub::model::{hosted_by_label, HostedGroup, Point, Queue, Snapshot, HOSTED_LABELS_MAX};
 
 fn d(key: &str, sev: u8) -> Detected {
@@ -19,7 +21,7 @@ fn a_finding_opens_once_escalates_once_and_clears_after_it_is_gone() {
     let mut t = Tracker::default();
     let disk = d("disk:/var/lib/runners", 1);
     // not on the first sighting: one flapping snapshot does not notify
-    for _ in 1..OPEN_AFTER {
+    for _ in 1..open_after(1) {
         assert!(t.step(std::slice::from_ref(&disk)).is_empty());
     }
     assert_eq!(
@@ -37,8 +39,8 @@ fn a_finding_opens_once_escalates_once_and_clears_after_it_is_gone() {
         vec![Event::Escalated(full.clone())]
     );
     assert!(t.step(std::slice::from_ref(&full)).is_empty());
-    // gone: clears only after CLEAR_AFTER evaluations without it
-    for _ in 1..CLEAR_AFTER {
+    // gone: clears only after clear_after(red) evaluations without it
+    for _ in 1..clear_after(2) {
         assert!(t.step(&[]).is_empty());
     }
     assert_eq!(
@@ -58,12 +60,12 @@ fn a_blip_shorter_than_the_debounce_never_notifies() {
     // present once, then gone: never opens, never clears
     let mut u = Tracker::default();
     assert!(u.step(std::slice::from_ref(&x)).is_empty());
-    for _ in 0..CLEAR_AFTER + 1 {
+    for _ in 0..clear_after(1) + 1 {
         assert!(u.step(&[]).is_empty());
     }
     // an open finding that comes back within the clear window does not re-open
     let mut v = Tracker::default();
-    for _ in 0..OPEN_AFTER {
+    for _ in 0..open_after(1) {
         v.step(std::slice::from_ref(&x));
     }
     assert!(v.step(&[]).is_empty());
@@ -190,4 +192,96 @@ fn history_keeps_hosted_queued_and_running_per_runner_type() {
     old.as_object_mut().unwrap().remove("hosted_by_label");
     let old: Point = serde_json::from_value(old).unwrap();
     assert!(old.hosted_by_label.is_empty());
+}
+
+// rivet: verifies REQ-ALERT-001
+#[test]
+fn red_opens_fast_and_amber_waits_longer_both_ways() {
+    assert!(open_after(2) < open_after(1));
+    assert!(clear_after(2) < clear_after(1));
+    // an amber value hovering at its threshold: open once, no clear/re-open
+    // while it dips below for less than the amber clear window
+    let cpu = d("pressure:CPU", 1);
+    let mut t = Tracker::default();
+    let mut events = Vec::new();
+    for _ in 0..open_after(1) {
+        events.extend(t.step(std::slice::from_ref(&cpu)));
+    }
+    for _ in 0..4 {
+        for _ in 1..clear_after(1) {
+            events.extend(t.step(&[]));
+        }
+        for _ in 0..3 {
+            events.extend(t.step(std::slice::from_ref(&cpu)));
+        }
+    }
+    assert_eq!(events, vec![Event::Opened(cpu.clone())]);
+    // a red finding still opens on the second evaluation
+    let off = d("runners-offline", 2);
+    let mut r = Tracker::default();
+    assert!(r.step(std::slice::from_ref(&off)).is_empty());
+    assert_eq!(r.step(std::slice::from_ref(&off)), vec![Event::Opened(off)]);
+}
+
+// rivet: verifies REQ-ALERT-001
+#[test]
+fn one_evaluation_records_at_most_max_per_tick_notices() {
+    let now = chrono::Utc::now();
+    let few: Vec<Event> = (0..MAX_PER_TICK)
+        .map(|i| Event::Opened(d(&format!("k{i}"), 1)))
+        .collect();
+    assert_eq!(notices(&few, now, None).len(), MAX_PER_TICK);
+    // 46 clears and one red opening: the red one is kept, the rest summarised
+    let mut many: Vec<Event> = (0..46)
+        .map(|i| Event::Cleared {
+            key: format!("s{i}"),
+            text: format!("stream {i}"),
+        })
+        .collect();
+    many.push(Event::Opened(d("runners-offline", 2)));
+    let n = notices(&many, now, None);
+    assert_eq!(n.len(), MAX_PER_TICK);
+    assert_eq!(n[0]["kind"], "blocked", "the worst comes first");
+    let last = n.last().unwrap();
+    assert!(last["title"].as_str().unwrap().starts_with(&format!(
+        "{} more outage change(s)",
+        47 - (MAX_PER_TICK - 1)
+    )));
+    assert!(last["body"].as_str().unwrap().contains("Cleared: stream"));
+}
+
+fn row(apid: &str, received: u64, lost: u64) -> warte::hub::LinkRow {
+    warte::hub::LinkRow {
+        apid: apid.into(),
+        stream: format!("s{apid}"),
+        received,
+        lost,
+        restarts: 0,
+        last_seen: 0,
+    }
+}
+
+// rivet: verifies REQ-ALERT-001
+#[test]
+fn a_lossy_link_is_one_finding_not_one_per_stream() {
+    assert_eq!(link_loss(&[row("0x100", 1000, 5)]), None);
+    let one = link_loss(&[row("0x100", 990, 10), row("0x101", 1000, 0)]).unwrap();
+    assert_eq!(one.key, "link-loss");
+    assert!(one.text.starts_with("Telemetry stream 0x100"));
+    let rows: Vec<_> = (0..46)
+        .map(|i| {
+            row(
+                &format!("0x{:03x}", 0x100 + i),
+                985,
+                15 + (i == 7) as u64 * 10,
+            )
+        })
+        .collect();
+    let all = link_loss(&rows).unwrap();
+    assert_eq!(all.key, "link-loss");
+    assert!(
+        all.text.contains("46 streams") && all.text.contains("0x107"),
+        "{}",
+        all.text
+    );
 }

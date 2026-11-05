@@ -572,20 +572,7 @@ pub fn detected(hub: &Hub) -> Option<(Vec<Detected>, i64)> {
             );
         }
     }
-    for l in hub.link() {
-        let rate = l.lost as f64 * 100.0 / (l.received + l.lost).max(1) as f64;
-        if rate >= 1.0 {
-            found(
-                &mut list,
-                format!("link-loss:{}", l.apid),
-                1,
-                format!(
-                    "Telemetry stream {} ({}) loses {rate:.1}% of packets.",
-                    l.apid, l.stream
-                ),
-            );
-        }
-    }
+    list.extend(link_loss(&hub.link()));
     for (i, e) in s.errors.iter().enumerate() {
         found(
             &mut list,
@@ -596,6 +583,32 @@ pub fn detected(hub: &Hub) -> Option<(Vec<Detected>, i64)> {
     }
     list.sort_by_key(|d| std::cmp::Reverse(d.sev));
     Some((list, at))
+}
+
+/// One finding for the telemetry link, not one per stream: a lossy link
+/// affects every stream at once and is one problem (REQ-ALERT-001).
+pub fn link_loss(rows: &[crate::hub::LinkRow]) -> Option<Detected> {
+    let lossy: Vec<(f64, String)> = rows
+        .iter()
+        .filter_map(|l| {
+            let rate = l.lost as f64 * 100.0 / (l.received + l.lost).max(1) as f64;
+            (rate >= 1.0).then(|| (rate, format!("{} ({})", l.apid, l.stream)))
+        })
+        .collect();
+    let (worst, name) = lossy.iter().max_by(|a, b| a.0.total_cmp(&b.0))?.clone();
+    let text = if lossy.len() == 1 {
+        format!("Telemetry stream {name} loses {worst:.1}% of packets.")
+    } else {
+        format!(
+            "Telemetry link loses packets on {} streams, worst {name} at {worst:.1}%.",
+            lossy.len()
+        )
+    };
+    Some(Detected {
+        key: "link-loss".into(),
+        sev: 1,
+        text,
+    })
 }
 
 /// GitHub's unresolved incidents and impaired components as findings, so
