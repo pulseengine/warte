@@ -72,6 +72,7 @@ async fn serve() -> (tempfile::TempDir, String, Hub) {
             org: "pulseengine".into(),
             probe_self: false,
             costs_file: None,
+            skill_usage_file: None,
         }),
         ..Default::default()
     };

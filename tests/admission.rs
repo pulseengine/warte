@@ -207,6 +207,7 @@ async fn serve(snapshot: Option<&Snapshot>) -> (tempfile::TempDir, String) {
             org: "pulseengine".into(),
             probe_self: false,
             costs_file: None,
+            skill_usage_file: None,
         }),
         ..Default::default()
     };
