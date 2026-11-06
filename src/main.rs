@@ -240,6 +240,50 @@ async fn main() -> anyhow::Result<()> {
                     std::process::exit(1);
                 }
             }
+            warte::cli::ProbeCommands::InstallHooks { yes } => {
+                use warte::probe::hooks;
+                let home = std::env::var_os("HOME")
+                    .map(std::path::PathBuf::from)
+                    .ok_or_else(|| anyhow::anyhow!("HOME is not set"))?;
+                let exe = std::env::current_exe()?.canonicalize()?;
+                let changes = hooks::plan(&home, &exe.to_string_lossy())?;
+                if changes.is_empty() {
+                    println!("Every agent found here already has the warte hook.");
+                    return Ok(());
+                }
+                for c in &changes {
+                    println!(
+                        "{} — {}{}",
+                        c.agent,
+                        c.path.display(),
+                        if c.before.is_none() {
+                            " (new file)"
+                        } else {
+                            ""
+                        }
+                    );
+                    print!("{}", hooks::diff(c.before.as_deref(), &c.after));
+                    println!();
+                }
+                if !yes {
+                    use std::io::Write;
+                    print!("Write {} file(s)? [y/N] ", changes.len());
+                    std::io::stdout().flush()?;
+                    let mut answer = String::new();
+                    std::io::stdin().read_line(&mut answer)?;
+                    if !matches!(answer.trim(), "y" | "Y" | "yes") {
+                        println!("Nothing written.");
+                        return Ok(());
+                    }
+                }
+                let now = chrono::Utc::now().timestamp();
+                for c in &changes {
+                    match hooks::apply(c, now)? {
+                        Some(b) => println!("wrote {} (backup: {})", c.path.display(), b.display()),
+                        None => println!("wrote {}", c.path.display()),
+                    }
+                }
+            }
             warte::cli::ProbeCommands::Hook { event } => {
                 use std::io::Read;
                 let mut s = String::new();

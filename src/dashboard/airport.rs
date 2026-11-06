@@ -87,7 +87,14 @@ fn walkers_of(r: &crate::probe::Report, now: i64) -> Vec<Walker> {
         .map(|s| Walker {
             agent: s.agent.clone(),
             repo: s.dir.clone().unwrap_or_default(),
-            activity: s.activity.clone().unwrap_or_default(),
+            activity: match s.activity.as_deref() {
+                // a probe older than REQ-PROBE-014 sends no time and wrote
+                // "waiting for you" for a finished turn too: not a question
+                Some(crate::probe::activity::WAITING) if s.activity_at.is_none() => {
+                    crate::probe::activity::DONE.to_string()
+                }
+                a => a.unwrap_or_default().to_string(),
+            },
             minutes: (now as u64).saturating_sub(s.started_at) / 60,
             since_min: s.activity_at.map(|t| (now - t).max(0) as u64 / 60),
         })
@@ -283,6 +290,19 @@ mod tests {
             via: "probe".into(),
             cert_until: None,
         }
+    }
+
+    // rivet: verifies REQ-PROBE-014
+    #[test]
+    fn an_old_probes_waiting_is_shown_as_done() {
+        let mut m = seen("Mac", 2);
+        m.report.sessions[0].activity = Some(crate::probe::activity::WAITING.into());
+        m.report.sessions[1].activity = Some(crate::probe::activity::WAITING.into());
+        m.report.sessions[1].activity_at = Some(900);
+        let w = walkers_of(&m.report, 1_000);
+        let acts: Vec<&str> = w.iter().map(|w| w.activity.as_str()).collect();
+        // the new probe's question stays first; the old probe's is done
+        assert_eq!(acts, ["waiting for you", "done"]);
     }
 
     // rivet: partially-verifies REQ-DASH-015

@@ -220,6 +220,14 @@ pub enum ProbeCommands {
         )]
         out: std::path::PathBuf,
     },
+    /// Offer the activity hook to each agent on this machine (Claude Code,
+    /// Copilot CLI, Mistral Vibe): shows the exact change and writes it only
+    /// after you confirm, backing each file up first (DD-PROBE-003)
+    InstallHooks {
+        /// Write without asking
+        #[arg(long)]
+        yes: bool,
+    },
     /// Called by an agent's hooks (Claude Code, Copilot CLI, Mistral Vibe):
     /// reads the event on stdin and records only a verb ("editing",
     /// "waiting for you") for this agent. Never fails, prints nothing

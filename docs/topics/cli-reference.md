@@ -186,8 +186,35 @@ until it enrolls again with a new token (`warte probe token --host <host>`).
 `/api/probe/feed/temper` are the only write endpoints usable without the
 dashboard's login: the one-time token and the signatures are their
 authentication. Every refusal gets the same answer;
-the reason is in the server log. Agent working/waiting state from hooks
-you install follows (DD-PROBE-003).
+the reason is in the server log.
+
+### Agent activity hooks (DD-PROBE-003, REQ-PROBE-014)
+
+```bash
+warte probe install-hooks          # shows each change, asks before writing
+warte probe install-hooks --yes
+```
+
+offers `warte probe hook` to every agent whose config folder exists, so the
+probe can say what each session is doing:
+
+| Agent | File | Events |
+|---|---|---|
+| Claude Code | `~/.claude/settings.json` | SessionStart, UserPromptSubmit, PreToolUse, Stop, Notification |
+| Copilot CLI | `~/.copilot/hooks/warte.json` (its own file) | sessionStart, userPromptSubmitted, preToolUse, agentStop, notification (named with `--event`) |
+| Mistral Vibe | `~/.vibe/hooks.toml` (two `[[hooks]]` appended) | pre_tool, post_agent |
+
+It keeps every other hook and setting (in `settings.json` untouched keys
+keep their exact text), backs each file up next to itself
+(`*.warte-backup-<time>`), and adds nothing where the hook is already there.
+The probe never installs it by itself.
+
+The hook writes only a verb and a time per agent process: "waiting for you"
+when the agent asks you (a permission prompt, a question, a form), "done"
+when it finished its turn (shown as "idle" after 30 minutes), otherwise what
+it does ("editing", "running tests", ...). No prompt, command, file name or
+path leaves the machine. Vibe has no session-start or prompt event, so a
+Vibe session shows its tools and "done" only.
 
 ## warte fleet
 

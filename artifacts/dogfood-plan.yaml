@@ -686,8 +686,8 @@ artifacts:
   - id: DD-PROBE-003
     type: design-decision
     title: The probe offers its agent hooks; the user confirms
-    status: approved
-    release: v1.7.0
+    status: verified
+    release: v1.6.1
     description: "'warte probe install-hooks' shows the exact change to each agent's config (Claude Code ~/.claude/settings.json, Copilot CLI ~/.copilot/hooks/) and writes it only after confirmation; it keeps existing hooks (including iTerm2's cc-status) and backs the file up first. The probe never edits agent config on its own; it reports when its hook is missing (Claude Code can rewrite settings.json) and the dashboard shows that machine's agent state as unknown."
     fields:
       rationale: "Owner decision 2026-10-28: nothing edits a developer's agent config silently. A missing hook is reported, not repaired."
