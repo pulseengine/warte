@@ -14,6 +14,7 @@ pub mod activity;
 pub mod enroll;
 pub mod hardware;
 pub mod health;
+pub mod hooks;
 pub mod inventory;
 pub mod io;
 pub mod send;
