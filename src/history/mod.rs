@@ -67,6 +67,10 @@ pub fn unit(metric: &str) -> &'static str {
         "KB/s"
     } else if base.ends_with("_ms") {
         "ms"
+    } else if base.starts_with("temp.") {
+        "°C"
+    } else if base == "battery.pct" {
+        "%"
     } else if base.ends_with("_s") || base == "uptime" {
         "s"
     } else {

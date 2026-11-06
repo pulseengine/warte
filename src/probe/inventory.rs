@@ -222,12 +222,17 @@ pub fn record_shadowing(now: i64) {
 }
 
 async fn run(cmd: &str, args: &[&str]) -> Result<String, String> {
+    run_for(cmd, args, RUN_TIMEOUT).await
+}
+
+/// Run `cmd` with no stdin, at most `limit`; stdout on success, else a short reason.
+pub(crate) async fn run_for(cmd: &str, args: &[&str], limit: Duration) -> Result<String, String> {
     let out = tokio::process::Command::new(cmd)
         .args(args)
         .stdin(std::process::Stdio::null())
         .kill_on_drop(true)
         .output();
-    match tokio::time::timeout(RUN_TIMEOUT, out).await {
+    match tokio::time::timeout(limit, out).await {
         Err(_) => Err(format!("{cmd} timed out")),
         Ok(Err(e)) => Err(format!("{cmd}: {e}")),
         Ok(Ok(o)) if o.status.success() => Ok(String::from_utf8_lossy(&o.stdout).into_owned()),
