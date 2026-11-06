@@ -126,7 +126,8 @@ pub struct Hardware {
     pub media_rising: Vec<String>,
     /// The privileged collector's state (Linux): `ok`, `missing` (not
     /// deployed or never ran), `stale` (stopped), `invalid` (output
-    /// refused), `failing` (it ran but read no disk).
+    /// refused), `failing` (a SMART-capable disk could not be read), `none`
+    /// (no SMART-capable disk on this host).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub privileged: Option<String>,
     /// What could not be read; published only as a count.
@@ -490,6 +491,10 @@ pub struct Privileged {
     pub disks: Vec<PrivDisk>,
     /// Disks the collector could not read (the reasons stay in its own log).
     pub errors: u32,
+    /// SMART-capable disks it found (NVMe, non-USB SATA/SAS); 0 on a host
+    /// with only virtio, SD cards or USB sticks.
+    #[serde(default)]
+    pub candidates: u32,
     /// Whether smartctl was found.
     pub smartctl: bool,
 }
@@ -517,10 +522,15 @@ pub async fn privileged_collect(now: i64) -> (Privileged, Vec<String>) {
     let mut disks = Vec::new();
     let mut found = true;
     let devs: Vec<String> = if cfg!(target_os = "linux") {
-        linux_disks().into_iter().map(|(d, _, _)| d).collect()
+        linux_disks()
+            .into_iter()
+            .map(|(d, _, _)| d)
+            .filter(|d| smart_capable(d))
+            .collect()
     } else {
         vec!["disk0".to_string()]
     };
+    let candidates = devs.len() as u32;
     for dev in devs {
         let path = if cfg!(target_os = "linux") {
             format!("/dev/{dev}")
@@ -562,10 +572,32 @@ pub async fn privileged_collect(now: i64) -> (Privileged, Vec<String>) {
             taken_at: now,
             disks,
             errors: errors.len() as u32,
+            candidates,
             smartctl: found,
         },
         errors,
     )
+}
+
+/// A disk SMART can be read from: an NVMe namespace, or a SATA/SAS disk that
+/// is not on USB (no SAT passthrough to USB sticks or a probe's storage).
+/// Virtio and SD cards have no SMART.
+pub fn smart_capable(dev: &str) -> bool {
+    if dev.starts_with("nvme") {
+        return true;
+    }
+    if !dev.starts_with("sd") {
+        return false;
+    }
+    std::fs::canonicalize(format!("/sys/block/{dev}"))
+        .map(|p| !p.to_string_lossy().contains("/usb"))
+        .unwrap_or(false)
+}
+
+/// Whether a collector run should fail its unit: only when a SMART-capable
+/// disk exists and nothing could be read.
+pub fn privileged_failed(p: &Privileged) -> bool {
+    p.candidates > 0 && (!p.smartctl || p.disks.is_empty())
 }
 
 /// Write the collector's output atomically, world-readable (it holds no
@@ -651,7 +683,10 @@ pub fn read_privileged(dir: &std::path::Path, now: i64) -> (Vec<DiskHealth>, &'s
     if now - p.taken_at > PRIVILEGED_STALE_S || p.taken_at - now > 300 {
         return (Vec::new(), "stale");
     }
-    if !p.smartctl || (p.disks.is_empty() && p.errors > 0) {
+    if p.candidates == 0 && p.disks.is_empty() {
+        return (Vec::new(), "none");
+    }
+    if privileged_failed(&p) {
         return (Vec::new(), "failing");
     }
     let in_range =
@@ -706,9 +741,11 @@ async fn smartctl(dev_path: &str) -> Result<Smart, String> {
             if code == 7 {
                 return Ok(Smart::Asleep);
             }
-            // bit 1: the device could not be opened
-            if code >= 0 && code & 0b10 != 0 {
-                return Err("smartctl could not open the device".into());
+            // the exit status is a bit mask: bits 0-1 (command line, device
+            // open) are failures; bits 2+ (a log the drive lacks, failing
+            // health, errors logged) come with complete JSON, which is data
+            if code < 0 || code & 0b11 != 0 {
+                return Err(format!("smartctl could not read the device (exit {code})"));
             }
             Ok(Smart::Json(String::from_utf8_lossy(&o.stdout).into_owned()))
         }

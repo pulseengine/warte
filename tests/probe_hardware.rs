@@ -246,6 +246,7 @@ fn the_privileged_output_is_untrusted_data() {
             asleep: None,
         }],
         errors: 0,
+        candidates: 1,
         smartctl: true,
     };
     write_privileged(&d, &p).unwrap();
@@ -424,6 +425,7 @@ fn the_root_writer_refuses_unsafe_directories_and_says_when_it_read_nothing() {
         taken_at: now,
         disks,
         errors,
+        candidates: 2,
         smartctl,
     };
     // writable by others: refused
@@ -449,6 +451,17 @@ fn the_root_writer_refuses_unsafe_directories_and_says_when_it_read_nothing() {
     assert_eq!(read_privileged(&real, now), (vec![], "failing"));
     write_privileged(&real, &p(vec![], 1, false)).unwrap();
     assert_eq!(read_privileged(&real, now).1, "failing");
+    // a host with no SMART-capable disk (virtio, SD card, USB sticks) is not
+    // failing: its unit succeeds and the probe says so
+    let none = Privileged {
+        candidates: 0,
+        ..p(vec![], 0, false)
+    };
+    assert!(!privileged_failed(&none));
+    write_privileged(&real, &none).unwrap();
+    assert_eq!(read_privileged(&real, now), (vec![], "none"));
+    assert!(privileged_failed(&p(vec![], 3, true)));
+    assert!(!smart_capable("vda") && !smart_capable("mmcblk0") && smart_capable("nvme0n1"));
 }
 
 // rivet: verifies REQ-PROBE-012
