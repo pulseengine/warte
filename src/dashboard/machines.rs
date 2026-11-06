@@ -310,9 +310,18 @@ fn hardware_chips(x: &crate::probe::hardware::Hardware) -> String {
             format!(r#"<span class="chip on">{}{n}</span>"#, esc(k))
         })
         .collect();
-    if let Some(s) = x.privileged.as_deref().filter(|s| *s != "ok") {
+    // the status comes from the machine's report: only known values are shown
+    let status = match x.privileged.as_deref() {
+        Some("missing") => Some("missing"),
+        Some("stale") => Some("stale"),
+        Some("invalid") => Some("invalid"),
+        Some("failing") => Some("failing"),
+        _ => None,
+    };
+    if let Some(s) = status {
         c.push(format!(
-            r#"<span class="chip off" title="warte probe privileged: {s}">SMART: collector not running</span>"#
+            r#"<span class="chip off" title="warte probe privileged: {}">SMART: collector not running</span>"#,
+            esc(s)
         ));
     }
     if c.is_empty() {

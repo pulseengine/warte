@@ -23,6 +23,11 @@ use std::time::Duration;
 pub const SMART_EVERY_S: i64 = 3600;
 /// A debug probe seen within this window and gone now is a finding.
 pub const PROBE_GONE_WINDOW_S: i64 = 7 * 86_400;
+/// A probe counts as gone only after it was attached at least this long
+/// (a probe plugged in for one flash is not a fixture).
+pub const PROBE_MIN_ATTACHED_S: i64 = 30 * 60;
+/// Media errors that rose within this window are a finding.
+pub const MEDIA_RISE_WINDOW_S: i64 = 86_400;
 /// Most USB devices reported.
 pub const MAX_USB: usize = 40;
 /// Where `warte probe privileged` writes and the probe reads.
@@ -60,6 +65,9 @@ pub struct DiskHealth {
     /// When SMART was last read (unix seconds).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub smart_at: Option<i64>,
+    /// The disk was asleep, so SMART was not read (it is not woken).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub asleep: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
@@ -76,6 +84,9 @@ pub struct Usb {
     /// Debug probe kind, when it is one (e.g. "ST-LINK").
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub probe: Option<String>,
+    /// Board or adapter kind (a development board's own USB, a serial adapter).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub board: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
@@ -110,8 +121,12 @@ pub struct Hardware {
     /// Debug probes attached in the last 7 days and not now.
     #[serde(default)]
     pub probes_gone: Vec<Gone>,
+    /// Disks whose media errors rose in the last 24 h.
+    #[serde(default)]
+    pub media_rising: Vec<String>,
     /// The privileged collector's state (Linux): `ok`, `missing` (not
-    /// deployed or never ran), `stale` (stopped), `invalid` (output refused).
+    /// deployed or never ran), `stale` (stopped), `invalid` (output
+    /// refused), `failing` (it ran but read no disk).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub privileged: Option<String>,
     /// What could not be read; published only as a count.
@@ -125,13 +140,20 @@ pub struct Prev {
     /// dev → the last SMART reading
     #[serde(default)]
     pub smart: BTreeMap<String, DiskHealth>,
-    /// probe kind + id → last seen (unix seconds)
+    /// probe kind → (first seen, last seen) of its current or last attachment
     #[serde(default)]
-    pub probes_seen: BTreeMap<String, i64>,
+    pub probes: BTreeMap<String, (i64, i64)>,
+    /// dev → (media errors, when they last rose)
+    #[serde(default)]
+    pub media: MediaCounts,
+    /// GPUs from slow sources (system_profiler), and when they were read
+    #[serde(default)]
+    pub gpus: Option<(i64, Vec<Gpu>)>,
 }
 
-/// Debug probes and board interfaces by USB vendor:product (product `*` = any).
-pub const PROBES: [(&str, &str, &str); 22] = [
+/// Debug probes by USB vendor:product (product `*` = any). These are fixtures:
+/// one that disappears is a finding.
+pub const PROBES: [(&str, &str, &str); 17] = [
     ("1366", "*", "J-Link"),
     ("0483", "3748", "ST-LINK V2"),
     ("0483", "374b", "ST-LINK V2-1"),
@@ -142,32 +164,50 @@ pub const PROBES: [(&str, &str, &str); 22] = [
     ("0483", "3757", "ST-LINK V3PWR"),
     ("2e8a", "000c", "Raspberry Pi Debug Probe"),
     ("1d50", "6018", "Black Magic Probe"),
-    ("0403", "6010", "FTDI dual (JTAG/UART)"),
-    ("0403", "6011", "FTDI quad (JTAG/UART)"),
-    ("0403", "6014", "FTDI FT232H (JTAG)"),
     ("1fc9", "0090", "LPC-Link2"),
     ("1fc9", "0143", "MCU-Link"),
     ("0451", "bef3", "TI XDS110"),
-    ("303a", "1001", "Espressif USB-JTAG"),
     ("03eb", "2111", "Microchip EDBG"),
     ("03eb", "2141", "Microchip ICE"),
-    ("1915", "*", "Nordic"),
     ("c251", "f002", "Keil ULINK"),
     ("15ba", "002a", "Olimex ARM-USB-TINY-H"),
 ];
 
+/// Boards and adapters: the board under development's own USB, or a generic
+/// serial/JTAG adapter. Shown, never alarmed about (they come and go with
+/// every flash).
+pub const BOARDS: [(&str, &str, &str); 6] = [
+    ("1915", "*", "Nordic board"),
+    ("303a", "*", "Espressif board"),
+    ("0403", "6010", "FTDI dual adapter"),
+    ("0403", "6011", "FTDI quad adapter"),
+    ("0403", "6014", "FTDI FT232H adapter"),
+    ("2e8a", "0003", "RP2040/RP2350 board"),
+];
+
+fn table_kind(t: &[(&str, &str, &str)], vid: &str, pid: &str) -> Option<String> {
+    t.iter()
+        .find(|(v, p, _)| *v == vid && (*p == "*" || *p == pid))
+        .map(|(_, _, k)| k.to_string())
+}
+
 /// The debug probe kind for a USB device, from its id or (CMSIS-DAP) its product name.
 pub fn probe_kind(vid: &str, pid: &str, product: Option<&str>) -> Option<String> {
     let (vid, pid) = (vid.to_ascii_lowercase(), pid.to_ascii_lowercase());
-    PROBES
-        .iter()
-        .find(|(v, p, _)| *v == vid && (*p == "*" || *p == pid))
-        .map(|(_, _, k)| k.to_string())
-        .or_else(|| {
-            product
-                .filter(|p| p.to_ascii_uppercase().contains("CMSIS-DAP"))
-                .map(|_| "CMSIS-DAP".to_string())
-        })
+    table_kind(&PROBES, &vid, &pid).or_else(|| {
+        product
+            .filter(|p| p.to_ascii_uppercase().contains("CMSIS-DAP"))
+            .map(|_| "CMSIS-DAP".to_string())
+    })
+}
+
+/// The board or adapter kind for a USB device.
+pub fn board_kind(vid: &str, pid: &str) -> Option<String> {
+    table_kind(
+        &BOARDS,
+        &vid.to_ascii_lowercase(),
+        &pid.to_ascii_lowercase(),
+    )
 }
 
 fn hex4(s: &str) -> Option<String> {
@@ -193,12 +233,22 @@ pub fn usb_device(
     {
         return None;
     }
+    let probe = probe_kind(&v, &p, product.as_deref());
+    let board = if probe.is_none() {
+        board_kind(&v, &p)
+    } else {
+        None
+    };
+    // firmware sets product and vendor strings (a board's own name, a
+    // project): published only for known probes and boards, else the id alone
+    let known = probe.is_some() || board.is_some();
     Some(Usb {
-        probe: probe_kind(&v, &p, product.as_deref()),
         id: format!("{v}:{p}"),
-        product,
-        vendor: vendor.and_then(clean_label),
+        product: product.filter(|_| known),
+        vendor: vendor.and_then(clean_label).filter(|_| known),
         driver: driver.and_then(clean),
+        probe,
+        board,
     })
 }
 
@@ -266,8 +316,11 @@ pub fn parse_smartctl(dev: &str, json: &str, now: i64) -> Option<DiskHealth> {
     // SATA SSD wear: 231 SSD life left, 233 media wearout, 177 wear levelling (normalised, 100 = new)
     let ata_wear = [231u64, 233, 177]
         .iter()
-        .find_map(|id| attr(*id).and_then(|a| a.get("value")?.as_u64()))
-        .filter(|x| *x <= 100)
+        .find_map(|id| {
+            attr(*id)
+                .and_then(|a| a.get("value")?.as_u64())
+                .filter(|x| *x <= 100)
+        })
         .map(|x| 100.0 - x as f64);
     let wear_pct = nvme
         .and_then(|n| n.get("percentage_used")?.as_u64())
@@ -295,6 +348,7 @@ pub fn parse_smartctl(dev: &str, json: &str, now: i64) -> Option<DiskHealth> {
         power_on_h: u("/power_on_time/hours"),
         temp_c: u("/temperature/current").map(|t| t as f64),
         smart_at: Some(now),
+        asleep: None,
     })
 }
 
@@ -364,29 +418,66 @@ pub fn parse_nvidia_smi(csv: &str) -> Vec<Gpu> {
         .collect()
 }
 
-/// Which debug probes are gone, and the updated last-seen map.
+/// Which debug probe kinds are gone, and the updated attachment map. Keyed by
+/// kind, so reflashing a probe (its product id changes) is not "gone"; a kind
+/// counts only after `PROBE_MIN_ATTACHED_S` attached, and is reported until
+/// `PROBE_GONE_WINDOW_S` after it was last seen.
 pub fn probes_gone(
-    seen_before: &BTreeMap<String, i64>,
-    now_attached: &[String],
+    before: &BTreeMap<String, (i64, i64)>,
+    attached_kinds: &[String],
     now: i64,
-) -> (Vec<Gone>, BTreeMap<String, i64>) {
-    let mut seen: BTreeMap<String, i64> = seen_before
+) -> (Vec<Gone>, BTreeMap<String, (i64, i64)>) {
+    let mut next: BTreeMap<String, (i64, i64)> = before
         .iter()
-        .filter(|(_, t)| now - **t <= PROBE_GONE_WINDOW_S)
-        .map(|(k, t)| (k.clone(), *t))
+        .filter(|(_, (_, last))| now - last <= PROBE_GONE_WINDOW_S)
+        .map(|(k, v)| (k.clone(), *v))
         .collect();
-    for p in now_attached {
-        seen.insert(p.clone(), now);
+    for k in attached_kinds {
+        let e = next.entry(k.clone()).or_insert((now, now));
+        // re-attached after a gap: a new attachment starts
+        if now - e.1 > 10 * 60 {
+            e.0 = now;
+        }
+        e.1 = now;
     }
-    let gone = seen
+    let gone = next
         .iter()
-        .filter(|(k, _)| !now_attached.contains(k))
-        .map(|(k, t)| Gone {
+        .filter(|(k, (first, last))| {
+            !attached_kinds.contains(k) && last - first >= PROBE_MIN_ATTACHED_S
+        })
+        .map(|(k, (_, last))| Gone {
             probe: k.clone(),
-            last_seen: *t,
+            last_seen: *last,
         })
         .collect();
-    (gone, seen)
+    (gone, next)
+}
+
+/// dev → (media errors, when they last rose).
+pub type MediaCounts = BTreeMap<String, (u64, Option<i64>)>;
+
+/// Disks whose media errors rose in the last day, and the updated counters.
+/// A first reading is a baseline, never a finding: these counters never fall.
+pub fn media_rising(
+    before: &MediaCounts,
+    disks: &[DiskHealth],
+    now: i64,
+) -> (Vec<String>, MediaCounts) {
+    let mut next = BTreeMap::new();
+    let mut rising = Vec::new();
+    for d in disks {
+        let Some(n) = d.media_errors else { continue };
+        let rose_at = match before.get(&d.dev) {
+            Some((old, at)) if n > *old => Some(now),
+            Some((_, at)) => *at,
+            None => None,
+        };
+        if rose_at.is_some_and(|t| now - t <= MEDIA_RISE_WINDOW_S) {
+            rising.push(d.dev.clone());
+        }
+        next.insert(d.dev.clone(), (n, rose_at));
+    }
+    (rising, next)
 }
 
 /// What `warte probe privileged` writes: SMART per disk, already reduced to
@@ -397,6 +488,10 @@ pub struct Privileged {
     pub schema: String,
     pub taken_at: i64,
     pub disks: Vec<PrivDisk>,
+    /// Disks the collector could not read (the reasons stay in its own log).
+    pub errors: u32,
+    /// Whether smartctl was found.
+    pub smartctl: bool,
 }
 
 /// One disk in the collector's output; strict, so a changed or tampered
@@ -412,6 +507,7 @@ pub struct PrivDisk {
     pub media_errors: Option<u64>,
     pub power_on_h: Option<u64>,
     pub temp_c: Option<f64>,
+    pub asleep: Option<bool>,
 }
 
 /// The root-only collection (`warte probe privileged`): SMART for every whole
@@ -419,6 +515,7 @@ pub struct PrivDisk {
 pub async fn privileged_collect(now: i64) -> (Privileged, Vec<String>) {
     let mut errors = Vec::new();
     let mut disks = Vec::new();
+    let mut found = true;
     let devs: Vec<String> = if cfg!(target_os = "linux") {
         linux_disks().into_iter().map(|(d, _, _)| d).collect()
     } else {
@@ -430,22 +527,32 @@ pub async fn privileged_collect(now: i64) -> (Privileged, Vec<String>) {
         } else {
             dev.clone()
         };
+        let reduce = |d: DiskHealth| PrivDisk {
+            dev: d.dev,
+            model: d.model,
+            rotational: d.rotational,
+            smart_ok: d.smart_ok,
+            wear_pct: d.wear_pct,
+            media_errors: d.media_errors,
+            power_on_h: d.power_on_h,
+            temp_c: d.temp_c,
+            asleep: d.asleep,
+        };
         match smartctl(&path).await {
-            Ok(Some(j)) => {
-                if let Some(d) = parse_smartctl(&dev, &j, now) {
-                    disks.push(PrivDisk {
-                        dev: d.dev,
-                        model: d.model,
-                        rotational: d.rotational,
-                        smart_ok: d.smart_ok,
-                        wear_pct: d.wear_pct,
-                        media_errors: d.media_errors,
-                        power_on_h: d.power_on_h,
-                        temp_c: d.temp_c,
-                    });
-                }
+            Ok(Smart::Json(j)) => match parse_smartctl(&dev, &j, now) {
+                Some(d) => disks.push(reduce(d)),
+                None => errors.push(format!("{dev}: unreadable smartctl output")),
+            },
+            Ok(Smart::Asleep) => disks.push(reduce(DiskHealth {
+                dev: dev.clone(),
+                asleep: Some(true),
+                ..Default::default()
+            })),
+            Ok(Smart::NotInstalled) => {
+                found = false;
+                errors.push("smartctl is not installed".into());
+                break;
             }
-            Ok(None) => errors.push("smartctl is not installed".into()),
             Err(e) => errors.push(format!("{dev}: {e}")),
         }
     }
@@ -454,19 +561,59 @@ pub async fn privileged_collect(now: i64) -> (Privileged, Vec<String>) {
             schema: PRIVILEGED_SCHEMA.into(),
             taken_at: now,
             disks,
+            errors: errors.len() as u32,
+            smartctl: found,
         },
         errors,
     )
 }
 
-/// Write the collector's output atomically, world-readable (it holds no secret).
+/// Write the collector's output atomically, world-readable (it holds no
+/// secret). Runs as root, so the directory must be safe: a real directory
+/// (not a symlink), owned by the writing user, writable by nobody else. The
+/// temporary file is created exclusively under a random name (`create_new`
+/// never follows a symlink), its mode set on the open handle, then renamed.
 pub fn write_privileged(dir: &std::path::Path, p: &Privileged) -> std::io::Result<()> {
-    use std::os::unix::fs::PermissionsExt;
-    std::fs::create_dir_all(dir)?;
-    let _ = std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o755));
-    let tmp = dir.join(format!("{PRIVILEGED_FILE}.tmp"));
-    std::fs::write(&tmp, serde_json::to_vec(p).map_err(std::io::Error::other)?)?;
-    std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o644))?;
+    use std::io::Write;
+    use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt, PermissionsExt};
+    if std::fs::symlink_metadata(dir).is_err() {
+        std::fs::DirBuilder::new().mode(0o755).create(dir)?;
+    }
+    let meta = std::fs::symlink_metadata(dir)?;
+    if !meta.file_type().is_dir() {
+        return Err(std::io::Error::other(format!(
+            "{} is not a directory",
+            dir.display()
+        )));
+    }
+    if meta.mode() & 0o022 != 0 {
+        return Err(std::io::Error::other(format!(
+            "{} is writable by others; refusing to write there",
+            dir.display()
+        )));
+    }
+    let nonce = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let tmp = dir.join(format!(".{PRIVILEGED_FILE}.{}.{nonce}", std::process::id()));
+    let mut f = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o644)
+        .open(&tmp)?;
+    // the directory belongs to whoever writes here (root, from the unit)
+    if f.metadata()?.uid() != meta.uid() {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(std::io::Error::other(format!(
+            "{} is owned by another user; refusing to write there",
+            dir.display()
+        )));
+    }
+    f.set_permissions(std::fs::Permissions::from_mode(0o644))?;
+    f.write_all(&serde_json::to_vec(p).map_err(std::io::Error::other)?)?;
+    f.sync_all()?;
+    drop(f);
     std::fs::rename(&tmp, dir.join(PRIVILEGED_FILE))
 }
 
@@ -476,16 +623,25 @@ pub fn write_privileged(dir: &std::path::Path, p: &Privileged) -> std::io::Resul
 /// `stale` (older than `PRIVILEGED_STALE_S`, or from the future) or
 /// `invalid`. Only `ok` returns disks: no stale numbers.
 pub fn read_privileged(dir: &std::path::Path, now: i64) -> (Vec<DiskHealth>, &'static str) {
+    use std::io::Read;
     let path = dir.join(PRIVILEGED_FILE);
-    let Ok(meta) = std::fs::metadata(&path) else {
+    // one open, the checks on the handle, a bounded read: no swap between
+    // a check and the read, no FIFO, no unbounded file
+    let Ok(f) = std::fs::File::open(&path) else {
         return (Vec::new(), "missing");
     };
-    if !meta.is_file() || meta.len() > PRIVILEGED_MAX_BYTES {
+    match f.metadata() {
+        Ok(m) if m.is_file() && m.len() <= PRIVILEGED_MAX_BYTES => {}
+        _ => return (Vec::new(), "invalid"),
+    }
+    let mut bytes = Vec::new();
+    if f.take(PRIVILEGED_MAX_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .is_err()
+        || bytes.len() as u64 > PRIVILEGED_MAX_BYTES
+    {
         return (Vec::new(), "invalid");
     }
-    let Ok(bytes) = std::fs::read(&path) else {
-        return (Vec::new(), "missing");
-    };
     let Ok(p) = serde_json::from_slice::<Privileged>(&bytes) else {
         return (Vec::new(), "invalid");
     };
@@ -494,6 +650,9 @@ pub fn read_privileged(dir: &std::path::Path, now: i64) -> (Vec<DiskHealth>, &'s
     }
     if now - p.taken_at > PRIVILEGED_STALE_S || p.taken_at - now > 300 {
         return (Vec::new(), "stale");
+    }
+    if !p.smartctl || (p.disks.is_empty() && p.errors > 0) {
+        return (Vec::new(), "failing");
     }
     let in_range =
         |x: Option<f64>, lo: f64, hi: f64| x.filter(|v| v.is_finite() && *v >= lo && *v <= hi);
@@ -511,6 +670,7 @@ pub fn read_privileged(dir: &std::path::Path, now: i64) -> (Vec<DiskHealth>, &'s
                 power_on_h: d.power_on_h.filter(|h| *h < 1_000_000),
                 temp_c: in_range(d.temp_c, -40.0, 200.0),
                 smart_at: Some(p.taken_at),
+                asleep: d.asleep,
             })
         })
         .collect();
@@ -521,25 +681,36 @@ async fn run(cmd: &str, args: &[&str], secs: u64) -> Result<String, String> {
     super::inventory::run_for(cmd, args, Duration::from_secs(secs)).await
 }
 
+/// What one smartctl run gave.
+enum Smart {
+    Json(String),
+    /// `-n standby,7`: the disk sleeps and was not woken.
+    Asleep,
+    NotInstalled,
+}
+
 /// smartctl exits non-zero on SMART warnings too (bit flags); JSON on stdout
-/// is what counts. Ok(None): not run (no permission, standby, not installed).
-async fn smartctl(dev_path: &str) -> Result<Option<String>, String> {
+/// is what counts. A sleeping disk is left asleep and exits 7.
+async fn smartctl(dev_path: &str) -> Result<Smart, String> {
     let out = tokio::process::Command::new("smartctl")
-        .args(["--json", "-a", "-n", "standby", dev_path])
+        .args(["--json", "-a", "-n", "standby,7", dev_path])
         .stdin(std::process::Stdio::null())
         .kill_on_drop(true)
         .output();
     match tokio::time::timeout(Duration::from_secs(15), out).await {
         Err(_) => Err("smartctl timed out".into()),
-        Ok(Err(e)) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Ok(Err(e)) if e.kind() == std::io::ErrorKind::NotFound => Ok(Smart::NotInstalled),
         Ok(Err(e)) => Err(format!("smartctl: {e}")),
         Ok(Ok(o)) => {
             let code = o.status.code().unwrap_or(-1);
-            // bit 1: the device could not be opened (no permission, or asleep with -n standby)
-            if code & 0b10 != 0 {
+            if code == 7 {
+                return Ok(Smart::Asleep);
+            }
+            // bit 1: the device could not be opened
+            if code >= 0 && code & 0b10 != 0 {
                 return Err("smartctl could not open the device".into());
             }
-            Ok(Some(String::from_utf8_lossy(&o.stdout).into_owned()))
+            Ok(Smart::Json(String::from_utf8_lossy(&o.stdout).into_owned()))
         }
     }
 }
@@ -561,6 +732,15 @@ fn linux_disks() -> Vec<(String, Option<bool>, Option<String>)> {
                 return None;
             }
             let p = e.path();
+            let attr = |f: &str| {
+                std::fs::read_to_string(p.join(f))
+                    .ok()
+                    .map(|s| s.trim().to_string())
+            };
+            // hidden NVMe multipath nodes and empty card readers
+            if attr("hidden").as_deref() == Some("1") || attr("size").as_deref() == Some("0") {
+                return None;
+            }
             let rot = std::fs::read_to_string(p.join("queue/rotational"))
                 .ok()
                 .map(|s| s.trim() == "1");
@@ -651,6 +831,20 @@ fn linux_gpus() -> Vec<Gpu> {
     out
 }
 
+/// The NVIDIA driver is loaded and none of its devices is runtime-suspended.
+fn nvidia_awake() -> bool {
+    if !std::path::Path::new("/proc/driver/nvidia").exists() {
+        return false;
+    }
+    let Ok(rd) = std::fs::read_dir("/sys/bus/pci/drivers/nvidia") else {
+        return false;
+    };
+    !rd.flatten().any(|e| {
+        std::fs::read_to_string(e.path().join("power/runtime_status"))
+            .is_ok_and(|s| s.trim() == "suspended")
+    })
+}
+
 fn privileged_dir_or_default(p: Option<&std::path::Path>) -> &std::path::Path {
     p.unwrap_or(std::path::Path::new(PRIVILEGED_DIR))
 }
@@ -694,14 +888,20 @@ pub async fn collect(
             .as_ref()
             .and_then(|c| c.smart_at)
             .is_some_and(|t| now - t < SMART_EVERY_S);
+        // a failed read is retried after the hour too, and never carries
+        // the old numbers forward
         let mut d = match (fresh || state.is_none(), cached) {
             (true, Some(c)) => c,
-            (_, cached) => match smartctl(&dev).await {
-                Ok(Some(j)) => parse_smartctl(&dev, &j, now).unwrap_or_default(),
-                Ok(None) => DiskHealth::default(),
+            _ => match smartctl(&dev).await {
+                Ok(Smart::Json(j)) => parse_smartctl(&dev, &j, now).unwrap_or_default(),
+                Ok(Smart::Asleep) => DiskHealth {
+                    asleep: Some(true),
+                    ..Default::default()
+                },
+                Ok(Smart::NotInstalled) => DiskHealth::default(),
                 Err(e) => {
                     hw.errors.push(e);
-                    cached.unwrap_or_default()
+                    DiskHealth::default()
                 }
             },
         };
@@ -731,36 +931,50 @@ pub async fn collect(
     } else {
         Vec::new()
     };
-    let attached: Vec<String> = hw
-        .usb
-        .iter()
-        .filter_map(|u| u.probe.as_ref().map(|p| format!("{p} ({})", u.id)))
-        .collect();
-    let (gone, seen) = probes_gone(&prev.probes_seen, &attached, now);
+    let mut kinds: Vec<String> = hw.usb.iter().filter_map(|u| u.probe.clone()).collect();
+    kinds.sort();
+    kinds.dedup();
+    let (gone, probes) = probes_gone(&prev.probes, &kinds, now);
     hw.probes_gone = gone;
-    next.probes_seen = seen;
+    next.probes = probes;
+    let (rising, media) = media_rising(&prev.media, &hw.disks, now);
+    hw.media_rising = rising;
+    next.media = media;
 
-    // GPUs
+    // GPUs; system_profiler is slow and its answer does not change: hourly
     if macos {
-        if let Ok(j) = run("system_profiler", &["SPDisplaysDataType", "-json"], 10).await {
-            hw.gpus = parse_sp_displays(&j);
+        match prev.gpus.clone().filter(|(t, _)| now - t < SMART_EVERY_S) {
+            Some((t, g)) => {
+                hw.gpus = g.clone();
+                next.gpus = Some((t, g));
+            }
+            None => {
+                if let Ok(j) = run("system_profiler", &["SPDisplaysDataType", "-json"], 10).await {
+                    hw.gpus = parse_sp_displays(&j);
+                    next.gpus = Some((now, hw.gpus.clone()));
+                }
+            }
         }
     } else if linux {
         hw.gpus = linux_gpus();
-        if let Ok(csv) = run(
-            "nvidia-smi",
-            &[
-                "--query-gpu=name,utilization.gpu,memory.used,memory.total,temperature.gpu",
-                "--format=csv,noheader,nounits",
-            ],
-            5,
-        )
-        .await
-        {
-            let nv = parse_nvidia_smi(&csv);
-            if !nv.is_empty() {
-                hw.gpus.retain(|g| g.driver.as_deref() != Some("nvidia"));
-                hw.gpus.extend(nv);
+        // nvidia-smi would wake a sleeping laptop GPU: only when the driver is
+        // loaded and no NVIDIA device is runtime-suspended
+        if nvidia_awake() {
+            if let Ok(csv) = run(
+                "nvidia-smi",
+                &[
+                    "--query-gpu=name,utilization.gpu,memory.used,memory.total,temperature.gpu",
+                    "--format=csv,noheader,nounits",
+                ],
+                5,
+            )
+            .await
+            {
+                let nv = parse_nvidia_smi(&csv);
+                if !nv.is_empty() {
+                    hw.gpus.retain(|g| g.driver.as_deref() != Some("nvidia"));
+                    hw.gpus.extend(nv);
+                }
             }
         }
     }
@@ -798,11 +1012,12 @@ pub fn findings(h: &Hardware) -> Vec<(&'static str, String)> {
                 f.push(("amber", format!("disk {} is {w:.0}% worn", d.dev)));
             }
         }
-        if d.media_errors.is_some_and(|e| e > 0) {
+        // these counters never fall: a rise is news, a constant count is not
+        if h.media_rising.contains(&d.dev) {
             f.push((
                 "amber",
                 format!(
-                    "disk {} has {} media error(s) or bad sector(s)",
+                    "disk {}: media errors or bad sectors rising (now {})",
                     d.dev,
                     d.media_errors.unwrap_or(0)
                 ),
@@ -817,6 +1032,10 @@ pub fn findings(h: &Hardware) -> Vec<(&'static str, String)> {
         Some("invalid") => f.push((
             "amber",
             "privileged collector output refused (schema or size)".to_string(),
+        )),
+        Some("failing") => f.push((
+            "amber",
+            "privileged collector reads no disk (smartctl missing or failing)".to_string(),
         )),
         _ => {}
     }

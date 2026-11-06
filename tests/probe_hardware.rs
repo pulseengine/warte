@@ -144,23 +144,77 @@ fn gpus_parse() {
 
 // rivet: verifies REQ-PROBE-012
 #[test]
-fn a_probe_seen_this_week_and_gone_now_is_named() {
+fn a_probe_attached_for_a_while_and_gone_is_named_by_kind() {
     let now = 1_800_000_000;
-    let mut seen = BTreeMap::new();
-    seen.insert("ST-LINK V3 (0483:374e)".to_string(), now - 3600);
-    seen.insert("J-Link (1366:0105)".to_string(), now - 8 * 86_400);
-    let (gone, next) = probes_gone(
-        &seen,
-        &["Raspberry Pi Debug Probe (2e8a:000c)".to_string()],
-        now,
+    let mut before = BTreeMap::new();
+    // attached an hour, last seen 5 minutes ago: gone
+    before.insert("ST-LINK V3".to_string(), (now - 3600, now - 300));
+    // plugged in for one flash (2 minutes): not a fixture, not alarmed
+    before.insert("J-Link".to_string(), (now - 600, now - 480));
+    // last seen 8 days ago: forgotten
+    before.insert(
+        "TI XDS110".to_string(),
+        (now - 9 * 86_400, now - 8 * 86_400),
     );
-    assert_eq!(gone.len(), 1);
-    assert_eq!(gone[0].probe, "ST-LINK V3 (0483:374e)");
-    assert!(
-        !next.contains_key("J-Link (1366:0105)"),
-        "older than 7 days is forgotten"
+    let (gone, next) = probes_gone(&before, &["Raspberry Pi Debug Probe".to_string()], now);
+    assert_eq!(
+        gone.iter().map(|g| g.probe.as_str()).collect::<Vec<_>>(),
+        vec!["ST-LINK V3"]
     );
-    assert_eq!(next["Raspberry Pi Debug Probe (2e8a:000c)"], now);
+    assert!(!next.contains_key("TI XDS110"));
+    assert_eq!(next["Raspberry Pi Debug Probe"], (now, now));
+    // reflashing changes the product id, not the kind: still attached, not gone
+    let (gone, _) = probes_gone(
+        &next,
+        &[
+            "Raspberry Pi Debug Probe".to_string(),
+            "ST-LINK V3".to_string(),
+        ],
+        now + 60,
+    );
+    assert!(gone.is_empty(), "{gone:?}");
+    // boards and adapters are shown but are not probes
+    let b = usb_device("1915", "c00a", Some("nRF52 DK"), None, None).unwrap();
+    assert_eq!(
+        (b.probe, b.board.as_deref(), b.product.as_deref()),
+        (None, Some("Nordic board"), Some("nRF52 DK"))
+    );
+    let f = usb_device("0403", "6010", Some("Dual RS232-HS"), None, None).unwrap();
+    assert_eq!(
+        (f.probe, f.board.as_deref()),
+        (None, Some("FTDI dual adapter"))
+    );
+    // an unknown device's firmware-set names are not published
+    let u = usb_device(
+        "abcd",
+        "1234",
+        Some("ACME ProjectX ECU Rev3"),
+        Some("ACME"),
+        None,
+    )
+    .unwrap();
+    assert_eq!((u.product, u.vendor), (None, None));
+}
+
+// rivet: verifies REQ-PROBE-012
+#[test]
+fn media_errors_alarm_when_they_rise_not_forever() {
+    let now = 1_800_000_000;
+    let disk = |n| DiskHealth {
+        dev: "sda".into(),
+        media_errors: Some(n),
+        ..Default::default()
+    };
+    let (r, m) = media_rising(&BTreeMap::new(), &[disk(8)], now);
+    assert!(r.is_empty(), "a first reading is a baseline");
+    let (r, m) = media_rising(&m, &[disk(8)], now + 3600);
+    assert!(r.is_empty(), "constant is not news");
+    let (r, m) = media_rising(&m, &[disk(9)], now + 7200);
+    assert_eq!(r, vec!["sda".to_string()]);
+    let (r, m) = media_rising(&m, &[disk(9)], now + 7200 + 3600);
+    assert_eq!(r, vec!["sda".to_string()], "for a day after the rise");
+    let (r, _) = media_rising(&m, &[disk(9)], now + 7200 + 86_401);
+    assert!(r.is_empty());
 }
 
 fn write(dir: &std::path::Path, body: &str) {
@@ -189,7 +243,10 @@ fn the_privileged_output_is_untrusted_data() {
             media_errors: Some(0),
             power_on_h: Some(100),
             temp_c: Some(40.0),
+            asleep: None,
         }],
+        errors: 0,
+        smartctl: true,
     };
     write_privileged(&d, &p).unwrap();
     let (disks, st) = read_privileged(&d, now);
@@ -213,7 +270,9 @@ fn the_privileged_output_is_untrusted_data() {
     assert_eq!(read_privileged(&d, now - 3600), (vec![], "stale"));
 
     // unknown fields, a wrong schema, an oversized file: refused unread
-    let base = format!(r#"{{"schema":"{PRIVILEGED_SCHEMA}","taken_at":{now},"disks":[]"#);
+    let base = format!(
+        r#"{{"schema":"{PRIVILEGED_SCHEMA}","taken_at":{now},"disks":[],"errors":0,"smartctl":true"#
+    );
     write(&d, &(base.clone() + r#","cmd":"rm -rf /"}"#));
     assert_eq!(read_privileged(&d, now).1, "invalid");
     write(
@@ -232,8 +291,8 @@ fn the_privileged_output_is_untrusted_data() {
         &d,
         &format!(
             r#"{{"schema":"{PRIVILEGED_SCHEMA}","taken_at":{now},"disks":[
-            {{"dev":"../../etc/passwd","model":null,"rotational":null,"smart_ok":true,"wear_pct":1,"media_errors":0,"power_on_h":1,"temp_c":30}},
-            {{"dev":"sda","model":"<b>x</b>","rotational":true,"smart_ok":true,"wear_pct":9999,"media_errors":0,"power_on_h":1,"temp_c":999}}]}}"#
+            {{"dev":"../../etc/passwd","model":null,"rotational":null,"smart_ok":true,"wear_pct":1,"media_errors":0,"power_on_h":1,"temp_c":30,"asleep":null}},
+            {{"dev":"sda","model":"<b>x</b>","rotational":true,"smart_ok":true,"wear_pct":9999,"media_errors":0,"power_on_h":1,"temp_c":999,"asleep":null}}],"errors":0,"smartctl":true}}"#
         ),
     );
     let (disks, st) = read_privileged(&d, now);
@@ -275,6 +334,7 @@ fn hardware_findings_series_and_publication() {
         probe: Some("ST-LINK V3".into()),
         ..Default::default()
     }];
+    h.media_rising = vec!["sda".into()];
     h.probes_gone = vec![Gone {
         probe: "J-Link (1366:0105)".into(),
         last_seen: 1,
@@ -288,7 +348,7 @@ fn hardware_findings_series_and_publication() {
     let all = f.join("\n");
     for want in [
         "red: disk sda SMART reports failing",
-        "amber: disk sda has 10 media error(s) or bad sector(s)",
+        "amber: disk sda: media errors or bad sectors rising (now 10)",
         "amber: disk nvme0n1 is 83% worn",
         "red: disk nvme1n1 is 96% worn",
         "amber: debug probe J-Link (1366:0105) no longer attached",
@@ -351,4 +411,70 @@ fn attached_now_lists_probes_first() {
         "{html}"
     );
     assert!(html.contains("GPU <b>Apple M4</b> · 10 cores"), "{html}");
+}
+
+// rivet: verifies REQ-PROBE-012
+#[test]
+fn the_root_writer_refuses_unsafe_directories_and_says_when_it_read_nothing() {
+    use std::os::unix::fs::PermissionsExt;
+    let t = tempfile::tempdir().unwrap();
+    let now = 1_800_000_000;
+    let p = |disks: Vec<PrivDisk>, errors: u32, smartctl: bool| Privileged {
+        schema: PRIVILEGED_SCHEMA.into(),
+        taken_at: now,
+        disks,
+        errors,
+        smartctl,
+    };
+    // writable by others: refused
+    let open = t.path().join("open");
+    std::fs::create_dir(&open).unwrap();
+    std::fs::set_permissions(&open, std::fs::Permissions::from_mode(0o777)).unwrap();
+    assert!(write_privileged(&open, &p(vec![], 0, true)).is_err());
+    // a symlink to a directory: refused
+    let real = t.path().join("real");
+    std::fs::create_dir(&real).unwrap();
+    std::fs::set_permissions(&real, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let link = t.path().join("link");
+    std::os::unix::fs::symlink(&real, &link).unwrap();
+    assert!(write_privileged(&link, &p(vec![], 0, true)).is_err());
+    // a planted symlink at the final name is replaced, not followed
+    let victim = t.path().join("victim");
+    std::fs::write(&victim, "keep").unwrap();
+    std::os::unix::fs::symlink(&victim, real.join(PRIVILEGED_FILE)).unwrap();
+    write_privileged(&real, &p(vec![], 0, true)).unwrap();
+    assert_eq!(std::fs::read_to_string(&victim).unwrap(), "keep");
+    // read nothing: the probe says failing, not ok
+    write_privileged(&real, &p(vec![], 3, true)).unwrap();
+    assert_eq!(read_privileged(&real, now), (vec![], "failing"));
+    write_privileged(&real, &p(vec![], 1, false)).unwrap();
+    assert_eq!(read_privileged(&real, now).1, "failing");
+}
+
+// rivet: verifies REQ-PROBE-012
+#[test]
+fn only_known_collector_states_reach_the_page() {
+    let mut m = warte::probe::Machines::open(tempfile::tempdir().unwrap().path().to_str().unwrap());
+    let _ = &mut m;
+    let mut r: warte::probe::Report = serde_json::from_value(serde_json::json!({
+        "probe_version": "t", "host": "box", "taken_at": 0,
+        "os": {"name": "Linux", "kernel": "6", "arch": "x86_64"},
+        "uptime_s": 1, "cpu": {"ncpu": 1, "load": [0.0, 0.0, 0.0]},
+        "memory": {"total_mb": 1, "avail_mb": 1, "swap_total_mb": 0, "swap_used_mb": 0},
+        "disks": [], "tools": [], "sessions": []
+    }))
+    .unwrap();
+    r.hardware = Some(Hardware {
+        privileged: Some(r#"x"><script>alert(1)</script>"#.into()),
+        ..Default::default()
+    });
+    m.record(r.clone(), "probe", 0);
+    let html = warte::dashboard::machines::view(Some(&m), None);
+    assert!(!html.contains("<script>alert"), "{html}");
+    assert!(!html.contains("collector not running"));
+    r.hardware.as_mut().unwrap().privileged = Some("stale".into());
+    m.record(r, "probe", 1);
+    assert!(
+        warte::dashboard::machines::view(Some(&m), None).contains("SMART: collector not running")
+    );
 }

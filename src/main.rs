@@ -235,6 +235,10 @@ async fn main() -> anyhow::Result<()> {
                 }
                 warte::probe::hardware::write_privileged(&out, &p)?;
                 println!("{} disk(s) written to {}", p.disks.len(), out.display());
+                // nothing read: fail, so the unit shows it (the file says so too)
+                if !p.smartctl || (p.disks.is_empty() && p.errors > 0) {
+                    std::process::exit(1);
+                }
             }
             warte::cli::ProbeCommands::Hook => {
                 use std::io::Read;

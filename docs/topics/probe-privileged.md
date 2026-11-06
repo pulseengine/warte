@@ -6,10 +6,14 @@ Instead a second, small part of warte runs as root, does only that collection, a
 result to a file the probe reads (REQ-PROBE-012).
 
 - `warte probe privileged [--out DIR]` reads SMART for every whole disk
-  (`smartctl --json -a -n standby`, so a sleeping disk is not woken) and writes
+  (`smartctl --json -a -n standby,7`, so a sleeping disk is not woken and shows as asleep) and writes
   `DIR/smart.json` (default `/var/lib/warte-privileged`, mode 0644, the directory 0755).
   It opens no network connection. It writes reduced data only: device name, model, SMART
-  passed, wear, media errors, power-on hours, temperature; no serial numbers.
+  passed, wear, media errors, power-on hours, temperature; no serial numbers. It refuses a
+  directory that is a symlink, writable by others or owned by another user, and creates its
+  temporary file exclusively before renaming it into place. When it reads no disk at all
+  (smartctl missing, every disk failing) it exits non-zero, so the unit shows as failed, and the
+  file says so; the probe then reports `failing`.
 - The probe (`warte probe send`) reads that file as untrusted data: at most 256 KiB, the exact
   schema `warte.privileged.v1` (unknown fields refused), device and model names through the
   probe's whitelist, values within range. Set `WARTE_PRIVILEGED_DIR` if you change the
@@ -34,7 +38,15 @@ Description=warte privileged collector (SMART for the probe)
 [Service]
 Type=oneshot
 ExecStart=/usr/local/bin/warte probe privileged --out /var/lib/warte-privileged
-# root, for SMART only; nothing else
+# root, but only the two capabilities SMART needs (SG_IO / NVMe admin ioctls)
+CapabilityBoundingSet=CAP_SYS_RAWIO CAP_SYS_ADMIN
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+# the disks, read-only device access, nothing else
+DevicePolicy=closed
+DeviceAllow=block-sd r
+DeviceAllow=block-blkext r
+DeviceAllow=char-nvme r
 StateDirectory=warte-privileged
 StateDirectoryMode=0755
 ProtectSystem=strict
@@ -46,6 +58,7 @@ RestrictAddressFamilies=AF_UNIX
 IPAddressDeny=any
 NoNewPrivileges=yes
 ProtectKernelModules=yes
+ProtectKernelTunables=yes
 ProtectControlGroups=yes
 LockPersonality=yes
 MemoryDenyWriteExecute=yes
