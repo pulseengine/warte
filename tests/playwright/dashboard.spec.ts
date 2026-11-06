@@ -345,11 +345,42 @@ test.describe("machine history", () => {
     // the fixture's points are days old: 24 h has none, 90 d has them as hourly rollups
     await content.locator(".mhist summary").first().click();
     await expect(content.locator(".mhist")).toContainText("no data in this range");
+    // switching the range keeps the open history open, now with data
+    await range.getByRole("button", { name: "90 d" }).click();
+    await waitForHtmx(page);
+    await expect(content.locator(".mhist .hgroup h4", { hasText: "Runners" }).first()).toBeVisible();
+    await expect(content.locator(".mhist")).toContainText("runners busy");
+    await content.locator(".mhist summary").first().click();
+    expect(errors).toEqual([]);
+  });
+});
+
+// rivet: verifies REQ-MHIST-003
+test.describe("an open machine history", () => {
+  test("survives the refresh, is in the address, and a reload reopens it", async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.goto("/#machines");
+    await waitForHtmx(page);
+    const content = page.locator("#content");
+    const range = content.getByRole("group", { name: "history range" });
     await range.getByRole("button", { name: "90 d" }).click();
     await waitForHtmx(page);
     await content.locator(".mhist summary").first().click();
     await expect(content.locator(".mhist .hgroup h4", { hasText: "Runners" }).first()).toBeVisible();
-    await expect(content.locator(".mhist")).toContainText("runners busy");
+    await expect(page).toHaveURL(/#machines\/ci-test\?range=90d$/);
+    // the periodic refresh is a click on the view's button: the history stays open
+    await page.getByRole("button", { name: "Machines", exact: true }).click();
+    await waitForHtmx(page);
+    await expect(content.locator(".mhist").first()).toHaveAttribute("open", "");
+    await expect(content.locator(".mhist .hgroup h4", { hasText: "Runners" }).first()).toBeVisible();
+    // a reload (or a shared link) opens the same history at the same range
+    await page.reload();
+    await waitForHtmx(page);
+    await expect(range.getByRole("button", { name: "90 d" })).toHaveClass(/on/);
+    await expect(content.locator(".mhist .hgroup h4", { hasText: "Runners" }).first()).toBeVisible();
+    // closing it takes it out of the address
+    await content.locator(".mhist summary").first().click();
+    await expect(page).toHaveURL(/#machines$/);
     expect(errors).toEqual([]);
   });
 });
