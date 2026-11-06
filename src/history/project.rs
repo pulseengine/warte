@@ -88,8 +88,10 @@ pub fn from_report(r: &Report) -> Vec<(String, f64)> {
 pub fn from_health(h: &crate::probe::health::Health) -> Vec<(String, f64)> {
     let mut v: Vec<(String, f64)> = Vec::new();
     let opt = [
-        ("psi.cpu", h.psi_cpu),
-        ("psi.mem", h.psi_mem),
+        // the probe's own names: the ground station writes psi.cpu/psi.mem for
+        // the CI host from its agent, and a host may run both
+        ("psi.cpu.host", h.psi_cpu),
+        ("psi.mem.host", h.psi_mem),
         ("psi.mem.full", h.psi_mem_full),
         ("oom.kills", h.oom_kills.map(|x| x as f64)),
         ("health.clock_offset_ms", h.clock_offset_ms),

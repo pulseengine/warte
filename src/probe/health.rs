@@ -105,6 +105,9 @@ pub struct Health {
     pub ntp_synced: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub clock_offset_ms: Option<f64>,
+    /// The smaller of this and the previous run's offset: what findings use.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub clock_offset_sustained_ms: Option<f64>,
     /// What could not be read; published only as a count.
     #[serde(default)]
     pub errors: Vec<String>,
@@ -125,18 +128,57 @@ pub struct Prev {
     pub updates: Option<Updates>,
     #[serde(default)]
     pub reboot_required_since: Option<i64>,
+    /// Last update-check attempt, successful or not (retries at most hourly).
+    #[serde(default)]
+    pub updates_tried_at: Option<i64>,
+    /// No update tool on this host: checked again daily, not every hour.
+    #[serde(default)]
+    pub updates_unavailable: bool,
+    /// The previous run's clock offset and NTP state, so findings need two runs.
+    #[serde(default)]
+    pub clock_offset_ms: Option<f64>,
+    #[serde(default)]
+    pub ntp_unsynced: bool,
 }
 
-/// A name safe to publish: `[A-Za-z0-9._@:+-]`, 1..=40 characters, not
-/// path-like. Anything else is dropped, never repaired.
+/// Retry a failed update check after this long.
+pub const UPDATES_RETRY_S: i64 = 3600;
+
+/// A process, unit or interface name safe to publish: `[A-Za-z0-9._@:+-]`,
+/// 1..=40 characters, not starting with `.` or `-`. Anything else is
+/// dropped, never repaired.
 pub fn clean(s: &str) -> Option<String> {
     let s = s.trim();
     let ok = !s.is_empty()
         && s.len() <= 40
         && !s.starts_with('.')
+        && !s.starts_with('-')
         && s.chars()
-            .all(|c| c.is_ascii_alphanumeric() || "._@:+- ".contains(c));
+            .all(|c| c.is_ascii_alphanumeric() || "._@:+-".contains(c));
     ok.then(|| s.to_string())
+}
+
+/// A sensor label safe to publish: as `clean`, but words may be separated by
+/// single spaces ("PMU tdie").
+pub fn clean_label(s: &str) -> Option<String> {
+    let words: Vec<String> = s.split_whitespace().map(clean).collect::<Option<_>>()?;
+    let j = words.join(" ");
+    (!j.is_empty() && j.len() <= 40).then_some(j)
+}
+
+/// A failed unit as published: services, timers and sockets only, the
+/// instance cut (`ssh-tunnel@db.example.service` → `ssh-tunnel@.service`), so
+/// no path (mount units), user id or host name can leave the machine.
+pub fn unit_name(u: &str) -> Option<String> {
+    let (stem, kind) = u.rsplit_once('.')?;
+    if !["service", "timer", "socket"].contains(&kind) {
+        return None;
+    }
+    let stem = match stem.split_once('@') {
+        Some((t, _)) => format!("{t}@"),
+        None => stem.to_string(),
+    };
+    clean(&format!("{stem}.{kind}"))
 }
 
 /// A sensor's group: its label without indices ("PMU tdie4" → "PMU tdie",
@@ -164,19 +206,20 @@ pub fn temps_from(readings: &[(String, f64, Option<f64>)]) -> Vec<Temp> {
         if !c.is_finite() || *c <= -40.0 || *c >= 200.0 {
             continue;
         }
-        let Some(sensor) = clean(&temp_group(label)) else {
+        let Some(sensor) = clean_label(&temp_group(label)) else {
             continue;
         };
+        // some drivers report 0, 20 or 255 as critical: only plausible values count
+        let crit = crit.filter(|x| (50.0..=150.0).contains(x));
         let e = g.entry(sensor.clone()).or_insert(Temp {
             sensor,
             c: *c,
-            crit: *crit,
+            crit,
         });
         if *c > e.c {
+            // the threshold goes with the reading that is the maximum
             e.c = *c;
-        }
-        if e.crit.is_none() {
-            e.crit = *crit;
+            e.crit = crit;
         }
     }
     let mut v: Vec<Temp> = g.into_values().collect();
@@ -203,7 +246,11 @@ pub fn keep_iface(name: &str) -> bool {
         "virbr",
         "tailscale",
     ];
-    !SKIP.iter().any(|p| name == *p || name.starts_with(p)) && clean(name).is_some()
+    // enx…/wlx… names carry the MAC address
+    !SKIP.iter().any(|p| name == *p || name.starts_with(p))
+        && !name.starts_with("enx")
+        && !name.starts_with("wlx")
+        && clean(name).is_some()
 }
 
 /// Per-interface rates from two counter readings `dt_ms` apart. An interface
@@ -243,7 +290,13 @@ pub fn net_rates(
 pub fn top_procs(procs: &[(String, f64, u64)]) -> (Vec<Proc>, Vec<Proc>) {
     let mut by: BTreeMap<String, Proc> = BTreeMap::new();
     for (name, cpu, mem) in procs {
-        let base = name.rsplit('/').next().unwrap_or(name);
+        // a full path is reduced to its last part; a name with '/' that is not
+        // a path (kernel threads such as kworker/u8:2) is dropped
+        let base = if name.starts_with('/') {
+            name.rsplit('/').next().unwrap_or(name)
+        } else {
+            name.as_str()
+        };
         let Some(n) = clean(base) else { continue };
         let p = by.entry(n.clone()).or_insert(Proc {
             name: n,
@@ -278,7 +331,7 @@ pub fn parse_failed_units(json: &str) -> Option<Vec<String>> {
     let mut u: Vec<String> = v
         .as_array()?
         .iter()
-        .filter_map(|x| x.get("unit")?.as_str().and_then(clean))
+        .filter_map(|x| x.get("unit")?.as_str().and_then(unit_name))
         .collect();
     u.truncate(20);
     Some(u)
@@ -321,11 +374,18 @@ pub fn parse_ioreg_cycles(text: &str) -> Option<u32> {
     })
 }
 
-/// `NTPSynchronized=yes` from `timedatectl show`.
+/// `NTPSynchronized=yes` from `timedatectl show`; `None` when NTP is not
+/// turned on (`NTP=no`: a VM taking time from its host, or on purpose).
 pub fn parse_timedatectl(text: &str) -> Option<bool> {
-    text.lines()
-        .find_map(|l| l.strip_prefix("NTPSynchronized="))
-        .map(|v| v.trim() == "yes")
+    let get = |k: &str| {
+        text.lines()
+            .find_map(|l| l.strip_prefix(k))
+            .map(|v| v.trim() == "yes")
+    };
+    if get("NTP=") != Some(true) {
+        return None;
+    }
+    get("NTPSynchronized=")
 }
 
 /// Offset from `chronyc tracking`: "System time : 0.000012345 seconds slow of NTP time".
@@ -420,7 +480,12 @@ pub async fn collect(state: Option<&std::path::Path>, now: i64) -> Health {
     // top processes: CPU over one second, names only
     {
         use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
-        let kind = ProcessRefreshKind::nothing().with_cpu().with_memory();
+        // processes only: with tasks, every Linux thread would be an entry
+        // carrying its process's memory and an app-chosen thread name
+        let kind = ProcessRefreshKind::nothing()
+            .with_cpu()
+            .with_memory()
+            .without_tasks();
         let mut sys = System::new();
         sys.refresh_processes_specifics(ProcessesToUpdate::All, true, kind);
         tokio::time::sleep(Duration::from_millis(1000)).await;
@@ -428,6 +493,7 @@ pub async fn collect(state: Option<&std::path::Path>, now: i64) -> Health {
         let procs: Vec<(String, f64, u64)> = sys
             .processes()
             .values()
+            .filter(|p| p.thread_kind().is_none())
             .map(|p| {
                 (
                     p.name().to_string_lossy().into_owned(),
@@ -492,10 +558,22 @@ pub async fn collect(state: Option<&std::path::Path>, now: i64) -> Health {
         next.reboot_required_since = reboot.then(|| prev.reboot_required_since.unwrap_or(now));
         h.reboot_required_since = next.reboot_required_since;
         if let Ok(t) = run("timedatectl", &["show"], 5).await {
-            h.ntp_synced = parse_timedatectl(&t);
+            let synced = parse_timedatectl(&t);
+            next.ntp_unsynced = synced == Some(false);
+            // unsynchronised only when this run and the previous one say so
+            // (it is briefly false after every boot and resume)
+            h.ntp_synced = synced.map(|s| s || !prev.ntp_unsynced);
         }
         if let Ok(t) = run("chronyc", &["tracking"], 5).await {
-            h.clock_offset_ms = parse_chrony_offset_ms(&t);
+            let off = parse_chrony_offset_ms(&t);
+            next.clock_offset_ms = off;
+            h.clock_offset_ms = off;
+            // the finding uses the smaller of two consecutive offsets: a
+            // slew after resume does not flap it
+            h.clock_offset_sustained_ms = match (off, prev.clock_offset_ms) {
+                (Some(a), Some(b)) => Some(if a.abs() < b.abs() { a } else { b }),
+                _ => None,
+            };
         }
     }
     let every = if macos {
@@ -503,12 +581,24 @@ pub async fn collect(state: Option<&std::path::Path>, now: i64) -> Health {
     } else {
         UPDATES_EVERY_LINUX_S
     };
-    let due = prev
-        .updates
-        .as_ref()
-        .is_none_or(|u| now - u.checked_at >= every);
+    let tried = prev.updates_tried_at;
+    let retry = if prev.updates_unavailable {
+        86_400
+    } else {
+        UPDATES_RETRY_S
+    };
+    // `probe report` (no state) never runs the slow check
+    let due = state.is_some()
+        && prev
+            .updates
+            .as_ref()
+            .is_none_or(|u| now - u.checked_at >= every)
+        && tried.is_none_or(|t| now - t >= retry);
     next.updates = prev.updates.clone();
+    next.updates_tried_at = tried;
+    next.updates_unavailable = prev.updates_unavailable;
     if due && (linux || macos) {
+        next.updates_tried_at = Some(now);
         let got = if linux {
             run(
                 "apt-get",
@@ -535,7 +625,13 @@ pub async fn collect(state: Option<&std::path::Path>, now: i64) -> Health {
                     security_since: security.filter(|s| *s > 0).map(|_| since.unwrap_or(now)),
                 });
             }
-            Err(e) => h.errors.push(e),
+            Err(e) => {
+                // no such tool (not apt, not macOS): stop asking every hour
+                next.updates_unavailable = e.contains("No such file") || e.contains("not found");
+                if !next.updates_unavailable {
+                    h.errors.push(e);
+                }
+            }
         }
     }
     h.updates = next.updates.clone();
@@ -592,7 +688,7 @@ pub fn findings(h: &Health, now: i64) -> Vec<(&'static str, String)> {
             ));
         }
     }
-    if let Some(ms) = h.clock_offset_ms {
+    if let Some(ms) = h.clock_offset_sustained_ms {
         if ms.abs() > 5000.0 {
             f.push(("red", format!("clock off by {:.1} s", ms / 1000.0)));
         } else if ms.abs() > 500.0 {

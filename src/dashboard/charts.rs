@@ -66,6 +66,8 @@ pub fn title(metric: &str) -> String {
         "queue.oldest_s" => "longest wait",
         "sessions" => "agent sessions",
         "psi.mem.full" => "memory pressure (full)",
+        "psi.cpu.host" => "CPU pressure (probe)",
+        "psi.mem.host" => "memory pressure (probe)",
         "oom.kills" => "OOM kills",
         "net.rx_kbs" => "received",
         "net.tx_kbs" => "sent",

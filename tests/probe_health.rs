@@ -19,6 +19,8 @@ fn names_pass_a_whitelist_or_are_dropped() {
     for bad in [
         "",
         "/usr/bin/x",
+        "-x",
+        "a b",
         "a=b",
         "--token=s3cret",
         ".hidden",
@@ -129,10 +131,13 @@ fn command_outputs_parse() {
     assert_eq!(parse_pmset("Now drawing from 'AC Power'\n"), None);
     assert_eq!(parse_ioreg_cycles("  \"CycleCount\" = 312\n"), Some(312));
     assert_eq!(
-        parse_timedatectl("Timezone=UTC\nNTPSynchronized=yes\n"),
+        parse_timedatectl("Timezone=UTC\nNTP=yes\nNTPSynchronized=yes\n"),
         Some(true)
     );
-    assert_eq!(parse_timedatectl("NTPSynchronized=no\n"), Some(false));
+    assert_eq!(
+        parse_timedatectl("NTP=yes\nNTPSynchronized=no\n"),
+        Some(false)
+    );
     let off = parse_chrony_offset_ms(
         "Reference ID    : 1\nSystem time     : 0.001500000 seconds fast of NTP time\n",
     )
@@ -166,7 +171,7 @@ fn findings_say_what_needs_a_look() {
         checked_at: now,
         security_since: Some(now - 8 * 86_400),
     });
-    h.clock_offset_ms = Some(600.0);
+    h.clock_offset_sustained_ms = Some(600.0);
     h.ntp_synced = Some(false);
     h.last_oom_at = Some(now - 120);
     h.temps = vec![Temp {
@@ -190,7 +195,7 @@ fn findings_say_what_needs_a_look() {
     ] {
         assert!(all.contains(want), "missing {want:?} in\n{all}");
     }
-    h.clock_offset_ms = Some(-6000.0);
+    h.clock_offset_sustained_ms = Some(-6000.0);
     h.temps[0].c = 101.0;
     let all = format!("{:?}", findings(&h, now));
     assert!(all.contains("\"red\", \"clock off by -6.0 s\""), "{all}");
@@ -247,7 +252,12 @@ fn health_reaches_history_and_the_api_without_error_text() {
     h.errors = vec!["chronyc: /usr/bin/chronyc SECRET-ERROR".into()];
     let s = warte::history::project::from_health(&h);
     let get = |n: &str| s.iter().find(|(k, _)| k == n).map(|(_, v)| *v);
-    assert_eq!(get("psi.mem"), Some(12.5));
+    assert_eq!(get("psi.mem.host"), Some(12.5));
+    assert_eq!(
+        get("psi.mem"),
+        None,
+        "the ground station's name stays its own"
+    );
     assert_eq!(get("oom.kills"), Some(1.0));
     assert_eq!(get("net.rx_kbs{if=eth0}"), Some(3.0));
     assert_eq!(get("temp.c{sensor=PMU tdie}"), Some(60.0));
@@ -292,4 +302,53 @@ fn the_history_panel_lists_processes_now_by_name() {
         html.contains("<b>claude</b> ×12 <span class=\"dim\">2735 MB</span>"),
         "{html}"
     );
+}
+
+// rivet: verifies REQ-PROBE-011
+#[test]
+fn review_fixes_hold() {
+    // units: services, timers and sockets only, instance cut
+    assert_eq!(unit_name("backup.service"), Some("backup.service".into()));
+    assert_eq!(
+        unit_name("ssh-tunnel@db.internal.example.service"),
+        Some("ssh-tunnel@.service".into())
+    );
+    assert_eq!(unit_name("user@1000.service"), Some("user@.service".into()));
+    assert_eq!(unit_name("media-ralf-USB.mount"), None);
+    assert_eq!(unit_name("dev-sda1.device"), None);
+    assert_eq!(
+        parse_failed_units(r#"[{"unit":"openvpn-client@corp.service"},{"unit":"home-x.mount"}]"#),
+        Some(vec!["openvpn-client@.service".into()])
+    );
+    // kernel threads never become processes; paths are cut to the name
+    let (cpu, _) = top_procs(&[
+        ("kworker/u8:2".to_string(), 50.0, 0),
+        ("/usr/sbin/sshd".to_string(), 5.0, 0),
+    ]);
+    assert_eq!(
+        cpu.iter().map(|p| p.name.as_str()).collect::<Vec<_>>(),
+        vec!["sshd"]
+    );
+    // bogus critical thresholds are ignored; the max reading's own threshold counts
+    let t = temps_from(&[
+        ("acpitz temp1".to_string(), 45.0, Some(20.0)),
+        ("Core 0".to_string(), 70.0, Some(100.0)),
+        ("Core 1".to_string(), 80.0, None),
+    ]);
+    let core = t.iter().find(|x| x.sensor == "Core").unwrap();
+    assert_eq!((core.c, core.crit), (80.0, None));
+    let acpi = t.iter().find(|x| x.sensor == "acpitz temp").unwrap();
+    assert_eq!(acpi.crit, None);
+    assert!(findings(
+        &Health {
+            temps: t,
+            ..Default::default()
+        },
+        0
+    )
+    .is_empty());
+    // MAC-bearing interface names are dropped
+    assert!(!keep_iface("enx00e04c680001") && !keep_iface("wlx001122334455") && keep_iface("eth0"));
+    // NTP off on purpose is not "unsynchronised"
+    assert_eq!(parse_timedatectl("NTP=no\nNTPSynchronized=no\n"), None);
 }
