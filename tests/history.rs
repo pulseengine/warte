@@ -467,3 +467,35 @@ fn similar_host_names_get_different_chart_anchors() {
     assert_eq!(ids.len(), 2, "{ids:?}");
     assert_ne!(ids[0], ids[1]);
 }
+
+// rivet: verifies REQ-MHIST-003
+#[test]
+fn a_history_the_viewer_has_open_is_rendered_open_and_filled() {
+    let t = tempfile::tempdir().unwrap();
+    let dir = t.path().to_str().unwrap();
+    let m = warte::probe::Machines::open(dir);
+    m.attach_history(History::open(dir).unwrap());
+    let now = chrono::Utc::now().timestamp();
+    for host in ["a", "b"] {
+        let mut r = report(host);
+        r.taken_at = now;
+        m.record(r, "probe", now);
+    }
+    m.history().unwrap().sync();
+    let html =
+        warte::dashboard::machines::view_open(Some(&m), None, Some("1h"), &["b".to_string()]);
+    let a = html.find(r#"data-host="a""#).unwrap();
+    let b = html.find(r#"data-host="b""#).unwrap();
+    // a stays collapsed and lazy; b is open with its charts, no second load
+    assert!(
+        html[..a].ends_with(r#"<details class="mhist" id="hist-61" "#),
+        "{}",
+        &html[a - 60..a]
+    );
+    assert!(
+        html[..b].ends_with(r#"<details class="mhist" open id="hist-62" "#),
+        "{}",
+        &html[b - 60..b]
+    );
+    assert!(html[b..].contains("<h4>CPU</h4>"));
+}

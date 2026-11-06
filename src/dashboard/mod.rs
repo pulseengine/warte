@@ -106,8 +106,19 @@ pub async fn machines_partial(
     let range = q.get("range").map(String::as_str);
     let (m, hub) = (state.machines.clone(), state.hub.clone());
     let range = range.map(String::from);
+    // histories the viewer has open (at most a few, host names only)
+    let open: Vec<String> = q
+        .get("open")
+        .map(|o| {
+            o.split(',')
+                .filter(|h| !h.is_empty() && h.len() <= 255)
+                .take(8)
+                .map(String::from)
+                .collect()
+        })
+        .unwrap_or_default();
     let page = tokio::task::spawn_blocking(move || {
-        machines::view_range(m.as_deref(), hub.as_ref(), range.as_deref())
+        machines::view_open(m.as_deref(), hub.as_ref(), range.as_deref(), &open)
     })
     .await
     .unwrap_or_default();

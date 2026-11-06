@@ -18,7 +18,7 @@
     <nav class="nav">
       <button hx-get="api/dashboard/overview-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn active">Overview</button>
       <button hx-get="api/dashboard/airport-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn" data-no-refresh>Airport</button>
-      <button hx-get="api/dashboard/machines-partial" hx-vals="js:{range: warteRange()}" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Machines</button>
+      <button hx-get="api/dashboard/machines-partial" hx-vals="js:{range: warteRange(), open: warteOpen()}" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Machines</button>
       <button hx-get="api/dashboard/jobs-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Jobs</button>
       <button hx-get="api/dashboard/compliance-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Compliance</button>
       <button hx-get="api/dashboard/ask-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn" data-no-refresh>Ask</button>
@@ -54,7 +54,37 @@
     }
     function warteSetRange(r) {
       try { localStorage.setItem('warte.range', r); } catch (e) {}
+      warteHash();
     }
+    // Machine histories the viewer has open: sent with every refresh so the
+    // server renders them open, and kept in the address
+    // (#machines/<host>?range=7d), so a reload or a shared link opens them.
+    var warteOpenHosts = [];
+    (function () {
+      var m = /^#machines\/([^?]+)(?:\?range=([0-9a-z]+))?$/.exec(location.hash);
+      if (m) {
+        try { warteOpenHosts.push(decodeURIComponent(m[1])); } catch (e) {}
+        if (m[2]) { try { localStorage.setItem('warte.range', m[2]); } catch (e) {} }
+      }
+    })();
+    function warteOpen() { return warteOpenHosts.join(','); }
+    function warteHash() {
+      if (location.hash.split(/[\/?]/)[0] !== '#machines') return;
+      var h = '#machines';
+      if (warteOpenHosts.length) {
+        h += '/' + encodeURIComponent(warteOpenHosts[warteOpenHosts.length - 1]) + '?range=' + warteRange();
+      }
+      if (location.hash !== h) history.replaceState(null, '', h);
+    }
+    // toggle does not bubble: listen in the capture phase
+    document.addEventListener('toggle', function (e) {
+      var d = e.target;
+      if (!d.matches || !d.matches('details.mhist') || !d.dataset.host) return;
+      var host = d.dataset.host;
+      warteOpenHosts = warteOpenHosts.filter(function (x) { return x !== host; });
+      if (d.open) warteOpenHosts.push(host);
+      warteHash();
+    }, true);
   </script>
   <script>
     // Active nav button, and a periodic refresh of the current view. Live push
@@ -67,14 +97,15 @@
     var current = buttons[0];
     function slug(btn) { return '#' + btn.textContent.trim().toLowerCase().replace(/\s+/g, '-'); }
     function fromHash() {
-      return buttons.find(function (b) { return slug(b) === location.hash; }) || buttons[0];
+      var view = location.hash.split(/[\/?]/)[0];
+      return buttons.find(function (b) { return slug(b) === view; }) || buttons[0];
     }
     buttons.forEach(function (btn) {
       btn.addEventListener('click', function () {
         buttons.forEach(function (b) { b.classList.remove('active'); });
         btn.classList.add('active');
         current = btn;
-        if (location.hash !== slug(btn)) history.pushState(null, '', slug(btn));
+        if (location.hash.split(/[\/?]/)[0] !== slug(btn)) history.pushState(null, '', slug(btn));
       });
     });
     window.addEventListener('popstate', function () { htmx.trigger(fromHash(), 'click'); });

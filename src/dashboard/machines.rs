@@ -39,7 +39,14 @@ fn charted(f: &Finding) -> bool {
 }
 
 /// Three sparklines and the collapsed full history for one machine.
-fn trend(h: &crate::history::History, s: &Seen, key: &str, span: i64, now: i64) -> String {
+fn trend(
+    h: &crate::history::History,
+    s: &Seen,
+    key: &str,
+    span: i64,
+    now: i64,
+    open: &[String],
+) -> String {
     let r = &s.report;
     let fullest = r
         .disks
@@ -59,10 +66,15 @@ fn trend(h: &crate::history::History, s: &Seen, key: &str, span: i64, now: i64) 
         ("mem.used_pct".to_string(), "memory".to_string()),
     ];
     want.extend(fullest);
-    trend_for(h, &r.host, &want, key, span, now)
+    let panel = open
+        .contains(&r.host)
+        .then(|| history_panel_with(h, &r.host, Some(key), r.health.as_ref()));
+    trend_for(h, &r.host, &want, key, span, now, panel)
 }
 
-/// Sparklines of `want` (series, label) and the collapsed full history.
+/// Sparklines of `want` (series, label) and the full history: collapsed and
+/// loaded on first open, or open and filled in when `panel` is given (a
+/// history the viewer had open, so a refresh keeps it open; REQ-MHIST-003).
 fn trend_for(
     h: &crate::history::History,
     host: &str,
@@ -70,6 +82,7 @@ fn trend_for(
     key: &str,
     span: i64,
     now: i64,
+    panel: Option<String>,
 ) -> String {
     let names: Vec<String> = want.iter().map(|(m, _)| m.clone()).collect();
     let series = h.series(host, &names, now - span, now);
@@ -83,11 +96,20 @@ fn trend_for(
         .find(|(k, _, _)| *k == key)
         .map(|(_, _, l)| *l)
         .unwrap_or("24 h");
-    format!(
-        r#"<div class="sparks" title="last {label}">{sparks}</div><details class="mhist" id="hist-{}" hx-get="api/dashboard/machine-history-partial?host={}&amp;range={key}" hx-trigger="toggle once" hx-target="find .mhbody"><summary>history · {label}</summary><div class="mhbody"><span class="dim">loading…</span></div></details>"#,
-        slug(host),
-        qenc(host),
-    )
+    let details = match panel {
+        Some(body) => format!(
+            r#"<details class="mhist" open id="hist-{}" data-host="{}"><summary>history · {label}</summary><div class="mhbody">{body}</div></details>"#,
+            slug(host),
+            esc(host),
+        ),
+        None => format!(
+            r#"<details class="mhist" id="hist-{}" data-host="{}" hx-get="api/dashboard/machine-history-partial?host={}&amp;range={key}" hx-trigger="toggle once" hx-target="find .mhbody"><summary>history · {label}</summary><div class="mhbody"><span class="dim">loading…</span></div></details>"#,
+            slug(host),
+            esc(host),
+            qenc(host),
+        ),
+    };
+    format!(r#"<div class="sparks" title="last {label}">{sparks}</div>{details}"#)
 }
 
 /// The full history of one machine, grouped (REQ-MHIST-003).
@@ -484,7 +506,7 @@ fn inventory(i: &crate::probe::inventory::Inventory) -> String {
 fn ci_card(
     hub: &crate::hub::Hub,
     now: i64,
-    hist: Option<(&crate::history::History, &str, i64)>,
+    hist: Option<(&crate::history::History, &str, i64, &[String])>,
 ) -> Option<String> {
     let (s, at) = hub.snapshot()?;
     let m = &s.machine;
@@ -518,14 +540,17 @@ fn ci_card(
     }
     let busy = s.runners.iter().filter(|r| r.local_busy).count();
     let trend = hist
-        .map(|(h, key, span)| {
+        .map(|(h, key, span, open)| {
             let want = [
                 ("load.1", "load"),
                 ("runners.busy", "busy runners"),
                 ("queue.self_hosted", "queued"),
             ]
             .map(|(m, l)| (m.to_string(), l.to_string()));
-            trend_for(h, &s.host, &want, key, span, now)
+            let panel = open
+                .contains(&s.host)
+                .then(|| history_panel_with(h, &s.host, Some(key), None));
+            trend_for(h, &s.host, &want, key, span, now, panel)
         })
         .unwrap_or_default();
     Some(format!(
@@ -547,6 +572,17 @@ pub fn view_range(
     machines: Option<&Machines>,
     hub: Option<&crate::hub::Hub>,
     range: Option<&str>,
+) -> String {
+    view_open(machines, hub, range, &[])
+}
+
+/// As `view_range`, with the histories of `open` hosts already open and
+/// filled in: the viewer had them open, so a refresh must not fold them.
+pub fn view_open(
+    machines: Option<&Machines>,
+    hub: Option<&crate::hub::Hub>,
+    range: Option<&str>,
+    open: &[String],
 ) -> String {
     let now = chrono::Utc::now().timestamp();
     let (key, span) = super::charts::range(range);
@@ -572,14 +608,14 @@ pub fn view_range(
                 .filter(|(h, _)| h.eq_ignore_ascii_case(&s.report.host))
                 .map(|(_, l)| l.as_str());
             let t = hist
-                .map(|h| trend(h, s, key, span, now))
+                .map(|h| trend(h, s, key, span, now, open))
                 .unwrap_or_default();
             card(s, &mine, line, now, &t)
         })
         .collect();
     // A CI host without a probe still shows, from the agent alone.
     if !ci.as_ref().is_some_and(|(h, _)| probed(h)) {
-        if let Some(c) = hub.and_then(|h| ci_card(h, now, hist.map(|x| (x, key, span)))) {
+        if let Some(c) = hub.and_then(|h| ci_card(h, now, hist.map(|x| (x, key, span, open)))) {
             cards += &c;
         }
     }
@@ -609,7 +645,7 @@ pub fn view_range(
             .iter()
             .map(|(k, _, l)| {
                 format!(
-                    r##"<button class="rbtn{}" hx-get="api/dashboard/machines-partial?range={k}" hx-target="#content" hx-swap="innerHTML" onclick="warteSetRange('{k}')">{l}</button>"##,
+                    r##"<button class="rbtn{}" hx-get="api/dashboard/machines-partial?range={k}" hx-vals="js:{{open: warteOpen()}}" hx-target="#content" hx-swap="innerHTML" onclick="warteSetRange('{k}')">{l}</button>"##,
                     if *k == key { " on" } else { "" }
                 )
             })
