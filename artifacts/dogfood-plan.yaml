@@ -86,7 +86,7 @@ artifacts:
     type: requirement
     title: Agent registry and access policies are stored as rivet artifacts
     status: proposed
-    release: v1.6.0
+    release: v1.7.0
     description: Agent registrations and access-policy grants and revocations SHALL be stored as rivet artifacts under a warte schema, validated by rivet validate, and read and written only through the pinned rivet. A revocation SHALL be a status change visible in git history.
     fields:
       category: functional
@@ -122,7 +122,7 @@ artifacts:
     type: requirement
     title: Artifacts are distributed via varve/OCI, not stored as blobs in warte
     status: proposed
-    release: v1.6.0
+    release: v1.7.0
     description: warte SHALL NOT store artifact bytes. It SHALL reference artifacts by varve layer and OCI digest and SHALL show their verification state as reported by varve (verify, inspect, status).
     fields:
       category: functional
@@ -158,7 +158,7 @@ artifacts:
     type: design-decision
     title: Durable state in rivet YAML; CI telemetry in a disposable cache
     status: proposed
-    release: v1.6.0
+    release: v1.7.0
     description: Agents/registry, access policies, schedule, friction and captured sessions are stored as rivet artifacts under a warte schema and read and written through the pinned rivet. CI telemetry is already out of warte's database since v1.4.0 (ground station ledger, REQ-STORE-002). Supersedes DD-ARCH-002.
     fields:
       rationale: Dogfoods rivet as the backend (#37). Git history replaces the hand-rolled CRDT/OR-Set tombstones as the audit and sync trail. High-frequency telemetry doesn't belong in git commits.
@@ -178,7 +178,7 @@ artifacts:
     type: design-decision
     title: varve is warte's artifact distribution backend
     status: proposed
-    release: v1.6.0
+    release: v1.7.0
     description: Drop the SQLite artifact blob store and the integrity code that re-implements varve. Resolve and verify artifacts through varve layers on ghcr.io/pulseengine.
     fields:
       rationale: varve already provides signed, digest-pinned OCI distribution with attestations and SBOMs (#38). Keeping a second store means two trust paths to audit.
@@ -464,7 +464,7 @@ artifacts:
     type: requirement
     title: Scheduled advisory sweep over every repo and every published varve layer
     status: proposed
-    release: v1.6.0
+    release: v1.7.0
     description: warte SHALL query OSV.dev (RustSec and GHSA) on a schedule for the Cargo.lock on every repo's default branch and for every published varve layer's signed SBOM (varve sbom), and record each advisory as a rivet supply-chain vulnerability that affects the sbom-components a release-artifact (layer) contains.
     fields:
       category: functional
@@ -479,7 +479,7 @@ artifacts:
     type: requirement
     title: "Advisory response: per-repo issue, per-layer notice, VEX status"
     status: proposed
-    release: v1.6.0
+    release: v1.7.0
     description: For each advisory warte SHALL track vuln-status (unresolved, investigating, patched, mitigated, not-affected with a reason). It SHALL open one deduplicated issue per affected repo, name the affected published layers and the first layer that fixes them, and show open advisories in the dashboard, the API and warte watch.
     fields:
       category: functional
@@ -529,7 +529,7 @@ artifacts:
     type: requirement
     title: Ground-station telemetry is authenticated and replay-proof per probe (relay-sec)
     status: approved
-    release: v1.6.0
+    release: v1.7.0
     description: Every probe SHALL connect to the ground station over QUIC with mutual TLS 1.3 under its own identity, and every telemetry packet SHALL additionally be sealed with relay-sec (Ascon tag, anti-replay counter) under that probe's own security association (SPI), verified before ingest. Frames failing either check SHALL be rejected and counted by kind (TLS identity, bad tag, replay, unknown SPI). The source-IP allow-list stays as an extra filter only.
     fields:
       category: constraint
@@ -547,7 +547,7 @@ artifacts:
     type: requirement
     title: warte probe reports metrics and inventory from every machine, built on relay
     status: approved
-    release: v1.6.0
+    release: v1.7.0
     description: "A read-only warte probe SHALL run on Linux and macOS hosts and report machine metrics (CPU, memory, swap, network, disks), disk health (fill, SMART), driver and firmware versions (kernel, GPU, USB/debug-probe), agent inventory (Claude Code, Copilot CLI, plugin versions) and toolchain inventory (varve pin and layer versus the binaries first on PATH). Telemetry SHALL use relay: relay-ccsds framing, relay-hk housekeeping, relay-sec authentication."
     fields:
       category: functional
@@ -565,7 +565,7 @@ artifacts:
     type: requirement
     title: Probes find the ground station via mDNS on the LAN, explicit address elsewhere
     status: approved
-    release: v1.6.0
+    release: v1.7.0
     description: warte SHALL advertise its ground station via mDNS/DNS-SD on the physical LAN (reusing src/discovery's signed TXT records) and probes SHALL find it there. Remote probes (e.g. a remote host over WireGuard) SHALL be configured with an explicit address; mDNS SHALL NOT be relied on across WireGuard.
     fields:
       category: interface
@@ -580,7 +580,7 @@ artifacts:
     type: requirement
     title: Machines view with drift warnings; Beszel retired after parity
     status: approved
-    release: v1.6.0
+    release: v1.7.0
     description: warte SHALL show every machine with metrics, freshness, versions, disk health and drivers, and SHALL warn on drift (agent CLI behind the newest in use, layer behind its pin, PATH shadowing, degrading disk, driver mismatch), using relay-lc limit checks. Beszel SHALL run side by side until warte covers what it shows, then be retired.
     fields:
       category: functional
@@ -595,7 +595,7 @@ artifacts:
     type: requirement
     title: Release binaries are signed with sigil and carry a build attestation
     status: approved
-    release: v1.6.0
+    release: v1.7.0
     description: The release SHALL sign the Linux binary with wsc (keyless, GitHub OIDC; --format elf) and record wsc build-env / attest provenance. The macOS binary SHALL be covered by the cosign-signed SHA256SUMS until sigil supports Mach-O (sigil#330).
     fields:
       category: constraint
@@ -613,7 +613,7 @@ artifacts:
     type: design-decision
     title: "Fleet security on our own stack: relay-sec for telemetry, sigil for binaries, varve for installs"
     status: approved
-    release: v1.6.0
+    release: v1.7.0
     description: Probe-to-ground telemetry uses relay-sec (one SPI per probe). Release binaries are signed with sigil and attested. warte and the probe ship in the varve layer, so every machine installs a verified, digest-pinned build; deploys install from the layer.
     fields:
       rationale: "Owner direction, 2026-10-28: use relay and sigil, not new code. relay-sec already provides Kani-proved anti-replay and authenticated frames for exactly this transport. sigil and varve already give signed, attested, rollback-protected distribution. A warte-specific MAC scheme or install path would add a second trust path to audit."
@@ -635,7 +635,7 @@ artifacts:
     type: design-decision
     title: "Probe telemetry: CCSDS packets over QUIC, sealed per packet with relay-sec"
     status: approved
-    release: v1.6.0
+    release: v1.7.0
     description: Probes dial out to the ground station over QUIC (quinn) with mutual TLS 1.3, one identity per probe. Housekeeping telemetry (relay-ccsds/relay-hk packets) goes in QUIC DATAGRAM frames (RFC 9221, unreliable, no head-of-line blocking); the job ledger, inventory snapshots and later operator commands go on reliable streams. Every packet is also sealed with relay-sec (per-probe SPI, anti-replay), so authenticity survives storage and forwarding beyond the connection. The interface is described in WIT (spar-generated from the AADL model per the feature loop), keeping wRPC's QUIC transport an option. Interoperability with SDLS, Yamcs or CryptoLib is explicitly not a goal.
     fields:
       rationale: "Owner decision, 2026-10-28: CCSDS over QUIC, interoperability with other ground systems not required. Raw UDP authenticates by source IP only (#41) and loses ledger frames silently; QUIC adds mutual authentication, encryption, replay protection, congestion control, connection migration for laptops, and a reliable channel without a CFDP implementation. quinn is already in our audited dependency trees (kiln, sigil), and wRPC's QUIC transport is already in rules_wasm_component. relay-sec stays as the per-packet seal: QUIC protects the link, relay-sec protects the packet after it leaves the link."
@@ -687,7 +687,7 @@ artifacts:
     type: design-decision
     title: The probe offers its agent hooks; the user confirms
     status: approved
-    release: v1.6.0
+    release: v1.7.0
     description: "'warte probe install-hooks' shows the exact change to each agent's config (Claude Code ~/.claude/settings.json, Copilot CLI ~/.copilot/hooks/) and writes it only after confirmation; it keeps existing hooks (including iTerm2's cc-status) and backs the file up first. The probe never edits agent config on its own; it reports when its hook is missing (Claude Code can rewrite settings.json) and the dashboard shows that machine's agent state as unknown."
     fields:
       rationale: "Owner decision 2026-10-28: nothing edits a developer's agent config silently. A missing hook is reported, not repaired."
@@ -756,7 +756,7 @@ artifacts:
     type: requirement
     title: "Skills view: which agent skills are actually used, from workstation transcripts"
     status: implemented
-    release: v1.6.0
+    release: v1.7.0
     description: "warte SHALL show the latest skill-usage.v1 report of every source a workstation job sends: per skill the invocations (model, user slash command, subagent), the sessions and the SKILL.md reads, summed across sources and per source; the installed skills never invoked; the share of sessions using any skill; and the window and age of each report. The report arrives either as a file the job copies to the ground station ([hub] skill_usage_file, re-read when it changes) or by POST /api/skill-usage, which needs a bearer token holding the right skills:write (REQ-API-004); GET /api/skill-usage serves the latest report per source. The read API is unauthenticated (#46), so warte SHALL reject a report with unknown fields, a source other than [a-z0-9-]{1,32}, a skill, plugin or repository name other than [a-z0-9._:-]{1,64}, or a negative count, store nothing from it, and never quote the rejected input in the reason it shows."
     fields:
       category: functional
@@ -773,7 +773,7 @@ artifacts:
     type: requirement
     title: Experiments view from structured experiment metadata
     status: proposed
-    release: v1.6.0
+    release: v1.7.0
     description: warte SHALL show each pre-registered experiment (status, window and days left, arms and their repositories, criteria linked to the pinned doc and claim, latest readings, next due item) and serve it at GET /api/experiments. The source SHALL be structured metadata (frontmatter or a rivet experiment artifact in pulseengine.eu), never parsed prose; the view is designed together with that metadata.
     fields:
       category: functional
@@ -845,7 +845,7 @@ artifacts:
     type: requirement
     title: The fleet is modelled in AADL; warte loads spar's instance and shows model against reality
     status: approved
-    release: v1.6.0
+    release: v1.7.0
     description: "The fleet a deployment intends (machines, kind, location, capacity, runners, and which bench board is attached to which machine) SHALL be an AADL instance of the Warte_Fleet types (architecture/fleet/warte_fleet.aadl), instantiated with spar (instance --format json). warte SHALL load that instance from a configured file and SHALL report every difference against what probes and registries report: a modelled machine not reporting, a reporting machine not in the model, a board attached elsewhere than modelled, a location (LAN/tunnel) other than modelled. warte renders the model itself (Machines, Topology, the airport map); spar does the modelling, not the drawing. A deployment's own instance lives with that deployment, not in this repository."
     fields:
       category: functional
@@ -862,7 +862,7 @@ artifacts:
     type: design-decision
     title: The probe absorbs the smithy agent; the agent retires after a parallel run
     status: proposed
-    release: v1.6.0
+    release: v1.7.0
     description: "Runner hosts run warte probe like every machine. Its machine data replaces the agent's host data (one card per host; the probe's report wins). The agent's CI duties move into warte one by one: the GitHub queue scan (already in warte, REQ-GHSRC-001); runner telemetry (host-view busy, job context, cgroup CPU/memory, OOM) as a probe capability on runner hosts; the job ledger over QUIC reliable streams (fixes smithy#34, lost UDP bursts). Then the smithy agent and the UDP/CCSDS ingest retire, after a parallel run with a parity check, as smithy-hub's retirement does (REQ-MIGRATE-001)."
     fields:
       rationale: "Owner, 2026-10-29: the CI host's card should come from warte's own probe too. One collector per machine, one transport (QUIC with mTLS and relay-sec), and the ledger on a reliable stream instead of UDP."
@@ -878,7 +878,7 @@ artifacts:
     type: requirement
     title: "Topology view: where each machine is and how far, in hops and round-trip time"
     status: approved
-    release: v1.6.0
+    release: v1.7.0
     description: "warte SHALL show every probe's path to the ground station: path class (LAN via mDNS, WireGuard tunnel, direct over the internet), round-trip time from the probe's QUIC connection, and hop count from a periodic unprivileged trace (tracepath on Linux, traceroute on macOS; at most hourly). It SHALL flag a jump in round-trip time or hops and a path that changes class. The view and its API SHALL show names and path classes, never IP addresses or intermediate routers, and no real topology SHALL appear in the repository's docs or tests."
     fields:
       category: functional
@@ -897,7 +897,7 @@ artifacts:
     type: requirement
     title: "Devices view: bench hardware from with-device registries, presence, claims and usage over time"
     status: approved
-    release: v1.6.0
+    release: v1.7.0
     description: "warte SHALL show every bench device the hosts' with-device registries declare: the host it is registered on, whether it is present (registered but not attached is a finding), free or claimed and by whom (from with-device --status --format json), its part identity from the hardware catalogue, its last use and a usage timeline (from with-device's claim log once it has one). The probe on each bench host reads these and sends them in its report. warte SHALL show who, when and how long, never the free-text purpose of a claim."
     fields:
       category: functional
@@ -916,7 +916,7 @@ artifacts:
     type: requirement
     title: "Airport map: every view as a place, agents as planes and walkers, explorable by anyone"
     status: approved
-    release: v1.6.0
+    release: v1.7.0
     description: "warte SHALL offer a map view drawn as an airport and generated from live data, so it fits any topology: a central hall holding the control tower (the ground station) and one place per view (info desk = Ask, departures = Queue, fuel = Costs, fire station = Outages, doctor = Health, radar = Topology, clock = Jobs, lab = Experiments, skywalk = Seams, bags = Artifacts, lounge = Attention); one pier per machine from /api/machines, LAN machines spread over one side and remote ones beyond a tunnel ring on the other, pier size from the machine's capacity, its kind shown (terminal, workshop, cargo hall, server, GitHub-hosted), not-enrolled machines dashed; bench devices as stands on the pier of the machine they are attached to; agents as planes along their machine's pier, flagged when waiting for the owner, and as walkers routed through the hall to the device they hold; runways from the runner count and a holding pattern from the queue. Tapping a pier or a place explains it in plain words and opens the view. The layout SHALL stay readable from one machine to at least twelve; motion stops under prefers-reduced-motion."
     fields:
       category: functional
@@ -940,7 +940,7 @@ artifacts:
     type: requirement
     title: "CI timing modelled in AADL: spar's planned time-to-green against the ledger's real durations"
     status: proposed
-    release: v1.6.0
+    release: v1.7.0
     description: "warte SHALL support a CI timing model: workflow jobs as threads with Compute_Execution_Time budgets, runner pools as processors, needs: chains as end-to-end flows. spar's scheduling, response-time and flow-latency analyses give the planned worst case per PR (time to green, not only when the next job starts). The job ledger's real queue waits and run times SHALL be exported as a CTF trace and checked with spar insight verify-trace; jobs over their WCET, and flows over their latency bound, SHALL appear as findings (Outages) and drive the airport's per-plane expected duration."
     fields:
       category: functional
@@ -960,7 +960,7 @@ artifacts:
     type: requirement
     title: "Link timing: spar's WCTT per network path against the probes' measured round-trip"
     status: proposed
-    release: v1.6.0
+    release: v1.7.0
     description: The fleet model's Lan and Tunnel buses SHALL carry bandwidth and latency properties and the probe and agent flows their period and size, so spar's network analysis gives a worst-case transmission time per path. warte SHALL compare it with each probe's measured QUIC round-trip and per-stream loss, and report a path slower than its WCTT, or losing packets, as a finding shown on the Topology map.
     fields:
       category: functional
@@ -980,7 +980,7 @@ artifacts:
     type: design-decision
     title: spar is warte's estimator; warte measures and renders
     status: approved
-    release: v1.6.0
+    release: v1.7.0
     description: "Wherever warte estimates (ETA, critical path, admission thresholds, runner-pool capacity, expected job duration, link budgets) the estimate SHALL come from an AADL model analysed by spar (scheduling, response-time, flow latency, allocate, network WCTT), fed with warte's measurements (ledger, probes, telemetry). warte keeps measuring and draws both planned and real; every gap is a finding. Migration per estimator: spar's answer runs beside the current heuristic, they are compared on real data, and the heuristic goes only when spar's answer holds up (the smithy-hub pattern). Gaps in spar are filed as spar issues, not worked around in warte. Candidates: hub/eta (RTA over the CI model), critpath (flow latency), admission constants (scheduling feasibility), the belt report (allocate), REQ-TIMING-001 (WCET), REQ-TIMING-002 (WCTT)."
     fields:
       rationale: "Owner, 2026-10-29: get spar load-bearing wherever possible; if warte needs to estimate something, spar is the place. Dogfooding the toolchain, and a model makes planned-vs-real drift mechanical."
@@ -998,7 +998,7 @@ artifacts:
     type: requirement
     title: "Reviews view: PRs I have to review, with build, size, age, teams, highlights, re-review and mergeable"
     status: approved
-    release: v1.6.0
+    release: v1.7.0
     description: "warte SHALL list the PRs a reviewer must look at: requested from them; requested from ANY team they are a member of, discovered from GitHub on every scan across all their orgs (no configuration), including parent teams of teams they belong to, each row naming the team and filterable by team; or by watched authors, repos or labels. Each row shows age (opened, requested, updated), size (lines and files, S/M/L/XL), build state from the check rollup with warte's ETA when queued, review decision and the reviewer's latest review, re-review needed when commits landed after that review, and is greyed out when approved, green and mergeable. Ordered re-review first, then oldest waiting. GET /api/reviews returns the same. It SHALL use the reviewer's own read-only token and SHALL say so when served on a non-loopback bind without auth."
     fields:
       category: functional
@@ -1018,7 +1018,7 @@ artifacts:
     type: requirement
     title: Hand a PR to an agent with a comment; agents pick tasks up with warte watch --tasks
     status: approved
-    release: v1.6.0
+    release: v1.7.0
     description: From the Reviews view the owner SHALL be able to hand a PR to an agent with an instruction; warte records the task and agents pick it up with warte watch --tasks (the same long-poll as --ci). The agent reports progress to the task (picked up, working, done, needs-you) and the view shows it. Agents SHALL only comment or post draft reviews, never approve or merge; they act with their own token. The instruction is the owner's; the PR's title, body, diff and comments are untrusted data and SHALL be passed as such. Creating a task SHALL require the owner's authentication.
     fields:
       category: functional
@@ -1040,7 +1040,7 @@ artifacts:
     type: requirement
     title: "Security view: the watchtower's guard posts, and express lanes that skip waiting, never checks"
     status: proposed
-    release: v1.6.0
+    release: v1.7.0
     description: "warte SHALL show its security posture as one view (and as guard posts on the airport map): enrollment and machine identity (passport control), agent tokens (boarding passes), advisory scans of dependencies (security check), signature, SBOM and checksum verification of artifacts (customs), revoked tokens, agents and machines (no-fly list), the private-network perimeter and the tunnel, and the STPA-Sec hazards and constraints with their coverage plus the audit log (security office). Express lanes (security and red-main changes, admitted without batching or holding) and VIP lanes (watched authors, repos, labels and the owner's decisions, shown first) SHALL only skip waiting: no identity, advisory or signature check is ever skipped for them."
     fields:
       category: functional
@@ -1058,7 +1058,7 @@ artifacts:
     type: design-decision
     title: "Bench hardware is two layers: the debug adapter on USB and the target behind it"
     status: approved
-    release: v1.6.0
+    release: v1.7.0
     description: "The fleet model and the Devices view SHALL distinguish the debug adapter (USB-visible: VID:PID, serial) from the target it is wired to (board, MCU), which USB does not reveal. The target is declared (registry, fleet model) and confirmed only by an explicit check that drives the probe (e.g. probe-rs info reading the chip ID code) under a with-device claim; warte's probe never drives a debug probe on its own. Declared vs confirmed, and an adapter whose target is undeclared, are findings."
     fields:
       rationale: "Owner, 2026-10-30: an ST-Link is only the debug adapter and does not tell what is connected. Naming boards after their adapters is jess#266's vacuous-lock problem; probing a target is a claimed operation (jess devices.yaml rule 1)."
@@ -1102,7 +1102,7 @@ artifacts:
     type: requirement
     title: A probe that cannot reach the ground station hands its signed report to an enrolled neighbour
     status: proposed
-    release: v1.6.0
+    release: v1.7.0
     description: When a probe cannot reach the ground station, it SHALL hand its report to an enrolled neighbour it can reach (found on the LAN via mDNS, or configured), which stores and forwards it (bounded store, lifetime-limited). Reports SHALL stay signed end to end by the originating probe, so the ground station verifies the original signature and a forwarder can neither forge nor alter them; a forwarded report is shown with the path it took and its delay. First step one hop; multi-hop and contact-graph routing come from relay's Bundle Protocol work (relay#626).
     fields:
       category: functional
@@ -1263,7 +1263,7 @@ artifacts:
     type: requirement
     title: Artifact upload and download, served safely
     status: approved
-    release: v1.6.0
+    release: v1.7.0
     description: warte SHALL offer an authenticated artifact upload route and working upload/download commands; HTML artifacts SHALL be served sandboxed with nosniff.
     fields:
       category: functional
