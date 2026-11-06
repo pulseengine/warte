@@ -163,6 +163,7 @@ fn drift_findings_name_unpinned_tools_failed_jobs_and_old_plugins() {
             report: r,
             received_at: now,
             via: "probe".into(),
+            cert_until: None,
         })
         .collect();
     let f: Vec<String> = findings(&seen, now)

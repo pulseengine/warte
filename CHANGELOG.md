@@ -4,6 +4,8 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+- **Each machine shows its probe version and when its certificate ends** (REQ-PROBE-013). The card adds the version after "via probe", marked when it is older than the ground station's, and the date the certificate ends; `/api/machines` publishes both (`report.probe_version`, `cert_until`). Probes older than 1.5.0 cannot renew their certificate: a finding says so 14 days before it ends (red at 3 days) and names the version needed. A probe that can renew but still has under 7 days left is a finding too (red at 2 days), because renewal starts at 10. An older version alone is not a finding.
+
 ## v1.6.0 — 2026-11-06
 
 Machine history and hardware. warte now keeps 90 days of history for every number a probe reports and charts it, and probes report health, network, temperatures, processes and hardware. Items in v1.6.0's rivet scope that were not built (40, among them the Devices view, the airport map and the AADL fleet model) moved to v1.7.0.

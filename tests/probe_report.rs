@@ -158,3 +158,76 @@ async fn a_machine_cannot_speak_for_another_or_alter_or_forge() {
         .iter()
         .any(|h| h == "PowerBook" || h == "fourpi"));
 }
+
+fn report_v(host: &str, taken_at: i64, version: &str) -> String {
+    let mut v: serde_json::Value = serde_json::from_str(&report(host, taken_at)).unwrap();
+    v["probe_version"] = version.into();
+    v.to_string()
+}
+
+async fn machine(base: &str, host: &str) -> serde_json::Value {
+    let v: serde_json::Value = reqwest::get(format!("{base}/api/machines"))
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    v["machines"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|m| m["host"] == host)
+        .cloned()
+        .unwrap()
+}
+
+// rivet: verifies REQ-PROBE-013
+#[tokio::test]
+async fn a_probes_version_and_certificate_end_are_shown_and_published() {
+    let (dir, base, db) = serve().await;
+    let now = warte::hub::now();
+    let (key, cert) = enrolled(&base, &db, "old", &dir.path().join("a")).await;
+    let r = report_v("old", now, "1.4.0");
+    let body = send::SignedReport {
+        sig: send::sign(&key, &r).unwrap(),
+        cert,
+        report: r,
+    };
+    assert_eq!(post(&base, &body).await, 204);
+    let m = machine(&base, "old").await;
+    assert_eq!(m["report"]["probe_version"], "1.4.0");
+    let until = m["cert_until"].as_i64().expect("cert_until published");
+    let days = warte::probe::enroll::CERT_DAYS as i64 * 86400;
+    assert!(
+        (until - (now + days)).abs() < 600,
+        "cert_until {until} is not now + CERT_DAYS"
+    );
+
+    // a version that is not a plain version string is neither published nor drawn
+    let (key, cert) = enrolled(&base, &db, "odd", &dir.path().join("b")).await;
+    let r = report_v("odd", now, "<b>9</b>");
+    let body = send::SignedReport {
+        sig: send::sign(&key, &r).unwrap(),
+        cert,
+        report: r,
+    };
+    assert_eq!(post(&base, &body).await, 204);
+    assert!(machine(&base, "odd").await["report"]["probe_version"].is_null());
+
+    let page = reqwest::get(format!("{base}/api/dashboard/machines-partial"))
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    assert!(
+        page.contains(r#"<span class="chip warn" title="behind the ground station's"#)
+            && page.contains(">1.4.0</span>"),
+        "an older probe is marked: {page}"
+    );
+    assert!(page.contains(" · cert until "), "certificate end is shown");
+    assert!(
+        !page.contains("<b>9</b>") && !page.contains("&lt;b&gt;9"),
+        "odd version not drawn"
+    );
+}

@@ -103,6 +103,7 @@ fn findings_name_drift_silence_and_full_disks_worst_first() {
         report: r,
         received_at: now - age,
         via: "probe".into(),
+        cert_until: None,
     };
     let mut full = report("gale", "6.18.50+rpt", Some("2.1.312"));
     full.disks.push(warte::probe::Disk {
@@ -217,6 +218,7 @@ fn io_is_optional_and_becomes_findings() {
             report: r,
             received_at: 100,
             via: "probe".into(),
+            cert_until: None,
         }],
         100,
     );
@@ -250,7 +252,8 @@ fn every_report_field_is_published_or_hidden_on_purpose() {
         );
     }
     // and what is hidden really is not published as it is
-    assert!(public.get("probe_version").is_none());
+    // REQ-PROBE-013: the version is published, but only as a plain version string
+    assert!(public.get("probe_version").is_some());
     assert!(public["tools"][0].get("path").is_none());
     assert!(public["sessions"].is_object());
     assert!(public.get("io").is_some());

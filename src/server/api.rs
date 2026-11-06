@@ -324,9 +324,7 @@ async fn api_watch(
 /// Report fields `/api/machines` does not publish as they are, each on
 /// purpose (REQ-PROBE-008: every field is exposed or listed here, checked by
 /// a test). `tools` and `sessions` are published reduced.
-pub const HIDDEN_REPORT_FIELDS: [&str; 6] = [
-    // the probe's own version: not the machine's state
-    "probe_version",
+pub const HIDDEN_REPORT_FIELDS: [&str; 5] = [
     // reduced to name, installed, version (no paths, no error output)
     "tools",
     // reduced to a count per agent (no pids, no directories, no activity)
@@ -350,6 +348,8 @@ pub fn public_report(r: &crate::probe::Report) -> serde_json::Value {
     serde_json::json!({
         "host": r.host,
         "taken_at": r.taken_at,
+        // REQ-PROBE-013: shown only when it is a plain version string
+        "probe_version": crate::probe::version::clean(&r.probe_version),
         "os": r.os,
         "uptime_s": r.uptime_s,
         "cpu": r.cpu,
@@ -538,7 +538,7 @@ async fn api_probe_report(
         tracing::warn!(host = %v.report.host, "probe report refused: not newer than the last (replay?)");
         return refused();
     }
-    machines.record(v.report, "probe", now);
+    machines.record_cert(v.report, "probe", now, Some(v.cert_until));
     StatusCode::NO_CONTENT.into_response()
 }
 
@@ -954,6 +954,7 @@ async fn api_machines(State(state): State<AppState>) -> axum::response::Response
                 "received_at": s.received_at,
                 "age_s": now - s.received_at,
                 "stale": now - s.received_at > crate::probe::MACHINE_STALE_S,
+                "cert_until": s.cert_until,
                 "report": public_report(&s.report),
             })
         })

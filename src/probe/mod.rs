@@ -17,6 +17,7 @@ pub mod health;
 pub mod inventory;
 pub mod io;
 pub mod send;
+pub mod version;
 
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
@@ -467,6 +468,10 @@ pub struct Seen {
     /// How it arrived: `local` (the ground station probing itself) or
     /// `probe` (an enrolled probe, DD-PROBE-002).
     pub via: String,
+    /// When the probe's certificate ends, from its last accepted report
+    /// (REQ-PROBE-013); none for the ground station itself.
+    #[serde(default)]
+    pub cert_until: Option<i64>,
 }
 
 /// A machine silent this long is shown as stale (probes report every minute).
@@ -505,6 +510,17 @@ impl Machines {
     }
 
     pub fn record(&self, report: Report, via: &str, received_at: i64) {
+        self.record_cert(report, via, received_at, None)
+    }
+
+    /// [`Machines::record`], keeping when the probe's certificate ends.
+    pub fn record_cert(
+        &self,
+        report: Report,
+        via: &str,
+        received_at: i64,
+        cert_until: Option<i64>,
+    ) {
         if let Some(h) = self.history.get() {
             h.record(
                 &report.host,
@@ -519,6 +535,7 @@ impl Machines {
                 report,
                 received_at,
                 via: via.into(),
+                cert_until,
             },
         );
         let tmp = self.path.with_extension("json.tmp");
@@ -617,6 +634,11 @@ pub fn findings(seen: &[Seen], now: i64) -> Vec<Finding> {
         }
         if let Some(h) = &r.hardware {
             for (sev, text) in hardware::findings(h) {
+                out.push(f(&r.host, sev, text));
+            }
+        }
+        if let Some(until) = s.cert_until {
+            if let Some((sev, text)) = version::cert_finding(&r.probe_version, until, now) {
                 out.push(f(&r.host, sev, text));
             }
         }
