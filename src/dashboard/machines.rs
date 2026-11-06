@@ -489,13 +489,14 @@ fn card(s: &Seen, mine: &[&Finding], ci: Option<&str>, now: i64, trend: &str) ->
             )
         })
         .collect();
+    let probe = probe_line(s);
     let uptime = if r.uptime_s >= 86400 {
         format!("up {}d", r.uptime_s / 86400)
     } else {
         format!("up {}", dur(r.uptime_s as i64))
     };
     format!(
-        r#"<div class="machine{}"><div class="mhead"><span class="mname">{}</span><span class="{pill}">{word} · {} ago</span></div><div class="mos">{} · {} · {} · {uptime}</div>{notes}<div class="hbars">{body}</div>{chips}{trend}<div class="mtools">{tools}</div>{inv}<div class="msess">{sessions}</div><div class="mvia">via {}{}</div></div>"#,
+        r#"<div class="machine{}"><div class="mhead"><span class="mname">{}</span><span class="{pill}">{word} · {} ago</span></div><div class="mos">{} · {} · {} · {uptime}</div>{notes}<div class="hbars">{body}</div>{chips}{trend}<div class="mtools">{tools}</div>{inv}<div class="msess">{sessions}</div><div class="mvia">via {}{probe}{}</div></div>"#,
         if mine.iter().any(|f| f.severity == "red") {
             " red"
         } else if mine.is_empty() {
@@ -511,6 +512,30 @@ fn card(s: &Seen, mine: &[&Finding], ci: Option<&str>, now: i64, trend: &str) ->
         esc(&s.via),
         ci.unwrap_or_default(),
     )
+}
+
+/// The probe's version and its certificate's end (REQ-PROBE-013), after
+/// "via probe". The version is marked when it is behind the ground station's.
+fn probe_line(s: &Seen) -> String {
+    if s.via != "probe" {
+        return String::new();
+    }
+    let ground = env!("CARGO_PKG_VERSION");
+    let v = &s.report.probe_version;
+    let ver = match crate::probe::version::clean(v) {
+        Some(c) if crate::probe::version::behind(c, ground) => format!(
+            r#" <span class="chip warn" title="behind the ground station's {ground}">{}</span>"#,
+            esc(c)
+        ),
+        Some(c) => format!(r#" <span class="chip on">{}</span>"#, esc(c)),
+        None => r#" <span class="chip off" title="version not reported">?</span>"#.to_string(),
+    };
+    let cert = s
+        .cert_until
+        .and_then(|t| chrono::DateTime::from_timestamp(t, 0))
+        .map(|t| format!(" · cert until {}", t.format("%-d %b")))
+        .unwrap_or_default();
+    format!("{ver}{cert}")
 }
 
 /// The smithy agent's runner line for a CI host that also runs a probe: the

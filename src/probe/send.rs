@@ -67,6 +67,8 @@ pub struct Verified {
     pub report: super::Report,
     /// The certificate's not-before, to check against a revocation.
     pub issued_at: i64,
+    /// The certificate's not-after (REQ-PROBE-013).
+    pub cert_until: i64,
 }
 
 /// A probe certificate that checked out against warte's CA.
@@ -74,6 +76,7 @@ struct CertInfo {
     cn: String,
     public_key: Vec<u8>,
     not_before: i64,
+    not_after: i64,
 }
 
 /// The certificate was issued by warte's CA (DER) and is valid at `now`.
@@ -111,6 +114,7 @@ fn check_cert(ca_der: &[u8], cert_pem: &str, now: i64) -> anyhow::Result<CertInf
         cn,
         public_key: cert.public_key().subject_public_key.data.to_vec(),
         not_before: v.not_before.timestamp(),
+        not_after: v.not_after.timestamp(),
     };
     Ok(info)
 }
@@ -139,6 +143,7 @@ pub fn verify(ca_der: &[u8], body: &SignedReport, now: i64) -> anyhow::Result<Ve
     Ok(Verified {
         report,
         issued_at: c.not_before,
+        cert_until: c.not_after,
     })
 }
 

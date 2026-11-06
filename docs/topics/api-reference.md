@@ -112,6 +112,20 @@ GET /api/admission?repo=spar&kind=docs           # {verdict: open|batch|hold, re
   the reason says the data is stale.
 - `503` when no ground station is configured or no snapshot has arrived.
 
+## Machines (REQ-PROBE-003, REQ-PROBE-013)
+
+```
+GET /api/machines
+```
+
+Every machine's latest report, reduced for an unauthenticated read (no paths,
+pids, command lines or error text), and the findings over all of them. Per
+machine: `host`, `via` (`probe` or `local`), `received_at`, `age_s`, `stale`,
+`cert_until` (unix seconds the probe's certificate ends, `null` for the ground
+station itself) and `report`, whose `probe_version` is `null` unless it is a
+plain version string. Probes older than 1.5.0 cannot renew their certificate;
+the findings say so 14 days before it ends.
+
 ## Machine history (REQ-MHIST-002)
 
 Every machine's numbers over time, kept by warte itself (`history.redb` next to

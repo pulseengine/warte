@@ -272,6 +272,7 @@ mod tests {
             report: r,
             received_at: 1_000,
             via: "probe".into(),
+            cert_until: None,
         }
     }
 
