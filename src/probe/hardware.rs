@@ -724,10 +724,42 @@ enum Smart {
     NotInstalled,
 }
 
+/// Where Homebrew puts smartctl on macOS. A launchd agent's PATH is only
+/// /usr/bin:/bin:/usr/sbin:/sbin, so the probe looks here too.
+pub const MACOS_SMARTCTL: [&str; 2] = ["/opt/homebrew/sbin/smartctl", "/usr/local/sbin/smartctl"];
+
+/// The smartctl to run: the one on PATH, else (macOS only, where the probe
+/// is unprivileged) the first of `fallbacks` that exists. Never a fallback on
+/// Linux: there the root collector runs it, and a user-writable prefix such
+/// as Homebrew's must not be a way to root.
+pub fn smartctl_path(
+    on_path: Option<std::path::PathBuf>,
+    macos: bool,
+    fallbacks: &[&str],
+) -> std::path::PathBuf {
+    on_path
+        .or_else(|| {
+            macos
+                .then(|| {
+                    fallbacks
+                        .iter()
+                        .map(std::path::PathBuf::from)
+                        .find(|p| p.is_file())
+                })
+                .flatten()
+        })
+        .unwrap_or_else(|| "smartctl".into())
+}
+
 /// smartctl exits non-zero on SMART warnings too (bit flags); JSON on stdout
 /// is what counts. A sleeping disk is left asleep and exits 7.
 async fn smartctl(dev_path: &str) -> Result<Smart, String> {
-    let out = tokio::process::Command::new("smartctl")
+    let bin = smartctl_path(
+        super::which("smartctl"),
+        cfg!(target_os = "macos"),
+        &MACOS_SMARTCTL,
+    );
+    let out = tokio::process::Command::new(bin)
         .args(["--json", "-a", "-n", "standby,7", dev_path])
         .stdin(std::process::Stdio::null())
         .kill_on_drop(true)

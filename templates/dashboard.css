@@ -430,7 +430,7 @@ p.empty {
 .ap-stage button { font-family: inherit; }
 .ap-island { left: 30px; top: 30px; width: 1380px; height: 940px; border-radius: 140px; background: #eef0e8; box-shadow: 0 0 0 14px #dfe8dc; }
 .ap-fence { left: 44px; top: 44px; width: 1352px; height: 912px; border-radius: 128px; border: 3px dashed rgba(201,42,42,.45); box-sizing: border-box; pointer-events: none; }
-.ap-fencelabel { left: 600px; top: 34px; padding: 0 8px; background: #eef0e8; font-weight: 900; font-size: 11px; letter-spacing: .1em; color: #c92a2a; }
+.ap-fencelabel { left: 600px; top: 34px; padding: 0 8px; pointer-events: none; background: #eef0e8; font-weight: 900; font-size: 11px; letter-spacing: .1em; color: #c92a2a; }
 .ap-ring { border-radius: 50%; border: 3px dashed rgba(240,140,0,.45); clip-path: inset(50% 0 0 0); box-sizing: border-box; }
 .ap-ringlabel { font-weight: 900; font-size: 11px; color: #b35c00; }
 .ap-fieldlabel { left: 70px; top: 748px; font-weight: 900; font-size: 12px; letter-spacing: .08em; color: #4a5563; }
@@ -460,6 +460,10 @@ p.empty {
 .ap-kicker { font-weight: 900; font-size: 11px; letter-spacing: .12em; color: #d9480f; }
 .ap-title { font-weight: 900; font-size: 22px; color: #1c64c4; }
 .ap-story { font-weight: 800; font-size: 14.5px; line-height: 1.45; color: #1f2933; }
+.ap-list { list-style: none; margin: 0; padding: 6px 0 0; border-top: 1px solid #e3e7ec; max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; font-size: 12px; }
+.ap-list li { display: flex; justify-content: space-between; gap: 8px; color: #4a5563; }
+.ap-list li b { font-weight: 700; color: #1f2933; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ap-list li.asking span { color: #c25e00; font-weight: 800; }
 .ap-adult { font-weight: 700; font-size: 12px; line-height: 1.45; color: #4a5563; border-top: 1px solid #e3e7ec; padding-top: 7px; }
 .ap-go { align-self: flex-start; margin-top: 2px; padding: 5px 12px; border: 0; border-radius: 999px; background: #1c7ed6; color: #fff; font-weight: 900; font-size: 12px; cursor: pointer; }
 .ap-brand { right: 56px; top: 50px; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; z-index: 4; }

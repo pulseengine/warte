@@ -240,11 +240,15 @@ async fn main() -> anyhow::Result<()> {
                     std::process::exit(1);
                 }
             }
-            warte::cli::ProbeCommands::Hook => {
+            warte::cli::ProbeCommands::Hook { event } => {
                 use std::io::Read;
                 let mut s = String::new();
                 let _ = std::io::stdin().take(1 << 20).read_to_string(&mut s);
-                warte::probe::activity::hook(&s, chrono::Utc::now().timestamp());
+                warte::probe::activity::hook_as(
+                    &s,
+                    event.as_deref(),
+                    chrono::Utc::now().timestamp(),
+                );
             }
             warte::cli::ProbeCommands::Report => {
                 let r = warte::probe::collect(None).await;

@@ -46,6 +46,11 @@ fn sessions_carry_no_command_lines() {
             );
             keys.retain(|k| *k != "activity");
         }
+        // and since when, a time only (REQ-PROBE-014)
+        if let Some(t) = s.get("activity_at") {
+            assert!(t.is_i64(), "activity_at must be a time: {s}");
+            keys.retain(|k| *k != "activity_at");
+        }
         assert_eq!(keys, ["agent", "dir", "pid", "started_at"], "{s}");
     }
 }

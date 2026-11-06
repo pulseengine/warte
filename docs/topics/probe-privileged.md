@@ -27,7 +27,10 @@ result to a file the probe reads (REQ-PROBE-012).
   cases does it report old numbers.
 
 On macOS no collector is needed: `smartctl` reads the internal SSD as an ordinary user, and the
-probe runs it itself, at most hourly, when smartmontools is installed.
+probe runs it itself, at most hourly, when smartmontools is installed. It uses the `smartctl` on
+its PATH, else Homebrew's (`/opt/homebrew/sbin/smartctl`, then `/usr/local/sbin/smartctl`), since a
+launchd agent's PATH is only `/usr/bin:/bin:/usr/sbin:/sbin`. On Linux there is no such fallback:
+the root collector runs only the `smartctl` on its own PATH.
 
 ## systemd units (Linux)
 

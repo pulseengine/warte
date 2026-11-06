@@ -4,6 +4,11 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+- **"Waiting for you" means the agent is asking you** (REQ-PROBE-014). Every session that finished its turn showed as waiting, orange with a beacon, for as long as it sat there: on the main Mac most had been "waiting" for days. Now only a permission prompt, a question or a form counts as waiting. A finished turn is "done", and after 30 minutes "idle", parked without a beacon. The probe reports since when, and the airport shows "waiting for you · 5 min". Activity files from older hooks are read as done. Needs the new probe and hook; the ground station alone shows the old files as done.
+- **The airport shows every session**. A machine draws at most 6 planes; its label now says "12 agents (+6 not drawn) · 1 asking you", and selecting it lists every session with its state and how long. The perimeter fence's caption no longer swallows clicks on the machine label under it.
+- **Copilot CLI and Mistral Vibe sessions are recognised, once each**. Vibe (`vibe-rs` and its `vibe-app-server`) was not recognised at all; a Copilot CLI installed with npm counted twice (its loader and its native binary). The probe keeps the innermost process of such a pair. `warte probe hook` understands Copilot's and Vibe's hook events and tool names, and takes `--event` for hook configs that name the event themselves.
+- **macOS: smartctl from Homebrew is found under launchd** (REQ-PROBE-012). A launchd agent's PATH has no `/opt/homebrew/sbin`, so the probe never found smartctl there; it now also looks in `/opt/homebrew/sbin` and `/usr/local/sbin`. Only on macOS: on Linux the root collector runs only the `smartctl` on its PATH.
+
 - **Each machine shows its probe version and when its certificate ends** (REQ-PROBE-013). The card adds the version after "via probe", marked when it is older than the ground station's, and the date the certificate ends; `/api/machines` publishes both (`report.probe_version`, `cert_until`). Probes older than 1.5.0 cannot renew their certificate: a finding says so 14 days before it ends (red at 3 days) and names the version needed. A probe that can renew but still has under 7 days left is a finding too (red at 2 days), because renewal starts at 10. An older version alone is not a finding.
 
 ## v1.6.0 — 2026-11-06

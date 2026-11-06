@@ -39,7 +39,7 @@
     ['VIP lane', cx - ringR - 75, cy - 8, 'M12 3l2.8 5.8 6.2.9-4.5 4.4 1 6.2L12 17.4 6.5 20.3l1-6.2L3 9.7l6.2-.9z', 'Planes from people you care about most are shown first. They still show their passport like everyone else.', 'Planned: watched authors and repos first in Reviews (REQ-REVIEWS-001).']
   ];
 
-  var sel = null, last = null, WAITING = 'waiting for you';
+  var sel = null, last = null, WAITING = 'waiting for you', DONE = 'done', IDLE = 'idle';
   function el(tag, cls, css, text) {
     var e = document.createElement(tag);
     if (cls) e.className = cls;
@@ -69,6 +69,11 @@
   }
   function spread(list, from, to) {
     return list.map(function (p, i) { return [p, list.length === 1 ? (from + to) / 2 : from + (to - from) * i / (list.length - 1)]; });
+  }
+  function quiet(s) { return !s.activity || s.activity === DONE || s.activity === IDLE; }
+  function state(s) {
+    var t = s.since_min != null ? s.since_min : s.minutes;
+    return (s.activity || 'no hook') + (s.activity && s.since_min != null ? ' for ' + dur(t * 60) : '');
   }
   function dur(s) { return s < 90 ? s + ' s' : s < 5400 ? Math.round(s / 60) + ' min' : (s / 3600).toFixed(1) + ' h'; }
   function lenOf(p) { var cap = p.location === 'lan' ? 190 : 150; return Math.min(cap, 100 + Math.min(1, Math.log2(Math.max(p.cores, 2)) / 6) * 110); }
@@ -154,7 +159,8 @@
         var xy = at(ang, hubR + len - 30 - i * 22, (i % 2 ? 1 : -1) * (w / 2 + 9));
         var s = el('span', 'ap-stand', 'left:' + (xy[0] - 8) + 'px;top:' + (xy[1] - 8) + 'px'); s.title = b; stage.appendChild(s);
       });
-      for (var i = 0; i < Math.min(p.agents, dense ? 4 : 6); i++) {
+      p.drawn = Math.min(p.agents, dense ? 4 : 6);
+      for (var i = 0; i < p.drawn; i++) {
         var side = i % 2 ? 1 : -1, xy = at(ang, hubR + 40 + Math.floor(i / 2) * 36, side * (w / 2 + 16));
         var waits = p.sessions && p.sessions[i] && p.sessions[i].activity === WAITING;
         var pl = el('span', 'ap-plane', 'left:' + (xy[0] - 12) + 'px;top:' + (xy[1] - 12) + 'px');
@@ -186,14 +192,17 @@
       var head = el('span', 'ap-head'), badge = el('span', 'ap-badge', 'background:' + kind[1]);
       badge.appendChild(svg(ICON[p.kind] || ICON.server, 13, null, 0, '#fff')); head.appendChild(badge); head.appendChild(el('b', null, null, p.name)); b.appendChild(head);
       var sub = [p.reporting ? kind[0] : kind[0] + ' · not reporting'];
-      if (p.agents) sub.push(p.agents + ' agents'); if (p.runners) sub.push(p.runners + ' runways'); if (p.jobs_ok && !p.jobs_bad) sub.push(p.jobs_ok + (p.jobs_ok === 1 ? ' job ok' : ' jobs ok')); if (p.note && p.reporting) sub.push(p.note);
+      if (p.agents) {
+        var asking = (p.sessions || []).filter(function (s) { return s.activity === WAITING; }).length;
+        sub.push(p.agents + ' agents' + (p.agents > p.drawn ? ' (+' + (p.agents - p.drawn) + ' not drawn)' : '') + (asking ? ' · ' + asking + ' asking you' : ''));
+      } if (p.runners) sub.push(p.runners + ' runways'); if (p.jobs_ok && !p.jobs_bad) sub.push(p.jobs_ok + (p.jobs_ok === 1 ? ' job ok' : ' jobs ok')); if (p.note && p.reporting) sub.push(p.note);
       var subEl = el('span', p.reporting && !p.note ? 'ap-sub' : 'ap-sub warn', null, sub.join(' · ')); subEl.title = sub.join(' · '); b.appendChild(subEl);
       if (p.boards.length) {
         var devs = el('span', 'ap-devs');
         (dense ? p.boards.slice(0, 2) : p.boards).forEach(function (d) { devs.appendChild(el('span', null, null, d)); });
         b.appendChild(devs);
       }
-      b.addEventListener('click', function () { pick(story(p)); });
+      b.addEventListener('click', function () { var c = story(p); c.list = (p.sessions || []).map(function (s) { return [s.agent + (s.repo ? ' · ' + s.repo : ''), state(s), s.activity === WAITING]; }); pick(c); });
       stage.appendChild(b);
     });
 
@@ -201,10 +210,9 @@
     var nw = 0;
     laid.forEach(function (pa) {
       var p = pa[0], ang = pa[1], len = lenOf(p), w = widthOf(p), list = p.sessions || [];
-      var busy = list.filter(function (s) { return s.activity; });
-      var show = (busy.length ? busy : list.slice(0, 2)).slice(0, dense ? 2 : 4);
+      var show = list.filter(function (s) { return !quiet(s); }).slice(0, dense ? 2 : 4);
       show.forEach(function (s, j) {
-        var waiting = s.activity === WAITING, say = (s.repo ? s.repo + ' · ' : '') + (s.activity || dur(s.minutes * 60));
+        var waiting = s.activity === WAITING, say = (s.repo ? s.repo + ' · ' : '') + s.activity + (s.since_min != null ? ' · ' + dur(s.since_min * 60) : '');
         var walker = el('button', 'ap-walker' + (waiting ? ' waiting' : ''));
         walker.type = 'button'; walker.setAttribute('aria-label', s.agent + ' on ' + p.name + ': ' + say);
         if (waiting) {
@@ -220,7 +228,7 @@
         walker.appendChild(el('span', 'ap-say', null, say));
         walker.addEventListener('click', function () {
           pick({ title: s.agent + ' on ' + p.name, view: 'Agents',
-            story: waiting ? 'This pilot has finished and is waiting for you' + (s.repo ? ' in ' + s.repo : '') + '.'
+            story: waiting ? 'This pilot is asking you something' + (s.repo ? ' in ' + s.repo : '') + (s.since_min != null ? ', for ' + dur(s.since_min * 60) : '') + '.'
               : 'This pilot is ' + (s.activity || 'busy') + (s.repo ? ' in ' + s.repo : '') + '. They started ' + dur(s.minutes * 60) + ' ago.',
             adult: s.agent + ' session, ' + dur(s.minutes * 60) + ' old' + (s.repo ? ', in ' + s.repo : '') + (s.activity ? ', last hook: ' + s.activity : ', no hook installed') + '.' });
         });
@@ -247,6 +255,11 @@
     card.appendChild(el('span', 'ap-story', null, c.story));
     var adult = el('span', 'ap-adult', null, 'For grown-ups: '); adult.appendChild(el('b', null, null, c.view)); adult.appendChild(document.createTextNode('. ' + c.adult));
     card.appendChild(adult);
+    if (c.list && c.list.length) {
+      var ul = el('ul', 'ap-list');
+      c.list.forEach(function (x) { var li = el('li', x[2] ? 'asking' : null); li.appendChild(el('b', null, null, x[0])); li.appendChild(el('span', null, null, x[1])); ul.appendChild(li); });
+      card.appendChild(ul);
+    }
     if (c.open) { var go = el('button', 'ap-go', null, 'Open ' + c.view + ' →'); go.type = 'button'; go.addEventListener('click', function () { openView(c.view); }); card.appendChild(go); }
     stage.appendChild(card);
 
