@@ -4,6 +4,10 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.1 — 2026-11-07
+
+Agents as they are: "waiting for you" only when an agent asks you, done and idle otherwise; Copilot CLI and Mistral Vibe recognised; `warte probe install-hooks`; each probe's version and certificate end on its card. The probes need this release for the new hook states and Vibe; probes older than 1.5.0 cannot renew their certificate.
+
 - **`warte probe install-hooks` offers the activity hook to every agent here** (DD-PROBE-003). Claude Code (`~/.claude/settings.json`), Copilot CLI (its own `~/.copilot/hooks/warte.json`) and Mistral Vibe (two entries appended to `~/.vibe/hooks.toml`). It shows the exact change, writes only after a yes (or `--yes`), backs each file up next to itself, keeps every other hook and setting (untouched keys in `settings.json` keep their exact text) and adds nothing where the hook is already there. `warte docs cli-reference` lists the events per agent.
 
 - **"Waiting for you" means the agent is asking you** (REQ-PROBE-014). Every session that finished its turn showed as waiting, orange with a beacon, for as long as it sat there: on the main Mac most had been "waiting" for days. Now only a permission prompt, a question or a form counts as waiting. A finished turn is "done", and after 30 minutes "idle", parked without a beacon. The probe reports since when, and the airport shows "waiting for you · 5 min". Activity files from older hooks are read as done. A probe older than this sends "waiting for you" without a time, and the airport shows that as done too, so the map is right before the probes are updated.
