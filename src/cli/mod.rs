@@ -208,6 +208,18 @@ pub enum ProbeCommands {
         #[arg(long = "feed", value_parser = parse_feed)]
         feeds: Vec<(String, std::path::PathBuf)>,
     },
+    /// As root, from a oneshot timer (hourly): read what only root can (SMART)
+    /// and write it as JSON for the unprivileged probe. No network I/O
+    /// (REQ-PROBE-012; see `warte docs probe-privileged`)
+    Privileged {
+        /// Where the probe reads it (the probe's `WARTE_PRIVILEGED_DIR`)
+        #[arg(
+            long,
+            env = "WARTE_PRIVILEGED_DIR",
+            default_value = "/var/lib/warte-privileged"
+        )]
+        out: std::path::PathBuf,
+    },
     /// Called by Claude Code's hooks: reads the event on stdin and records
     /// only a verb ("editing", "waiting for you") for this agent. Never
     /// fails, prints nothing (REQ-PROBE-009)

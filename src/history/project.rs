@@ -79,6 +79,9 @@ pub fn from_report(r: &Report) -> Vec<(String, f64)> {
     if let Some(h) = &r.health {
         v.extend(from_health(h));
     }
+    if let Some(h) = &r.hardware {
+        v.extend(from_hardware(h));
+    }
     v.retain(|(_, x)| x.is_finite());
     v
 }
@@ -138,6 +141,41 @@ pub fn from_health(h: &crate::probe::health::Health) -> Vec<(String, f64)> {
     for t in &h.temps {
         v.push((format!("temp.c{{sensor={}}}", label(&t.sensor)), t.c));
     }
+    v
+}
+
+/// The series of a report's hardware block (REQ-PROBE-012).
+pub fn from_hardware(h: &crate::probe::hardware::Hardware) -> Vec<(String, f64)> {
+    let mut v: Vec<(String, f64)> = Vec::new();
+    for d in &h.disks {
+        let dev = label(&d.dev);
+        for (n, x) in [
+            ("disk.wear_pct", d.wear_pct),
+            ("disk.media_errors", d.media_errors.map(|x| x as f64)),
+            ("disk.power_on_h", d.power_on_h.map(|x| x as f64)),
+            ("disk.temp_c", d.temp_c),
+        ] {
+            if let Some(x) = x {
+                v.push((format!("{n}{{dev={dev}}}"), x));
+            }
+        }
+    }
+    for g in &h.gpus {
+        let gpu = label(&g.name);
+        for (n, x) in [
+            ("gpu.util_pct", g.util_pct),
+            ("gpu.mem_used_pct", g.mem_used_pct),
+            ("gpu.temp_c", g.temp_c),
+        ] {
+            if let Some(x) = x {
+                v.push((format!("{n}{{gpu={gpu}}}"), x));
+            }
+        }
+    }
+    v.push((
+        "usb.probes".into(),
+        h.usb.iter().filter(|u| u.probe.is_some()).count() as f64,
+    ));
     v
 }
 

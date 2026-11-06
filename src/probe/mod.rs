@@ -12,6 +12,7 @@
 
 pub mod activity;
 pub mod enroll;
+pub mod hardware;
 pub mod health;
 pub mod inventory;
 pub mod io;
@@ -49,6 +50,9 @@ pub struct Report {
     /// health (REQ-PROBE-011).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub health: Option<health::Health>,
+    /// Disk health, USB devices and debug probes, GPUs (REQ-PROBE-012).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hardware: Option<hardware::Hardware>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -315,6 +319,18 @@ pub async fn collect(io_prev: Option<&std::path::Path>) -> Report {
             health::collect(
                 io_prev
                     .map(|p| p.with_file_name("health-prev.json"))
+                    .as_deref(),
+                chrono::Utc::now().timestamp(),
+            )
+            .await,
+        ),
+        hardware: Some(
+            hardware::collect(
+                io_prev
+                    .map(|p| p.with_file_name("hardware-prev.json"))
+                    .as_deref(),
+                std::env::var_os("WARTE_PRIVILEGED_DIR")
+                    .map(std::path::PathBuf::from)
                     .as_deref(),
                 chrono::Utc::now().timestamp(),
             )
@@ -596,6 +612,11 @@ pub fn findings(seen: &[Seen], now: i64) -> Vec<Finding> {
         }
         if let Some(h) = &r.health {
             for (sev, text) in health::findings(h, now) {
+                out.push(f(&r.host, sev, text));
+            }
+        }
+        if let Some(h) = &r.hardware {
+            for (sev, text) in hardware::findings(h) {
                 out.push(f(&r.host, sev, text));
             }
         }

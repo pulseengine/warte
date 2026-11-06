@@ -146,10 +146,11 @@ pub async fn machine_history_partial(
         m.list()
             .into_iter()
             .find(|s| s.report.host == host)
-            .and_then(|s| s.report.health)
+            .map(|s| (s.report.health, s.report.hardware))
     });
+    let (health, hw) = latest.unwrap_or_default();
     let html = tokio::task::spawn_blocking(move || {
-        machines::history_panel_with(&h, &host, range.as_deref(), latest.as_ref())
+        machines::history_panel_full(&h, &host, range.as_deref(), health.as_ref(), hw.as_ref())
     })
     .await
     .unwrap_or_else(|_| machines::HISTORY_UNAVAILABLE.to_string());

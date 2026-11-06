@@ -66,6 +66,11 @@ const TOPICS: &[Topic] = &[
         title: "Ground station (absorbed smithy hub)",
         content: include_str!("../../docs/topics/ground-station.md"),
     },
+    Topic {
+        name: "probe-privileged",
+        title: "Privileged collector (SMART for the probe)",
+        content: include_str!("../../docs/topics/probe-privileged.md"),
+    },
 ];
 
 /// Get all topics as a sorted map.

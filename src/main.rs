@@ -226,6 +226,20 @@ async fn main() -> anyhow::Result<()> {
             } => {
                 warte::probe::send::send(&ground, &state_dir, ca_cert.as_deref(), &feeds).await?;
             }
+            warte::cli::ProbeCommands::Privileged { out } => {
+                let (p, errors) =
+                    warte::probe::hardware::privileged_collect(chrono::Utc::now().timestamp())
+                        .await;
+                for e in &errors {
+                    eprintln!("warte probe privileged: {e}");
+                }
+                warte::probe::hardware::write_privileged(&out, &p)?;
+                println!("{} disk(s) written to {}", p.disks.len(), out.display());
+                // nothing read: fail, so the unit shows it (the file says so too)
+                if warte::probe::hardware::privileged_failed(&p) {
+                    std::process::exit(1);
+                }
+            }
             warte::cli::ProbeCommands::Hook => {
                 use std::io::Read;
                 let mut s = String::new();
