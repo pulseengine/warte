@@ -491,3 +491,36 @@ fn only_known_collector_states_reach_the_page() {
         warte::dashboard::machines::view(Some(&m), None).contains("SMART: collector not running")
     );
 }
+
+// rivet: verifies REQ-PROBE-012
+#[test]
+fn smartctl_is_found_outside_launchds_path_on_macos_only() {
+    use warte::probe::hardware::smartctl_path;
+    let d = tempfile::tempdir().unwrap();
+    let brew = d.path().join("smartctl");
+    std::fs::write(&brew, "").unwrap();
+    let brew_s = brew.to_str().unwrap();
+    let missing = d.path().join("nope");
+    let fallbacks = [missing.to_str().unwrap(), brew_s];
+    // on PATH wins everywhere
+    let on_path = std::path::PathBuf::from("/usr/sbin/smartctl");
+    assert_eq!(
+        smartctl_path(Some(on_path.clone()), true, &fallbacks),
+        on_path
+    );
+    assert_eq!(
+        smartctl_path(Some(on_path.clone()), false, &fallbacks),
+        on_path
+    );
+    // macOS: the first fallback that exists
+    assert_eq!(smartctl_path(None, true, &fallbacks), brew);
+    // Linux: never a fallback; the bare name, so a missing one reads "not installed"
+    assert_eq!(
+        smartctl_path(None, false, &fallbacks),
+        std::path::PathBuf::from("smartctl")
+    );
+    assert_eq!(
+        smartctl_path(None, true, &fallbacks[..1]),
+        std::path::PathBuf::from("smartctl")
+    );
+}

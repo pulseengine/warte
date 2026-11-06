@@ -42,7 +42,11 @@ pub struct Walker {
     pub repo: String,
     /// A verb from the agent's hook, or empty.
     pub activity: String,
+    /// Minutes since the session started.
     pub minutes: u64,
+    /// Minutes in its current activity, when the hook says since when.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub since_min: Option<u64>,
 }
 
 #[derive(Serialize, Debug, Clone, PartialEq)]
@@ -85,11 +89,15 @@ fn walkers_of(r: &crate::probe::Report, now: i64) -> Vec<Walker> {
             repo: s.dir.clone().unwrap_or_default(),
             activity: s.activity.clone().unwrap_or_default(),
             minutes: (now as u64).saturating_sub(s.started_at) / 60,
+            since_min: s.activity_at.map(|t| (now - t).max(0) as u64 / 60),
         })
         .collect();
+    // asking the user first, then working, then done, idle, and no hook
     let rank = |w: &Walker| match w.activity.as_str() {
         crate::probe::activity::WAITING => 0,
-        "" => 2,
+        crate::probe::activity::DONE => 2,
+        crate::probe::activity::IDLE => 3,
+        "" => 4,
         _ => 1,
     };
     w.sort_by_key(|w| (rank(w), w.minutes));
@@ -266,6 +274,7 @@ mod tests {
                 started_at: 0,
                 dir: None,
                 activity: None,
+                activity_at: None,
             });
         }
         crate::probe::Seen {

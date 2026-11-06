@@ -220,10 +220,16 @@ pub enum ProbeCommands {
         )]
         out: std::path::PathBuf,
     },
-    /// Called by Claude Code's hooks: reads the event on stdin and records
-    /// only a verb ("editing", "waiting for you") for this agent. Never
-    /// fails, prints nothing (REQ-PROBE-009)
-    Hook,
+    /// Called by an agent's hooks (Claude Code, Copilot CLI, Mistral Vibe):
+    /// reads the event on stdin and records only a verb ("editing",
+    /// "waiting for you") for this agent. Never fails, prints nothing
+    /// (REQ-PROBE-009)
+    Hook {
+        /// The event, when the hook's config names it rather than the payload
+        /// (e.g. `agentStop`, `post_agent`)
+        #[arg(long)]
+        event: Option<String>,
+    },
     /// On the ground station: refuse every certificate the host holds now,
     /// for reports and renewal; it needs a new token to enroll again
     Revoke {

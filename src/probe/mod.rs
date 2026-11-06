@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
 /// Agent CLIs and tools whose presence and version the probe reports.
-pub const TOOLS: [&str; 5] = ["claude", "copilot", "codex", "gh", "varve"];
+pub const TOOLS: [&str; 6] = ["claude", "copilot", "codex", "vibe", "gh", "varve"];
 /// A `--version` that takes longer than this is reported as an error.
 const VERSION_TIMEOUT: Duration = Duration::from_secs(5);
 /// Mounts smaller than this are pseudo or recovery volumes.
@@ -109,6 +109,9 @@ pub struct Session {
     /// What the agent is doing, as a verb from its hook (REQ-PROBE-009).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub activity: Option<String>,
+    /// Since when (unix seconds) `activity` holds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub activity_at: Option<i64>,
 }
 
 /// The first `x.y` or `x.y.z` token, without a leading `v`:
@@ -137,6 +140,19 @@ pub fn agent_of(name: &str, cmd: &[String]) -> Option<&'static str> {
             return Some(agent);
         }
     }
+    // Mistral Vibe: the native `vibe-rs` TUI and its `vibe-app-server`
+    // (Python, renamed with setproctitle), or the `vibe` console script
+    const VIBE: [&str; 4] = ["vibe", "vibe-rs", "vibe-app-server", "vibe-acp"];
+    let arg0 = cmd.first().map(|s| base(s)).unwrap_or_default();
+    if VIBE.contains(&base(name).as_str()) || VIBE.contains(&arg0.as_str()) {
+        return Some("vibe");
+    }
+    if base(name).starts_with("python") {
+        let script = cmd.get(1).map(|s| base(s)).unwrap_or_default();
+        if VIBE.contains(&script.as_str()) {
+            return Some("vibe");
+        }
+    }
     if base(name).starts_with("node") {
         let script = cmd.get(1).map(String::as_str).unwrap_or_default();
         if script.contains("@anthropic-ai/claude-code") || base(script) == "claude" {
@@ -152,7 +168,7 @@ pub fn agent_of(name: &str, cmd: &[String]) -> Option<&'static str> {
     None
 }
 
-fn which(name: &str) -> Option<std::path::PathBuf> {
+pub(crate) fn which(name: &str) -> Option<std::path::PathBuf> {
     let path = std::env::var_os("PATH")?;
     std::env::split_paths(&path)
         .map(|d| d.join(name))
@@ -248,32 +264,39 @@ pub async fn collect(io_prev: Option<&std::path::Path>) -> Report {
     disks.sort_by(|a, b| a.mount.cmp(&b.mount));
     disks.dedup_by(|a, b| a.mount == b.mount);
 
-    let mut sessions: Vec<Session> = sys
-        .processes()
-        .values()
-        .filter_map(|p| {
-            let cmd: Vec<String> = p
-                .cmd()
-                .iter()
-                .map(|s| s.to_string_lossy().into_owned())
-                .collect();
-            agent_of(&p.name().to_string_lossy(), &cmd).map(|agent| Session {
-                agent: agent.into(),
-                pid: p.pid().as_u32(),
-                started_at: p.start_time(),
-                dir: p
-                    .cwd()
-                    .and_then(|c| c.file_name())
-                    .map(|n| n.to_string_lossy().into_owned()),
-                activity: None,
+    let mut sessions: Vec<Session> = innermost(
+        sys.processes()
+            .values()
+            .filter_map(|p| {
+                let cmd: Vec<String> = p
+                    .cmd()
+                    .iter()
+                    .map(|s| s.to_string_lossy().into_owned())
+                    .collect();
+                agent_of(&p.name().to_string_lossy(), &cmd)
+                    .map(|agent| Session {
+                        agent: agent.into(),
+                        pid: p.pid().as_u32(),
+                        started_at: p.start_time(),
+                        dir: p
+                            .cwd()
+                            .and_then(|c| c.file_name())
+                            .map(|n| n.to_string_lossy().into_owned()),
+                        activity: None,
+                        activity_at: None,
+                    })
+                    .map(|s| (s, p.parent().map(|q| q.as_u32())))
             })
-        })
-        .collect();
+            .collect(),
+    );
     sessions.sort_by_key(|s| s.pid);
     if let Some(dir) = activity::dir() {
         let now = chrono::Utc::now().timestamp();
         for s in &mut sessions {
-            s.activity = activity::current(&dir, s.pid, now);
+            if let Some((verb, at)) = activity::current(&dir, s.pid, now) {
+                s.activity = Some(verb);
+                s.activity_at = Some(at);
+            }
         }
         let live: Vec<u32> = sessions.iter().map(|s| s.pid).collect();
         activity::sweep(&dir, &live);
@@ -450,6 +473,40 @@ mod tests {
             agent_of("node", &cmd(&["node", "/opt/bin/codex"])),
             Some("codex")
         );
+        // Copilot's npm loader and its native child
+        assert_eq!(
+            agent_of(
+                "node",
+                &cmd(&[
+                    "node",
+                    "/usr/lib/node_modules/@github/copilot/npm-loader.js"
+                ])
+            ),
+            Some("copilot")
+        );
+        // Mistral Vibe: the native TUI, its renamed Python app server, the script
+        let vibe =
+            "/u/.local/share/uv/tools/mistral-vibe/lib/python3.12/site-packages/vibe/_bin/vibe-rs";
+        assert_eq!(
+            agent_of("vibe-rs", &cmd(&[vibe, "--continue"])),
+            Some("vibe")
+        );
+        assert_eq!(
+            agent_of("python3.12", &cmd(&["vibe-app-server"])),
+            Some("vibe")
+        );
+        assert_eq!(
+            agent_of("vibe-app-server", &cmd(&["vibe-app-server"])),
+            Some("vibe")
+        );
+        assert_eq!(
+            agent_of("python3.12", &cmd(&["python3.12", "/u/.local/bin/vibe"])),
+            Some("vibe")
+        );
+        assert_eq!(
+            agent_of("python3", &cmd(&["python3", "vibecheck.py"])),
+            None
+        );
         // a file or repo merely named after an agent is not the agent
         assert_eq!(agent_of("vim", &cmd(&["vim", "claude.md"])), None);
         assert_eq!(
@@ -458,6 +515,45 @@ mod tests {
         );
         assert_eq!(agent_of("claude-helper", &cmd(&[])), None);
     }
+
+    // rivet: verifies REQ-PROBE-014
+    #[test]
+    fn one_session_is_counted_once_and_by_its_innermost_process() {
+        let s = |agent: &str, pid: u32| Session {
+            agent: agent.into(),
+            pid,
+            started_at: 0,
+            dir: None,
+            activity: None,
+            activity_at: None,
+        };
+        let got = innermost(vec![
+            (s("copilot", 10), Some(1)),  // npm loader
+            (s("copilot", 11), Some(10)), // its native child
+            (s("vibe", 20), Some(1)),     // vibe-rs
+            (s("vibe", 21), Some(20)),    // its app server
+            (s("claude", 30), Some(1)),
+            (s("claude", 31), Some(1)),  // a second, separate session
+            (s("claude", 40), Some(11)), // claude started from copilot's shell: its own session
+        ]);
+        let pids: Vec<u32> = got.iter().map(|s| s.pid).collect();
+        assert_eq!(pids, vec![11, 21, 30, 31, 40]);
+    }
+}
+
+/// One agent session can be two processes: Copilot's npm loader (`node`)
+/// and its native child, Vibe's TUI and its app server. Keep the innermost:
+/// it is the one the agent's hooks run under.
+pub fn innermost(found: Vec<(Session, Option<u32>)>) -> Vec<Session> {
+    let parents: std::collections::HashSet<(u32, String)> = found
+        .iter()
+        .filter_map(|(s, parent)| parent.map(|p| (p, s.agent.clone())))
+        .collect();
+    found
+        .into_iter()
+        .map(|(s, _)| s)
+        .filter(|s| !parents.contains(&(s.pid, s.agent.clone())))
+        .collect()
 }
 
 /// A machine as the ground station last heard from it.

@@ -736,6 +736,7 @@ async fn machines_publish_no_paths_pids_or_dirs_and_no_cross_origin_reads() {
             started_at: 1,
             dir: Some("secret-repo".into()),
             activity: None,
+            activity_at: None,
         }],
         io: None,
         inventory: Some(warte::probe::inventory::Inventory {

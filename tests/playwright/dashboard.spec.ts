@@ -178,29 +178,43 @@ test.describe("airport field", () => {
 });
 
 test.describe("airport pilots", () => {
-  test("agents walk and say what they do; a waiting one stands with a beacon", async ({ page }) => {
+  test("agents walk and say what they do; only one asking you stands with a beacon", async ({ page }) => {
     const errors = collectErrors(page);
     const sessions = [
-      { agent: "claude", repo: "warte", activity: "waiting for you", minutes: 30 },
-      { agent: "claude", repo: "spar", activity: "running tests", minutes: 12 },
-      { agent: "claude", repo: "relay", activity: "editing", minutes: 4 },
+      { agent: "claude", repo: "warte", activity: "waiting for you", minutes: 30, since_min: 5 },
+      { agent: "claude", repo: "spar", activity: "running tests", minutes: 12, since_min: 1 },
+      { agent: "claude", repo: "relay", activity: "editing", minutes: 4, since_min: 0 },
+      { agent: "claude", repo: "kiln", activity: "done", minutes: 50, since_min: 3 },
+      { agent: "claude", repo: "loom", activity: "idle", minutes: 900, since_min: 600 },
+      { agent: "claude", repo: "gale", activity: "idle", minutes: 900, since_min: 700 },
+      { agent: "copilot", repo: "temper", activity: "idle", minutes: 900, since_min: 800 },
       { agent: "claude", repo: "rivet", activity: "", minutes: 90 },
     ];
     await page.route("**/api/airport", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify({
       tower: "fourpi", runner_total: 0, holding: 0, runways: [],
-      piers: [{ name: "Mac", kind: "terminal", location: "lan", cores: 10, runners: 0, boards: [], agents: 4, sessions, ground_station: false, reporting: true, note: "" }],
+      piers: [{ name: "Mac", kind: "terminal", location: "lan", cores: 10, runners: 0, boards: [], agents: 8, sessions, ground_station: false, reporting: true, note: "" }],
     }) }));
     await page.goto("/#airport");
-    // the three with a verb walk or wait; the one without a hook stays parked
+    // asking or working: walkers; done, idle and no hook stay parked
     await expect(page.locator(".ap-walker")).toHaveCount(3);
-    await expect(page.locator(".ap-walker.waiting .ap-say")).toHaveText("warte · waiting for you");
+    await expect(page.locator(".ap-walker.waiting .ap-say")).toHaveText("warte · waiting for you · 5 min");
     await expect(page.locator(".ap-say", { hasText: "spar · running tests" })).toBeVisible();
     await expect(page.locator(".ap-beacon")).toHaveCount(1);
+    // 8 sessions, 6 planes: the label says so, and asks
+    const label = page.locator(".ap-label", { hasText: "Mac" });
+    await expect(label).toContainText("8 agents (+2 not drawn) · 1 asking you");
     // a walker stops while the pointer is on it, so it can be tapped
     const relay = page.locator(".ap-walker", { hasText: "relay" });
     await relay.hover({ force: true });
     await relay.click({ force: true });
     await expect(page.locator(".ap-card .ap-story")).toContainText("editing in relay");
+    // the pier lists every session with its state
+    await label.click();
+    const rows = page.locator(".ap-card .ap-list li");
+    await expect(rows).toHaveCount(8);
+    await expect(rows.filter({ hasText: "warte" })).toHaveClass(/asking/);
+    await expect(rows.filter({ hasText: "loom" })).toContainText("idle for 10.0 h");
+    await expect(rows.filter({ hasText: "rivet" })).toContainText("no hook");
     expect(errors).toEqual([]);
   });
 });
