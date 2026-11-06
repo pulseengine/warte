@@ -905,10 +905,17 @@ pub async fn collect(
     // disks: Linux from the privileged collector's file; macOS runs smartctl
     // itself (unprivileged there), at most hourly
     if linux {
-        let (disks, status) = read_privileged(privileged_dir_or_default(privileged), now);
+        let local = linux_disks();
+        // no SMART-capable disk here (SD card, virtio, USB-attached): there is
+        // nothing for a collector to do, so its absence is not a problem
+        let (disks, status) = if local.iter().any(|(d, _, _)| smart_capable(d)) {
+            read_privileged(privileged_dir_or_default(privileged), now)
+        } else {
+            (Vec::new(), "none")
+        };
         let mut by: BTreeMap<String, DiskHealth> =
             disks.into_iter().map(|d| (d.dev.clone(), d)).collect();
-        for (dev, rot, model) in linux_disks() {
+        for (dev, rot, model) in local {
             let mut d = by.remove(&dev).unwrap_or(DiskHealth {
                 dev: dev.clone(),
                 ..Default::default()
