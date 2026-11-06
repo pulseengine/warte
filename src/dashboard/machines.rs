@@ -66,9 +66,15 @@ fn trend(
         ("mem.used_pct".to_string(), "memory".to_string()),
     ];
     want.extend(fullest);
-    let panel = open
-        .contains(&r.host)
-        .then(|| history_panel_with(h, &r.host, Some(key), r.health.as_ref()));
+    let panel = open.contains(&r.host).then(|| {
+        history_panel_full(
+            h,
+            &r.host,
+            Some(key),
+            r.health.as_ref(),
+            r.hardware.as_ref(),
+        )
+    });
     trend_for(h, &r.host, &want, key, span, now, panel)
 }
 
@@ -156,22 +162,109 @@ pub fn history_panel_with(
     range: Option<&str>,
     latest: Option<&crate::probe::health::Health>,
 ) -> String {
+    history_panel_full(h, host, range, latest, None)
+}
+
+/// What is attached now (REQ-PROBE-012): debug probes first, then the other
+/// USB devices, then GPUs and disks; names only, a snapshot.
+fn attached(x: &crate::probe::hardware::Hardware) -> String {
+    let mut usb: Vec<&crate::probe::hardware::Usb> = x.usb.iter().collect();
+    usb.sort_by_key(|u| u.probe.is_none());
+    let rows: String = usb
+        .iter()
+        .map(|u| {
+            let what = u
+                .product
+                .as_deref()
+                .or(u.vendor.as_deref())
+                .unwrap_or("USB device");
+            let kind = u
+                .probe
+                .as_deref()
+                .map(|k| format!(r#"<span class="badge green">{}</span> "#, esc(k)))
+                .unwrap_or_default();
+            let drv = u
+                .driver
+                .as_deref()
+                .map(|d| format!(r#" <span class="dim">{}</span>"#, esc(d)))
+                .unwrap_or_default();
+            format!(
+                "<li>{kind}<b>{}</b> <span class=\"dim\">{}</span>{drv}</li>",
+                esc(what),
+                esc(&u.id)
+            )
+        })
+        .collect();
+    let gpus: String = x
+        .gpus
+        .iter()
+        .map(|g| {
+            let cores = g.cores.map(|c| format!(" · {c} cores")).unwrap_or_default();
+            format!("<li>GPU <b>{}</b>{cores}</li>", esc(&g.name))
+        })
+        .collect();
+    let disks: String = x
+        .disks
+        .iter()
+        .map(|d| {
+            let smart = match d.smart_ok {
+                Some(true) => " · SMART ok",
+                Some(false) => " · SMART failing",
+                None => "",
+            };
+            let wear = d
+                .wear_pct
+                .map(|w| format!(" · {w:.0}% worn"))
+                .unwrap_or_default();
+            format!(
+                "<li>disk <b>{}</b> <span class=\"dim\">{}{smart}{wear}</span></li>",
+                esc(&d.dev),
+                esc(d.model.as_deref().unwrap_or(""))
+            )
+        })
+        .collect();
+    let gone: String = x
+        .probes_gone
+        .iter()
+        .map(|g| format!(r#"<li class="dim">gone: {}</li>"#, esc(&g.probe)))
+        .collect();
+    if rows.is_empty() && gpus.is_empty() && disks.is_empty() && gone.is_empty() {
+        return String::new();
+    }
+    format!(
+        r#"<div class="hgroup"><h4>Attached now</h4><ul class="hattached">{rows}{gone}{gpus}{disks}</ul></div>"#
+    )
+}
+
+/// The full history with the latest report's process list and hardware.
+pub fn history_panel_full(
+    h: &crate::history::History,
+    host: &str,
+    range: Option<&str>,
+    latest: Option<&crate::probe::health::Health>,
+    hw: Option<&crate::probe::hardware::Hardware>,
+) -> String {
     let (_, span) = super::charts::range(range);
     let now = chrono::Utc::now().timestamp();
     let metrics = h.metrics(host);
-    let procs = latest.map(processes).unwrap_or_default();
+    let procs = latest.map(processes).unwrap_or_default() + &hw.map(attached).unwrap_or_default();
     if metrics.is_empty() {
         return format!(r#"<p class="dim">no history for this machine yet</p>{procs}"#);
     }
-    const GROUPS: [(&str, &[&str]); 12] = [
+    const GROUPS: [(&str, &[&str]); 14] = [
         ("CPU", &["load.", "psi.cpu"]),
         ("Memory", &["mem.", "swap.", "psi.mem", "oom."]),
-        ("Disks", &["disk."]),
+        ("Disks", &["disk.used_pct"]),
+        (
+            "Disk health",
+            &["disk.wear", "disk.media", "disk.power", "disk.temp"],
+        ),
         ("IO", &["io.", "psi.io"]),
         ("Network", &["net."]),
         ("Temperature", &["temp."]),
         ("Health", &["health."]),
         ("Power", &["battery."]),
+        ("Hardware", &["gpu.", "usb."]),
         ("Runners", &["runners.", "runner."]),
         ("Queue", &["queue."]),
         ("Agents", &["sessions"]),
@@ -196,6 +289,37 @@ pub fn history_panel_with(
         return format!(r#"<p class="dim">no data in this range; try a longer one</p>{procs}"#);
     }
     out + &procs
+}
+
+/// Hardware chips for a card: attached debug probes, a missing collector.
+fn hardware_chips(x: &crate::probe::hardware::Hardware) -> String {
+    let mut kinds: std::collections::BTreeMap<&str, usize> = Default::default();
+    for u in &x.usb {
+        if let Some(k) = &u.probe {
+            *kinds.entry(k.as_str()).or_default() += 1;
+        }
+    }
+    let mut c: Vec<String> = kinds
+        .iter()
+        .map(|(k, n)| {
+            let n = if *n > 1 {
+                format!(" ×{n}")
+            } else {
+                String::new()
+            };
+            format!(r#"<span class="chip on">{}{n}</span>"#, esc(k))
+        })
+        .collect();
+    if let Some(s) = x.privileged.as_deref().filter(|s| *s != "ok") {
+        c.push(format!(
+            r#"<span class="chip off" title="warte probe privileged: {s}">SMART: collector not running</span>"#
+        ));
+    }
+    if c.is_empty() {
+        String::new()
+    } else {
+        format!(r#"<div class="mtools mhw">{}</div>"#, c.join(""))
+    }
 }
 
 /// Health chips for a card: what needs a look, at a glance (REQ-PROBE-011).
@@ -323,7 +447,8 @@ fn card(s: &Seen, mine: &[&Finding], ci: Option<&str>, now: i64, trend: &str) ->
         })
         .collect();
     let inv = r.inventory.as_ref().map(inventory).unwrap_or_default();
-    let chips = r.health.as_ref().map(health_chips).unwrap_or_default();
+    let chips = r.health.as_ref().map(health_chips).unwrap_or_default()
+        + &r.hardware.as_ref().map(hardware_chips).unwrap_or_default();
     let mut agents: std::collections::BTreeMap<&str, usize> = Default::default();
     for x in &r.sessions {
         *agents.entry(x.agent.as_str()).or_default() += 1;

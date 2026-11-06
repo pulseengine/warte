@@ -532,3 +532,5 @@ p.empty {
 .hprocs ul { list-style: none; margin: .2rem 0; padding: 0; }
 .hprocs li { display: flex; justify-content: space-between; gap: .5rem; }
 .mhealth { margin: .3rem 0; }
+.hattached { list-style: none; margin: .2rem 0; padding: 0; font-size: .8rem; display: grid; gap: .15rem; }
+.mhw { margin: .3rem 0; }
