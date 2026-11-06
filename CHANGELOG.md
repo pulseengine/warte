@@ -4,6 +4,10 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.0 — 2026-11-06
+
+Machine history and hardware. warte now keeps 90 days of history for every number a probe reports and charts it, and probes report health, network, temperatures, processes and hardware. Items in v1.6.0's rivet scope that were not built (40, among them the Devices view, the airport map and the AADL fleet model) moved to v1.7.0.
+
 - **No "collector not running" where there is nothing to collect** (REQ-PROBE-012). A machine whose disks have no SMART (SD card, virtio, a USB-attached SSD) reports the privileged collector as `none`, whether or not a collector is installed. Before, the ground station's own card said "SMART: collector not running" because its SSD is on USB.
 
 - **Probes report hardware: disk health, debug probes and boards, GPUs** (REQ-PROBE-012, #52). Disks get SMART status, wear, media errors, power-on hours and temperature; USB devices are listed with the driver holding them, and debug probes (J-Link, ST-LINK, CMSIS-DAP, Raspberry Pi Debug Probe, Black Magic, FTDI, LPC-Link2, XDS110, Espressif, EDBG, …) are recognised by id; GPUs with model and, with nvidia-smi, load, memory and temperature. Findings: SMART failing (red), wear at 80 % (amber) / 95 % (red), media errors, and a debug probe seen this week that is gone. Cards get a chip per attached probe kind; the history gets Disk health and Hardware groups and an "Attached now" list. No serial numbers are published. On Linux SMART needs root, and the probe gets none: `warte probe privileged`, a separate root oneshot with no network, writes SMART to a file that the probe reads as untrusted data (strict schema, size cap, names and values re-checked) and reports "privileged collector not running" when it is missing or stale (`warte docs probe-privileged` has both systemd units). On macOS the probe reads SMART itself, unprivileged.

@@ -174,7 +174,7 @@ artifacts:
     type: requirement
     title: Mobile control uses mutual TLS with device-bound certificates
     status: draft
-    release: v1.6.0
+    release: v1.7.0
     description: >
       The mobile control channel (Android/iOS) SHALL use mutual TLS with
       device-bound client certificates. The client certificate SHALL be
@@ -190,7 +190,7 @@ artifacts:
     type: requirement
     title: Mobile commands require operator biometric authentication
     status: draft
-    release: v1.6.0
+    release: v1.7.0
     description: >
       Every control command issued via the mobile client SHALL require operator
       authentication via biometric (fingerprint/face) or hardware token (YubiKey).
@@ -205,7 +205,7 @@ artifacts:
     type: requirement
     title: Mobile client shows real-time system status
     status: draft
-    release: v1.6.0
+    release: v1.7.0
     description: >
       The mobile client SHALL display real-time system status (agent health,
       CI status, access rights, alerts) with freshness indicators. Status
@@ -376,7 +376,7 @@ artifacts:
     type: requirement
     title: A token's rights and agent decide which write routes it may call, and as whom
     status: implemented
-    release: v1.6.0
+    release: v1.7.0
     description: >
       Every mutating route SHALL require a named right in the bearer token,
       looked up in one table (agents:register, agents:heartbeat, agents:data,
@@ -593,7 +593,7 @@ artifacts:
     type: requirement
     title: Critical path dependency graph — real repo dependencies from rivet/GitHub
     status: approved
-    release: v1.6.0
+    release: v1.7.0
     description: "The critical path view SHALL compute the real dependency graph between repos, not just ci_status heuristics. Data sources: (a) rivet externals (rivet sync / rivet externals shows cross-repo dependencies), (b) GitHub dependency graph API (dependabot alerts show dependencies), (c) manual dependency declaration in warte.toml (repo_dependencies = [{repo='jess', depends_on=['relay','gale']}]). The critical path SHALL be the longest chain of repos where each depends on the next and at least one gate is not green. The view SHALL show: the chain (repo → repo → repo), the bottleneck repo, the estimated minimum release time."
     links:
       - type: satisfies
@@ -625,7 +625,7 @@ artifacts:
     type: requirement
     title: "Security findings feed: hosts report detector findings through the probe; warte shows and alerts (#114)"
     status: approved
-    release: v1.6.0
+    release: v1.7.0
     description: warte SHALL accept security findings (drift check, AIDE, Falco) from enrolled probes as a signed --feed with a bounded, metadata-only schema (source, rule, severity, subject, first_seen, last_seen, count; no field for file contents or secret values), SHALL show open findings per host newest first with acknowledge / accept-into-baseline and history, and SHALL alert on new high-severity findings and on a host whose detector stops reporting. warte detects nothing itself.
     fields:
       category: functional
@@ -686,7 +686,7 @@ artifacts:
     type: requirement
     title: Classify hosted jobs never acquired by a runner as infra:not-acquired, and count them (#122)
     status: approved
-    release: v1.6.0
+    release: v1.7.0
     description: "warte SHALL classify a job as infra:not-acquired when its conclusion is cancelled, runner_name is empty, it ran no step, and its annotations contain 'not acquired by Runner'; SHALL show it so in the queue view and /api/queue, distinct from a code failure; and SHALL count it per hosted pool (runs-on label) and per UTC day, so the data decides whether a required hosted-macOS check is worth keeping. Read-only: no GitHub writes. Evidence: relay 2026-11-04, Test (macos) cancelled 3x, merge-group runs 41856213098 and 41870555941 ejected relay#636."
     fields:
       category: functional
@@ -702,7 +702,7 @@ artifacts:
     type: requirement
     title: Bounded re-queue after a merge-group ejection caused only by infra:not-acquired, with notices (#122)
     status: approved
-    release: v1.6.0
+    release: v1.7.0
     description: "When a merge-group ejection was caused only by infra:not-acquired jobs, warte SHALL decide that the PR may be re-enqueued, with backoff (30, 60, 120 min) and at most 3 times per PR per UTC day, and SHALL send a factory-notice naming the PR, the attempt (n/3) and the earliest time; the agent that owns the PR performs the enqueue. warte stays read-only on GitHub (decision 2026-11-04, owner). No gate is passed: every required check must still pass in the queue; a PR with any other failure is never offered for re-queue. Exhausted retries escalate. Kill criterion: a re-queued PR ejected for any other reason stops re-queue offers for that repo until a person has looked."
     fields:
       category: functional

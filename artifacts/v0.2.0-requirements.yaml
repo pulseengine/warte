@@ -113,7 +113,7 @@ artifacts:
     type: requirement
     title: "Warte binary included in the varve toolchain layer"
     status: approved
-    release: v1.6.0
+    release: v1.7.0
     description: >
       The warte binary SHALL be included in the pulseengine varve layer
       (like rivet, spar, witness, wsc). The layer manifest SHALL list
