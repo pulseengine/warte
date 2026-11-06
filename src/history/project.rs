@@ -76,7 +76,68 @@ pub fn from_report(r: &Report) -> Vec<(String, f64)> {
             }
         }
     }
+    if let Some(h) = &r.health {
+        v.extend(from_health(h));
+    }
     v.retain(|(_, x)| x.is_finite());
+    v
+}
+
+/// The series of a report's health block (REQ-PROBE-011). Process lists are
+/// not series: they stay a snapshot of the latest report.
+pub fn from_health(h: &crate::probe::health::Health) -> Vec<(String, f64)> {
+    let mut v: Vec<(String, f64)> = Vec::new();
+    let opt = [
+        // the probe's own names: the ground station writes psi.cpu/psi.mem for
+        // the CI host from its agent, and a host may run both
+        ("psi.cpu.host", h.psi_cpu),
+        ("psi.mem.host", h.psi_mem),
+        ("psi.mem.full", h.psi_mem_full),
+        ("oom.kills", h.oom_kills.map(|x| x as f64)),
+        ("health.clock_offset_ms", h.clock_offset_ms),
+        (
+            "health.ntp_synced",
+            h.ntp_synced.map(|b| f64::from(u8::from(b))),
+        ),
+        (
+            "health.failed_units",
+            h.failed_units.as_ref().map(|u| u.len() as f64),
+        ),
+        (
+            "health.reboot_required",
+            // only where it is checked (systemd hosts report failed units)
+            h.failed_units
+                .is_some()
+                .then(|| f64::from(u8::from(h.reboot_required_since.is_some()))),
+        ),
+        (
+            "health.updates",
+            h.updates.as_ref().map(|u| f64::from(u.count)),
+        ),
+        (
+            "health.updates_security",
+            h.updates.as_ref().and_then(|u| u.security).map(f64::from),
+        ),
+        ("battery.pct", h.battery.as_ref().map(|b| b.pct)),
+        (
+            "battery.cycles",
+            h.battery.as_ref().and_then(|b| b.cycles).map(f64::from),
+        ),
+    ];
+    for (n, x) in opt {
+        if let Some(x) = x {
+            v.push((n.into(), x));
+        }
+    }
+    for i in &h.net {
+        let n = label(&i.name);
+        v.push((format!("net.rx_kbs{{if={n}}}"), i.rx_kbs));
+        v.push((format!("net.tx_kbs{{if={n}}}"), i.tx_kbs));
+        v.push((format!("net.errors{{if={n}}}"), i.errors));
+    }
+    for t in &h.temps {
+        v.push((format!("temp.c{{sensor={}}}", label(&t.sensor)), t.c));
+    }
     v
 }
 

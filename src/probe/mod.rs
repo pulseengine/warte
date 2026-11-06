@@ -12,6 +12,7 @@
 
 pub mod activity;
 pub mod enroll;
+pub mod health;
 pub mod inventory;
 pub mod io;
 pub mod send;
@@ -44,6 +45,10 @@ pub struct Report {
     /// Agent and toolchain inventory (REQ-PROBE-010).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub inventory: Option<inventory::Inventory>,
+    /// Pressure, network, temperatures, battery, top processes and system
+    /// health (REQ-PROBE-011).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub health: Option<health::Health>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -306,6 +311,15 @@ pub async fn collect(io_prev: Option<&std::path::Path>) -> Report {
         sessions,
         io,
         inventory: Some(inventory::collect(chrono::Utc::now().timestamp()).await),
+        health: Some(
+            health::collect(
+                io_prev
+                    .map(|p| p.with_file_name("health-prev.json"))
+                    .as_deref(),
+                chrono::Utc::now().timestamp(),
+            )
+            .await,
+        ),
     }
 }
 
@@ -577,6 +591,11 @@ pub fn findings(seen: &[Seen], now: i64) -> Vec<Finding> {
         }
         if let Some(io) = &r.io {
             for (sev, text) in io::findings(io) {
+                out.push(f(&r.host, sev, text));
+            }
+        }
+        if let Some(h) = &r.health {
+            for (sev, text) in health::findings(h, now) {
                 out.push(f(&r.host, sev, text));
             }
         }

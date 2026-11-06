@@ -33,7 +33,7 @@ fn qenc(v: &str) -> String {
 
 /// Findings that have a chart behind them (REQ-MHIST-003).
 fn charted(f: &Finding) -> bool {
-    ["disk ", "load ", "memory", "swap", "io ", "IO "]
+    ["disk ", "load ", "memory", "swap", "io ", "IO ", "clock "]
         .iter()
         .any(|p| f.text.starts_with(p))
 }
@@ -92,17 +92,64 @@ fn trend_for(
 
 /// The full history of one machine, grouped (REQ-MHIST-003).
 pub fn history_panel(h: &crate::history::History, host: &str, range: Option<&str>) -> String {
+    history_panel_with(h, host, range, None)
+}
+
+/// The top processes of the latest report: names only, a snapshot, never history.
+fn processes(x: &crate::probe::health::Health) -> String {
+    let rows = |v: &[crate::probe::health::Proc], cpu: bool| -> String {
+        v.iter()
+            .map(|p| {
+                let n = if p.count > 1 {
+                    format!(" ×{}", p.count)
+                } else {
+                    String::new()
+                };
+                let val = if cpu {
+                    format!("{:.0}% CPU", p.cpu_pct)
+                } else {
+                    format!("{:.0} MB", p.mem_mb)
+                };
+                format!(
+                    "<li><b>{}</b>{n} <span class=\"dim\">{val}</span></li>",
+                    esc(&p.name)
+                )
+            })
+            .collect()
+    };
+    if x.top_cpu.is_empty() && x.top_mem.is_empty() {
+        return String::new();
+    }
+    format!(
+        r#"<div class="hgroup"><h4>Processes now</h4><div class="hprocs"><div><span class="dim">by CPU</span><ul>{}</ul></div><div><span class="dim">by memory</span><ul>{}</ul></div></div></div>"#,
+        rows(&x.top_cpu, true),
+        rows(&x.top_mem, false)
+    )
+}
+
+/// The full history, plus the latest report's process list when given.
+pub fn history_panel_with(
+    h: &crate::history::History,
+    host: &str,
+    range: Option<&str>,
+    latest: Option<&crate::probe::health::Health>,
+) -> String {
     let (_, span) = super::charts::range(range);
     let now = chrono::Utc::now().timestamp();
     let metrics = h.metrics(host);
+    let procs = latest.map(processes).unwrap_or_default();
     if metrics.is_empty() {
-        return r#"<p class="dim">no history for this machine yet</p>"#.to_string();
+        return format!(r#"<p class="dim">no history for this machine yet</p>{procs}"#);
     }
-    const GROUPS: [(&str, &[&str]); 8] = [
+    const GROUPS: [(&str, &[&str]); 12] = [
         ("CPU", &["load.", "psi.cpu"]),
-        ("Memory", &["mem.", "swap.", "psi.mem"]),
+        ("Memory", &["mem.", "swap.", "psi.mem", "oom."]),
         ("Disks", &["disk."]),
         ("IO", &["io.", "psi.io"]),
+        ("Network", &["net."]),
+        ("Temperature", &["temp."]),
+        ("Health", &["health."]),
+        ("Power", &["battery."]),
         ("Runners", &["runners.", "runner."]),
         ("Queue", &["queue."]),
         ("Agents", &["sessions"]),
@@ -124,9 +171,57 @@ pub fn history_panel(h: &crate::history::History, host: &str, range: Option<&str
         }
     }
     if out.is_empty() {
-        return r#"<p class="dim">no data in this range; try a longer one</p>"#.to_string();
+        return format!(r#"<p class="dim">no data in this range; try a longer one</p>{procs}"#);
     }
-    out
+    out + &procs
+}
+
+/// Health chips for a card: what needs a look, at a glance (REQ-PROBE-011).
+fn health_chips(x: &crate::probe::health::Health) -> String {
+    let mut c: Vec<String> = Vec::new();
+    if let Some(u) = x.failed_units.as_ref().filter(|u| !u.is_empty()) {
+        c.push(format!(
+            r#"<span class="chip warn">{} failed unit(s)</span>"#,
+            u.len()
+        ));
+    }
+    if x.reboot_required_since.is_some() {
+        c.push(r#"<span class="chip warn">reboot required</span>"#.into());
+    }
+    if let Some(u) = x.updates.as_ref().filter(|u| u.count > 0) {
+        let sec = u
+            .security
+            .filter(|s| *s > 0)
+            .map(|s| format!(", {s} security"))
+            .unwrap_or_default();
+        c.push(format!(
+            r#"<span class="chip">{} update(s){sec}</span>"#,
+            u.count
+        ));
+    }
+    if let Some(b) = &x.battery {
+        c.push(format!(
+            r#"<span class="chip">battery {:.0}%{}</span>"#,
+            b.pct,
+            if b.charging == Some(true) {
+                " charging"
+            } else {
+                ""
+            }
+        ));
+    }
+    if let Some(t) = x.temps.first() {
+        c.push(format!(
+            r#"<span class="chip">{} {:.0} °C</span>"#,
+            esc(&t.sensor),
+            t.c
+        ));
+    }
+    if c.is_empty() {
+        String::new()
+    } else {
+        format!(r#"<div class="mtools mhealth">{}</div>"#, c.join(""))
+    }
 }
 
 fn card(s: &Seen, mine: &[&Finding], ci: Option<&str>, now: i64, trend: &str) -> String {
@@ -206,6 +301,7 @@ fn card(s: &Seen, mine: &[&Finding], ci: Option<&str>, now: i64, trend: &str) ->
         })
         .collect();
     let inv = r.inventory.as_ref().map(inventory).unwrap_or_default();
+    let chips = r.health.as_ref().map(health_chips).unwrap_or_default();
     let mut agents: std::collections::BTreeMap<&str, usize> = Default::default();
     for x in &r.sessions {
         *agents.entry(x.agent.as_str()).or_default() += 1;
@@ -243,7 +339,7 @@ fn card(s: &Seen, mine: &[&Finding], ci: Option<&str>, now: i64, trend: &str) ->
         format!("up {}", dur(r.uptime_s as i64))
     };
     format!(
-        r#"<div class="machine{}"><div class="mhead"><span class="mname">{}</span><span class="{pill}">{word} · {} ago</span></div><div class="mos">{} · {} · {} · {uptime}</div>{notes}<div class="hbars">{body}</div>{trend}<div class="mtools">{tools}</div>{inv}<div class="msess">{sessions}</div><div class="mvia">via {}{}</div></div>"#,
+        r#"<div class="machine{}"><div class="mhead"><span class="mname">{}</span><span class="{pill}">{word} · {} ago</span></div><div class="mos">{} · {} · {} · {uptime}</div>{notes}<div class="hbars">{body}</div>{chips}{trend}<div class="mtools">{tools}</div>{inv}<div class="msess">{sessions}</div><div class="mvia">via {}{}</div></div>"#,
         if mine.iter().any(|f| f.severity == "red") {
             " red"
         } else if mine.is_empty() {

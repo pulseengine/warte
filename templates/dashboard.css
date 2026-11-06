@@ -528,3 +528,7 @@ p.empty {
 .flink { font-size: .8rem; margin-left: .4rem; }
 .machine:has(.mhist[open]) { grid-column: 1 / -1; }
 .hcharts { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 0 1rem; }
+.hprocs { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0 1rem; font-size: .8rem; }
+.hprocs ul { list-style: none; margin: .2rem 0; padding: 0; }
+.hprocs li { display: flex; justify-content: space-between; gap: .5rem; }
+.mhealth { margin: .3rem 0; }

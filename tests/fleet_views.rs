@@ -752,6 +752,10 @@ async fn machines_publish_no_paths_pids_or_dirs_and_no_cross_origin_reads() {
             scheduled: vec![],
             errors: vec!["SECRET-ERROR in /Users/secret".into()],
         }),
+        health: Some(warte::probe::health::Health {
+            errors: vec!["chronyc: SECRET-ERROR /Users/secret".into()],
+            ..Default::default()
+        }),
     };
     m.record(r.clone(), "probe", warte::hub::now());
     r.host = "other".into();
@@ -976,6 +980,7 @@ fn a_ci_host_with_a_probe_gets_one_card_with_the_agents_runners() {
         sessions: vec![],
         io: None,
         inventory: None,
+        health: None,
     };
     m.record(r.clone(), "probe", now());
     let both = warte::dashboard::machines::view(Some(&m), Some(&hub));

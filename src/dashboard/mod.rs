@@ -130,10 +130,18 @@ pub async fn machine_history_partial(
     };
     let host = q.get("host").cloned().unwrap_or_default();
     let range = q.get("range").cloned();
-    let html =
-        tokio::task::spawn_blocking(move || machines::history_panel(&h, &host, range.as_deref()))
-            .await
-            .unwrap_or_else(|_| machines::HISTORY_UNAVAILABLE.to_string());
+    // the latest report's process list goes with the charts (a snapshot)
+    let latest = state.machines.as_ref().and_then(|m| {
+        m.list()
+            .into_iter()
+            .find(|s| s.report.host == host)
+            .and_then(|s| s.report.health)
+    });
+    let html = tokio::task::spawn_blocking(move || {
+        machines::history_panel_with(&h, &host, range.as_deref(), latest.as_ref())
+    })
+    .await
+    .unwrap_or_else(|_| machines::HISTORY_UNAVAILABLE.to_string());
     Html(html).into_response()
 }
 

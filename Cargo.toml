@@ -70,7 +70,7 @@ relay-ccsds = { git = "https://github.com/pulseengine/relay", rev = "4cc48b75774
 
 # Service discovery (mDNS/Bonjour)
 mdns-sd = "0.21"
-sysinfo = { version = "0.39", default-features = false, features = ["system", "disk"] }
+sysinfo = { version = "0.39", default-features = false, features = ["system", "disk", "component", "network"] }
 time = "0.3"
 
 [dev-dependencies]
