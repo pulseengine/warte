@@ -102,7 +102,16 @@ saturated fleet.
 GET /api/queue[?repo=spar]                       # self_hosted, hosted, repo, as_of
 GET /api/admission?repo=spar&kind=docs           # {verdict: open|batch|hold, reason, recheck_s}
     kind: docs | fix | feature | security | red-main
+GET /api/eta?repo=spar&pr=511                    # when PR 511's next job starts (or branch=)
+GET /api/watch?repo=spar&pr=511[&since=<cursor>] # hold until its runs start or finish
 ```
+
+`/api/eta` answers `{repo, pr, branch, status, running, queued, scan_age_s,
+queued_complete, recheck_after_s?, scope, note}`: per running job `on`, `hosted`,
+`workflow`, `job` and `for_s`; per queued part `run_id`, `workflow`, `pool`,
+`jobs`, `waited_s`, `model` and `estimate` (`start_in_low_s`, `start_in_high_s`,
+`overdue`, `basis`), estimated from measured waits in the same pool, `null` with
+fewer than 5 samples. It is the same answer as `/ci/api/eta`.
 
 - `security` and `red-main` are always `open`.
 - `docs` batch whenever the repo has CI queued or running.
@@ -156,7 +165,7 @@ The absorbed smithy hub API, unchanged; the contract is `/ci/api/openapi.json`.
 See `warte docs ground-station`.
 
 ```
-GET /ci/api/eta?repo=X&pr=N         # when does PR N's next job start (or branch=)
+GET /ci/api/eta?repo=X&pr=N         # same as /api/eta
 GET /ci/status.md                   # fleet status as Markdown
 GET /ci/api/state                   # latest snapshot + telemetry link stats
 GET /ci/api/history?hours=H         # per-minute trend points

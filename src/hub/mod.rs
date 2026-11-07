@@ -436,6 +436,24 @@ impl Hub {
             .map(|s| eta::answer(s, &self.org, repo, pr, branch, now()))
     }
 
+    /// The `/api/eta` answer for a raw query string, as an HTTP response:
+    /// served at `/ci/api/eta` and at warte's own `/api/eta` (REQ-SMITHY-005).
+    pub fn eta_response(&self, query: &str) -> Response {
+        let g = lk(&self.shared);
+        match (&g.p.latest, eta_query(query)) {
+            (None, _) => text(503, "no snapshot received yet"),
+            (_, Err(e)) => text(400, e),
+            (Some(s), Ok((repo, pr, branch))) => json(&eta::answer(
+                s,
+                &self.org,
+                &repo,
+                pr,
+                branch.as_deref(),
+                now(),
+            )),
+        }
+    }
+
     /// The hub's HTTP API, same paths and responses as smithy hub.
     pub fn router(&self) -> Router {
         Router::new()
@@ -564,15 +582,7 @@ async fn status_md(State(h): State<Hub>, RawQuery(q): RawQuery) -> Response {
 }
 
 async fn api_eta(State(h): State<Hub>, RawQuery(q): RawQuery) -> Response {
-    let query = q.unwrap_or_default();
-    let g = lk(&h.shared);
-    match (&g.p.latest, eta_query(&query)) {
-        (None, _) => text(503, "no snapshot received yet"),
-        (_, Err(e)) => text(400, e),
-        (Some(s), Ok((repo, pr, branch))) => {
-            json(&eta::answer(s, &h.org, &repo, pr, branch.as_deref(), now()))
-        }
-    }
+    h.eta_response(&q.unwrap_or_default())
 }
 
 fn month_report(h: &Hub, query: &str) -> Result<belt::BeltReport, &'static str> {

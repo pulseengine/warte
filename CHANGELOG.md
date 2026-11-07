@@ -4,6 +4,8 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+- **`/api/eta` under warte's own API** (REQ-SMITHY-005). The start estimate that was only at `/ci/api/eta`: per running job where and for how long, per queued part its pool, how long it waited and when it probably starts (`start_in_low_s`, `start_in_high_s`, `overdue`, `basis`). Same answer as `/ci/api/eta`, which stays for now; agents and the ci-status skill can move to `/api/eta` before the `/ci` view is retired.
+
 ## v1.6.1 — 2026-11-07
 
 Agents as they are: "waiting for you" only when an agent asks you, done and idle otherwise; Copilot CLI and Mistral Vibe recognised; `warte probe install-hooks`; each probe's version and certificate end on its card. The probes need this release for the new hook states and Vibe; probes older than 1.5.0 cannot renew their certificate.

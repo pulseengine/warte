@@ -54,6 +54,7 @@ pub fn build_routes() -> Router<AppState> {
         .route("/queue", get(api_queue))
         .route("/admission", get(api_admission))
         .route("/watch", get(api_watch))
+        .route("/eta", get(api_eta))
         .route("/machines", get(api_machines))
         .route("/history/machines", get(api_history_hosts))
         .route("/history/machines/{host}/metrics", get(api_history_metrics))
@@ -230,6 +231,21 @@ async fn api_admission(
         ))
         .into_response(),
         Err(why) => plain(StatusCode::SERVICE_UNAVAILABLE, why),
+    }
+}
+
+/// When a PR's or branch's next job starts: the ground station's estimate
+/// from measured waits, the same answer as `/ci/api/eta` (REQ-SMITHY-005).
+async fn api_eta(
+    State(state): State<AppState>,
+    axum::extract::RawQuery(q): axum::extract::RawQuery,
+) -> axum::response::Response {
+    match state.hub.as_ref() {
+        Some(hub) => hub.eta_response(&q.unwrap_or_default()),
+        None => plain(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "no ground station configured",
+        ),
     }
 }
 

@@ -275,6 +275,7 @@ async fn endpoints_answer_as_documented() {
         let q = match p.as_str() {
             "/api/admission" => "?repo=spar&kind=docs",
             "/api/watch" => "?repo=spar&pr=1&timeout=0",
+            "/api/eta" => "?repo=spar&pr=1",
             "/api/fleet" => continue, // 404 without a model; tests/fleet_model.rs covers it
             _ => "",
         };

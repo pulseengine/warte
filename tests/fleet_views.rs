@@ -359,6 +359,7 @@ async fn serve_with_a_hub_mounts_the_ground_station_at_ci() {
         status(format!("{base}/ci/api/eta?repo=spar&pr=1")).await,
         503
     );
+    assert_eq!(status(format!("{base}/api/eta?repo=spar&pr=1")).await, 503);
     let q = reqwest::get(format!("{base}/api/dashboard/queue-partial"))
         .await
         .unwrap()

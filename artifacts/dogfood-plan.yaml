@@ -270,6 +270,8 @@ artifacts:
         target: REQ-ASK-004
       - type: satisfies
         target: REQ-DASH-014
+      - type: satisfies
+        target: REQ-SMITHY-005
     provenance:
       created-by: ai-assisted
       model: claude-opus-5-5

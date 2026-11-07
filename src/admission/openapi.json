@@ -3,7 +3,7 @@
   "info": {
     "title": "warte agent API",
     "version": "1",
-    "description": "Machine-readable answers for agents, from the ground station's latest snapshot. Read-only. The ground station's own API (ETA, state, history, reports) is under /ci; see /ci/api/openapi.json."
+    "description": "Machine-readable answers for agents, from the ground station's latest snapshot. Read-only. The start estimate is /api/eta; the ground station's own API (state, history, reports) is also under /ci, see /ci/api/openapi.json."
   },
   "paths": {
     "/api/queue": {
@@ -34,6 +34,7 @@
         }
       }
     },
+    "/api/eta": {"get": {"summary": "When will the next job of a PR (or branch) start?", "description": "Estimated from MEASURED waits (started_at - created_at of jobs that started in the same pool over the last 3h), not from queue position: GitHub does not start jobs in creation order. Covers the next job only; jobs gated by needs: are not created yet. status=unknown means the org scan was truncated or a telemetry chunk was lost, so absence does not prove the PR is not queued. The same answer as /ci/api/eta.", "parameters": [{"name": "repo", "in": "query", "required": true, "schema": {"type": "string", "pattern": "^[A-Za-z0-9_.-]{1,100}$"}, "description": "Repository name without the org, e.g. spar"}, {"name": "pr", "in": "query", "required": false, "schema": {"type": "integer", "minimum": 1}, "description": "Pull request number"}, {"name": "branch", "in": "query", "required": false, "schema": {"type": "string", "maxLength": 200}, "description": "Head branch (for push runs); used when pr is absent"}], "responses": {"200": {"description": "Answer", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Eta"}}}}, "400": {"description": "Bad or missing parameters"}, "503": {"description": "no ground station configured, or no snapshot received yet"}}}},
     "/api/watch": {
       "get": {
         "summary": "Long-poll: hold until a PR's or branch's CI runs start or finish",
@@ -119,6 +120,7 @@
   },
   "components": {
     "schemas": {
+      "Eta": {"type": "object", "properties": {"repo": {"type": "string"}, "pr": {"type": "integer", "nullable": true}, "branch": {"type": "string", "nullable": true}, "status": {"type": "string", "enum": ["running", "queued", "running+queued", "not_queued", "unknown"]}, "running": {"type": "array", "items": {"type": "object", "properties": {"on": {"type": "string"}, "hosted": {"type": "boolean"}, "workflow": {"type": "string"}, "job": {"type": "string"}, "for_s": {"type": "integer", "nullable": true}}}}, "queued": {"type": "array", "items": {"type": "object", "properties": {"run_id": {"type": "integer"}, "workflow": {"type": "string"}, "pool": {"type": "string"}, "jobs": {"type": "integer"}, "waited_s": {"type": "integer"}, "model": {"type": "string", "enum": ["self-hosted realized waits", "github-hosted realized waits"]}, "estimate": {"nullable": true, "type": "object", "description": "null when the pool has fewer than 5 recent samples", "properties": {"start_in_low_s": {"type": "integer"}, "start_in_high_s": {"type": "integer", "nullable": true, "description": "null when overdue"}, "overdue": {"type": "boolean", "description": "already waited longer than 90% of recent jobs: starved, stuck, or unservable labels"}, "basis": {"type": "string"}}}}}}, "scan_age_s": {"type": "integer", "nullable": true}, "queued_complete": {"type": "boolean"}, "scope": {"type": "string"}, "note": {"type": "string"}, "recheck_after_s": {"type": "integer", "description": "Seconds until asking again is worth it, for an agent's next wake-up: 300..1800, the soonest of running (900), queued with estimate (window start, or halfway to its end), queued without estimate (900), overdue (1800); unknown = 600. Absent for not_queued: act now."}}},
       "Queue": {
         "type": "object",
         "properties": {
