@@ -55,6 +55,10 @@ pub fn build_routes() -> Router<AppState> {
         .route("/admission", get(api_admission))
         .route("/watch", get(api_watch))
         .route("/eta", get(api_eta))
+        .route("/history/fleet", get(api_history_fleet))
+        .route("/status.md", get(api_status_md))
+        .route("/report", get(api_report))
+        .route("/report.md", get(api_report_md))
         .route("/machines", get(api_machines))
         .route("/history/machines", get(api_history_hosts))
         .route("/history/machines/{host}/metrics", get(api_history_metrics))
@@ -123,6 +127,10 @@ pub fn build_routes() -> Router<AppState> {
         .route(
             "/api/dashboard/schedule-partial",
             get(crate::dashboard::schedule_partial),
+        )
+        .route(
+            "/api/dashboard/ci-history-partial",
+            get(crate::dashboard::ci_history_partial),
         )
         .route("/airport.js", get(crate::dashboard::airport_js))
         .route(
@@ -240,12 +248,60 @@ async fn api_eta(
     State(state): State<AppState>,
     axum::extract::RawQuery(q): axum::extract::RawQuery,
 ) -> axum::response::Response {
+    state
+        .hub
+        .as_ref()
+        .map_or_else(no_hub, |h| h.eta_response(&q.unwrap_or_default()))
+}
+
+fn no_hub() -> axum::response::Response {
+    plain(
+        StatusCode::SERVICE_UNAVAILABLE,
+        "no ground station configured",
+    )
+}
+
+/// Per-minute fleet points, `hours=` 1 to 168 (REQ-SMITHY-006).
+async fn api_history_fleet(
+    State(state): State<AppState>,
+    axum::extract::RawQuery(q): axum::extract::RawQuery,
+) -> axum::response::Response {
+    state
+        .hub
+        .as_ref()
+        .map_or_else(no_hub, |h| h.history_response(&q.unwrap_or_default()))
+}
+
+/// Fleet status as Markdown, or one PR's start estimate (REQ-SMITHY-006).
+async fn api_status_md(
+    State(state): State<AppState>,
+    axum::extract::RawQuery(q): axum::extract::RawQuery,
+) -> axum::response::Response {
+    state
+        .hub
+        .as_ref()
+        .map_or_else(no_hub, |h| h.status_md_response(&q.unwrap_or_default()))
+}
+
+/// The monthly conveyor-belt report as JSON (REQ-SMITHY-006).
+async fn api_report(
+    State(state): State<AppState>,
+    axum::extract::RawQuery(q): axum::extract::RawQuery,
+) -> axum::response::Response {
     match state.hub.as_ref() {
-        Some(hub) => hub.eta_response(&q.unwrap_or_default()),
-        None => plain(
-            StatusCode::SERVICE_UNAVAILABLE,
-            "no ground station configured",
-        ),
+        Some(h) => h.report_response(q, false).await,
+        None => no_hub(),
+    }
+}
+
+/// The monthly conveyor-belt report as Markdown (REQ-SMITHY-006).
+async fn api_report_md(
+    State(state): State<AppState>,
+    axum::extract::RawQuery(q): axum::extract::RawQuery,
+) -> axum::response::Response {
+    match state.hub.as_ref() {
+        Some(h) => h.report_response(q, true).await,
+        None => no_hub(),
     }
 }
 

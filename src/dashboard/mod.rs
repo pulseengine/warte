@@ -11,6 +11,7 @@
 
 pub mod airport;
 pub mod charts;
+pub mod cihistory;
 pub mod compliance;
 pub mod costs;
 pub mod fleet;
@@ -155,6 +156,42 @@ pub async fn machine_history_partial(
     .await
     .unwrap_or_else(|_| machines::HISTORY_UNAVAILABLE.to_string());
     Html(html).into_response()
+}
+
+/// HTMX partial: fleet trends and the monthly conveyor-belt report, from the
+/// ground station (REQ-SMITHY-006).
+pub async fn ci_history_partial(
+    State(state): State<crate::server::AppState>,
+    Query(q): Query<std::collections::HashMap<String, String>>,
+) -> Response {
+    let Some(hub) = state.hub.clone() else {
+        return Html(format!(
+            r#"<div class="overview"><h2>CI history</h2>{}</div>"#,
+            fleet::unavailable(None)
+        ))
+        .into_response();
+    };
+    let now = crate::hub::now();
+    let (key, span) = cihistory::range(q.get("range").map(String::as_str));
+    let months = cihistory::months(now);
+    let month = q
+        .get("month")
+        .filter(|m| months.contains(m))
+        .cloned()
+        .unwrap_or_else(|| months[0].clone());
+    let points = hub.history_since(now - span);
+    let trends = cihistory::trends(&points, key, span, now, &month);
+    let belt = match hub.month_report(&month).await {
+        Ok(b) => cihistory::belt(&b, &months, key),
+        Err(e) => format!(
+            r#"<section class="panel"><p class="empty">{}</p></section>"#,
+            fleet::esc(e)
+        ),
+    };
+    Html(format!(
+        r#"<div class="overview"><h2>CI history</h2>{trends}{belt}<p class="note">Fleet status as Markdown, for terminals and agents: <a href="api/status.md" target="_blank" rel="noopener">api/status.md</a> (one PR: <code>api/status.md?repo=spar&amp;pr=511</code>).</p></div>"#
+    ))
+    .into_response()
 }
 
 /// HTMX partial: scheduled jobs (REQ-JOBS-001).

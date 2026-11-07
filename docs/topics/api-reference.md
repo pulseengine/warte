@@ -113,6 +113,23 @@ queued_complete, recheck_after_s?, scope, note}`: per running job `on`, `hosted`
 `overdue`, `basis`), estimated from measured waits in the same pool, `null` with
 fewer than 5 samples. It is the same answer as `/ci/api/eta`.
 
+## Ground station history and reports (REQ-SMITHY-006)
+
+What the `/ci` page offered, under warte's own API, each with the same answer
+as its `/ci` counterpart; `503` without a ground station.
+
+```
+GET /api/status.md[?repo=spar&pr=511]    # fleet status as Markdown, or one PR's start estimate
+GET /api/report?month=YYYY-MM            # monthly conveyor-belt report (JSON), default this month
+GET /api/report.md?month=YYYY-MM         # the same as Markdown
+GET /api/history/fleet?hours=H           # per-minute fleet points, H from 1 to 168 (default 24)
+```
+
+The dashboard shows them under **CI history** (trends over 6 h, 24 h and 7 d;
+the belt report for this and the two previous months) and the CI host's timers
+under **Health**. The ground station's whole snapshot (`/ci/api/state`) is not
+republished here: it carries the CI host's raw automation log lines.
+
 - `security` and `red-main` are always `open`.
 - `docs` batch whenever the repo has CI queued or running.
 - `feature` holds when every self-hosted runner is busy and 50+ self-hosted jobs wait,
@@ -162,7 +179,8 @@ devices and runners: `load.1`, `load.per_core`, `mem.used_pct`, `swap.used_mb`,
 ## Ground station (`/ci`, when `[hub]` is configured)
 
 The absorbed smithy hub API, unchanged; the contract is `/ci/api/openapi.json`.
-See `warte docs ground-station`.
+See `warte docs ground-station`. Everything here except `/ci/api/state` is also
+under warte's own API (above); `/ci` will be retired once its readers have moved.
 
 ```
 GET /ci/api/eta?repo=X&pr=N         # same as /api/eta

@@ -13,6 +13,7 @@ const VIEWS = [
   "Compliance",
   "Ask",
   "Queue",
+  "CI history",
   "Machines",
   "Airport",
   "Critical Path",
@@ -334,6 +335,26 @@ test.describe("behind a path prefix (the ground-station host: https://<host>/war
       expect((await page.locator("#content").innerText()).trim().length).toBeGreaterThan(20);
     }
     expect(outside, "requests escaped the /warte/ prefix").toEqual([]);
+    expect(errors).toEqual([]);
+  });
+});
+
+// rivet: verifies REQ-SMITHY-006
+test.describe("CI history", () => {
+  test("fleet trends switch range; the month's belt report is below", async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.goto("/");
+    await waitForHtmx(page);
+    await openView(page, "CI history");
+    const content = page.locator("#content");
+    await expect(content.locator("h3", { hasText: "Fleet trends" })).toBeVisible();
+    await expect(content.locator("h3", { hasText: "Conveyor belt" })).toBeVisible();
+    const range = content.getByRole("group", { name: "trend range" });
+    await expect(range.getByRole("button", { name: "24 h" })).toHaveClass(/on/);
+    await range.getByRole("button", { name: "7 d" }).click();
+    await waitForHtmx(page);
+    await expect(range.getByRole("button", { name: "7 d" })).toHaveClass(/on/);
+    await page.screenshot({ path: "test-results/ci-history.png", fullPage: true });
     expect(errors).toEqual([]);
   });
 });

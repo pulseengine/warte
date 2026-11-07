@@ -876,3 +876,20 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-11-07T04:14:31Z
+
+  - id: REQ-SMITHY-006
+    type: requirement
+    title: "warte's API and dashboard carry what the /ci page offered: status Markdown, belt report, fleet trends, CI-host timers"
+    status: implemented
+    release: v1.6.2
+    description: "warte SHALL serve under its own API GET /api/status.md (fleet, or one PR with repo and pr/branch), /api/report and /api/report.md (monthly conveyor-belt report, month=YYYY-MM) and /api/history/fleet (per-minute fleet points, hours=1..168), each with the same answer as its /ci counterpart and 503 without a ground station. The dashboard SHALL show fleet trends over 6 h, 24 h and 7 d and the belt report for this and the two previous months (CI history), and the CI host's timers on Health. The ground station's whole snapshot and the automation's raw log lines SHALL NOT be republished on warte's unauthenticated API (warte#46). Owner decision 2026-11-07: /ci is retired once the ci-status skill, the commit-merge-guard hook and the owner's environment read warte's API."
+    fields:
+      category: interface
+      priority: must
+    links:
+      - type: refines
+        target: REQ-SMITHY-002
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-07T04:40:26Z

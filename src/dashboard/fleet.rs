@@ -39,7 +39,7 @@ fn dur(s: i64) -> String {
 }
 
 /// Why there is nothing to show, as an HTML paragraph.
-fn unavailable(hub: Option<&Hub>) -> String {
+pub(crate) fn unavailable(hub: Option<&Hub>) -> String {
     match hub {
         None => r#"<p class="empty">Ground station not configured. Add a <code>[hub]</code> section to warte.toml (see <code>warte docs ground-station</code>).</p>"#.into(),
         Some(_) => r#"<p class="empty">Ground station is up, but no telemetry has arrived from the smithy agent yet.</p>"#.into(),
@@ -430,9 +430,10 @@ pub fn health_view(hub: Option<&Hub>) -> String {
             .collect()
     };
     format!(
-        r#"<div class="split"><section class="panel"><h3>CI host · {}</h3><div class="hbars">{host}</div><div class="note">smithy agent {} · pressure is the share of time tasks stalled (PSI avg60).</div></section><section class="panel"><h3>Telemetry link · CCSDS</h3><div class="scroll"><table class="data-table"><thead><tr><th>APID</th><th>Stream</th><th class="n">Received</th><th class="n">Lost</th><th class="n">Loss</th><th class="n">Restarts</th><th class="n">Last</th></tr></thead><tbody>{link}</tbody></table></div><div class="note">Counted since warte last started. A lost packet is a gap in the stream's sequence count.</div><h3 style="margin-top:1rem">Collection errors</h3>{errors}</section></div>{}"#,
+        r#"<div class="split"><section class="panel"><h3>CI host · {}</h3><div class="hbars">{host}</div><div class="note">smithy agent {} · pressure is the share of time tasks stalled (PSI avg60).</div></section><section class="panel"><h3>Telemetry link · CCSDS</h3><div class="scroll"><table class="data-table"><thead><tr><th>APID</th><th>Stream</th><th class="n">Received</th><th class="n">Lost</th><th class="n">Loss</th><th class="n">Restarts</th><th class="n">Last</th></tr></thead><tbody>{link}</tbody></table></div><div class="note">Counted since warte last started. A lost packet is a gap in the stream's sequence count.</div><h3 style="margin-top:1rem">Collection errors</h3>{errors}</section></div>{}{}"#,
         esc(&s.host),
         esc(&s.agent_version),
+        super::cihistory::timers(&s.automation),
         freshness(at)
     )
 }
