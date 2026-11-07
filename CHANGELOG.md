@@ -4,6 +4,10 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.2 — 2026-11-07
+
+Everything the ground station's `/ci` page offered, in warte's own API and dashboard: the start estimate, status as Markdown, the monthly conveyor-belt report, fleet trends and the CI host's timers. `/ci` itself still answers in this release; it is retired in the next.
+
 - **The `/ci` page's history and reports, in warte** (REQ-SMITHY-006). A new **CI history** view: fleet trends (runners busy and online, jobs queued on our runners and on GitHub's, the longest wait, PRs waiting, the CI host's load) over 6 h, 24 h or 7 d, and the monthly conveyor-belt report (work against waiting per pool, whether the runner pool is the bottleneck by hour, the busiest workflows, the runners) for this and the two previous months. **Health** shows the CI host's timers. Under warte's API: `/api/status.md`, `/api/report`, `/api/report.md` and `/api/history/fleet`, the same answers as their `/ci` counterparts. `/ci` stays until its readers have moved.
 - **`/api/eta` under warte's own API** (REQ-SMITHY-005). The start estimate that was only at `/ci/api/eta`: per running job where and for how long, per queued part its pool, how long it waited and when it probably starts (`start_in_low_s`, `start_in_high_s`, `overdue`, `basis`). Same answer as `/ci/api/eta`, which stays for now; agents and the ci-status skill can move to `/api/eta` before the `/ci` view is retired.
 
