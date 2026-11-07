@@ -863,7 +863,7 @@ artifacts:
   - id: REQ-SMITHY-005
     type: requirement
     title: warte's own API gives the start estimate, so the /ci view can be retired
-    status: implemented
+    status: verified
     release: v1.6.2
     description: "warte SHALL answer GET /api/eta under its own API with the same answer as the ground station's /ci/api/eta: status, running jobs (on, hosted, workflow, job, for_s) and per queued part run_id, workflow, pool, jobs, waited_s, model and estimate (start_in_low_s, start_in_high_s, overdue, basis), so agents and the ci-status skill read one API and the absorbed smithy-hub surface under /ci can be removed in a later release. It SHALL answer 503 when no ground station or snapshot exists, and work on the GitHub source too."
     fields:
@@ -880,7 +880,7 @@ artifacts:
   - id: REQ-SMITHY-006
     type: requirement
     title: "warte's API and dashboard carry what the /ci page offered: status Markdown, belt report, fleet trends, CI-host timers"
-    status: implemented
+    status: verified
     release: v1.6.2
     description: "warte SHALL serve under its own API GET /api/status.md (fleet, or one PR with repo and pr/branch), /api/report and /api/report.md (monthly conveyor-belt report, month=YYYY-MM) and /api/history/fleet (per-minute fleet points, hours=1..168), each with the same answer as its /ci counterpart and 503 without a ground station. The dashboard SHALL show fleet trends over 6 h, 24 h and 7 d and the belt report for this and the two previous months (CI history), and the CI host's timers on Health. The ground station's whole snapshot and the automation's raw log lines SHALL NOT be republished on warte's unauthenticated API (warte#46). Owner decision 2026-11-07: /ci is retired once the ci-status skill, the commit-merge-guard hook and the owner's environment read warte's API."
     fields:
