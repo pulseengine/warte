@@ -1,5 +1,6 @@
 //! What the ground station's `/ci` page offered is in warte's own API and
-//! dashboard, with the same answers, so `/ci` can be retired (REQ-SMITHY-006).
+//! dashboard, with the same answers as the hub API (REQ-SMITHY-006), and
+//! `/ci` itself is retired (REQ-SMITHY-007).
 
 use std::net::Ipv4Addr;
 use warte::hub::model::{Automation, Point, Snapshot, TimerState};
@@ -74,30 +75,36 @@ fn this_month() -> String {
 
 // rivet: verifies REQ-SMITHY-006
 #[tokio::test]
-async fn warte_api_answers_what_ci_answered() {
-    let (_d, base) = serve(true).await;
+async fn warte_api_answers_what_the_hub_api_answers() {
+    let (d, base) = serve(true).await;
+    // the hub API as `warte hub` serves it (and /ci served it), on the same data
+    let hub = warte::hub::Hub::open(d.path().join("hub").to_str().unwrap(), "pulseengine").unwrap();
+    let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let hub_base = format!("http://{}", l.local_addr().unwrap());
+    let router = hub.router();
+    tokio::spawn(async move { axum::serve(l, router).await.unwrap() });
     let m = this_month();
     for (own, ci) in [
-        ("/api/status.md".to_string(), "/ci/status.md".to_string()),
+        ("/api/status.md".to_string(), "/status.md".to_string()),
         (
             "/api/status.md?repo=spar&pr=1".into(),
-            "/ci/status.md?repo=spar&pr=1".into(),
+            "/status.md?repo=spar&pr=1".into(),
         ),
         (
             format!("/api/report?month={m}"),
-            format!("/ci/api/report?month={m}"),
+            format!("/api/report?month={m}"),
         ),
         (
             format!("/api/report.md?month={m}"),
-            format!("/ci/report.md?month={m}"),
+            format!("/report.md?month={m}"),
         ),
         (
             "/api/history/fleet?hours=2".into(),
-            "/ci/api/history?hours=2".into(),
+            "/api/history?hours=2".into(),
         ),
     ] {
         let a = get(format!("{base}{own}")).await;
-        let b = get(format!("{base}{ci}")).await;
+        let b = get(format!("{hub_base}{ci}")).await;
         assert_eq!(a.0, 200, "{own}: {}", a.1);
         assert_eq!(a, b, "{own} differs from {ci}");
     }

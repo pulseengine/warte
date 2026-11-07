@@ -8,7 +8,6 @@ use crate::artifact::ArtifactStore;
 use crate::config::Config;
 use crate::db::Database;
 use crate::sync::SyncService;
-use axum::response::IntoResponse;
 use axum::Router;
 use std::sync::Arc;
 use tower_http::trace::TraceLayer;
@@ -45,12 +44,12 @@ pub struct AppState {
 pub fn build_router(state: AppState) -> Router {
     use axum::middleware;
 
-    // The hub API is read-only and served without warte's auth, exactly as on
-    // smithy hub today (https://<host>/ci/ behind Caddy).
-    let hub_api = state.hub.as_ref().map(|h| h.router());
     // build_routes() already places the API under /api and the dashboard at /.
     // (Before v1.4.0 this nested it a second time: /api/api/..., no dashboard.)
-    let app = Router::new()
+    // The ground station's answers are under warte's own API; the absorbed
+    // smithy-hub page and API once mounted at /ci are retired (REQ-SMITHY-007).
+    // `warte hub` still serves them on its own port.
+    Router::new()
         .merge(api::build_routes())
         // a real text 404: an empty body with no content type is saved as
         // "document.txt" by browsers instead of being shown
@@ -63,22 +62,7 @@ pub fn build_router(state: AppState) -> Router {
         // A permissive one let any web page a LAN user opened read the whole
         // read API (machines, agents, queue) cross-origin.
         .layer(TraceLayer::new_for_http())
-        .with_state(state);
-    match hub_api {
-        // logged like the rest; no CORS (smithy hub had none, and it is GET-only)
-        // axum's nest matches "/ci" and "/ci/<path>" but not "/ci/" itself,
-        // which is where a browser lands for the hub's web view (and where
-        // Caddy forwards ".../ci/"): serve the same index there.
-        Some(hub) => app
-            .route(
-                "/ci/",
-                axum::routing::get(|| async {
-                    axum::response::Html(crate::hub::INDEX).into_response()
-                }),
-            )
-            .nest("/ci", hub.layer(TraceLayer::new_for_http())),
-        None => app,
-    }
+        .with_state(state)
 }
 
 /// Start the server.

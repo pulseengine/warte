@@ -335,8 +335,9 @@ async fn the_router_serves_api_and_dashboard_where_documented() {
 }
 
 // rivet: verifies REQ-SMITHY-001
+// rivet: verifies REQ-SMITHY-007
 #[tokio::test]
-async fn serve_with_a_hub_mounts_the_ground_station_at_ci() {
+async fn serve_with_a_hub_answers_under_its_own_api_and_no_longer_at_ci() {
     let hub_dir = tempfile::tempdir().unwrap();
     let cfg = warte::config::HubConfig {
         udp: "127.0.0.1:0".into(),
@@ -348,17 +349,20 @@ async fn serve_with_a_hub_mounts_the_ground_station_at_ci() {
         skill_usage_file: None,
     };
     let (_d, base) = serve_app(Some(cfg)).await;
-    assert_eq!(status(format!("{base}/ci/healthz")).await, 200);
-    // the hub's web view, where a browser lands (found by the live parity run)
-    for p in ["/ci", "/ci/", "/ci/index.html"] {
-        assert_eq!(status(format!("{base}{p}")).await, 200, "{p}");
+    // the absorbed smithy-hub page and API are retired from `warte serve`
+    for p in [
+        "/ci",
+        "/ci/",
+        "/ci/index.html",
+        "/ci/healthz",
+        "/ci/api/openapi.json",
+        "/ci/api/state",
+        "/ci/api/eta?repo=spar&pr=1",
+        "/ci/status.md",
+    ] {
+        assert_eq!(status(format!("{base}{p}")).await, 404, "{p}");
     }
-    assert_eq!(status(format!("{base}/ci/api/openapi.json")).await, 200);
-    // before telemetry: the hub says so, and so does the view
-    assert_eq!(
-        status(format!("{base}/ci/api/eta?repo=spar&pr=1")).await,
-        503
-    );
+    // before telemetry: the ground station says so, and so does the view
     assert_eq!(status(format!("{base}/api/eta?repo=spar&pr=1")).await, 503);
     let q = reqwest::get(format!("{base}/api/dashboard/queue-partial"))
         .await

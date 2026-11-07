@@ -97,7 +97,7 @@ bearer token). Endpoints:
 | `/api/access/revoke` | POST | operator | Revoke access rights |
 | `/api/access/list` | GET | operator | List access rights |
 | `/api/dashboard/overview` | GET | operator | Dashboard overview data |
-| `/ci/api/eta` | GET | public (read-only) | ETA query ("when will this PR run?"), from the ground station |
+| `/api/eta` | GET | public (read-only) | ETA query ("when will this PR run?"), from the ground station |
 | `/api/sync/state` | GET | instance | Get sync state |
 | `/api/sync/update` | POST | instance | Push state update |
 | `/api/watch` | GET (long-poll) | agent | Blocks until a PR's or branch's CI changes (`warte watch`) |
@@ -243,8 +243,8 @@ Command: `warte migrate temper --config /path/to/temper/config.yml`
 - WireGuard VPN between edge and internal instances
 
 ### Home-LAN host (small ARM board)
-- Runs smithy hub (the CI fleet ground station) behind Caddy at `/ci/`
-- `warte hub` replaces it in place after the parallel run; no data import
+- Runs warte with the ground station in-process (`[hub]`); its answers are under
+  warte's own API (the `/ci` mount is retired, REQ-SMITHY-007)
 
 ## Release Plan
 

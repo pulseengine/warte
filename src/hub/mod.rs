@@ -437,7 +437,7 @@ impl Hub {
     }
 
     /// The `/api/eta` answer for a raw query string, as an HTTP response:
-    /// served at `/ci/api/eta` and at warte's own `/api/eta` (REQ-SMITHY-005).
+    /// served by `warte hub` and at warte's own `/api/eta` (REQ-SMITHY-005).
     pub fn eta_response(&self, query: &str) -> Response {
         let g = lk(&self.shared);
         match (&g.p.latest, eta_query(query)) {
@@ -551,7 +551,7 @@ pub fn hours_query(query: &str) -> i64 {
         .clamp(1, 168)
 }
 
-/// The ground station's answers as HTTP responses, served under `/ci` and
+/// The ground station's answers as HTTP responses, served by `warte hub` and
 /// under warte's own API (REQ-SMITHY-006), so both say the same.
 impl Hub {
     /// Latest snapshot with the telemetry link's counters.

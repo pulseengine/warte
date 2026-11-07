@@ -1,5 +1,5 @@
 //! Markdown rendering of a snapshot, for humans in a terminal and for agents
-//! (`curl http://fourpi.local/ci/status.md`). Same data as the web view.
+//! (`curl https://<host>/warte/api/status.md`). Same data as the web view.
 //!
 //! Job names, branches and PR titles are written by repo authors, so every
 //! table cell goes through `cell()`: one line, no table breakout, no HTML, no
