@@ -530,54 +530,90 @@ fn link_rows(g: &Shared) -> Vec<LinkRow> {
 }
 
 async fn api_state(State(h): State<Hub>) -> Response {
-    let g = lk(&h.shared);
-    let link = link_rows(&g);
-    json(&StateView {
-        hub_now: now(),
-        received_at: g.p.received_at,
-        snapshot: &g.p.latest,
-        link,
-        rejected: g.asm.rejected,
-        foreign: g.foreign,
-        frames: g.frames,
-    })
+    h.state_response()
 }
 
 async fn api_history(State(h): State<Hub>, RawQuery(q): RawQuery) -> Response {
-    let query = q.unwrap_or_default();
-    let hours: i64 = query
+    h.history_response(&q.unwrap_or_default())
+}
+
+async fn status_md(State(h): State<Hub>, RawQuery(q): RawQuery) -> Response {
+    h.status_md_response(&q.unwrap_or_default())
+}
+
+/// `hours=H` of a query, 1 to 168, default 24.
+pub fn hours_query(query: &str) -> i64 {
+    query
         .split('&')
         .find_map(|kv| kv.strip_prefix("hours="))
         .and_then(|v| v.parse().ok())
         .unwrap_or(24)
-        .clamp(1, 168);
-    let since = now() - hours * 3600;
-    let g = lk(&h.shared);
-    let pts: Vec<&Point> = g.p.history.iter().filter(|p| p.t >= since).collect();
-    json(&pts)
+        .clamp(1, 168)
 }
 
-async fn status_md(State(h): State<Hub>, RawQuery(q): RawQuery) -> Response {
-    let query = q.unwrap_or_default();
-    let g = lk(&h.shared);
-    match (&g.p.latest, query.contains("repo=")) {
-        (None, _) => text(503, "no snapshot received yet"),
-        (Some(s), true) => match eta_query(&query) {
-            Ok((repo, pr, branch)) => markdown(report::eta_markdown(&eta::answer(
+/// The ground station's answers as HTTP responses, served under `/ci` and
+/// under warte's own API (REQ-SMITHY-006), so both say the same.
+impl Hub {
+    /// Latest snapshot with the telemetry link's counters.
+    pub fn state_response(&self) -> Response {
+        let g = lk(&self.shared);
+        let link = link_rows(&g);
+        json(&StateView {
+            hub_now: now(),
+            received_at: g.p.received_at,
+            snapshot: &g.p.latest,
+            link,
+            rejected: g.asm.rejected,
+            foreign: g.foreign,
+            frames: g.frames,
+        })
+    }
+
+    /// Per-minute fleet points of the last `hours=` (default 24, at most 168).
+    pub fn history_response(&self, query: &str) -> Response {
+        let since = now() - hours_query(query) * 3600;
+        let g = lk(&self.shared);
+        let pts: Vec<&Point> = g.p.history.iter().filter(|p| p.t >= since).collect();
+        json(&pts)
+    }
+
+    /// Fleet status as Markdown, or one PR's answer with `repo=` and `pr=`/`branch=`.
+    pub fn status_md_response(&self, query: &str) -> Response {
+        let g = lk(&self.shared);
+        match (&g.p.latest, query.contains("repo=")) {
+            (None, _) => text(503, "no snapshot received yet"),
+            (Some(s), true) => match eta_query(query) {
+                Ok((repo, pr, branch)) => markdown(report::eta_markdown(&eta::answer(
+                    s,
+                    &self.org,
+                    &repo,
+                    pr,
+                    branch.as_deref(),
+                    now(),
+                ))),
+                Err(e) => text(400, e),
+            },
+            (Some(s), false) => markdown(report::markdown(
                 s,
-                &h.org,
-                &repo,
-                pr,
-                branch.as_deref(),
                 now(),
-            ))),
+                Some(g.asm.link.values().map(|l| l.lost).sum()),
+            )),
+        }
+    }
+
+    /// The month's conveyor-belt report (`month=YYYY-MM`, default this
+    /// month), as JSON or Markdown. Reads the month's ledger off the async workers.
+    pub async fn report_response(&self, query: Option<String>, md: bool) -> Response {
+        match month_report_blocking(self.clone(), query).await {
+            Ok(b) if md => markdown(belt::markdown(&b)),
+            Ok(b) => json(&b),
             Err(e) => text(400, e),
-        },
-        (Some(s), false) => markdown(report::markdown(
-            s,
-            now(),
-            Some(g.asm.link.values().map(|l| l.lost).sum()),
-        )),
+        }
+    }
+
+    /// The month's report as data, for the dashboard.
+    pub async fn month_report(&self, month: &str) -> Result<belt::BeltReport, &'static str> {
+        month_report_blocking(self.clone(), Some(format!("month={month}"))).await
     }
 }
 
@@ -620,15 +656,9 @@ async fn month_report_blocking(
 }
 
 async fn report_md(State(h): State<Hub>, RawQuery(q): RawQuery) -> Response {
-    match month_report_blocking(h, q).await {
-        Ok(b) => markdown(belt::markdown(&b)),
-        Err(e) => text(400, e),
-    }
+    h.report_response(q, true).await
 }
 
 async fn api_report(State(h): State<Hub>, RawQuery(q): RawQuery) -> Response {
-    match month_report_blocking(h, q).await {
-        Ok(b) => json(&b),
-        Err(e) => text(400, e),
-    }
+    h.report_response(q, false).await
 }
