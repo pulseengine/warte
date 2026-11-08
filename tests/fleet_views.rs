@@ -336,6 +336,7 @@ async fn the_router_serves_api_and_dashboard_where_documented() {
 
 // rivet: verifies REQ-SMITHY-001
 // rivet: verifies REQ-SMITHY-007
+// rivet: verifies REQ-SMITHY-008
 #[tokio::test]
 async fn serve_with_a_hub_answers_under_its_own_api_and_no_longer_at_ci() {
     let hub_dir = tempfile::tempdir().unwrap();
