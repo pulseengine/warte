@@ -227,3 +227,20 @@ artifacts:
         target: REQ-ACCESS-003
       - type: satisfies
         target: REQ-ARTIFACT-003
+
+  - id: DD-PRESSURE-001
+    type: design-decision
+    title: "Disk pressure: totals per kind on the unauthenticated API, who holds it only on the machine"
+    status: accepted
+    description: The ground station publishes only verdicts and GB totals per holder kind per volume. Who holds the space (session, pid, repo, path) stays on the machine, in the probe's state directory, shown by warte probe pressure.
+    fields:
+      rationale: "The read API is unauthenticated (warte#46) and warte runs at work too, so names and paths must not leave the machine. Pressure is local: the agent that sees low disk and the holders it asks are on the same machine. Decided by the owner 2026-11-08."
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-08T09:54:05Z
+    links:
+      - type: satisfies
+        target: REQ-PRESSURE-001
+      - type: satisfies
+        target: REQ-PRESSURE-002

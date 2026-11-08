@@ -96,6 +96,40 @@ shows them; findings: a spinning disk at least 60 % busy or 100 ms per
 request is amber, 90 % busy red; IO pressure at least 20 % amber, 50 % red.
 The fields are optional, so older probes and ground stations keep working.
 
+### Disk pressure (REQ-PRESSURE-002)
+
+`warte probe pressure` shows, on this machine and without any network call,
+each writable volume's free space and verdict (`ok`, `low` under 20 GB free,
+`critical` under 10 GB; `WARTE_PRESSURE_LOW_GB` and
+`WARTE_PRESSURE_CRITICAL_GB` change them) and what agents hold, largest first:
+
+- `scratchpad`: a Claude Code session's directory under `/tmp/claude-<uid>/`
+  (scratchpad and task outputs), with its session id;
+- `target`: `target/` in a checkout a live agent session works in;
+- `worktree`: a git worktree of such a checkout.
+
+Each holder has its volume, GB, path, the live agent sessions working there
+(`agents`; `live`, and `pid` when there is exactly one) and `complete` (false
+when sizing ran out of time, so `gb` is a floor). It reads what the probe
+stored: `probe send` sizes holders only while a volume is low, at most every
+10 minutes, within 60 seconds, on the low volumes only. `--measure` sizes them
+now, on every volume. Sizing follows no symlink and stays on the volume.
+Nothing is ever deleted. `host` is the name the probe enrolled under.
+
+```bash
+warte probe pressure
+warte probe pressure --format json
+warte probe pressure --measure
+```
+
+The probe state directory defaults to `~/Library/Application Support/warte-probe`
+on macOS when it exists, else `/var/lib/warte-probe`; `--state-dir` or
+`WARTE_PROBE_STATE_DIR` sets it. The stored holders are readable by the
+probe's user only. On Linux the probe runs as its own user and cannot read
+other users' scratchpads, so there `--measure` as the agents' user is the way
+to see them. The ground station receives only the totals per kind per volume
+(`GET /api/pressure`).
+
 ### Enrollment (DD-PROBE-002)
 
 On the ground station, mint a one-time token for the machine:

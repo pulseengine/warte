@@ -92,7 +92,7 @@ pub struct Config {
     pub github: Option<GithubConfig>,
 
     /// Ground station (absorbed smithy hub). When set, `warte serve` ingests the
-    /// smithy agent's telemetry, mounts the hub API under `/ci`, and the Queue,
+    /// smithy agent's telemetry and the Queue,
     /// Resources, Ask and Overview views read from it (DD-SMITHY-001).
     #[serde(default)]
     pub hub: Option<HubConfig>,
@@ -101,6 +101,11 @@ pub struct Config {
     /// section only tunes retention.
     #[serde(default)]
     pub history: Option<HistoryConfig>,
+
+    /// When a volume counts as low or critical for `/api/pressure`
+    /// (REQ-PRESSURE-001): `[pressure] low_gb = 20, critical_gb = 10`.
+    #[serde(default)]
+    pub pressure: crate::probe::pressure::Thresholds,
 }
 
 /// Machine history retention (REQ-MHIST-001).
@@ -279,6 +284,7 @@ impl Default for Config {
             github: None,
             hub: None,
             history: None,
+            pressure: Default::default(),
         }
     }
 }

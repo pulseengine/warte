@@ -403,16 +403,16 @@ pub async fn send(
     let cert = std::fs::read_to_string(state_dir.join("probe-cert.pem"))
         .context("reading probe certificate; enroll first")?;
     let mut report = super::collect(Some(&state_dir.join("io-prev.json"))).await;
+    // REQ-PRESSURE-002: size what agents hold while a volume is low
+    super::pressure::attach(
+        &mut report,
+        state_dir,
+        &super::pressure::Thresholds::from_env(),
+        now,
+    );
     // the certificate names the host; report under that name
-    let cert_der = pem_body(&cert, "CERTIFICATE")?;
-    let (_, c) = X509Certificate::from_der(&cert_der).context("probe certificate")?;
-    if let Some(cn) = c
-        .subject()
-        .iter_common_name()
-        .next()
-        .and_then(|c| c.as_str().ok())
-    {
-        report.host = cn.to_string();
+    if let Some(cn) = cert_host(&cert)? {
+        report.host = cn;
     }
     let report = serde_json::to_string(&report)?;
     let body = SignedReport {
@@ -441,4 +441,17 @@ pub async fn send(
         return Err(anyhow!("{}", failed.join("; ")));
     }
     Ok(())
+}
+
+/// The host a probe certificate (PEM) names: the name its reports carry.
+pub fn cert_host(cert_pem: &str) -> anyhow::Result<Option<String>> {
+    let cert_der = pem_body(cert_pem, "CERTIFICATE")?;
+    let (_, c) = X509Certificate::from_der(&cert_der).context("probe certificate")?;
+    let host = c
+        .subject()
+        .iter_common_name()
+        .next()
+        .and_then(|c| c.as_str().ok())
+        .map(str::to_string);
+    Ok(host)
 }

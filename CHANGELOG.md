@@ -4,6 +4,8 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+- **Disk pressure** (REQ-PRESSURE-001, REQ-PRESSURE-002). `GET /api/pressure?host=` answers whether a host is low on disk: a verdict per writable volume (`ok`, `low` under 20 GB free, `critical` under 10 GB, both set in `[pressure]`), the host's being the worst, and the GB that agent scratchpads, `target/` directories and git worktrees hold there, as totals only. Who holds it is shown only on the machine: `warte probe pressure` lists each holder with its path, session id, live sessions and size, largest first. The probe sizes holders only while a volume is low, at most every 10 minutes, within 60 seconds, on the low volumes only; it follows no symlink and deletes nothing.
+
 ## v1.6.4 — 2026-11-08
 
 - **The retired `/ci` paths answer `410 Gone` with their replacement** (REQ-SMITHY-008). Since v1.6.3 they answered a bare `404`, and an agent calling `/ci/api/eta` could read the failed call as "nothing queued". Now each answers `410` with JSON naming the path under warte's own API (`/ci/api/eta?repo=spar&pr=1` → `/api/eta?repo=spar&pr=1`, `/ci/api/state` → `/api/queue`).

@@ -75,6 +75,7 @@ pub fn build_routes() -> Router<AppState> {
             post(api_probe_feed_temper).layer(axum::extract::DefaultBodyLimit::max(3 << 20)),
         )
         .route("/compliance", get(api_compliance))
+        .route("/pressure", get(api_pressure))
         .route("/openapi.json", get(api_openapi));
     // /api/ws and /api/events are not mounted: they broadcast agent and
     // access events without authentication, and nothing uses them (agents
@@ -437,6 +438,8 @@ pub fn public_report(r: &crate::probe::Report) -> serde_json::Value {
         "inventory": r.inventory.as_ref().map(crate::probe::inventory::public),
         "health": r.health.as_ref().map(crate::probe::health::public),
         "hardware": r.hardware.as_ref().map(crate::probe::hardware::public),
+        // GB totals per kind per volume, no paths (REQ-PRESSURE-001)
+        "pressure": r.pressure,
     })
 }
 
@@ -1368,4 +1371,112 @@ async fn sync_update(
             StatusCode::INTERNAL_SERVER_ERROR
         }
     }
+}
+
+/// Whether a host's disks are low (REQ-PRESSURE-001): a verdict per volume
+/// from its latest report, the host's being the worst, with the GB agents
+/// hold there as totals per kind. No names or paths (DD-PRESSURE-001).
+async fn api_pressure(
+    State(state): State<AppState>,
+    Query(q): Query<std::collections::HashMap<String, String>>,
+) -> axum::response::Response {
+    use crate::probe::pressure::{free_gb, worst, Verdict};
+    let Some(m) = state.machines.as_ref() else {
+        return plain(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "no ground station configured",
+        );
+    };
+    let seen = m.list();
+    let Some(host) = q.get("host").filter(|h| !h.is_empty()) else {
+        let hosts: Vec<&str> = seen.iter().map(|s| s.report.host.as_str()).collect();
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "host is required", "hosts": hosts})),
+        )
+            .into_response();
+    };
+    let t = state.config.pressure;
+    let now = crate::hub::now();
+    let Some(s) = seen.iter().find(|s| &s.report.host == host) else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({
+                "error": "unknown host",
+                "hosts": seen.iter().map(|s| s.report.host.as_str()).collect::<Vec<_>>(),
+            })),
+        )
+            .into_response();
+    };
+    let r = &s.report;
+    let stale = now - s.received_at > crate::probe::MACHINE_STALE_S;
+    let held = |mount: &str| {
+        r.pressure
+            .as_ref()
+            .and_then(|p| p.volumes.iter().find(|v| v.mount == mount))
+            .map(|v| {
+                serde_json::json!({
+                    "scratchpad": v.scratchpad_gb,
+                    "target": v.target_gb,
+                    "worktree": v.worktree_gb,
+                })
+            })
+    };
+    let vols: Vec<(Verdict, serde_json::Value, f64, &str)> = r
+        .disks
+        .iter()
+        .map(|d| {
+            let free = free_gb(d);
+            let v = if stale {
+                Verdict::Unknown
+            } else {
+                t.verdict(free)
+            };
+            (
+                v,
+                serde_json::json!({
+                    "mount": d.mount,
+                    "free_gb": free,
+                    "total_gb": d.size_gb,
+                    "verdict": v,
+                    "held_gb": held(&d.mount),
+                }),
+                free,
+                d.mount.as_str(),
+            )
+        })
+        .collect();
+    let verdict = if stale {
+        Verdict::Unknown
+    } else {
+        worst(vols.iter().map(|v| v.0))
+    };
+    let reason = if stale {
+        format!(
+            "no report from {host} for {} min",
+            (now - s.received_at) / 60
+        )
+    } else {
+        match vols
+            .iter()
+            .filter(|v| v.0 == verdict)
+            .min_by(|a, b| a.2.total_cmp(&b.2))
+        {
+            Some((_, _, free, mount)) if verdict != Verdict::Ok => format!(
+                "{mount} has {free} GB free (low under {} GB, critical under {} GB)",
+                t.low_gb, t.critical_gb
+            ),
+            _ => format!("every volume has at least {} GB free", t.low_gb),
+        }
+    };
+    Json(serde_json::json!({
+        "host": r.host,
+        "verdict": verdict,
+        "reason": reason,
+        "measured_at": r.taken_at,
+        "held_measured_at": r.pressure.as_ref().map(|p| p.measured_at),
+        "recheck_s": verdict.recheck_s(),
+        "volumes": vols.into_iter().map(|v| v.1).collect::<Vec<_>>(),
+    }))
+    .into_response()
 }

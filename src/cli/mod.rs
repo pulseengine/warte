@@ -191,6 +191,22 @@ pub enum TokenCommands {
 pub enum ProbeCommands {
     /// Collect once and print (read-only; nothing is sent)
     Report,
+    /// On this machine, no network I/O: each volume's free space and verdict,
+    /// and what agents hold (scratchpads, target/, worktrees) with paths and
+    /// sessions, as the probe last sized it (REQ-PRESSURE-002). Reads only;
+    /// deletes nothing
+    Pressure {
+        /// `text` or `json`
+        #[arg(long, default_value = "text")]
+        format: String,
+        /// Size the holders now instead of reading what the probe stored
+        /// (slow when much is held)
+        #[arg(long)]
+        measure: bool,
+        /// The probe's state directory (default: the platform's)
+        #[arg(long, env = "WARTE_PROBE_STATE_DIR")]
+        state_dir: Option<std::path::PathBuf>,
+    },
     /// On an enrolled machine: collect once, sign with the enrolled key and
     /// send to the ground station (run it from launchd/systemd every minute)
     Send {

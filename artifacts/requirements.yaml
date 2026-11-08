@@ -924,3 +924,30 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-11-08T09:45:36Z
+  - id: REQ-PRESSURE-001
+    type: requirement
+    title: /api/pressure answers per host whether its disks are low, with totals per holder kind and no names or paths
+    status: implemented
+    release: v1.6.5
+    description: GET /api/pressure?host=H gives a verdict (ok, low, critical, unknown) per writable volume from the host's latest probe report, the host's verdict being the worst volume. Thresholds are warte config ([pressure] low_gb, default 20; critical_gb, default 10). Per volume it publishes the GB held by agent scratchpads, target/ directories and worktrees as totals per kind; never a session, repo, pid or path (warte#46). unknown when there is no fresh report; 400 with the known hosts without host=.
+    links:
+      - type: refines
+        target: REQ-PROBE-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-08T09:53:58Z
+
+  - id: REQ-PRESSURE-002
+    type: requirement
+    title: The probe sizes what agents hold only while a volume is low, and warte probe pressure shows who holds it, locally
+    status: implemented
+    release: v1.6.5
+    description: The probe sizes agent scratchpads, target/ directories of live sessions' checkouts and their git worktrees only while a volume is under the low threshold, at most every 10 minutes and within a time budget, never following symlinks or crossing devices, and never deletes anything. warte probe pressure prints, on the machine and without network I/O, the host as enrolled, each volume's verdict and each holder with kind, volume, GB, path, session id, pid, agent and repo, from what the probe stored; --measure sizes live; --host-only prints the enrolled host name only.
+    links:
+      - type: refines
+        target: REQ-PROBE-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-08T09:53:58Z
