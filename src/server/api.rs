@@ -243,7 +243,7 @@ async fn api_admission(
 }
 
 /// When a PR's or branch's next job starts: the ground station's estimate
-/// from measured waits, the same answer as `/ci/api/eta` (REQ-SMITHY-005).
+/// from measured waits (REQ-SMITHY-005).
 async fn api_eta(
     State(state): State<AppState>,
     axum::extract::RawQuery(q): axum::extract::RawQuery,

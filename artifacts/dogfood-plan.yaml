@@ -274,6 +274,8 @@ artifacts:
         target: REQ-SMITHY-005
       - type: satisfies
         target: REQ-SMITHY-006
+      - type: satisfies
+        target: REQ-SMITHY-007
     provenance:
       created-by: ai-assisted
       model: claude-opus-5-5

@@ -111,12 +111,12 @@ queued_complete, recheck_after_s?, scope, note}`: per running job `on`, `hosted`
 `workflow`, `job` and `for_s`; per queued part `run_id`, `workflow`, `pool`,
 `jobs`, `waited_s`, `model` and `estimate` (`start_in_low_s`, `start_in_high_s`,
 `overdue`, `basis`), estimated from measured waits in the same pool, `null` with
-fewer than 5 samples. It is the same answer as `/ci/api/eta`.
+fewer than 5 samples.
 
 ## Ground station history and reports (REQ-SMITHY-006)
 
 What the `/ci` page offered, under warte's own API, each with the same answer
-as its `/ci` counterpart; `503` without a ground station.
+as the standalone ground station's (`warte hub`); `503` without a ground station.
 
 ```
 GET /api/status.md[?repo=spar&pr=511]    # fleet status as Markdown, or one PR's start estimate
@@ -127,8 +127,8 @@ GET /api/history/fleet?hours=H           # per-minute fleet points, H from 1 to 
 
 The dashboard shows them under **CI history** (trends over 6 h, 24 h and 7 d;
 the belt report for this and the two previous months) and the CI host's timers
-under **Health**. The ground station's whole snapshot (`/ci/api/state`) is not
-republished here: it carries the CI host's raw automation log lines.
+under **Health**. The ground station's whole snapshot is not published here: it
+carries the CI host's raw automation log lines.
 
 - `security` and `red-main` are always `open`.
 - `docs` batch whenever the repo has CI queued or running.
@@ -176,19 +176,16 @@ devices and runners: `load.1`, `load.per_core`, `mem.used_pct`, `swap.used_mb`,
 - `400` for `from` after `to`, a range over 400 days, or no `metric`.
 - `404` for a host without history, or when this warte keeps none.
 
-## Ground station (`/ci`, when `[hub]` is configured)
+## Retired: `/ci`
 
-The absorbed smithy hub API, unchanged; the contract is `/ci/api/openapi.json`.
-See `warte docs ground-station`. Everything here except `/ci/api/state` is also
-under warte's own API (above); `/ci` will be retired once its readers have moved.
-
-```
-GET /ci/api/eta?repo=X&pr=N         # same as /api/eta
-GET /ci/status.md                   # fleet status as Markdown
-GET /ci/api/state                   # latest snapshot + telemetry link stats
-GET /ci/api/history?hours=H         # per-minute trend points
-GET /ci/report.md?month=YYYY-MM     # monthly conveyor-belt report
-```
+Up to v1.6.2, `warte serve` also mounted the absorbed smithy-hub page and API
+under `/ci`. Since v1.6.3 it answers `404`; use the routes above
+(`/ci/api/eta` → `/api/eta`, `/ci/status.md` → `/api/status.md`,
+`/ci/api/report` → `/api/report`, `/ci/report.md` → `/api/report.md`,
+`/ci/api/history` → `/api/history/fleet`). `/ci/api/state` has no successor: the
+whole snapshot carries raw log lines; the telemetry link and the timers are on the
+Health view. `warte hub`, the standalone ground station, still serves the old API
+on its own port (`warte docs ground-station`).
 
 ## Sync
 

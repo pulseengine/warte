@@ -415,30 +415,14 @@ async fn warte_serve_with_github_answers_eta_queue_and_admission() {
         }
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
     }
-    let eta: serde_json::Value = reqwest::get(format!("{url}/ci/api/eta?repo=spar&pr=511"))
-        .await
-        .unwrap()
-        .json()
-        .await
-        .unwrap();
-    assert_eq!(eta["status"], "queued", "{eta}");
-    // warte's own API gives the same answer, start estimates included (REQ-SMITHY-005)
+    // the start estimate, under warte's own API (REQ-SMITHY-005)
     let own: serde_json::Value = reqwest::get(format!("{url}/api/eta?repo=spar&pr=511"))
         .await
         .unwrap()
         .json()
         .await
         .unwrap();
-    let strip = |mut v: serde_json::Value| {
-        // ages tick between the two calls
-        v.as_object_mut().unwrap().remove("scan_age_s");
-        for q in v["queued"].as_array_mut().unwrap() {
-            q.as_object_mut().unwrap().remove("waited_s");
-            q.as_object_mut().unwrap().remove("estimate");
-        }
-        v
-    };
-    assert_eq!(strip(own.clone()), strip(eta.clone()), "{own}");
+    assert_eq!(own["status"], "queued", "{own}");
     let part = &own["queued"][0];
     for k in [
         "run_id", "workflow", "pool", "jobs", "waited_s", "model", "estimate",

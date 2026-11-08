@@ -56,8 +56,11 @@ schedule their next look instead of polling GitHub (see the `ci-status` skill).
 ## Inside `warte serve`
 
 With a `[hub]` section in warte.toml, `warte serve` runs the ground station in-process,
-mounts the hub API under `/ci` (read-only, outside warte's auth, as smithy hub was served), and the
-dashboard's Queue, Critical Path, Ask and Health views read from it:
+answers under warte's own API (`/api/eta`, `/api/status.md`, `/api/report`,
+`/api/report.md`, `/api/history/fleet`; see `warte docs api-reference`), and the
+dashboard's Queue, Critical Path, Ask, CI history and Health views read from it.
+Up to v1.6.2 it also mounted the old hub page and API under `/ci`; that is retired
+(REQ-SMITHY-007):
 
 ```toml
 [hub]
@@ -79,4 +82,4 @@ warte hub --udp <wireguard-address>:8092 \
 The flags and the data directory are smithy hub's, so `warte hub` reads an existing
 `/var/lib/smithy-hub` as-is and replaces `smithy hub` in its systemd unit. Unlike smithy,
 `--udp` has no default and `--http` defaults to loopback. Keep HTTP on
-loopback and publish it through Caddy (`https://<host>/ci/`).
+loopback and publish it through a reverse proxy if you need it beyond the host.
