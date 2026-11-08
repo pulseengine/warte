@@ -408,7 +408,9 @@ impl Client {
                         }
                     }
                 }
-                if (status == "queued" || status == "in_progress") && pool == "hosted" {
+                if (status == "queued" || status == "in_progress")
+                    && crate::hub::pools::is_hosted(&pool)
+                {
                     let ts = if status == "in_progress" {
                         started
                     } else {
@@ -428,7 +430,7 @@ impl Client {
                         pr,
                     });
                 }
-                if status == "in_progress" && pool != "hosted" {
+                if status == "in_progress" && !crate::hub::pools::is_hosted(&pool) {
                     let runner = j["runner_name"].as_str().unwrap_or_default();
                     busy.push(Runner {
                         unit: if runner.is_empty() {
@@ -621,7 +623,11 @@ pub async fn snapshot(c: &Client, cfg: &GithubConfig) -> Result<Snapshot, GhErro
 /// waits for its reset; a refused token is reported once per scan and the
 /// scan is retried at the normal interval, so fixing the token needs no
 /// restart.
-pub fn spawn(hub: crate::hub::Hub, cfg: GithubConfig) -> Result<(), String> {
+pub fn spawn(
+    hub: crate::hub::Hub,
+    cfg: GithubConfig,
+    runners: crate::hub::pools::RunnersConfig,
+) -> Result<(), String> {
     let client = Client::new(&cfg)?;
     tokio::spawn(async move {
         loop {
@@ -630,7 +636,15 @@ pub fn spawn(hub: crate::hub::Hub, cfg: GithubConfig) -> Result<(), String> {
                 client.not_modified.load(Ordering::Relaxed),
             );
             let wait = match snapshot(&client, &cfg).await {
-                Ok(s) => {
+                Ok(mut s) => {
+                    // REQ-RUNNERS-002: the config inventory fills what GitHub
+                    // would not list
+                    s.runners = crate::hub::pools::fill(
+                        std::mem::take(&mut s.runners),
+                        !s.runners_inferred,
+                        &runners,
+                        &cfg.self_hosted_labels,
+                    );
                     tracing::debug!(
                         requests = client.calls.load(Ordering::Relaxed) - calls,
                         not_modified = client.not_modified.load(Ordering::Relaxed) - cached,

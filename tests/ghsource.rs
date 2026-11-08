@@ -196,7 +196,9 @@ async fn a_scan_fills_the_ground_station_model_from_a_ghe_com_style_base() {
         .expect("self-hosted queued job");
     assert_eq!((e.repo.as_str(), e.pr, e.run_id), ("spar", Some(511), 10));
     assert_eq!(q.pools["rust-cpu"].jobs_queued, 1);
-    assert_eq!(q.pools["hosted"].jobs_queued, 1);
+    // REQ-RUNNERS-001: hosted jobs are pooled by their runs-on label
+    assert_eq!(q.pools["hosted:ubuntu-latest"].jobs_queued, 1);
+    assert!(!q.pools.contains_key("hosted"));
     assert_eq!(q.hosted_queued, 1);
     // the realized wait of the running job (created -5 min, started -1 min)
     assert_eq!(q.waits["rust-cpu"].p50, 240);
@@ -371,14 +373,16 @@ async fn configured_labels_make_a_job_self_hosted() {
         .unwrap()
         .queue
         .unwrap();
-    assert_eq!(q.pools["hosted"].jobs_queued, 2, "unconfigured: hosted");
+    // unconfigured: a hosted larger runner, its own pool
+    assert_eq!(q.pools["hosted:ubuntu-latest"].jobs_queued, 1);
+    assert_eq!(q.pools["hosted:arc-large"].jobs_queued, 1);
     let conf = GithubConfig {
         self_hosted_labels: vec!["arc-*".into()],
         ..cfg(&base)
     };
     let c = Client::new(&conf).unwrap();
     let q = ghsource::snapshot(&c, &conf).await.unwrap().queue.unwrap();
-    assert_eq!(q.pools["hosted"].jobs_queued, 1);
+    assert_eq!(q.pools["hosted:ubuntu-latest"].jobs_queued, 1);
     assert_eq!(q.pools["arc-large"].jobs_queued, 1, "{:?}", q.pools);
     assert!(q
         .queued
@@ -518,7 +522,7 @@ async fn without_smithy_findings_come_from_github_and_say_so() {
     let hub = warte::hub::Hub::open(dir.path().to_str().unwrap(), "acme").unwrap();
     let mut g = cfg(&base);
     g.interval_s = 1;
-    ghsource::spawn(hub.clone(), g).unwrap();
+    ghsource::spawn(hub.clone(), g, Default::default()).unwrap();
     let mut said = None;
     for _ in 0..40 {
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;

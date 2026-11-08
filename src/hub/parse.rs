@@ -150,7 +150,8 @@ const GENERIC: [&str; 4] = ["self-hosted", "linux", "x64", "hetzner"];
 pub fn pool_of(labels: &[String]) -> String {
     let lower: Vec<String> = labels.iter().map(|l| l.to_ascii_lowercase()).collect();
     if !lower.iter().any(|l| l == "self-hosted") {
-        return "hosted".to_string();
+        // REQ-RUNNERS-001: one pool per runs-on label, not one "hosted"
+        return super::pools::hosted_pool(labels);
     }
     let mut specific: Vec<String> = lower
         .into_iter()
@@ -481,7 +482,8 @@ mod tests {
             pool_of(&s(&["self-hosted", "linux", "x64", "rust-cpu", "podman"])),
             "podman+rust-cpu"
         );
-        assert_eq!(pool_of(&s(&["ubuntu-latest"])), "hosted");
+        assert_eq!(pool_of(&s(&["ubuntu-latest"])), "hosted:ubuntu-latest");
+        assert_eq!(pool_of(&s(&["macOS-15"])), "hosted:macos-15");
         assert_eq!(pool_of(&s(&["self-hosted"])), "self-hosted");
     }
 
@@ -608,9 +610,15 @@ mod tests {
             pool_with(&l(&["arc-linux-large"]), &pats),
             "arc-linux-large"
         );
-        assert_eq!(pool_with(&l(&["ubuntu-latest"]), &pats), "hosted");
-        // empty keeps today's behaviour
-        assert_eq!(pool_with(&l(&["arc-linux-large"]), &[]), "hosted");
+        assert_eq!(
+            pool_with(&l(&["ubuntu-latest"]), &pats),
+            "hosted:ubuntu-latest"
+        );
+        // empty keeps today's behaviour: a hosted (larger) runner label
+        assert_eq!(
+            pool_with(&l(&["arc-linux-large"]), &[]),
+            "hosted:arc-linux-large"
+        );
         assert_eq!(
             pool_with(&l(&["self-hosted", "rust-cpu"]), &pats),
             "rust-cpu"

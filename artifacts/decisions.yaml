@@ -244,3 +244,24 @@ artifacts:
         target: REQ-PRESSURE-001
       - type: satisfies
         target: REQ-PRESSURE-002
+
+  - id: DD-RUNNERS-001
+    type: design-decision
+    title: Pools by label and kind; config inventory fills gaps, the API wins where it answers
+    status: accepted
+    description: "Owner decision 2026-11-08: hosted pools are hosted:<runs-on label> with a kind (standard, larger, self-hosted) and OS; a config inventory is used where GitHub refuses to list runners (GHE without admin rights) and to size hosted larger runners; the split shows in trends, the belt report, start estimates and notional minutes cost."
+    fields:
+      rationale: At work the API cannot list runners, and hosted runner kinds differ widely in wait time and price; one 'hosted' pool hides both. Letting the API win where it answers keeps a newly added runner visible without a config change.
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-08T13:29:45Z
+    links:
+      - type: satisfies
+        target: REQ-RUNNERS-001
+      - type: satisfies
+        target: REQ-RUNNERS-002
+      - type: satisfies
+        target: REQ-RUNNERS-003
+      - type: satisfies
+        target: REQ-RUNNERS-004

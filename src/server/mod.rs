@@ -121,7 +121,7 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
             let udp = hub
                 .spawn_ingest(&h.udp, h.allow.clone())
                 .map_err(anyhow::Error::msg)?;
-            tracing::info!(%udp, data_dir = %h.data_dir, "ground station up, API at /ci");
+            tracing::info!(%udp, data_dir = %h.data_dir, "ground station up");
             Some(hub)
         }
         None => match &config.github {
@@ -130,13 +130,24 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
                 std::fs::create_dir_all(&g.data_dir)
                     .map_err(|e| anyhow::anyhow!("{}: {e}", g.data_dir))?;
                 let hub = crate::hub::Hub::open(&g.data_dir, &g.org).map_err(anyhow::Error::msg)?;
-                crate::ghsource::spawn(hub.clone(), g.clone()).map_err(anyhow::Error::msg)?;
+                crate::ghsource::spawn(hub.clone(), g.clone(), config.runners.clone())
+                    .map_err(anyhow::Error::msg)?;
                 tracing::info!(api = %g.api_url, org = %g.org, every_s = g.interval_s, "CI source: GitHub API");
                 Some(hub)
             }
             None => None,
         },
     };
+    if let Some(h) = &hub {
+        h.set_runners(
+            config.runners.clone(),
+            config
+                .github
+                .as_ref()
+                .map(|g| g.self_hosted_labels.clone())
+                .unwrap_or_default(),
+        );
+    }
     let machines = match (&config.hub, &config.github) {
         (Some(h), _) => Some((h.data_dir.clone(), h.probe_self)),
         (None, Some(g)) => Some((g.data_dir.clone(), true)),

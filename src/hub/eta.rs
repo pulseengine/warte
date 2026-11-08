@@ -169,7 +169,7 @@ pub fn answer(
                         pool: e.pool.clone(),
                         jobs: e.jobs,
                         waited_s: waited,
-                        model: if e.pool == "hosted" {
+                        model: if super::pools::is_hosted(&e.pool) {
                             "github-hosted realized waits"
                         } else {
                             "self-hosted realized waits"

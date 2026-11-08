@@ -180,7 +180,20 @@ pub async fn ci_history_partial(
         .cloned()
         .unwrap_or_else(|| months[0].clone());
     let points = hub.history_since(now - span);
-    let trends = cihistory::trends(&points, key, span, now, &month);
+    let self_hosted = state
+        .config
+        .github
+        .as_ref()
+        .map(|g| g.self_hosted_labels.clone())
+        .unwrap_or_default();
+    let trends = cihistory::trends(&points, key, span, now, &month)
+        + &cihistory::pool_trends(
+            &points,
+            now - span,
+            now,
+            &state.config.runners,
+            &self_hosted,
+        );
     let belt = match hub.month_report(&month).await {
         Ok(b) => cihistory::belt(&b, &months, key),
         Err(e) => format!(

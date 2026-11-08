@@ -106,6 +106,12 @@ pub struct Config {
     /// (REQ-PRESSURE-001): `[pressure] low_gb = 20, critical_gb = 10`.
     #[serde(default)]
     pub pressure: crate::probe::pressure::Thresholds,
+
+    /// Runner pools: names, kinds, OS, the inventory where GitHub will not
+    /// list runners, and per-minute rates (REQ-RUNNERS-001..004):
+    /// `[[runners.pool]] labels = ["linux-16core"], name = "...", count = 4`.
+    #[serde(default)]
+    pub runners: crate::hub::pools::RunnersConfig,
 }
 
 /// Machine history retention (REQ-MHIST-001).
@@ -285,6 +291,7 @@ impl Default for Config {
             hub: None,
             history: None,
             pressure: Default::default(),
+            runners: Default::default(),
         }
     }
 }

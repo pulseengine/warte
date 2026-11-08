@@ -19,6 +19,7 @@ pub mod belt;
 pub mod eta;
 pub mod model;
 pub mod parse;
+pub mod pools;
 pub mod report;
 pub mod telemetry;
 
@@ -256,6 +257,9 @@ pub struct Hub {
     watch_slots: Arc<crate::watch::Slots>,
     /// Where each snapshot's numbers go over time (REQ-MHIST-001).
     history: Arc<std::sync::OnceLock<crate::history::History>>,
+    /// `[runners]` and the self-hosted label patterns, for the report's
+    /// names, kinds and notional cost (REQ-RUNNERS-004).
+    runners: Arc<std::sync::OnceLock<(pools::RunnersConfig, Vec<String>)>>,
 }
 
 impl Hub {
@@ -280,11 +284,17 @@ impl Hub {
             tick: Arc::new(tokio::sync::watch::channel(0).0),
             watch_slots: Default::default(),
             history: Default::default(),
+            runners: Default::default(),
         })
     }
 
     /// Send every snapshot's numbers to `h` from now on. The first time a
     /// store sees this hub, the points the hub already holds are imported.
+    /// Name, classify and price pools in reports from `[runners]`.
+    pub fn set_runners(&self, cfg: pools::RunnersConfig, self_hosted: Vec<String>) {
+        let _ = self.runners.set((cfg, self_hosted));
+    }
+
     pub fn attach_history(&self, h: crate::history::History) {
         if h.meta("hub_imported").is_none() {
             let (host, pts) = {
@@ -641,7 +651,11 @@ fn month_report(h: &Hub, query: &str) -> Result<belt::BeltReport, &'static str> 
         let l = lk(&h.ledger);
         (l.month(&month), l.stored.clone())
     };
-    Ok(belt::report(&month, &recs, &stored, &manifests, &labels))
+    let r = belt::report(&month, &recs, &stored, &manifests, &labels);
+    Ok(match h.runners.get() {
+        Some((cfg, sh)) => r.priced(cfg, sh),
+        None => r.priced(&Default::default(), &[]),
+    })
 }
 
 /// Building a month report reads every day file of the month; keep that off

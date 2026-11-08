@@ -25,8 +25,6 @@ pub const FIX_BATCH_QUEUED_RUNS: usize = 2;
 pub const RECHECK_BATCH_S: i64 = 600;
 pub const RECHECK_HOLD_S: i64 = 1200;
 
-const HOSTED_POOL: &str = "hosted";
-
 #[derive(Serialize, Debug, PartialEq)]
 pub struct SelfHosted {
     pub busy: usize,
@@ -125,16 +123,22 @@ pub fn queue(s: &Snapshot, received_at: i64, now: i64, repo: Option<&str>) -> Qu
             let self_hosted = q
                 .pools
                 .iter()
-                .filter(|(pool, _)| pool.as_str() != HOSTED_POOL)
+                .filter(|(pool, _)| !crate::hub::pools::is_hosted(pool))
                 .map(|(_, p)| p.jobs_queued)
                 .sum();
-            let hp = q.pools.get(HOSTED_POOL);
+            // every hosted pool (REQ-RUNNERS-001): the longest waits count
+            let hosted: Vec<_> = q
+                .pools
+                .iter()
+                .filter(|(pool, _)| crate::hub::pools::is_hosted(pool))
+                .map(|(_, p)| p)
+                .collect();
             (
                 self_hosted,
                 Hosted {
                     queued_jobs: q.hosted_queued,
-                    oldest_wait_s: hp.map(|p| p.oldest_s).unwrap_or(0),
-                    median_wait_s: hp.map(|p| p.median_s).unwrap_or(0),
+                    oldest_wait_s: hosted.iter().map(|p| p.oldest_s).max().unwrap_or(0),
+                    median_wait_s: hosted.iter().map(|p| p.median_s).max().unwrap_or(0),
                 },
             )
         }

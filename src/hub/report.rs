@@ -171,12 +171,12 @@ pub fn markdown(s: &Snapshot, now: i64, lost: Option<u64>) -> String {
         let shq: u32 = q
             .pools
             .iter()
-            .filter(|(k, _)| k.as_str() != "hosted")
+            .filter(|(k, _)| !super::pools::is_hosted(k))
             .map(|(_, p)| p.jobs_queued)
             .sum();
         let _ = writeln!(o, "\n## Self-hosted queue · {shq} jobs\n\n_{scan}_\n");
         let _ = writeln!(o, "| pool | queued | oldest | median |\n|---|---|---|---|");
-        for (k, p) in q.pools.iter().filter(|(k, _)| k.as_str() != "hosted") {
+        for (k, p) in q.pools.iter().filter(|(k, _)| !super::pools::is_hosted(k)) {
             let _ = writeln!(
                 o,
                 "| {} | {} | {} | {} |",
