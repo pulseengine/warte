@@ -58,6 +58,21 @@
         }
       }
     },
+    "/api/pressure": {
+      "get": {
+        "summary": "Is this host low on disk, and how much do agents hold there?",
+        "description": "A verdict per writable volume from the host's latest probe report; the host's verdict is its worst volume. Thresholds are warte's config ([pressure] low_gb, default 20; critical_gb, default 10). Per volume, the GB agent scratchpads, target/ directories and worktrees hold, as totals only: no session, repo, pid or path (who holds it: `warte probe pressure` on that machine). unknown when there is no fresh report.",
+        "parameters": [
+          {"name": "host", "in": "query", "required": true, "description": "The host as its probe enrolled (`warte probe pressure` prints it)", "schema": {"type": "string"}}
+        ],
+        "responses": {
+          "200": {"description": "Pressure verdict", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Pressure"}}}},
+          "400": {"description": "host missing; the body lists the known hosts"},
+          "404": {"description": "no report from that host; the body lists the known hosts"},
+          "503": {"description": "no ground station configured"}
+        }
+      }
+    },
     "/api/machines": {
       "get": {
         "summary": "Every machine the ground station hears from, with drift findings",
@@ -124,6 +139,29 @@
   },
   "components": {
     "schemas": {
+      "Pressure": {
+        "type": "object",
+        "required": ["host", "verdict", "reason", "measured_at", "recheck_s", "volumes"],
+        "properties": {
+          "host": {"type": "string"},
+          "verdict": {"type": "string", "enum": ["ok", "low", "critical", "unknown"]},
+          "reason": {"type": "string"},
+          "measured_at": {"type": "integer", "description": "When the report was taken (unix seconds)"},
+          "held_measured_at": {"type": "integer", "nullable": true, "description": "When the probe last sized what agents hold; null when it has not (it sizes only while a volume is low)"},
+          "recheck_s": {"type": "integer"},
+          "volumes": {"type": "array", "items": {
+            "type": "object",
+            "required": ["mount", "free_gb", "total_gb", "verdict"],
+            "properties": {
+              "mount": {"type": "string"},
+              "free_gb": {"type": "number"},
+              "total_gb": {"type": "number"},
+              "verdict": {"type": "string", "enum": ["ok", "low", "critical", "unknown"]},
+              "held_gb": {"type": "object", "nullable": true, "properties": {"scratchpad": {"type": "number"}, "target": {"type": "number"}, "worktree": {"type": "number"}}}
+            }
+          }}
+        }
+      },
       "Eta": {"type": "object", "properties": {"repo": {"type": "string"}, "pr": {"type": "integer", "nullable": true}, "branch": {"type": "string", "nullable": true}, "status": {"type": "string", "enum": ["running", "queued", "running+queued", "not_queued", "unknown"]}, "running": {"type": "array", "items": {"type": "object", "properties": {"on": {"type": "string"}, "hosted": {"type": "boolean"}, "workflow": {"type": "string"}, "job": {"type": "string"}, "for_s": {"type": "integer", "nullable": true}}}}, "queued": {"type": "array", "items": {"type": "object", "properties": {"run_id": {"type": "integer"}, "workflow": {"type": "string"}, "pool": {"type": "string"}, "jobs": {"type": "integer"}, "waited_s": {"type": "integer"}, "model": {"type": "string", "enum": ["self-hosted realized waits", "github-hosted realized waits"]}, "estimate": {"nullable": true, "type": "object", "description": "null when the pool has fewer than 5 recent samples", "properties": {"start_in_low_s": {"type": "integer"}, "start_in_high_s": {"type": "integer", "nullable": true, "description": "null when overdue"}, "overdue": {"type": "boolean", "description": "already waited longer than 90% of recent jobs: starved, stuck, or unservable labels"}, "basis": {"type": "string"}}}}}}, "scan_age_s": {"type": "integer", "nullable": true}, "queued_complete": {"type": "boolean"}, "scope": {"type": "string"}, "note": {"type": "string"}, "recheck_after_s": {"type": "integer", "description": "Seconds until asking again is worth it, for an agent's next wake-up: 300..1800, the soonest of running (900), queued with estimate (window start, or halfway to its end), queued without estimate (900), overdue (1800); unknown = 600. Absent for not_queued: act now."}}},
       "Queue": {
         "type": "object",

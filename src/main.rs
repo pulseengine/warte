@@ -294,6 +294,27 @@ async fn main() -> anyhow::Result<()> {
                     chrono::Utc::now().timestamp(),
                 );
             }
+            warte::cli::ProbeCommands::Pressure {
+                format,
+                measure,
+                state_dir,
+            } => {
+                let state_dir = state_dir.unwrap_or_else(warte::probe::pressure::default_state_dir);
+                let out = warte::probe::pressure::local(
+                    &state_dir,
+                    measure,
+                    &warte::probe::pressure::Thresholds::from_env(),
+                    chrono::Utc::now().timestamp(),
+                );
+                match format.as_str() {
+                    "json" => println!("{}", serde_json::to_string_pretty(&out)?),
+                    "text" => print!("{}", warte::probe::pressure::text(&out)),
+                    f => {
+                        eprintln!("unknown --format {f:?} (text, json)");
+                        std::process::exit(2);
+                    }
+                }
+            }
             warte::cli::ProbeCommands::Report => {
                 let r = warte::probe::collect(None).await;
                 match cli.format {

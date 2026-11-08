@@ -152,6 +152,32 @@ station itself) and `report`, whose `probe_version` is `null` unless it is a
 plain version string. Probes older than 1.5.0 cannot renew their certificate;
 the findings say so 14 days before it ends.
 
+## Disk pressure (REQ-PRESSURE-001)
+
+```
+GET /api/pressure?host=<host>
+```
+
+Whether a host is low on disk, for agents to check before filling it further.
+One verdict per writable volume from the host's latest probe report (`ok`,
+`low`, `critical`), the host's `verdict` being its worst volume, and `unknown`
+when there is no fresh report. Thresholds are GB free, set in warte's config:
+
+```toml
+[pressure]
+low_gb = 20       # default
+critical_gb = 10  # default
+```
+
+Each volume has `mount`, `free_gb`, `total_gb`, `verdict` and `held_gb`: the GB
+agent scratchpads, `target/` directories and git worktrees hold there, as
+totals per kind (`null` until the probe has sized them; it does so only while a
+volume is low). The answer names no session, repo, pid or path: the read API is
+unauthenticated. Who holds the space is shown on the machine itself by
+`warte probe pressure`. `host` is the name the probe enrolled under; `warte probe
+pressure` prints it. Without `host` the answer is `400` with the known hosts,
+for an unknown host `404`.
+
 ## Machine history (REQ-MHIST-002)
 
 Every machine's numbers over time, kept by warte itself (`history.redb` next to

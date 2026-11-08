@@ -17,6 +17,7 @@ pub mod health;
 pub mod hooks;
 pub mod inventory;
 pub mod io;
+pub mod pressure;
 pub mod send;
 pub mod version;
 
@@ -55,6 +56,10 @@ pub struct Report {
     /// Disk health, USB devices and debug probes, GPUs (REQ-PROBE-012).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hardware: Option<hardware::Hardware>,
+    /// GB held by agents per volume, while a volume is low; totals only
+    /// (REQ-PRESSURE-001).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pressure: Option<pressure::Held>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -231,7 +236,7 @@ async fn tool(name: &str) -> Tool {
 /// sample is kept, for rates since the last report (REQ-PROBE-008); `None`
 /// reports devices and pressure without rates.
 pub async fn collect(io_prev: Option<&std::path::Path>) -> Report {
-    use sysinfo::{Disks, ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
+    use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
     let mut sys = System::new();
     sys.refresh_memory();
     sys.refresh_cpu_list(sysinfo::CpuRefreshKind::nothing());
@@ -243,27 +248,9 @@ pub async fn collect(io_prev: Option<&std::path::Path>) -> Report {
             .with_cwd(UpdateKind::Always),
     );
     let mb = |b: u64| b / (1024 * 1024);
-    let gb = |b: u64| (b as f64 / 1e9 * 10.0).round() / 10.0;
     let la = System::load_average();
 
-    let mut disks: Vec<Disk> = Disks::new_with_refreshed_list()
-        .list()
-        .iter()
-        .filter(|d| d.total_space() >= MIN_DISK_BYTES && !d.is_read_only())
-        .map(|d| {
-            let used = d.total_space().saturating_sub(d.available_space());
-            Disk {
-                mount: d.mount_point().display().to_string(),
-                fs: d.file_system().to_string_lossy().into(),
-                size_gb: gb(d.total_space()),
-                used_gb: gb(used),
-                used_pct: (used as f64 * 1000.0 / d.total_space() as f64).round() / 10.0,
-                removable: d.is_removable(),
-            }
-        })
-        .collect();
-    disks.sort_by(|a, b| a.mount.cmp(&b.mount));
-    disks.dedup_by(|a, b| a.mount == b.mount);
+    let disks = disks();
 
     let mut sessions: Vec<Session> = innermost(
         sys.processes()
@@ -361,7 +348,34 @@ pub async fn collect(io_prev: Option<&std::path::Path>) -> Report {
             )
             .await,
         ),
+        // attached by `probe send`, which has the state directory
+        pressure: None,
     }
+}
+
+/// Writable volumes of at least [`MIN_DISK_BYTES`], one per mount point.
+pub fn disks() -> Vec<Disk> {
+    use sysinfo::Disks;
+    let gb = |b: u64| (b as f64 / 1e9 * 10.0).round() / 10.0;
+    let mut disks: Vec<Disk> = Disks::new_with_refreshed_list()
+        .list()
+        .iter()
+        .filter(|d| d.total_space() >= MIN_DISK_BYTES && !d.is_read_only())
+        .map(|d| {
+            let used = d.total_space().saturating_sub(d.available_space());
+            Disk {
+                mount: d.mount_point().display().to_string(),
+                fs: d.file_system().to_string_lossy().into(),
+                size_gb: gb(d.total_space()),
+                used_gb: gb(used),
+                used_pct: (used as f64 * 1000.0 / d.total_space() as f64).round() / 10.0,
+                removable: d.is_removable(),
+            }
+        })
+        .collect();
+    disks.sort_by(|a, b| a.mount.cmp(&b.mount));
+    disks.dedup_by(|a, b| a.mount == b.mount);
+    disks
 }
 
 /// The report for a terminal.
