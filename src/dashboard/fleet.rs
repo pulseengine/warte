@@ -652,6 +652,75 @@ pub fn github_detected(st: &crate::status::GitHubStatus) -> Vec<Detected> {
     list
 }
 
+/// Red machine findings and a missing or stale temper report, as outages
+/// (REQ-TEMPER-003, REQ-PROBE-015, REQ-PROBE-016): what the Outages view
+/// shows next to the CI fleet and what outage alerts notify. Amber machine
+/// findings stay on the Machines view: they are drift, not outages.
+pub fn host_detected(state: &crate::server::AppState, now: i64) -> Vec<Detected> {
+    let mut list = Vec::new();
+    if let Some(m) = &state.machines {
+        for f in crate::probe::findings(&m.list(), now)
+            .into_iter()
+            .filter(|f| f.severity == "red")
+        {
+            // the key must not change while the finding lasts: no counts in it
+            let stable: String = f.text.chars().filter(|c| !c.is_ascii_digit()).collect();
+            found(
+                &mut list,
+                format!("machine:{}:{stable}", f.host),
+                2,
+                format!("{}: {}", f.host, f.text),
+            );
+        }
+    }
+    if let (Some(cfg), Some(store)) = (&state.config.temper, &state.temper) {
+        let window = cfg.stale_after_s.max(60);
+        match store.latest() {
+            None if now - store.opened_at > window => found(
+                &mut list,
+                "temper-missing",
+                2,
+                format!(
+                    "no temper report from {} since warte started {} h ago: temper or its feed is not working",
+                    cfg.host,
+                    (now - store.opened_at) / 3600
+                ),
+            ),
+            Some(l) if now - l.received_at > window => found(
+                &mut list,
+                "temper-stale",
+                2,
+                format!(
+                    "temper's last report arrived {} h ago (expected within {} h): temper or its feed is not working",
+                    (now - l.received_at) / 3600,
+                    window / 3600
+                ),
+            ),
+            _ => {}
+        }
+    }
+    list
+}
+
+/// The Outages panel for [`host_detected`].
+pub fn host_incidents(list: &[Detected]) -> String {
+    let body = if list.is_empty() {
+        r#"<div class="allclear"><span class="pill">all clear</span> No machine is down or crash-looping, and every feed is on time.</div>"#.to_string()
+    } else {
+        list.iter()
+            .map(|d| {
+                format!(
+                    r#"<div class="incident sev2"><span class="badge red">down</span>{}</div>"#,
+                    esc(&d.text)
+                )
+            })
+            .collect()
+    };
+    format!(
+        r#"<section class="panel"><h3>Detected now · machines and feeds</h3>{body}<div class="note">Red findings from the probes (crash loops, long-pending reboots, ...) and feeds that stopped arriving. Drift (amber) is on the Machines view.</div></section>"#
+    )
+}
+
 pub fn incidents(hub: Option<&Hub>) -> String {
     let Some((list, at)) = hub.and_then(detected) else {
         return format!(r#"<section class="panel">{}</section>"#, unavailable(hub));

@@ -4,6 +4,17 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.7 — 2026-11-08
+
+What went unnoticed on a host for days now reaches Outages and the outage alerts. On netcup, temper crash-looped for two days and a newer kernel waited 22 days for a reboot; warte showed neither.
+
+- **Red machine findings and late feeds are outages** (REQ-TEMPER-003). The outage alerts only ever looked at the CI fleet and GitHub's status. Now Outages has a "machines and feeds" panel and the alerts notify red machine findings and a temper report that is missing or older than `[temper] stale_after_s`.
+- **Crash loops are found** (REQ-PROBE-016). A `Restart=` loop never reaches `failed`, so failed units missed it. The probe reports services whose restart count rose since its last report or that wait to restart; 3 or more in one interval is red.
+- **A pending reboot is found from the files themselves** (REQ-PROBE-015): Debian's reboot-required file with its package count, or a newer kernel in `/boot` than the one running. Amber at once, red after 7 days, its age taken from the files, so it no longer resets.
+- **Kernel drift compares like with like**: machines of the same OS, architecture and kernel flavour. netcup's amd64 kernel was reported "behind" the Raspberry Pis'.
+
+The probes need this release for the reboot reason and the crash loops.
+
 ## v1.6.6 — 2026-11-08
 
 - **GitHub runners are told apart** (REQ-RUNNERS-001..004). GitHub-hosted jobs no longer share one `hosted` pool: each runs-on label is its own pool (`hosted:ubuntu-latest`, `hosted:macos-15`, `hosted:linux-16core`), with a kind (standard hosted, larger hosted, self-hosted) and an OS. CI history charts queued and busy per pool; start estimates use each pool's own waits; the monthly report shows runner minutes per pool and, where `[runners]` gives a per-minute rate, a notional cost. **API change:** `pool` in `/api/eta`, `/api/report` and the queue now reads `hosted:<label>` for GitHub-hosted jobs (old records keep `hosted`).

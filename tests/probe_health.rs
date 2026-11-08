@@ -186,7 +186,7 @@ fn findings_say_what_needs_a_look() {
     let all = f.join("\n");
     for want in [
         "amber: 4 failed systemd unit(s): a.service, b.timer, c.service and 1 more",
-        "amber: reboot required for 4 days",
+        "amber: reboot required for 4 day(s)",
         "amber: 2 security update(s) pending for 8 days",
         "amber: clock off by 600 ms",
         "amber: clock not synchronised (NTP)",
@@ -203,15 +203,14 @@ fn findings_say_what_needs_a_look() {
         all.contains("\"red\", \"Package id at 101 °C, at or over critical 100 °C\""),
         "{all}"
     );
-    // young problems wait: a fresh reboot need, fresh security updates, an old OOM
+    // young problems wait: fresh security updates, an old OOM; a reboot need
+    // shows at once since REQ-PROBE-015 (amber, red after 7 days)
     h.reboot_required_since = Some(now - 3600);
     h.updates.as_mut().unwrap().security_since = Some(now - 3600);
     h.last_oom_at = Some(now - 7200);
     let all = format!("{:?}", findings(&h, now));
-    assert!(
-        !all.contains("reboot") && !all.contains("security") && !all.contains("OOM"),
-        "{all}"
-    );
+    assert!(!all.contains("security") && !all.contains("OOM"), "{all}");
+    assert!(all.contains("(\"amber\", \"reboot required\")"), "{all}");
 }
 
 // rivet: verifies REQ-PROBE-011

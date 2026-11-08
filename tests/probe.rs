@@ -264,3 +264,130 @@ fn every_report_field_is_published_or_hidden_on_purpose() {
     assert!(public["sessions"].is_object());
     assert!(public.get("io").is_some());
 }
+
+// rivet: verifies REQ-PROBE-015
+#[test]
+fn kernels_are_compared_only_within_one_architecture_and_flavour() {
+    use warte::probe::{findings, kernel_flavour, Seen};
+    let now = 1_800_000_000;
+    let seen = |r| Seen {
+        report: r,
+        received_at: now,
+        via: "probe".into(),
+        cert_until: None,
+    };
+    let pi = report("pi", "6.18.60+rpt-rpi-v8", None);
+    let mut vps = report("vps", "6.12.115+deb13.1-amd64", None);
+    vps.os.arch = "x86_64".into();
+    let mut old_vps = report("vps2", "6.12.69+deb13-amd64", None);
+    old_vps.os.arch = "x86_64".into();
+    let f = findings(&[seen(pi), seen(vps), seen(old_vps)], now);
+    let kernel: Vec<_> = f.iter().filter(|x| x.text.starts_with("kernel")).collect();
+    // the amd64 server is not "behind" the Raspberry Pi kernel ...
+    assert!(!kernel.iter().any(|x| x.host == "vps"), "{kernel:?}");
+    // ... but the older amd64 one is behind the newer amd64 one
+    assert!(
+        kernel
+            .iter()
+            .any(|x| x.host == "vps2" && x.text.contains("behind 6.12.115+deb13.1-amd64")),
+        "{kernel:?}"
+    );
+    assert_eq!(kernel_flavour("6.12.115+deb13.1-amd64"), "amd64");
+    assert_eq!(kernel_flavour("6.18.60+rpt-rpi-v8"), "v8");
+}
+
+// rivet: verifies REQ-PROBE-015
+#[test]
+fn a_pending_reboot_is_found_from_the_kernel_images_and_debians_file() {
+    use warte::probe::health::{findings, reboot_status, Health};
+    let day = 86_400;
+    let now = 1_800_000_000;
+    let images = vec![
+        ("6.12.69+deb13-amd64".to_string(), now - 30 * day),
+        ("6.12.115+deb13.1-amd64".to_string(), now - 22 * day),
+        // another flavour never counts
+        ("6.18.60+rpt-rpi-v8".to_string(), now),
+    ];
+    // a newer kernel installed 22 days ago, no Debian file (none survives
+    // a cleared /run, and not every distribution writes one)
+    let (r, since) = reboot_status("6.12.69+deb13-amd64", &images, None).unwrap();
+    assert_eq!(r.reason, "kernel");
+    assert_eq!(r.newest_kernel.as_deref(), Some("6.12.115+deb13.1-amd64"));
+    assert_eq!(since, now - 22 * day);
+    // running the newest: nothing (negative control)
+    assert!(reboot_status("6.12.115+deb13.1-amd64", &images, None).is_none());
+    // Debian's file alone: packages
+    let (r, since) = reboot_status(
+        "6.12.115+deb13.1-amd64",
+        &images,
+        Some((now - day, Some(3))),
+    )
+    .unwrap();
+    assert_eq!((r.reason.as_str(), r.pkgs), ("packages", Some(3)));
+    assert_eq!(since, now - day);
+
+    // findings: amber at once, red after 7 days, with the reason
+    let h = |since: i64, newest: &str| Health {
+        reboot_required_since: Some(since),
+        reboot: Some(warte::probe::health::Reboot {
+            reason: "kernel".into(),
+            pkgs: None,
+            newest_kernel: Some(newest.into()),
+        }),
+        ..Default::default()
+    };
+    let f = findings(&h(now - 3600, "6.12.115"), now);
+    assert_eq!(f[0].0, "amber");
+    assert!(
+        f[0].1
+            .contains("reboot required: kernel 6.12.115 is installed"),
+        "{f:?}"
+    );
+    let f = findings(&h(now - 22 * day, "6.12.115"), now);
+    assert_eq!(f[0].0, "red");
+    assert!(f[0].1.contains("for 22 day(s)"), "{f:?}");
+}
+
+// rivet: verifies REQ-PROBE-016
+#[test]
+fn a_crash_loop_is_red_although_the_unit_never_fails() {
+    use std::collections::BTreeMap;
+    use warte::probe::health::{findings, parse_restarts, restarting, Health};
+    let shown = "Id=temper.service\nNRestarts=1101\nSubState=auto-restart\n\nId=nginx.service\nNRestarts=0\nSubState=running\n\nId=ollama.service\nNRestarts=4\nSubState=running\n\nId=getty@tty1.service\nNRestarts=1\nSubState=running\n";
+    let now = parse_restarts(shown);
+    assert_eq!(now.len(), 4);
+    let prev = BTreeMap::from([
+        ("temper.service".to_string(), 1090),
+        ("nginx.service".to_string(), 0),
+        ("ollama.service".to_string(), 3),
+        ("getty@.service".to_string(), 1),
+    ]);
+    let r = restarting(&now, &prev);
+    // nginx and getty did not restart (negative control)
+    assert_eq!(
+        r.iter()
+            .map(|x| (x.unit.as_str(), x.delta))
+            .collect::<Vec<_>>(),
+        vec![("temper.service", 11), ("ollama.service", 1)]
+    );
+    let f = findings(
+        &Health {
+            restarting: r,
+            ..Default::default()
+        },
+        0,
+    );
+    assert_eq!(f[0].0, "red");
+    assert!(
+        f[0].1
+            .starts_with("temper.service is crash-looping: 11 restart(s)"),
+        "{f:?}"
+    );
+    assert_eq!(f[1].0, "amber");
+    // a counter that went down (restarted by hand, rebooted) counts from zero
+    let r = restarting(
+        &[("x.service".into(), 2, "running".into())],
+        &BTreeMap::from([("x.service".to_string(), 50)]),
+    );
+    assert_eq!(r[0].delta, 2);
+}

@@ -230,6 +230,10 @@ pub struct Stored {
 pub struct Store {
     latest: std::sync::Mutex<Option<Stored>>,
     path: std::path::PathBuf,
+    /// When this ground station started listening for temper's report: a
+    /// report missing for longer than the staleness window is an outage
+    /// (REQ-TEMPER-003).
+    pub opened_at: i64,
 }
 
 impl Store {
@@ -241,6 +245,7 @@ impl Store {
         Store {
             latest: std::sync::Mutex::new(latest),
             path,
+            opened_at: chrono::Utc::now().timestamp(),
         }
     }
 

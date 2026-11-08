@@ -49,12 +49,13 @@ pub async fn overview_partial(State(state): State<crate::server::AppState>) -> R
         .count();
 
     // REQ-DASH-017: Outages at a glance, above the fold
-    let fleet_found = state
+    let mut fleet_found = state
         .hub
         .as_ref()
         .and_then(fleet::detected)
         .map(|(l, _)| l)
         .unwrap_or_default();
+    fleet_found.extend(fleet::host_detected(&state, crate::hub::now()));
     let gh = state.status.get_status().await.map_err(|e| e.to_string());
     let strip = fleet::outages_summary(&fleet_found, gh.as_ref().map_err(Clone::clone));
     let html = format!(
@@ -650,7 +651,8 @@ pub async fn outages_partial(State(state): State<crate::server::AppState>) -> Re
   {}
   <section class="panel"><h3>Registered agents</h3>{agents_line}</section>
 </div>"#,
-        fleet::incidents(state.hub.as_ref()),
+        fleet::incidents(state.hub.as_ref())
+            + &fleet::host_incidents(&fleet::host_detected(&state, crate::hub::now())),
         fleet::github_status(gh.as_ref().map_err(Clone::clone)),
     ))
     .into_response()

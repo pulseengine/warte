@@ -199,6 +199,31 @@ and the input is never quoted back. The Compliance view and `GET
 failed or stuck tasks, its review counts and its own GitHub API use. warte
 itself makes no GitHub calls for this.
 
+When `[temper]` is set and no report has arrived within `stale_after_s` of
+the ground station starting, or the last one is older than that, it is an
+outage (REQ-TEMPER-003): a red finding in Outages, notified by the outage
+alerts. temper sweeps every 12 h, so `stale_after_s = 46800` (13 h) catches a
+stopped temper within an hour of its missed sweep.
+
+### Outages from the machines (REQ-PROBE-015, REQ-PROBE-016)
+
+Red machine findings are outages too: Outages lists them under "machines
+and feeds" and the outage alerts notify them. Amber findings are drift and
+stay on the Machines view.
+
+- **Reboot required:** on Linux the probe reports why: Debian's
+  `/var/run/reboot-required` (with the number of packages in
+  `reboot-required.pkgs`), or a newer kernel of the running kernel's flavour
+  installed in `/boot` than the one running. The age comes from those files,
+  so it holds across probe restarts. Amber at once, red after 7 days.
+- **Crash loops:** a service under `Restart=` that keeps failing never
+  reaches `failed`. The probe reports each service whose restart count
+  (`NRestarts`) rose since its previous report, or that waits to restart
+  (`auto-restart`). 3 or more restarts in one report interval, or waiting to
+  restart, is red ("crash-looping"); fewer is amber.
+- **Kernel drift** compares machines of the same OS, architecture and kernel
+  flavour only, so a Debian amd64 kernel is not "behind" a Raspberry Pi one.
+
 ### Renewal and revocation (REQ-PROBE-007)
 
 Certificates last 30 days. Once two thirds have passed, `warte probe send`
