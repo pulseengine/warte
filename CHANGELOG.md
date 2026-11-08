@@ -4,6 +4,10 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.3 — 2026-11-08
+
+`/ci` is retired: everything it offered is in warte's own API and dashboard since v1.6.2.
+
 - **`/ci` is retired** (REQ-SMITHY-007). `warte serve` no longer mounts the absorbed smithy-hub page and API under `/ci`; it answers `404`. Everything it offered is under warte's own API and dashboard: `/ci/api/eta` → `/api/eta`, `/ci/status.md` → `/api/status.md`, `/ci/api/report` and `/ci/report.md` → `/api/report` and `/api/report.md`, `/ci/api/history` → `/api/history/fleet`, the page → the CI history and Health views. `/ci/api/state` has no successor (it carried raw log lines). The standalone `warte hub` still serves the old API on its own port.
 
 ## v1.6.2 — 2026-11-07
