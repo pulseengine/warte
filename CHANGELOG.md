@@ -4,6 +4,12 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.6 — 2026-11-08
+
+- **GitHub runners are told apart** (REQ-RUNNERS-001..004). GitHub-hosted jobs no longer share one `hosted` pool: each runs-on label is its own pool (`hosted:ubuntu-latest`, `hosted:macos-15`, `hosted:linux-16core`), with a kind (standard hosted, larger hosted, self-hosted) and an OS. CI history charts queued and busy per pool; start estimates use each pool's own waits; the monthly report shows runner minutes per pool and, where `[runners]` gives a per-minute rate, a notional cost. **API change:** `pool` in `/api/eta`, `/api/report` and the queue now reads `hosted:<label>` for GitHub-hosted jobs (old records keep `hosted`).
+- **A runner inventory in config** (REQ-RUNNERS-002). Where GitHub refuses to list the org's runners (GitHub Enterprise without admin rights), `[[runners.pool]]` gives each pool's labels, count, kind, OS and size; idle capacity then shows. Where GitHub lists runners, its list wins. Each runner says where it is known from (`config`, `inferred`).
+- Not yet: without a smithy agent the monthly report has no job ledger (REQ-RUNNERS-005, next release); at home the smithy agent still reports GitHub-hosted finished jobs as one `hosted` pool until it sends the label.
+
 ## v1.6.5 — 2026-11-08
 
 - **Disk pressure** (REQ-PRESSURE-001, REQ-PRESSURE-002). `GET /api/pressure?host=` answers whether a host is low on disk: a verdict per writable volume (`ok`, `low` under 20 GB free, `critical` under 10 GB, both set in `[pressure]`), the host's being the worst, and the GB that agent scratchpads, `target/` directories and git worktrees hold there, as totals only. Who holds it is shown only on the machine: `warte probe pressure` lists each holder with its path, session id, live sessions and size, largest first. The probe sizes holders only while a volume is low, at most every 10 minutes, within 60 seconds, on the low volumes only; it follows no symlink and deletes nothing.

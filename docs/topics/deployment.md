@@ -78,6 +78,24 @@ The base is set, never guessed from a web URL. The same settings as a
   `["arc-*"]`. `*` matches any run of characters, case-insensitive; a job
   with a matching label is counted as self-hosted. Empty keeps the default:
   only `self-hosted` does.
+- **Runner pools and kinds** (REQ-RUNNERS-001..004): a pool is named from a
+  job's labels. Self-hosted pools are named by their specific labels
+  (`rust-cpu`); GitHub-hosted jobs go to `hosted:<runs-on label>`
+  (`hosted:ubuntu-latest`, `hosted:linux-16core`), not one `hosted` pool.
+  Each pool has a kind (`standard-hosted` for the images GitHub publishes as
+  standard, `larger-hosted` for any other hosted label, `self-hosted`) and an
+  OS. CI history charts queued and busy per pool, `/api/eta` estimates each
+  pool from its own waits, and the monthly report shows runner minutes per
+  pool (each job rounded up to the minute, as GitHub bills). Records from
+  before v1.6.6 keep the pool `hosted`, shown as "GitHub-hosted (not split)".
+- **A runner inventory where GitHub will not list runners:** `[[runners.pool]]`
+  entries name, classify, size and price a pool. Where the org's runner list
+  is refused, a `count` fills the pool with idle runners next to the busy ones
+  seen from running jobs (marked `config`; busy runners of pools not in the
+  config are marked `inferred`). Where GitHub lists runners, its list wins.
+  `per_minute` prices the pool's minutes in the monthly report as a notional
+  cost (list price, not a bill).
+
 - **Rate limits:** a scan lists recently pushed repos, their queued and
   running runs, and those runs' jobs (at most `max_runs`). Every listing is
   asked again with its ETag (`If-None-Match`); an unchanged one comes back
@@ -119,6 +137,25 @@ org = "<org>"
 ca_bundle = "/etc/ssl/certs/corp-proxy-ca.pem"
 # runner groups whose jobs carry no `self-hosted` label
 self_hosted_labels = ["<group-prefix>-*"]
+
+[runners]
+currency = "USD"
+
+# a self-hosted pool the token cannot list: its size, so idle capacity shows
+[[runners.pool]]
+labels = ["<group-prefix>-build"]
+name = "Build runners"
+count = 6
+cores = 16
+memory_gb = 64
+
+# a GitHub-hosted larger runner: name it and price its minutes
+[[runners.pool]]
+labels = ["<larger-runner-label>"]
+name = "Linux, 16 cores"
+kind = "larger-hosted"   # standard-hosted | larger-hosted | self-hosted
+os = "linux"             # linux | macos | windows | unknown
+per_minute = 0.064
 ```
 
 ```bash
