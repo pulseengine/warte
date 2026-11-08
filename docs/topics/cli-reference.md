@@ -221,6 +221,10 @@ stay on the Machines view.
   (`NRestarts`) rose since its previous report, or that waits to restart
   (`auto-restart`). 3 or more restarts in one report interval, or waiting to
   restart, is red ("crash-looping"); fewer is amber.
+- **Filesystem errors** (REQ-PROBE-017): each mounted ext4 filesystem's
+  `errors_count` from `/sys/fs/ext4/<dev>/` (no root needed). A count above
+  zero is amber ("run fsck"); a count that rose since the last report is red.
+  On an SD-card machine this is the early warning of a failing card.
 - **Kernel drift** compares machines of the same OS, architecture and kernel
   flavour only, so a Debian amd64 kernel is not "behind" a Raspberry Pi one.
 

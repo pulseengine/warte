@@ -391,3 +391,38 @@ fn a_crash_loop_is_red_although_the_unit_never_fails() {
     );
     assert_eq!(r[0].delta, 2);
 }
+
+// rivet: verifies REQ-PROBE-017
+#[test]
+fn ext4_errors_are_amber_and_a_rising_count_is_red() {
+    use std::collections::BTreeMap;
+    use warte::probe::health::{findings, fs_errors, Health};
+    let prev = BTreeMap::from([("mmcblk0p2".to_string(), 0), ("sda1".to_string(), 2)]);
+    let now = vec![
+        ("mmcblk0p2".to_string(), 68),
+        ("sda1".to_string(), 2),
+        ("nvme0n1p1".to_string(), 0),
+    ];
+    let e = fs_errors(&now, &prev);
+    // a clean filesystem is not listed (negative control)
+    assert_eq!(e.len(), 2);
+    let f = findings(
+        &Health {
+            fs_errors: e,
+            ..Default::default()
+        },
+        0,
+    );
+    assert_eq!(f[0].0, "red");
+    assert!(
+        f[0].1
+            .starts_with("filesystem mmcblk0p2 recorded 68 new error(s)"),
+        "{f:?}"
+    );
+    assert_eq!(f[1].0, "amber");
+    assert!(
+        f[1].1
+            .starts_with("filesystem sda1 has 2 error(s) recorded"),
+        "{f:?}"
+    );
+}

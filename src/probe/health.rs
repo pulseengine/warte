@@ -102,6 +102,9 @@ pub struct Health {
     /// Why a reboot is needed (REQ-PROBE-015).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reboot: Option<Reboot>,
+    /// ext4 filesystems with errors recorded (REQ-PROBE-017).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fs_errors: Vec<FsErrors>,
     /// Services that restarted since the previous report, or are waiting to
     /// restart (REQ-PROBE-016): a Restart= crash loop never reaches failed.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -138,6 +141,9 @@ pub struct Prev {
     /// Each service's restart count (NRestarts) at the previous run.
     #[serde(default)]
     pub restarts: BTreeMap<String, u64>,
+    /// Each ext4 device's error count at the previous run.
+    #[serde(default)]
+    pub fs_errors: BTreeMap<String, u64>,
     /// Last update-check attempt, successful or not (retries at most hourly).
     #[serde(default)]
     pub updates_tried_at: Option<i64>,
@@ -347,6 +353,31 @@ pub struct Reboot {
     /// The newest installed kernel, when it is not the running one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub newest_kernel: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct FsErrors {
+    /// The block device, e.g. `mmcblk0p2`.
+    pub dev: String,
+    /// ext4's errors_count: errors recorded since the last fsck cleared them.
+    pub errors: u64,
+    /// New since the previous report.
+    pub delta: u64,
+}
+
+/// ext4 devices with a non-zero error count, with the change since `prev`
+/// (REQ-PROBE-017). `now`: (device, errors_count) per mounted ext4 device.
+pub fn fs_errors(now: &[(String, u64)], prev: &BTreeMap<String, u64>) -> Vec<FsErrors> {
+    now.iter()
+        .filter(|(_, n)| *n > 0)
+        .filter_map(|(d, n)| {
+            Some(FsErrors {
+                dev: clean(d)?,
+                errors: *n,
+                delta: n.saturating_sub(prev.get(d).copied().unwrap_or(0)),
+            })
+        })
+        .collect()
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -699,6 +730,21 @@ pub async fn collect(state: Option<&std::path::Path>, now: i64) -> Health {
             .map(|(_, at)| prev.reboot_required_since.map_or(*at, |p| p.min(*at)));
         h.reboot_required_since = next.reboot_required_since;
         h.reboot = status.map(|(r, _)| r);
+        // REQ-PROBE-017: ext4 errors, readable without root
+        let counts: Vec<(String, u64)> = std::fs::read_dir("/sys/fs/ext4")
+            .into_iter()
+            .flatten()
+            .flatten()
+            .filter_map(|e| {
+                let n = std::fs::read_to_string(e.path().join("errors_count")).ok()?;
+                Some((
+                    e.file_name().to_string_lossy().into_owned(),
+                    n.trim().parse().ok()?,
+                ))
+            })
+            .collect();
+        h.fs_errors = fs_errors(&counts, &prev.fs_errors);
+        next.fs_errors = counts.into_iter().collect();
         // REQ-PROBE-016: crash loops never reach "failed"
         match run(
             "systemctl",
@@ -856,6 +902,23 @@ pub fn findings(h: &Health, now: i64) -> Vec<(&'static str, String)> {
                 format!("reboot required{why}")
             },
         ));
+    }
+    // REQ-PROBE-017: a filesystem recording errors
+    for e in &h.fs_errors {
+        f.push(if e.delta > 0 {
+            (
+                "red",
+                format!(
+                    "filesystem {} recorded {} new error(s) ({} since the last fsck): the disk or SD card may be failing",
+                    e.dev, e.delta, e.errors
+                ),
+            )
+        } else {
+            (
+                "amber",
+                format!("filesystem {} has {} error(s) recorded: run fsck", e.dev, e.errors),
+            )
+        });
     }
     // REQ-PROBE-016: restarting services
     for r in &h.restarting {

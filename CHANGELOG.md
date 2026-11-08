@@ -11,6 +11,7 @@ What went unnoticed on a host for days now reaches Outages and the outage alerts
 - **Red machine findings and late feeds are outages** (REQ-TEMPER-003). The outage alerts only ever looked at the CI fleet and GitHub's status. Now Outages has a "machines and feeds" panel and the alerts notify red machine findings and a temper report that is missing or older than `[temper] stale_after_s`.
 - **Crash loops are found** (REQ-PROBE-016). A `Restart=` loop never reaches `failed`, so failed units missed it. The probe reports services whose restart count rose since its last report or that wait to restart; 3 or more in one interval is red.
 - **A pending reboot is found from the files themselves** (REQ-PROBE-015): Debian's reboot-required file with its package count, or a newer kernel in `/boot` than the one running. Amber at once, red after 7 days, its age taken from the files, so it no longer resets.
+- **ext4 errors are reported** (REQ-PROBE-017). Each mounted ext4 filesystem's error count, read without root: amber above zero, red when it rose. On gale an SD card's write failure showed only as a failed unattended-upgrades unit.
 - **Kernel drift compares like with like**: machines of the same OS, architecture and kernel flavour. netcup's amd64 kernel was reported "behind" the Raspberry Pis'.
 
 The probes need this release for the reboot reason and the crash loops.
