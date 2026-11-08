@@ -235,13 +235,22 @@ pub fn belt(b: &BeltReport, months: &[String], key: &str) -> String {
     } else {
         ""
     };
+    let kind = |k: Option<crate::hub::pools::Kind>| match k {
+        Some(crate::hub::pools::Kind::StandardHosted) => "GitHub-hosted",
+        Some(crate::hub::pools::Kind::LargerHosted) => "GitHub-hosted, larger",
+        Some(crate::hub::pools::Kind::SelfHosted) => "self-hosted",
+        None => "",
+    };
+    let priced = b.pools.iter().any(|x| x.cost.is_some());
+    let cur = b.currency.as_deref().unwrap_or("");
     let pools: String = b
         .pools
         .iter()
         .map(|x| {
             format!(
-                r#"<tr><td>{}</td><td class="n">{}</td><td class="n">{}</td><td class="n">{}</td><td class="n">{}</td><td class="n">{}</td><td class="n">{}</td><td class="n">{}</td></tr>"#,
-                esc(&x.pool),
+                r#"<tr><td>{}<div class="sub">{}</div></td><td class="n">{}</td><td class="n">{}</td><td class="n">{}</td><td class="n">{}</td><td class="n">{}</td><td class="n">{}</td><td class="n">{}</td><td class="n">{}</td>{}</tr>"#,
+                esc(x.name.as_deref().unwrap_or(&x.pool)),
+                esc(kind(x.kind)),
                 x.jobs_ran,
                 x.jobs_not_run,
                 h(x.work_h),
@@ -249,9 +258,30 @@ pub fn belt(b: &BeltReport, months: &[String], key: &str) -> String {
                 p(x.flow_efficiency),
                 dur(x.wait_p50_s),
                 dur(x.wait_p90_s),
+                x.minutes,
+                if priced {
+                    format!(
+                        r#"<td class="n">{}</td>"#,
+                        x.cost
+                            .map(|c| format!("{c:.2} {}", esc(cur)))
+                            .unwrap_or_default()
+                    )
+                } else {
+                    String::new()
+                },
             )
         })
         .collect();
+    let cost_head = if priced {
+        r#"<th class="n">Cost*</th>"#
+    } else {
+        ""
+    };
+    let cost_note = if priced {
+        "<br>* Notional: runner minutes (each job rounded up to the minute) at the per-minute rate in warte's config; list price, not a bill."
+    } else {
+        ""
+    };
     let hours = if b.hours.is_empty() {
         r#"<p class="empty">Withheld: needs at least one complete day.</p>"#.to_string()
     } else {
@@ -312,11 +342,11 @@ pub fn belt(b: &BeltReport, months: &[String], key: &str) -> String {
     }
     format!(
         r#"<section class="panel"><h3>Conveyor belt · {}</h3><div class="hrange" role="group" aria-label="month">month {pick}</div>{lead}{prelim}
-<h4>Pools</h4><div class="scroll"><table class="data-table"><thead><tr><th>Pool</th><th class="n">Ran</th><th class="n">Never ran</th><th class="n">Work</th><th class="n">Wait</th><th class="n">Flow eff.</th><th class="n">Wait p50</th><th class="n">Wait p90</th></tr></thead><tbody>{pools}</tbody></table></div>
+<h4>Pools</h4><div class="scroll"><table class="data-table"><thead><tr><th>Pool</th><th class="n">Ran</th><th class="n">Never ran</th><th class="n">Work</th><th class="n">Wait</th><th class="n">Flow eff.</th><th class="n">Wait p50</th><th class="n">Wait p90</th><th class="n">Minutes</th>{cost_head}</tr></thead><tbody>{pools}</tbody></table></div>
 <h4>Is the runner pool the bottleneck?</h4>{hours}
 <h4>Busiest workflows</h4><div class="scroll"><table class="data-table"><thead><tr><th>Repo</th><th>Workflow</th><th>Pool</th><th class="n">Jobs</th><th class="n">Work</th><th class="n">Wait</th><th class="n">Wait p50</th></tr></thead><tbody>{workflows}</tbody></table></div>
 <h4>Runners</h4><div class="scroll"><table class="data-table"><thead><tr><th>Runner</th><th class="n">Jobs</th><th class="n">Work</th><th class="n">Busy</th></tr></thead><tbody>{runners}</tbody></table></div>
-<div class="note">{}.<br>{}<br>As Markdown: <a href="api/report.md?month={}" target="_blank" rel="noopener">report.md</a> · JSON: <a href="api/report?month={}" target="_blank" rel="noopener">api/report</a>.</div></section>"#,
+<div class="note">{}.{cost_note}<br>{}<br>As Markdown: <a href="api/report.md?month={}" target="_blank" rel="noopener">report.md</a> · JSON: <a href="api/report?month={}" target="_blank" rel="noopener">api/report</a>.</div></section>"#,
         esc(&b.month),
         esc(b.definitions),
         esc(b.note),
