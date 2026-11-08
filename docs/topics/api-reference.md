@@ -179,7 +179,9 @@ devices and runners: `load.1`, `load.per_core`, `mem.used_pct`, `swap.used_mb`,
 ## Retired: `/ci`
 
 Up to v1.6.2, `warte serve` also mounted the absorbed smithy-hub page and API
-under `/ci`. Since v1.6.3 it answers `404`; use the routes above
+under `/ci`. Since v1.6.3 it is gone; since v1.6.4 every `/ci` path answers
+`410 Gone` with JSON `{"error":"gone","see":…,"reason":…}`, where `see` is the
+replacement relative to warte's base URL, query kept. Use the routes above
 (`/ci/api/eta` → `/api/eta`, `/ci/status.md` → `/api/status.md`,
 `/ci/api/report` → `/api/report`, `/ci/report.md` → `/api/report.md`,
 `/ci/api/history` → `/api/history/fleet`). `/ci/api/state` has no successor: the
