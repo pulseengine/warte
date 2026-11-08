@@ -4,6 +4,8 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+- **The retired `/ci` paths answer `410 Gone` with their replacement** (REQ-SMITHY-007). Since v1.6.3 they answered a bare `404`, and an agent calling `/ci/api/eta` could read the failed call as "nothing queued". Now each answers `410` with JSON naming the path under warte's own API (`/ci/api/eta?repo=spar&pr=1` → `/api/eta?repo=spar&pr=1`, `/ci/api/state` → `/api/queue`).
+
 ## v1.6.3 — 2026-11-08
 
 `/ci` is retired: everything it offered is in warte's own API and dashboard since v1.6.2.

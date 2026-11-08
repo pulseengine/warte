@@ -302,8 +302,8 @@ async fn the_router_serves_api_and_dashboard_where_documented() {
         status(format!("{base}/api/dashboard/ask?repo=x&pr=1")).await,
         404
     );
-    // no hub configured: no /ci
-    assert_eq!(status(format!("{base}/ci/healthz")).await, 404);
+    // /ci is retired with or without a hub: 410 Gone, not an empty 404
+    assert_eq!(status(format!("{base}/ci/healthz")).await, 410);
     // Ask is a read-only GET an anonymous dashboard viewer can use (a POST
     // needs auth and came back 401 with an empty body)
     let r = reqwest::get(format!(
@@ -360,8 +360,26 @@ async fn serve_with_a_hub_answers_under_its_own_api_and_no_longer_at_ci() {
         "/ci/api/eta?repo=spar&pr=1",
         "/ci/status.md",
     ] {
-        assert_eq!(status(format!("{base}{p}")).await, 404, "{p}");
+        // 410 Gone, never an empty 404 an agent could read as "nothing queued"
+        assert_eq!(status(format!("{base}{p}")).await, 410, "{p}");
     }
+    for (old, see) in [
+        ("/ci/api/eta?repo=spar&pr=1", "/api/eta?repo=spar&pr=1"),
+        ("/ci/status.md", "/api/status.md"),
+        ("/ci/api/report?month=2026-11", "/api/report?month=2026-11"),
+        ("/ci/report.md", "/api/report.md"),
+        ("/ci/api/history?hours=2", "/api/history/fleet?hours=2"),
+        ("/ci/api/state", "/api/queue"),
+        ("/ci/", "/"),
+    ] {
+        let r = reqwest::get(format!("{base}{old}")).await.unwrap();
+        assert_eq!(r.status().as_u16(), 410, "{old}");
+        let v: serde_json::Value = r.json().await.unwrap();
+        assert_eq!(v["error"], "gone", "{old}");
+        assert_eq!(v["see"], see, "{old}");
+    }
+    // anything else unknown stays a plain 404
+    assert_eq!(status(format!("{base}/cix")).await, 404);
     // before telemetry: the ground station says so, and so does the view
     assert_eq!(status(format!("{base}/api/eta?repo=spar&pr=1")).await, 503);
     let q = reqwest::get(format!("{base}/api/dashboard/queue-partial"))

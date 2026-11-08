@@ -51,6 +51,9 @@ pub fn build_router(state: AppState) -> Router {
     // `warte hub` still serves them on its own port.
     Router::new()
         .merge(api::build_routes())
+        .route("/ci", axum::routing::any(ci_gone))
+        .route("/ci/", axum::routing::any(ci_gone))
+        .route("/ci/{*rest}", axum::routing::any(ci_gone))
         // a real text 404: an empty body with no content type is saved as
         // "document.txt" by browsers instead of being shown
         .fallback(|| async { (axum::http::StatusCode::NOT_FOUND, "not found") })
@@ -252,5 +255,37 @@ async fn shutdown_signal() {
     tokio::select! {
         _ = ctrl_c => tracing::info!("received Ctrl+C, shutting down"),
         _ = terminate => tracing::info!("received SIGTERM, shutting down"),
+    }
+}
+
+/// The retired `/ci` paths (REQ-SMITHY-007) answer 410 Gone with their
+/// replacement under warte's own API, never an empty 404 that an agent could
+/// read as "nothing queued". `see` is relative to warte's base URL and keeps
+/// the query.
+async fn ci_gone(uri: axum::http::Uri) -> impl axum::response::IntoResponse {
+    let see = ci_replacement(uri.path());
+    let see = match uri.query() {
+        Some(q) if see != "/" => format!("{see}?{q}"),
+        _ => see.to_string(),
+    };
+    (
+        axum::http::StatusCode::GONE,
+        axum::Json(serde_json::json!({
+            "error": "gone",
+            "see": see,
+            "reason": "/ci was retired in warte v1.6.3; its answers are under warte's own API, relative to warte's base URL",
+        })),
+    )
+}
+
+fn ci_replacement(path: &str) -> &'static str {
+    match path.trim_end_matches('/') {
+        "/ci/api/eta" => "/api/eta",
+        "/ci/status.md" => "/api/status.md",
+        "/ci/api/report" => "/api/report",
+        "/ci/report.md" => "/api/report.md",
+        "/ci/api/history" => "/api/history/fleet",
+        "/ci/api/state" => "/api/queue",
+        _ => "/",
     }
 }
