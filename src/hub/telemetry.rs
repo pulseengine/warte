@@ -524,6 +524,7 @@ pub fn dec_runner(b: &[u8]) -> Option<(i64, Runner)> {
             labels,
             ctx,
             stats,
+            source: None,
         },
     ))
 }
@@ -1010,6 +1011,7 @@ mod tests {
                 psi_mem: 0.5,
                 oom_kills: 1,
             }),
+            source: None,
         }
     }
 

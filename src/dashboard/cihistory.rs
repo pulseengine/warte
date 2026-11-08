@@ -81,6 +81,79 @@ pub const TRENDS: [(&str, &str, Pick); 8] = [
     ("CI host load (1 min)", "", |p| Some(p.load1)),
 ];
 
+/// How many pools get their own charts.
+pub const POOL_CHARTS: usize = 8;
+
+/// Queued and busy per pool, hosted pools split by label (REQ-RUNNERS-003):
+/// the pools seen in the range, busiest first. A point recorded before
+/// warte kept pools is a gap; a pool missing from a point that has pools was
+/// idle (0).
+pub fn pool_trends(
+    points: &[Point],
+    from: i64,
+    now: i64,
+    cfg: &crate::hub::pools::RunnersConfig,
+    self_hosted: &[String],
+) -> String {
+    let mut total: std::collections::BTreeMap<&str, u64> = Default::default();
+    for p in points.iter().filter(|p| p.t >= from) {
+        for (k, c) in &p.pools {
+            *total.entry(k.as_str()).or_default() += u64::from(c[0] + c[1]);
+        }
+    }
+    if total.is_empty() {
+        return String::new();
+    }
+    let mut pools: Vec<(&str, u64)> = total.into_iter().collect();
+    pools.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(b.0)));
+    let kind = |k: crate::hub::pools::Kind| match k {
+        crate::hub::pools::Kind::StandardHosted => "GitHub-hosted",
+        crate::hub::pools::Kind::LargerHosted => "GitHub-hosted, larger",
+        crate::hub::pools::Kind::SelfHosted => "self-hosted",
+    };
+    let at = |pool: &str, i: usize| {
+        let pool = pool.to_string();
+        move |p: &Point| {
+            if p.pools.is_empty() {
+                None
+            } else {
+                Some(p.pools.get(&pool).map(|c| c[i]).unwrap_or(0) as f64)
+            }
+        }
+    };
+    let charts: String = pools
+        .iter()
+        .take(POOL_CHARTS)
+        .map(|(pool, _)| {
+            let info = crate::hub::pools::info(pool, cfg, self_hosted);
+            let label =
+                format!("{} ({}, {:?})", info.name, kind(info.kind), info.os).to_lowercase();
+            let q = format!("{label} · queued");
+            let b = format!(
+                "{label} · {}",
+                if crate::hub::pools::is_hosted(pool) {
+                    "running"
+                } else {
+                    "busy"
+                }
+            );
+            charts::chart(&q, &series(points, from, now, &q, "", at(pool, 0)))
+                + &charts::chart(&b, &series(points, from, now, &b, "", at(pool, 1)))
+        })
+        .collect();
+    let more = if pools.len() > POOL_CHARTS {
+        format!(
+            r#"<div class="note">{} more pools in this range are not drawn.</div>"#,
+            pools.len() - POOL_CHARTS
+        )
+    } else {
+        String::new()
+    };
+    format!(
+        r#"<section class="panel"><h3>Per pool</h3><div class="hcharts">{charts}</div>{more}<div class="note">GitHub-hosted pools are split by runs-on label: standard images, larger runners and self-hosted pools each wait on their own runners.</div></section>"#
+    )
+}
+
 /// The trend charts for one range, with the range switch.
 pub fn trends(points: &[Point], key: &str, span: i64, now: i64, month: &str) -> String {
     let switch: String = RANGES

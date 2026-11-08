@@ -82,6 +82,11 @@ pub struct Runner {
     /// Resource use of this runner's own cgroup (the service and every job it runs).
     #[serde(default)]
     pub stats: Option<CgStats>,
+    /// Where warte knows this runner from when it is not the host or the API
+    /// (REQ-RUNNERS-002): `config` (the runner inventory) or `inferred` (a
+    /// running job). None: the host or GitHub's runner list.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
 }
 
 /// One runner's cgroup counters. CPU is a RATE, so it needs two samples: it is
@@ -286,10 +291,53 @@ pub struct Point {
     /// `HOSTED_LABELS_MAX` labels, the busiest.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub hosted_by_label: BTreeMap<String, [u32; 2]>,
+    /// [queued, busy] per pool, hosted pools split by label (REQ-RUNNERS-003).
+    /// At most `POOLS_MAX` pools, the busiest.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub pools: BTreeMap<String, [u32; 2]>,
 }
 
 /// Bound on the labels one history point carries.
 pub const HOSTED_LABELS_MAX: usize = 12;
+/// Bound on the pools one history point carries.
+pub const POOLS_MAX: usize = 16;
+
+/// [queued, busy] per pool: self-hosted pools from the queue and the busy
+/// runners, GitHub-hosted ones from the hosted groups (queued, running) split
+/// by runs-on label, so a snapshot that still pools them as one "hosted" is
+/// split too. The busiest `POOLS_MAX`.
+pub fn pools_now(s: &Snapshot) -> BTreeMap<String, [u32; 2]> {
+    use super::pools::{hosted_pool, is_hosted};
+    let mut all: BTreeMap<String, [u32; 2]> = BTreeMap::new();
+    if let Some(q) = &s.queue {
+        for (pool, p) in q.pools.iter().filter(|(k, _)| !is_hosted(k)) {
+            all.entry(pool.clone()).or_default()[0] += p.jobs_queued;
+        }
+        for g in &q.hosted_groups {
+            let labels: Vec<String> = g.labels.split(',').map(String::from).collect();
+            let e = all.entry(hosted_pool(&labels)).or_default();
+            e[0] += g.queued;
+            e[1] += g.running;
+        }
+    }
+    for r in s
+        .runners
+        .iter()
+        .filter(|r| r.local_busy || r.gh_busy == Some(true))
+    {
+        let pool = super::parse::pool_of(&r.labels);
+        if !is_hosted(&pool) {
+            all.entry(pool).or_default()[1] += 1;
+        }
+    }
+    let mut v: Vec<(String, [u32; 2])> = all.into_iter().filter(|(_, c)| c[0] + c[1] > 0).collect();
+    v.sort_by(|a, b| {
+        (b.1[0] + b.1[1])
+            .cmp(&(a.1[0] + a.1[1]))
+            .then(a.0.cmp(&b.0))
+    });
+    v.into_iter().take(POOLS_MAX).collect()
+}
 
 /// GitHub-hosted [queued, running] per runs-on label, over all hosted jobs
 /// (the groups, not the capped job list), the busiest `HOSTED_LABELS_MAX`.
@@ -345,7 +393,7 @@ impl Point {
             sh_queued: s.queue.as_ref().map(|q| {
                 q.pools
                     .iter()
-                    .filter(|(k, _)| k.as_str() != "hosted")
+                    .filter(|(k, _)| !super::pools::is_hosted(k))
                     .map(|(_, p)| p.jobs_queued)
                     .sum()
             }),
@@ -354,12 +402,13 @@ impl Point {
                 .as_ref()
                 .map(|q| hosted_by_label(&q.hosted_groups))
                 .unwrap_or_default(),
+            pools: pools_now(s),
             hosted_queued: s.queue.as_ref().map(|q| q.hosted_queued),
             hosted_running: s.queue.as_ref().map(|q| q.hosted_running),
             sh_oldest_s: s.queue.as_ref().map(|q| {
                 q.pools
                     .iter()
-                    .filter(|(k, _)| k.as_str() != "hosted")
+                    .filter(|(k, _)| !super::pools::is_hosted(k))
                     .map(|(_, p)| p.oldest_s)
                     .max()
                     .unwrap_or(0)

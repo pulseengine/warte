@@ -81,7 +81,7 @@ pub fn queue(hub: Option<&Hub>) -> String {
     let self_hosted: u32 = q
         .pools
         .iter()
-        .filter(|(p, _)| p.as_str() != "hosted")
+        .filter(|(p, _)| !crate::hub::pools::is_hosted(p))
         .map(|(_, p)| p.jobs_queued)
         .sum();
     let mut kpis = if s.runners_inferred {
@@ -1286,13 +1286,13 @@ pub fn overview(hub: Option<&Hub>) -> String {
         let sh: u32 = q
             .pools
             .iter()
-            .filter(|(p, _)| p.as_str() != "hosted")
+            .filter(|(p, _)| !crate::hub::pools::is_hosted(p))
             .map(|(_, p)| p.jobs_queued)
             .sum();
         let oldest = q
             .pools
             .iter()
-            .filter(|(p, _)| p.as_str() != "hosted")
+            .filter(|(p, _)| !crate::hub::pools::is_hosted(p))
             .map(|(_, p)| p.oldest_s)
             .max()
             .unwrap_or(0);

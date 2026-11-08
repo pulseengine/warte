@@ -951,3 +951,71 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-11-08T09:53:58Z
+
+  - id: REQ-RUNNERS-001
+    type: requirement
+    title: GitHub-hosted jobs are split into pools by runs-on label, each with a kind and an OS
+    status: approved
+    release: v1.6.6
+    description: A job without a self-hosted label SHALL belong to pool hosted:<runs-on label> instead of one 'hosted' pool. Each pool SHALL carry a kind (standard hosted for labels GitHub publishes as standard, larger hosted for any other hosted label, self-hosted) and an OS (linux, macos, windows, unknown). [runners] config MAY override a pool's kind and OS and give it a display name. History recorded under the old 'hosted' pool SHALL stay readable.
+    fields:
+      category: functional
+      priority: must
+    links:
+      - type: refines
+        target: REQ-HIST-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-08T13:29:45Z
+
+  - id: REQ-RUNNERS-002
+    type: requirement
+    title: A runner inventory in config fills what the GitHub API will not list
+    status: approved
+    release: v1.6.6
+    description: "[[runners.pool]] entries (labels, count, kind, OS, cores, memory, display name) SHALL be used as the inventory for a pool whenever the org's runner list is refused (403/404) or does not describe the pool (hosted larger runners). Where the API lists runners, the API's runners SHALL win. The source of each pool's capacity (api, config, inferred) SHALL be shown."
+    fields:
+      category: functional
+      priority: must
+    links:
+      - type: refines
+        target: REQ-GHSRC-004
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-08T13:29:45Z
+
+  - id: REQ-RUNNERS-003
+    type: requirement
+    title: Trends, the monthly belt report and start estimates are per pool, hosted pools included
+    status: approved
+    release: v1.6.6
+    description: CI history trends SHALL show busy and queued per pool; the monthly belt report SHALL show work, waiting and minutes per pool; /api/eta and admission SHALL estimate a queued job from its own pool's capacity and measured waits.
+    fields:
+      category: functional
+      priority: must
+    links:
+      - type: refines
+        target: REQ-HIST-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-08T13:29:45Z
+
+  - id: REQ-RUNNERS-004
+    type: requirement
+    title: Runner minutes per pool, priced with per-minute rates from config, labelled notional
+    status: approved
+    release: v1.6.6
+    description: The belt report SHALL total runner minutes per pool per month and, where [runners] config gives a per-minute rate for the pool, a notional cost, labelled as list price and not a bill. Pools without a rate SHALL show minutes only.
+    fields:
+      category: functional
+      priority: should
+    links:
+      - type: refines
+        target: REQ-HIST-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-08T13:29:45Z

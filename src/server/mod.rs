@@ -130,7 +130,8 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
                 std::fs::create_dir_all(&g.data_dir)
                     .map_err(|e| anyhow::anyhow!("{}: {e}", g.data_dir))?;
                 let hub = crate::hub::Hub::open(&g.data_dir, &g.org).map_err(anyhow::Error::msg)?;
-                crate::ghsource::spawn(hub.clone(), g.clone()).map_err(anyhow::Error::msg)?;
+                crate::ghsource::spawn(hub.clone(), g.clone(), config.runners.clone())
+                    .map_err(anyhow::Error::msg)?;
                 tracing::info!(api = %g.api_url, org = %g.org, every_s = g.interval_s, "CI source: GitHub API");
                 Some(hub)
             }

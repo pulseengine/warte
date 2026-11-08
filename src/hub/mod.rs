@@ -19,6 +19,7 @@ pub mod belt;
 pub mod eta;
 pub mod model;
 pub mod parse;
+pub mod pools;
 pub mod report;
 pub mod telemetry;
 

@@ -260,7 +260,7 @@ pub fn report(
     let ran = |r: &&JobRecord| !r.runner.is_empty() && r.s.is_some() && r.e.is_some();
     let wait = |r: &JobRecord| (r.s.unwrap_or(r.c) - r.c).max(0);
     let work = |r: &JobRecord| (r.e.unwrap_or(0) - r.s.unwrap_or(0)).max(0);
-    let selfhosted = |r: &JobRecord| r.pool != "hosted";
+    let selfhosted = |r: &JobRecord| !super::pools::is_hosted(&r.pool);
 
     // pools
     let mut pools: BTreeMap<String, (PoolBelt, Vec<i64>, Vec<i64>)> = BTreeMap::new();
@@ -452,7 +452,7 @@ pub fn report(
             let status = status_of(d);
             let mut ev: Vec<(i64, i32)> = all
                 .iter()
-                .filter(|r| r.d == *d && r.pool == "hosted")
+                .filter(|r| r.d == *d && super::pools::is_hosted(&r.pool))
                 .filter(ran)
                 .flat_map(|r| [(r.s.unwrap(), 1), (r.e.unwrap(), -1)])
                 .collect();
