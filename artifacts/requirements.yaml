@@ -897,7 +897,7 @@ artifacts:
   - id: REQ-SMITHY-007
     type: requirement
     title: warte serve no longer mounts the smithy-hub page and API under /ci
-    status: implemented
+    status: verified
     release: v1.6.3
     description: Once every reader of /ci reads warte's own API (owner decision 2026-11-07; the ci-status skill, the commit-merge-guard hook and the owner's environment moved in pulseengine.eu#355 and smithy#84), warte serve SHALL NOT serve /ci or anything below it (404). The ground station's answers stay available under /api (REQ-SMITHY-005, REQ-SMITHY-006). The standalone warte hub keeps serving the hub API on its own port (REQ-SMITHY-002).
     fields:
