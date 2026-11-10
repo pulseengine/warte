@@ -587,7 +587,7 @@ artifacts:
   - id: REQ-PROBE-003
     type: requirement
     title: Machines view with drift warnings; Beszel retired after parity
-    status: approved
+    status: verified
     release: v1.7.0
     description: warte SHALL show every machine with metrics, freshness, versions, disk health and drivers, and SHALL warn on drift (agent CLI behind the newest in use, layer behind its pin, PATH shadowing, degrading disk, driver mismatch), using relay-lc limit checks. Beszel SHALL run side by side until warte covers what it shows, then be retired.
     fields:

@@ -1104,3 +1104,37 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-11-08T17:16:17Z
+
+  - id: REQ-COSTS-002
+    type: requirement
+    title: "Costs schema 2: weekly token-check and wasted-effort counters, counts only"
+    status: verified
+    release: v1.6.9
+    description: "warte SHALL accept costs reports of schema 1 and schema 2. Schema 2 adds weeks: per ISO week, sessions; advisor calls, compactions, cross-session messages received and SendMessage calls, main session and subagents apart; and per repository and active skill, tool uses and tool errors by tool (built-in name, or mcp:<server>), permission denials, repeated-failure streaks and loop-guard firings. Only counts and names that pass a strict character class are accepted, never error text. The Costs view SHALL show this week against the previous one and the error rates per tool, repository and skill."
+    fields:
+      category: functional
+      priority: should
+    links:
+      - type: refines
+        target: REQ-COSTS-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-10T21:17:26Z
+
+  - id: REQ-DASH-018
+    type: requirement
+    title: "Idle scene: after two minutes without input, a seasonal layer over the dashboard that changes every month"
+    status: verified
+    release: v1.6.9
+    description: "After [idle] after_s (120) seconds without input, the dashboard SHALL show a translucent animated layer that leaves the dashboard visible and takes no clicks, with a caption: the month's theme (turned six months in the southern hemisphere), a calendar moment of the day or the next within 14 days, sunrise or sunset and daylight left, the moon's phase, the weather at the time zone's city and a fact from the ground station. Any input SHALL remove it. warte SHALL store no location: the browser's time zone stands in. ?calm and [idle] enabled = false turn it off; [idle] weather = false keeps the browser from calling the weather service."
+    fields:
+      category: functional
+      priority: could
+    links:
+      - type: refines
+        target: REQ-DASH-013
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-10T21:44:36Z

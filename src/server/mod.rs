@@ -38,6 +38,8 @@ pub struct AppState {
     pub skills: Option<Arc<crate::skills::Skills>>,
     /// temper's latest report, when `[temper]` and `[hub]` are configured.
     pub temper: Option<Arc<crate::temper::Store>>,
+    /// The dashboard's idle scene (REQ-DASH-018).
+    pub idle: crate::config::IdleConfig,
 }
 
 /// Build the Axum router with all routes.
@@ -216,6 +218,7 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
     // A stored seed, not a fresh key per start: tokens survive a restart.
     let token_seed = crate::auth::load_or_create_seed(&config.token_seed_file())?;
     let state = AppState {
+        idle: config.idle.clone(),
         ca: ca.clone(),
         hub,
         machines,

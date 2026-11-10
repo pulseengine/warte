@@ -94,7 +94,7 @@
       },
       "post": {
         "summary": "Replace the notional-cost report (a workstation job, nightly)",
-        "description": "The body is the whole report (schema 1, kind claude-code-costs). Unknown fields, free text and negative or non-finite amounts are rejected. At most 8 MiB.",
+        "description": "The body is the whole report (schema 1 or 2, kind claude-code-costs; `warte docs costs-schema`). Schema 2 adds weekly counts: advisor calls, compactions, cross-session messages, SendMessage calls, and per repository and skill tool uses, tool errors, permission denials, failure streaks and loop-guard firings. Unknown fields, free text and negative or non-finite amounts are rejected. At most 8 MiB.",
         "responses": {
           "201": {"description": "stored"},
           "400": {"description": "not a valid report; nothing stored"},

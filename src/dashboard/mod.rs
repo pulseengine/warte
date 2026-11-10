@@ -25,13 +25,31 @@ use axum::{
     response::{Html, IntoResponse, Response},
 };
 
-/// Serve the dashboard HTML page.
-pub async fn dashboard_page() -> Response {
+/// Serve the dashboard HTML page. The idle scene's settings ride on the body
+/// as JSON (REQ-DASH-018); the values are booleans and a number, nothing that
+/// needs escaping beyond what serde writes.
+pub async fn dashboard_page(State(state): State<crate::server::AppState>) -> Response {
+    let idle = serde_json::to_string(&state.idle)
+        .unwrap_or_else(|_| "{}".into())
+        .replace('\'', "&#39;");
     Html(
         include_str!("../../templates/dashboard.html")
-            .replace("{{VERSION}}", env!("CARGO_PKG_VERSION")),
+            .replace("{{VERSION}}", env!("CARGO_PKG_VERSION"))
+            .replace("{{IDLE}}", &idle),
     )
     .into_response()
+}
+
+/// The idle scene (REQ-DASH-018).
+pub async fn idle_js() -> Response {
+    (
+        [
+            (header::CONTENT_TYPE, "text/javascript; charset=utf-8"),
+            (header::CACHE_CONTROL, "public, max-age=3600"),
+        ],
+        include_str!("../../templates/idle.js"),
+    )
+        .into_response()
 }
 
 /// HTMX partial: overview content (auto-refreshes via SSE).

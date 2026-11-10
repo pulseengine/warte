@@ -202,7 +202,7 @@ async fn free_text_and_unknown_fields_are_rejected_and_not_stored() {
     r["label"] = "billed".into();
     cases.push(("not labelled notional", r));
     let mut r = report();
-    r["schema"] = 2.into();
+    r["schema"] = 3.into();
     cases.push(("another schema", r));
     let mut r = report();
     r["windows"]["<script>"] = r["windows"]["all"].clone();
@@ -392,4 +392,119 @@ fn an_unreadable_costs_file_is_rejected_not_empty() {
     let c = warte::costs::Costs::open(data.path().to_str().unwrap(), missing.to_str());
     assert_eq!(c.rejected(), None);
     assert!(c.latest().is_none());
+}
+
+/// A schema-2 report (REQ-COSTS-002): the schema-1 report plus two weeks.
+fn report_v2() -> serde_json::Value {
+    let mut r = report();
+    r["schema"] = 2.into();
+    let sig = |a: u64, c: u64, x: u64, m: u64| serde_json::json!({"advisor_calls": a, "compactions": c, "cross_session_in": x, "sendmessage_calls": m});
+    r["weeks"] = serde_json::json!([
+        {"week": "2026-W44", "sessions": 9, "main": sig(4, 2, 1, 3), "sidechain": sig(0, 0, 0, 1),
+         "effort": [{"repo": "alpha", "skill": "none", "sessions": 9,
+                     "tool_uses": {"Bash": 200, "Edit": 40}, "tool_errors": {"Bash": 10},
+                     "permission_denials": 1, "repeated_failures": 0, "loop_guard_fired": 0}]},
+        {"week": "2026-W45", "sessions": 12, "main": sig(7, 3, 5, 6), "sidechain": sig(1, 0, 0, 2),
+         "effort": [
+            {"repo": "alpha", "skill": "plugin-x:issue-hunt", "sessions": 5,
+             "tool_uses": {"Bash": 300, "mcp:rivet": 20}, "tool_errors": {"Bash": 30, "mcp:rivet": 4},
+             "permission_denials": 2, "repeated_failures": 3, "loop_guard_fired": 1},
+            {"repo": "beta", "skill": "none", "sessions": 7,
+             "tool_uses": {"Read": 80}, "tool_errors": {},
+             "permission_denials": 0, "repeated_failures": 0, "loop_guard_fired": 0}]}
+    ]);
+    r
+}
+
+// rivet: verifies REQ-COSTS-002
+#[tokio::test]
+async fn a_schema_2_report_shows_this_week_against_the_previous_one() {
+    let srv = serve().await;
+    let base = srv.base.clone();
+    let (code, body) = post(&srv, &report_v2()).await;
+    assert_eq!(code, 201, "{body}");
+    let v = get_json(&base, "/api/costs").await;
+    assert_eq!(v["report"]["weeks"][1]["main"]["compactions"], 3);
+    let html = page(&base).await;
+    for want in [
+        "Token check",
+        "2026-W44",
+        "2026-W45",
+        // main / subagents, this week and the week before
+        "7 / 1",
+        "4 / 0",
+        "5 / 0",
+        // tool errors of all uses: 34 of 320 this week, 10 of 240 before
+        "34 of 320 (10.6%)",
+        "10 of 240 (4.2%)",
+        // by tool, worst first, with MCP servers by server name
+        "mcp:rivet",
+        "plugin-x:issue-hunt",
+        "Wasted effort by repository and skill",
+    ] {
+        assert!(html.contains(want), "{want} missing: {html}");
+    }
+    let bash = html.find(">Bash<").expect("Bash row");
+    let rivet = html.find(">mcp:rivet<").expect("rivet row");
+    assert!(bash < rivet, "most errors first");
+    // a repo with no wasted effort is not listed as wasting any
+    let waste = &html[html.find("Wasted effort by repository").unwrap()..];
+    assert!(!waste.contains(">beta<"), "{waste}");
+
+    // schema 1 is still accepted, and shows no token check
+    assert_eq!(post(&srv, &report()).await.0, 201);
+    assert!(!page(&base).await.contains("Token check"));
+}
+
+// rivet: verifies REQ-COSTS-002
+#[tokio::test]
+async fn schema_2_takes_counts_and_names_only() {
+    let srv = serve().await;
+    let base = srv.base.clone();
+    let mut cases: Vec<(&str, serde_json::Value)> = Vec::new();
+    let mut r = report();
+    r["weeks"] = report_v2()["weeks"].clone();
+    cases.push(("weeks on schema 1", r));
+    let mut r = report_v2();
+    r.as_object_mut().unwrap().remove("weeks");
+    cases.push(("schema 2 without weeks", r));
+    let mut r = report_v2();
+    r["weeks"][0]["effort"][0]["tool_errors"]["Bash: command not found: foo"] = 1.into();
+    cases.push(("error text as a tool", r));
+    let mut r = report_v2();
+    r["weeks"][0]["effort"][0]["error"] = "Permission to use Bash was denied".into();
+    cases.push(("an error text field", r));
+    let mut r = report_v2();
+    r["weeks"][0]["effort"][0]["tool_uses"]["mcp__rivet__list"] = 1.into();
+    cases.push(("an MCP tool not reduced to its server", r));
+    let mut r = report_v2();
+    r["weeks"][0]["effort"][0]["tool_uses"]["mcp:rivet list"] = 1.into();
+    cases.push(("an MCP server name with a space", r));
+    let mut r = report_v2();
+    r["weeks"][0]["effort"][0]["skill"] = "Review the PR for acme".into();
+    cases.push(("text as a skill", r));
+    let mut r = report_v2();
+    r["weeks"][0]["effort"][0]["repo"] = "/Users/someone/git/alpha".into();
+    cases.push(("a path as a repo", r));
+    let mut r = report_v2();
+    r["weeks"][0]["week"] = "2026-W54".into();
+    cases.push(("no such week", r));
+    let mut r = report_v2();
+    r["weeks"][1]["week"] = "2026-W44".into();
+    cases.push(("a week twice", r));
+    let mut r = report_v2();
+    r["weeks"][0]["effort"][0]["tool_errors"]["Bash"] = 500.into();
+    cases.push(("more errors than uses", r));
+    let mut r = report_v2();
+    r["weeks"][0]["main"]["compactions"] = (-1).into();
+    cases.push(("a negative count", r));
+    for (what, body) in cases {
+        let (code, msg) = post(&srv, &body).await;
+        assert_eq!(code, 400, "{what} accepted: {msg}");
+        assert!(
+            !msg.contains("acme") && !msg.contains("someone"),
+            "{what}: the reason quotes the value: {msg}"
+        );
+    }
+    assert!(get_json(&base, "/api/costs").await["report"].is_null());
 }

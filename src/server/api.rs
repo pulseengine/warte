@@ -87,6 +87,7 @@ pub fn build_routes() -> Router<AppState> {
         .route("/", get(crate::dashboard::dashboard_page))
         .route("/dashboard.css", get(crate::dashboard::dashboard_css))
         .route("/htmx.min.js", get(crate::dashboard::htmx_js))
+        .route("/idle.js", get(crate::dashboard::idle_js))
         .route(
             "/api/dashboard/overview-partial",
             get(crate::dashboard::overview_partial),
