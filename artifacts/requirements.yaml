@@ -1023,7 +1023,7 @@ artifacts:
   - id: REQ-RUNNERS-005
     type: requirement
     title: The GitHub source keeps a job ledger, so the monthly report and runner minutes work without a smithy agent
-    status: approved
+    status: verified
     release: v1.6.8
     description: Without a smithy agent (warte at work), the GitHub scan SHALL record each finished job of the scanned repos (created, started, completed, pool, runner, conclusion) into the ground station ledger, with conditional requests, and SHALL mark a day complete only when every run created that day is finished and read; until then the report says preliminary.
     fields:

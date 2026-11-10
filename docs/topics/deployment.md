@@ -64,7 +64,8 @@ The base is set, never guessed from a web URL. The same settings as a
 `[github]` section: `api_url`, `org`, `interval_s` (120), `active_days` (7),
 `max_runs` (150), `rate_reserve` (150, env `WARTE_GITHUB_RATE_RESERVE`),
 `self_hosted_labels` (env `WARTE_SELF_HOSTED_LABELS`, comma-separated),
-`ca_bundle`, `status_url`, `data_dir`. Keep the token in
+`ca_bundle`, `status_url`, `data_dir`, `ledger_days` (2), `ledger_interval_s`
+(600). Keep the token in
 `WARTE_GITHUB_TOKEN`, not in the file.
 
 - **Token scope:** read-only. A fine-grained token with "Actions: read" on the
@@ -95,6 +96,16 @@ The base is set, never guessed from a web URL. The same settings as a
   config are marked `inferred`). Where GitHub lists runners, its list wins.
   `per_minute` prices the pool's minutes in the monthly report as a notional
   cost (list price, not a bill).
+- **Job ledger and monthly report** (REQ-RUNNERS-005): every
+  `ledger_interval_s` the scan reads the finished jobs of the scanned repos
+  into the ground station's ledger, for the days from `ledger_days` back to
+  today (`0` turns it off). A day is the UTC day a run was created. It counts
+  as complete once it is over (plus an hour), every run created on it has
+  finished and its jobs were read; until a day is complete the monthly report
+  says preliminary. A pass costs one listing per repo and open day, sent with
+  its ETag, and one job listing per finished run, read once; complete days are
+  not listed again. What was read is kept in `ghledger.json` in `data_dir`.
+  Repos not pushed within `active_days` are not read.
 
 - **Rate limits:** a scan lists recently pushed repos, their queued and
   running runs, and those runs' jobs (at most `max_runs`). Every listing is
