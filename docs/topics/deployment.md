@@ -132,6 +132,23 @@ The base is set, never guessed from a web URL. The same settings as a
   githubstatus.com: set `status_url = "off"`.
 - `[hub]` and `[github]` are exclusive: one CI source per instance.
 
+## The idle scene
+
+After two minutes without input the dashboard shows a seasonal layer
+(REQ-DASH-018): the month's theme, the day's calendar moment, the sun and the
+moon, the weather and a fact from the ground station. warte stores no
+location; the browser's time zone stands in for it. For a wall screen that
+should stay still, open the dashboard with `?calm`, or turn it off:
+
+```toml
+[idle]
+enabled = true   # false: no idle scene
+after_s = 120    # seconds without input
+weather = true   # false: the browser does not call api.open-meteo.com
+```
+
+At a site whose browsers must not call out, set `weather = false`.
+
 ## Enterprise deployment notes
 
 ### GitHub Enterprise Cloud with data residency, behind a proxy

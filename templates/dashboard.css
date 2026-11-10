@@ -538,3 +538,26 @@ p.empty {
 .mhealth { margin: .3rem 0; }
 .hattached { list-style: none; margin: .2rem 0; padding: 0; font-size: .8rem; display: grid; gap: .15rem; }
 .mhw { margin: .3rem 0; }
+
+/* idle scene (REQ-DASH-018): a translucent layer; the dashboard stays readable */
+#idle-scene {
+  position: fixed; inset: 0; z-index: 9000; pointer-events: none;
+  opacity: 0; transition: opacity 1.2s ease;
+}
+body.idle-on #idle-scene { opacity: .85; }
+#idle-caption {
+  position: fixed; left: 50%; bottom: 28px; transform: translate(-50%, 12px);
+  z-index: 9001; pointer-events: none; opacity: 0; transition: opacity 1.2s ease, transform 1.2s ease;
+  width: min(560px, calc(100vw - 32px)); box-sizing: border-box;
+  display: flex; flex-direction: column; gap: 4px; padding: 14px 18px;
+  background: rgba(7, 11, 18, .62); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  border: 1px solid color-mix(in srgb, var(--idle-tint, #3ee6ff) 45%, transparent);
+  border-radius: 12px; color: #e8eef6; font-size: 14px; line-height: 1.45;
+  box-shadow: 0 0 40px color-mix(in srgb, var(--idle-tint, #3ee6ff) 18%, transparent);
+}
+body.idle-on #idle-caption { opacity: 1; transform: translate(-50%, 0); }
+#idle-caption .idle-title { font-size: 18px; color: var(--idle-tint, #3ee6ff); letter-spacing: .02em; }
+#idle-caption small { color: #93a1b3; font-size: 12px; margin-top: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  #idle-scene, #idle-caption { transition: none; }
+}

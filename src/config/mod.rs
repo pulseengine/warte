@@ -112,6 +112,9 @@ pub struct Config {
     /// `[[runners.pool]] labels = ["linux-16core"], name = "...", count = 4`.
     #[serde(default)]
     pub runners: crate::hub::pools::RunnersConfig,
+    /// The dashboard's idle scene (REQ-DASH-018).
+    #[serde(default)]
+    pub idle: IdleConfig,
 }
 
 /// Machine history retention (REQ-MHIST-001).
@@ -150,6 +153,35 @@ pub struct TemperFeedConfig {
 
 fn default_temper_stale_after_s() -> i64 {
     26 * 3600
+}
+
+/// The dashboard's idle scene (REQ-DASH-018): a seasonal layer over the
+/// dashboard after `after_s` seconds without input.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct IdleConfig {
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    #[serde(default = "default_idle_after_s")]
+    pub after_s: u64,
+    /// The browser asks Open-Meteo for the weather at the time zone's city.
+    /// Off at sites whose browsers must not call out.
+    #[serde(default = "default_true")]
+    pub weather: bool,
+}
+
+fn default_idle_after_s() -> u64 {
+    120
+}
+
+impl Default for IdleConfig {
+    fn default() -> Self {
+        IdleConfig {
+            enabled: true,
+            after_s: default_idle_after_s(),
+            weather: true,
+        }
+    }
 }
 
 /// GitHub's REST API as a CI source (#81). The scan fills the same model as
@@ -309,6 +341,7 @@ impl Default for Config {
             history: None,
             pressure: Default::default(),
             runners: Default::default(),
+            idle: Default::default(),
         }
     }
 }
