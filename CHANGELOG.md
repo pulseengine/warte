@@ -4,6 +4,11 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.9 — 2026-11-10
+
+- **Costs schema 2** (REQ-COSTS-002). The nightly costs report may now carry `weeks`: per ISO week, the sessions; advisor calls, compactions, cross-session messages received and SendMessage calls, main sessions and subagents apart; and per repository and active skill, tool uses and tool errors by tool (MCP tools by server), permission denials, failure streaks (3 or more in a row) and loop-guard firings. Counts and names only: error text, a raw MCP tool name, a path or more errors than uses refuse the report. The Costs view shows the newest week against the one before, the failed calls by tool and the wasted effort by repository and skill. Schema 1 is still accepted. The schema is in `warte docs costs-schema`.
+- **Machines view** (REQ-PROBE-003) verified: Beszel is retired.
+
 ## v1.6.8 — 2026-11-10
 
 - **The monthly report works without a smithy agent** (REQ-RUNNERS-005). The GitHub source now keeps the job ledger: every `ledger_interval_s` (600) it reads the finished jobs of the scanned repos for the last `ledger_days` (2) days and today, records each once, and marks a day complete only when the day is over, every run created on it has finished and its jobs were read. Runner minutes, costs per pool, waits and flow efficiency in `/api/report` then come from GitHub's own records. Listings go out with their ETag, finished runs are read once and complete days are not listed again. The report matches GitHub runner names to their labels in this mode too.

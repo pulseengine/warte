@@ -28,8 +28,15 @@ use std::collections::BTreeMap;
 
 /// The label every view of these figures carries.
 pub const LABEL: &str = "notional list price, not billed";
-/// The report schema this build accepts.
-pub const SCHEMA: u32 = 1;
+/// The newest report schema this build accepts. Schema 1 is accepted too;
+/// schema 2 adds [`Week`] (REQ-COSTS-002).
+pub const SCHEMA: u32 = 2;
+/// Weeks kept in a schema-2 report, at most.
+pub const MAX_WEEKS: usize = 60;
+/// Rows of one week's `effort`, at most.
+pub const MAX_EFFORT_ROWS: usize = 2000;
+/// Tools named in one row's `tool_uses` or `tool_errors`, at most.
+pub const MAX_TOOLS: usize = 100;
 /// The largest report accepted, in bytes.
 pub const MAX_BODY: usize = 8 * 1024 * 1024;
 /// A report older than this is shown as stale (the job runs nightly).
@@ -162,6 +169,63 @@ pub struct Classifier {
     pub categories: Vec<String>,
 }
 
+/// How the agent spent turns on talking to itself and others in one week,
+/// for one side (main sessions, or subagents).
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct Signals {
+    /// `tool_use` or `server_tool_use` named `advisor`.
+    pub advisor_calls: u64,
+    /// System records of subtype `compact_boundary`.
+    pub compactions: u64,
+    /// User records carrying a cross-session message.
+    pub cross_session_in: u64,
+    /// `SendMessage` tool uses (to other sessions and to own subagents).
+    pub sendmessage_calls: u64,
+}
+
+/// Wasted effort of one repository and active skill in one week.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct Effort {
+    /// Folder name of the session's working directory.
+    pub repo: String,
+    /// The skill last invoked before the record, `none` before any.
+    pub skill: String,
+    pub sessions: u64,
+    /// Tool uses by tool: a built-in tool's name, or `mcp:<server>`.
+    pub tool_uses: BTreeMap<String, u64>,
+    /// `is_error` tool results by tool, permission denials excluded.
+    pub tool_errors: BTreeMap<String, u64>,
+    /// `is_error` results whose text matches [`DENIAL_PATTERN`].
+    pub permission_denials: u64,
+    /// Runs of [`STREAK`] or more failed results of the same tool in a row
+    /// within a session; each run counts once.
+    pub repeated_failures: u64,
+    /// Times the loop guard stopped or warned the agent.
+    pub loop_guard_fired: u64,
+}
+
+/// One ISO week of schema-2 counters (REQ-COSTS-002). Counts only: never a
+/// message, an error text or a path.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct Week {
+    /// `YYYY-Www`, the ISO week of each record's timestamp (UTC).
+    pub week: String,
+    pub sessions: u64,
+    pub main: Signals,
+    pub sidechain: Signals,
+    pub effort: Vec<Effort>,
+}
+
+/// What counts as a permission denial: the start of an `is_error` tool
+/// result's text. Every other `is_error` result is a tool error. Agreed with
+/// the extractor; documented here so both sides read it from one place.
+pub const DENIAL_PATTERN: &str = r"^(The user doesn't want to proceed|Permission (to use|for this command|for this) [^\n]{0,80}(denied|was denied))";
+/// Failed results of the same tool in a row that make a repeated failure.
+pub const STREAK: u32 = 3;
+
 /// One report, as the extractor pushes it.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(deny_unknown_fields)]
@@ -180,6 +244,9 @@ pub struct CostReport {
     pub daily: Vec<Day>,
     pub sessions: Vec<Session>,
     pub subagents: Vec<Subagent>,
+    /// Schema 2 only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub weeks: Option<Vec<Week>>,
 }
 
 /// A name: model id, repository, category, machine, agent type. No spaces, no
@@ -188,6 +255,46 @@ fn name_ok(s: &str) -> bool {
     s.len() <= 64
         && s.chars()
             .all(|c| c.is_ascii_alphanumeric() || "._+-()".contains(c))
+}
+
+/// A tool: a built-in tool's name, or `mcp:<server>`.
+fn tool_ok(s: &str) -> bool {
+    let word = |w: &str, extra: &str| {
+        (1..=40).contains(&w.len())
+            && w.chars()
+                .all(|c| c.is_ascii_alphanumeric() || extra.contains(c))
+    };
+    match s.strip_prefix("mcp:") {
+        Some(server) => word(server, "_.-"),
+        // an MCP tool arrives reduced to its server, never as mcp__server__tool
+        None => {
+            word(s, "_")
+                && s.starts_with(|c: char| c.is_ascii_alphabetic())
+                && !s.starts_with("mcp__")
+        }
+    }
+}
+
+/// A skill: `name` or `plugin:name`, lower case, or `none`.
+fn skill_ok(s: &str) -> bool {
+    s.len() <= 80
+        && s.split(':').count() <= 2
+        && s.split(':').all(|w| {
+            !w.is_empty()
+                && w.chars()
+                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || "-_.".contains(c))
+        })
+}
+
+/// `YYYY-Www`, a real ISO week.
+fn week_ok(s: &str) -> bool {
+    let Some((y, w)) = s.split_once("-W") else {
+        return false;
+    };
+    let (Ok(y), Ok(w)) = (y.parse::<i32>(), w.parse::<u32>()) else {
+        return false;
+    };
+    s.len() == 8 && chrono::NaiveDate::from_isoywd_opt(y, w, chrono::Weekday::Mon).is_some()
 }
 
 fn id_ok(s: &str) -> bool {
@@ -220,12 +327,13 @@ impl CostReport {
         // Names the field, never the value: the reason is shown on the public
         // read API, and the value may be exactly the text that must not be.
         let bad = |what: &str, _v: &str| Err(format!("{what} is not allowed"));
-        if self.schema != SCHEMA {
-            return Err(format!(
-                "schema {} (this warte accepts {SCHEMA})",
-                self.schema
-            ));
+        match (self.schema, &self.weeks) {
+            (1, None) | (2, Some(_)) => {}
+            (1, Some(_)) => return Err("weeks needs schema 2".into()),
+            (2, None) => return Err("schema 2 needs weeks".into()),
+            (n, _) => return Err(format!("schema {n} (this warte accepts 1 and {SCHEMA})")),
         }
+        self.validate_weeks()?;
         if self.kind != "claude-code-costs" || !self.notional || self.label != LABEL {
             return Err(format!(
                 "a costs report is kind claude-code-costs, notional true, label {LABEL:?}"
@@ -332,6 +440,48 @@ impl CostReport {
             ] {
                 if !name_ok(v) {
                     return bad("a subagent field", v);
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+impl CostReport {
+    fn validate_weeks(&self) -> Result<(), String> {
+        let weeks = self.weeks.as_deref().unwrap_or_default();
+        if weeks.len() > MAX_WEEKS {
+            return Err(format!("more than {MAX_WEEKS} weeks"));
+        }
+        let mut seen = std::collections::BTreeSet::new();
+        for w in weeks {
+            if !week_ok(&w.week) || !seen.insert(w.week.as_str()) {
+                return Err("a week is not YYYY-Www, or repeated".into());
+            }
+            if w.effort.len() > MAX_EFFORT_ROWS {
+                return Err(format!(
+                    "week {}: more than {MAX_EFFORT_ROWS} effort rows",
+                    w.week
+                ));
+            }
+            for e in &w.effort {
+                if !name_ok(&e.repo) || e.repo.is_empty() {
+                    return Err(format!("week {}: a repository is not allowed", w.week));
+                }
+                if !skill_ok(&e.skill) {
+                    return Err(format!("week {}: a skill is not allowed", w.week));
+                }
+                for m in [&e.tool_uses, &e.tool_errors] {
+                    if m.len() > MAX_TOOLS || !m.keys().all(|k| tool_ok(k)) {
+                        return Err(format!("week {}: a tool name is not allowed", w.week));
+                    }
+                }
+                // an error is a failed use: more errors than uses is a bug
+                // in the extractor, and the rates would read above 100 %
+                for (t, n) in &e.tool_errors {
+                    if *n > e.tool_uses.get(t).copied().unwrap_or(0) {
+                        return Err(format!("week {}: more errors than uses of a tool", w.week));
+                    }
                 }
             }
         }

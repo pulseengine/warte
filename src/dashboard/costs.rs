@@ -3,7 +3,8 @@
 //! tier. Every name in the report comes from a workstation: escaped.
 
 use super::fleet::{dur_pub as dur, esc};
-use crate::costs::{CostReport, Costs, Window, LABEL, STALE_S};
+use crate::costs::{CostReport, Costs, Effort, Signals, Week, Window, LABEL, STALE_S};
+use std::collections::BTreeMap;
 
 fn usd(x: f64) -> String {
     if x >= 1000.0 {
@@ -111,6 +112,194 @@ fn breakdowns(w: &Window) -> String {
     )
 }
 
+/// Notional $ of an ISO week, from the daily rollup.
+fn week_usd(r: &CostReport, week: &str) -> f64 {
+    r.daily
+        .iter()
+        .filter(|d| {
+            chrono::NaiveDate::parse_from_str(&d.day, "%Y-%m-%d").is_ok_and(|n| {
+                let w = chrono::Datelike::iso_week(&n);
+                format!("{}-W{:02}", w.year(), w.week()) == week
+            })
+        })
+        .map(|d| d.usd)
+        .sum()
+}
+
+/// Summed effort rows of a week.
+fn effort_total(w: &Week) -> Effort {
+    let mut t = Effort::default();
+    for e in &w.effort {
+        for (k, n) in &e.tool_uses {
+            *t.tool_uses.entry(k.clone()).or_default() += n;
+        }
+        for (k, n) in &e.tool_errors {
+            *t.tool_errors.entry(k.clone()).or_default() += n;
+        }
+        t.permission_denials += e.permission_denials;
+        t.repeated_failures += e.repeated_failures;
+        t.loop_guard_fired += e.loop_guard_fired;
+    }
+    t
+}
+
+fn rate(errors: u64, uses: u64) -> String {
+    if uses == 0 {
+        "n/a".into()
+    } else {
+        format!("{:.1}%", errors as f64 * 100.0 / uses as f64)
+    }
+}
+
+/// Schema 2 (REQ-COSTS-002): the newest week against the one before, and
+/// where the failed tool calls of the newest week were.
+fn weekly(r: &CostReport) -> String {
+    let Some(weeks) = r.weeks.as_ref() else {
+        return String::new();
+    };
+    let mut ws: Vec<&Week> = weeks.iter().collect();
+    ws.sort_by(|a, b| b.week.cmp(&a.week));
+    let Some(cur) = ws.first() else {
+        return r#"<section class="panel"><h3>Token check</h3><p class="empty">The report has no week yet.</p></section>"#.into();
+    };
+    let prev = ws.get(1);
+    let (ec, ep) = (effort_total(cur), prev.map(|p| effort_total(p)));
+    let sum = |m: &BTreeMap<String, u64>| m.values().sum::<u64>();
+    let row = |label: &str, c: String, p: Option<String>| {
+        format!(
+            r#"<tr><td>{}</td><td class="n">{}</td><td class="n"><b>{}</b></td></tr>"#,
+            esc(label),
+            esc(&p.unwrap_or_else(|| "n/a".into())),
+            esc(&c)
+        )
+    };
+    let side = |w: &Week, f: fn(&Signals) -> u64| format!("{} / {}", f(&w.main), f(&w.sidechain));
+    let mut rows = String::new();
+    rows += &row(
+        "Sessions",
+        cur.sessions.to_string(),
+        prev.map(|p| p.sessions.to_string()),
+    );
+    rows += &row(
+        "Notional $",
+        usd(week_usd(r, &cur.week)),
+        prev.map(|p| usd(week_usd(r, &p.week))),
+    );
+    for (label, f) in [
+        (
+            "Advisor calls · main / subagents",
+            (|s: &Signals| s.advisor_calls) as fn(&Signals) -> u64,
+        ),
+        ("Compactions · main / subagents", |s| s.compactions),
+        ("Cross-session messages in · main / subagents", |s| {
+            s.cross_session_in
+        }),
+        ("SendMessage calls · main / subagents", |s| {
+            s.sendmessage_calls
+        }),
+    ] {
+        rows += &row(label, side(cur, f), prev.map(|p| side(p, f)));
+    }
+    let errs = |e: &Effort| {
+        format!(
+            "{} of {} ({})",
+            sum(&e.tool_errors),
+            sum(&e.tool_uses),
+            rate(sum(&e.tool_errors), sum(&e.tool_uses))
+        )
+    };
+    rows += &row("Tool errors", errs(&ec), ep.as_ref().map(errs));
+    rows += &row(
+        "Permission denials",
+        ec.permission_denials.to_string(),
+        ep.as_ref().map(|e| e.permission_denials.to_string()),
+    );
+    rows += &row(
+        "Repeated failures",
+        ec.repeated_failures.to_string(),
+        ep.as_ref().map(|e| e.repeated_failures.to_string()),
+    );
+    rows += &row(
+        "Loop guard fired",
+        ec.loop_guard_fired.to_string(),
+        ep.as_ref().map(|e| e.loop_guard_fired.to_string()),
+    );
+    let check = table(
+        &format!(
+            r#"<th></th><th class="n">{}</th><th class="n">{}</th>"#,
+            esc(prev.map_or("previous", |p| p.week.as_str())),
+            esc(&cur.week)
+        ),
+        rows,
+    );
+    // by tool, worst error count first
+    let mut tools: Vec<(&String, u64, u64)> = ec
+        .tool_uses
+        .iter()
+        .map(|(t, u)| (t, ec.tool_errors.get(t).copied().unwrap_or(0), *u))
+        .filter(|x| x.1 > 0)
+        .collect();
+    tools.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(b.0)));
+    let tool_rows: String = tools
+        .iter()
+        .take(10)
+        .map(|(t, e, u)| {
+            format!(
+                r#"<tr><td class="mono">{}</td><td class="n">{e}</td><td class="n">{u}</td><td class="n">{}</td></tr>"#,
+                esc(t),
+                rate(*e, *u)
+            )
+        })
+        .collect();
+    // by repository and skill, most wasted first
+    let mut by: Vec<&Effort> = cur.effort.iter().collect();
+    let waste = |e: &Effort| {
+        sum(&e.tool_errors) + e.permission_denials + e.repeated_failures + e.loop_guard_fired
+    };
+    by.sort_by(|a, b| waste(b).cmp(&waste(a)).then(a.repo.cmp(&b.repo)));
+    let by_rows: String = by
+        .iter()
+        .filter(|e| waste(e) > 0)
+        .take(10)
+        .map(|e| {
+            format!(
+                r#"<tr><td>{}</td><td class="mono">{}</td><td class="n">{}</td><td class="n">{}</td><td class="n">{}</td><td class="n">{}</td><td class="n">{}</td><td class="n">{}</td></tr>"#,
+                esc(&e.repo),
+                esc(&e.skill),
+                e.sessions,
+                errs(e),
+                e.permission_denials,
+                e.repeated_failures,
+                e.loop_guard_fired,
+                sum(&e.tool_uses)
+            )
+        })
+        .collect();
+    let detail = if tool_rows.is_empty() && by_rows.is_empty() {
+        format!(
+            r#"<p class="empty">No failed tool call in {}.</p>"#,
+            esc(&cur.week)
+        )
+    } else {
+        format!(
+            r#"<div class="split"><section class="panel"><h3>Failed calls by tool · {w}</h3>{}</section><section class="panel"><h3>Wasted effort by repository and skill · {w}</h3>{}</section></div>"#,
+            table(
+                r#"<th>Tool</th><th class="n">Errors</th><th class="n">Uses</th><th class="n">Rate</th>"#,
+                tool_rows
+            ),
+            table(
+                r#"<th>Repository</th><th>Skill</th><th class="n">Sessions</th><th class="n">Tool errors</th><th class="n">Denials</th><th class="n">Streaks</th><th class="n">Loop guard</th><th class="n">Uses</th>"#,
+                by_rows
+            ),
+            w = esc(&cur.week)
+        )
+    };
+    format!(
+        r#"<section class="panel"><h3>Token check · week against week</h3>{check}<div class="note">Counts from the transcripts, by ISO week (UTC); subagent records apart from the main session. A permission denial is a refused tool call, not counted as a tool error. A streak is {} or more failed calls of the same tool in a row. No message or error text leaves the workstation.</div></section>{detail}"#,
+        crate::costs::STREAK
+    )
+}
+
 pub fn view(costs: Option<&Costs>, now: i64) -> String {
     let banner = format!(
         r#"<div class="err"><b>{}.</b> List prices applied to the token counts in agent transcripts. The owner is on a subscription: none of this is billed.</div>"#,
@@ -210,13 +399,14 @@ pub fn view(costs: Option<&Costs>, now: i64) -> String {
         String::new()
     };
     format!(
-        r#"<div class="overview"><h2>Costs <span class="{pill}">{word} · {} ago</span></h2>{banner}{unpriced}<section class="panel">{kpis}</section><section class="panel"><h3>Notional $ per day · last 30 days</h3><div class="hbars">{daily}</div></section><section class="panel"><h3>Top sessions · last 30 days</h3>{}</section>{}<div class="note">Prices: list prices of {} (<a href="{}">source</a>), per request: 5m and 1h cache writes apart, the long-prompt tier where a model has one, advisor calls on their own model. Report generated {}, received {} ago. A session's date is its first message; the daily bars use each message's own date.</div></div>"#,
+        r#"<div class="overview"><h2>Costs <span class="{pill}">{word} · {} ago</span></h2>{banner}{unpriced}<section class="panel">{kpis}</section><section class="panel"><h3>Notional $ per day · last 30 days</h3><div class="hbars">{daily}</div></section><section class="panel"><h3>Top sessions · last 30 days</h3>{}</section>{}{}<div class="note">Prices: list prices of {} (<a href="{}">source</a>), per request: 5m and 1h cache writes apart, the long-prompt tier where a model has one, advisor calls on their own model. Report generated {}, received {} ago. A session's date is its first message; the daily bars use each message's own date.</div></div>"#,
         dur(age),
         table(
             r#"<th>Date</th><th>Machine</th><th>Repository</th><th>Model</th><th class="n">Subagents</th><th class="n">Main</th><th class="n">Subagents</th><th class="n">Advisor</th><th class="n">Total</th>"#,
             top
         ),
         breakdowns(&w30),
+        weekly(r),
         esc(&r.prices.version),
         esc(&r.prices.source),
         esc(&r.generated_at),

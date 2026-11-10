@@ -67,6 +67,11 @@ const TOPICS: &[Topic] = &[
         content: include_str!("../../docs/topics/ground-station.md"),
     },
     Topic {
+        name: "costs-schema",
+        title: "Costs report schema (1 and 2)",
+        content: include_str!("../../docs/topics/costs-schema.md"),
+    },
+    Topic {
         name: "probe-privileged",
         title: "Privileged collector (SMART for the probe)",
         content: include_str!("../../docs/topics/probe-privileged.md"),
@@ -202,6 +207,22 @@ mod tests {
     #[test]
     fn test_unknown_topic() {
         assert!(get_topic("nonexistent").is_none());
+    }
+
+    // rivet: verifies REQ-COSTS-002
+    #[test]
+    fn the_costs_schema_doc_states_the_rules_the_code_checks() {
+        let d = include_str!("../../docs/topics/costs-schema.md");
+        // the extractor reads the doc, warte the constants: they must agree
+        assert!(
+            d.contains(crate::costs::DENIAL_PATTERN),
+            "denial pattern drifted"
+        );
+        assert!(d.contains(&format!(
+            "runs of {} or more failed results",
+            crate::costs::STREAK
+        )));
+        assert!(d.contains(&format!("at most {}", crate::costs::MAX_WEEKS)));
     }
 
     // rivet: verifies REQ-DOCS-010
