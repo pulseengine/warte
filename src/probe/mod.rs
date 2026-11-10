@@ -687,8 +687,15 @@ pub struct Finding {
     pub text: String,
 }
 
+/// The kernel's flavour, its last `-` part: `amd64` in
+/// "6.12.115+deb13.1-amd64", `v8` in "6.18.60+rpt-rpi-v8", empty for a bare
+/// version. Only kernels of one flavour are compared.
+pub fn kernel_flavour(k: &str) -> &str {
+    k.rsplit_once('-').map(|(_, f)| f).unwrap_or("")
+}
+
 /// Numeric parts of a version, for ordering ("2.1.4" < "2.1.12").
-fn vkey(v: &str) -> Vec<u64> {
+pub(crate) fn vkey(v: &str) -> Vec<u64> {
     v.split(|c: char| !c.is_ascii_digit())
         .filter(|s| !s.is_empty())
         .filter_map(|s| s.parse().ok())
@@ -852,15 +859,21 @@ pub fn findings(seen: &[Seen], now: i64) -> Vec<Finding> {
             }
         }
     }
-    // kernel drift between machines on the same OS
-    let mut by_os: std::collections::BTreeMap<&str, Vec<&Report>> = Default::default();
+    // kernel drift between machines on the same OS, architecture and kernel
+    // flavour: a Debian amd64 kernel is not "behind" a Raspberry Pi one
+    let mut by_os: std::collections::BTreeMap<(&str, &str, &str), Vec<&Report>> =
+        Default::default();
     for s in seen {
         by_os
-            .entry(s.report.os.name.as_str())
+            .entry((
+                s.report.os.name.as_str(),
+                s.report.os.arch.as_str(),
+                kernel_flavour(&s.report.os.kernel),
+            ))
             .or_default()
             .push(&s.report);
     }
-    for (os, rs) in by_os {
+    for ((os, _, _), rs) in by_os {
         let newest = rs
             .iter()
             .map(|r| r.os.kernel.as_str())

@@ -235,6 +235,11 @@ pub fn spawn(state: crate::server::AppState) {
             if let Ok(st) = state.status.get_status().await {
                 found.extend(crate::dashboard::fleet::github_detected(&st));
             }
+            // red machine findings and late feeds notify too (REQ-TEMPER-003)
+            found.extend(crate::dashboard::fleet::host_detected(
+                &state,
+                crate::hub::now(),
+            ));
             let events = tracker.step(&found);
             // the alerts agent heartbeats every tick, so it never shows as unhealthy
             let id = match &id {

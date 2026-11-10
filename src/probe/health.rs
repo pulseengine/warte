@@ -99,6 +99,16 @@ pub struct Health {
     pub failed_units: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reboot_required_since: Option<i64>,
+    /// Why a reboot is needed (REQ-PROBE-015).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reboot: Option<Reboot>,
+    /// ext4 filesystems with errors recorded (REQ-PROBE-017).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fs_errors: Vec<FsErrors>,
+    /// Services that restarted since the previous report, or are waiting to
+    /// restart (REQ-PROBE-016): a Restart= crash loop never reaches failed.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub restarting: Vec<Restarting>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub updates: Option<Updates>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -128,6 +138,12 @@ pub struct Prev {
     pub updates: Option<Updates>,
     #[serde(default)]
     pub reboot_required_since: Option<i64>,
+    /// Each service's restart count (NRestarts) at the previous run.
+    #[serde(default)]
+    pub restarts: BTreeMap<String, u64>,
+    /// Each ext4 device's error count at the previous run.
+    #[serde(default)]
+    pub fs_errors: BTreeMap<String, u64>,
     /// Last update-check attempt, successful or not (retries at most hourly).
     #[serde(default)]
     pub updates_tried_at: Option<i64>,
@@ -326,6 +342,135 @@ pub fn parse_vmstat_oom(text: &str) -> Option<u64> {
 }
 
 /// Unit names from `systemctl --failed --output=json`.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct Reboot {
+    /// `packages`: Debian's reboot-required file; `kernel`: a newer kernel
+    /// is installed than the one running.
+    pub reason: String,
+    /// Packages listed in reboot-required.pkgs.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pkgs: Option<u32>,
+    /// The newest installed kernel, when it is not the running one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub newest_kernel: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct FsErrors {
+    /// The block device, e.g. `mmcblk0p2`.
+    pub dev: String,
+    /// ext4's errors_count: errors recorded since the last fsck cleared them.
+    pub errors: u64,
+    /// New since the previous report.
+    pub delta: u64,
+}
+
+/// ext4 devices with a non-zero error count, with the change since `prev`
+/// (REQ-PROBE-017). `now`: (device, errors_count) per mounted ext4 device.
+pub fn fs_errors(now: &[(String, u64)], prev: &BTreeMap<String, u64>) -> Vec<FsErrors> {
+    now.iter()
+        .filter(|(_, n)| *n > 0)
+        .filter_map(|(d, n)| {
+            Some(FsErrors {
+                dev: clean(d)?,
+                errors: *n,
+                delta: n.saturating_sub(prev.get(d).copied().unwrap_or(0)),
+            })
+        })
+        .collect()
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct Restarting {
+    pub unit: String,
+    /// systemd's NRestarts since the unit was started by hand or boot.
+    pub restarts: u64,
+    /// Restarts since the previous report.
+    pub delta: u64,
+    /// SubState, e.g. `auto-restart` while waiting for the next try.
+    pub state: String,
+}
+
+/// Is a reboot needed, why, and since when (REQ-PROBE-015)? `running`: the
+/// running kernel's release; `images`: installed `/boot/vmlinuz-<release>`
+/// files with their modification times; `file`: Debian's
+/// `/var/run/reboot-required` (modification time, packages listed). The age
+/// comes from those times, so it holds without any state kept between runs.
+pub fn reboot_status(
+    running: &str,
+    images: &[(String, i64)],
+    file: Option<(i64, Option<u32>)>,
+) -> Option<(Reboot, i64)> {
+    let flavour = super::kernel_flavour(running);
+    let newest = images
+        .iter()
+        .filter(|(k, _)| super::kernel_flavour(k) == flavour)
+        .max_by_key(|(k, _)| super::vkey(k));
+    let kernel = newest.filter(|(k, _)| super::vkey(k) > super::vkey(running));
+    match (file, kernel) {
+        (None, None) => None,
+        (Some((at, pkgs)), k) => Some((
+            Reboot {
+                reason: "packages".into(),
+                pkgs,
+                newest_kernel: k.and_then(|(k, _)| clean(k)),
+            },
+            k.map(|(_, t)| (*t).min(at)).unwrap_or(at),
+        )),
+        (None, Some((k, at))) => Some((
+            Reboot {
+                reason: "kernel".into(),
+                pkgs: None,
+                newest_kernel: clean(k),
+            },
+            *at,
+        )),
+    }
+}
+
+/// `systemctl show -p Id -p NRestarts -p SubState` output for many units:
+/// blocks separated by blank lines.
+pub fn parse_restarts(text: &str) -> Vec<(String, u64, String)> {
+    text.split("\n\n")
+        .filter_map(|b| {
+            let mut id = None;
+            let mut n = None;
+            let mut sub = String::new();
+            for l in b.lines() {
+                match l.split_once('=') {
+                    Some(("Id", v)) => id = unit_name(v),
+                    Some(("NRestarts", v)) => n = v.trim().parse::<u64>().ok(),
+                    Some(("SubState", v)) => sub = v.trim().to_string(),
+                    _ => {}
+                }
+            }
+            Some((id?, n?, sub))
+        })
+        .collect()
+}
+
+/// Units that restarted since the previous run, or wait to restart. A
+/// counter that went down (the unit was restarted by hand or the machine
+/// rebooted) counts from zero.
+pub fn restarting(now: &[(String, u64, String)], prev: &BTreeMap<String, u64>) -> Vec<Restarting> {
+    let mut out: Vec<Restarting> = now
+        .iter()
+        .filter_map(|(u, n, sub)| {
+            let before = prev.get(u).copied().unwrap_or(0);
+            let delta = if *n >= before { n - before } else { *n };
+            (delta > 0 || sub == "auto-restart").then(|| Restarting {
+                unit: u.clone(),
+                restarts: *n,
+                delta,
+                state: clean(sub).unwrap_or_default(),
+            })
+        })
+        .collect();
+    out.sort_by(|a, b| b.delta.cmp(&a.delta).then(a.unit.cmp(&b.unit)));
+    out.truncate(20);
+    out
+}
+
 pub fn parse_failed_units(json: &str) -> Option<Vec<String>> {
     let v: serde_json::Value = serde_json::from_str(json).ok()?;
     let mut u: Vec<String> = v
@@ -554,9 +699,77 @@ pub async fn collect(state: Option<&std::path::Path>, now: i64) -> Health {
             Ok(j) => h.failed_units = parse_failed_units(&j),
             Err(e) => h.errors.push(e),
         }
-        let reboot = std::path::Path::new("/var/run/reboot-required").exists();
-        next.reboot_required_since = reboot.then(|| prev.reboot_required_since.unwrap_or(now));
+        // REQ-PROBE-015: the file and the kernel images carry their own age
+        let mtime = |p: &std::path::Path| {
+            std::fs::metadata(p)
+                .and_then(|m| m.modified())
+                .ok()
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| d.as_secs() as i64)
+        };
+        let file = mtime(std::path::Path::new("/var/run/reboot-required")).map(|at| {
+            let pkgs = std::fs::read_to_string("/var/run/reboot-required.pkgs")
+                .ok()
+                .map(|t| t.lines().filter(|l| !l.trim().is_empty()).count() as u32);
+            (at, pkgs)
+        });
+        let images: Vec<(String, i64)> = std::fs::read_dir("/boot")
+            .into_iter()
+            .flatten()
+            .flatten()
+            .filter_map(|e| {
+                let name = e.file_name().to_string_lossy().into_owned();
+                let k = name.strip_prefix("vmlinuz-")?.to_string();
+                Some((k, mtime(&e.path())?))
+            })
+            .collect();
+        let running = sysinfo::System::kernel_version().unwrap_or_default();
+        let status = reboot_status(&running, &images, file);
+        next.reboot_required_since = status
+            .as_ref()
+            .map(|(_, at)| prev.reboot_required_since.map_or(*at, |p| p.min(*at)));
         h.reboot_required_since = next.reboot_required_since;
+        h.reboot = status.map(|(r, _)| r);
+        // REQ-PROBE-017: ext4 errors, readable without root
+        let counts: Vec<(String, u64)> = std::fs::read_dir("/sys/fs/ext4")
+            .into_iter()
+            .flatten()
+            .flatten()
+            .filter_map(|e| {
+                let n = std::fs::read_to_string(e.path().join("errors_count")).ok()?;
+                Some((
+                    e.file_name().to_string_lossy().into_owned(),
+                    n.trim().parse().ok()?,
+                ))
+            })
+            .collect();
+        h.fs_errors = fs_errors(&counts, &prev.fs_errors);
+        next.fs_errors = counts.into_iter().collect();
+        // REQ-PROBE-016: crash loops never reach "failed"
+        match run(
+            "systemctl",
+            &[
+                "show",
+                "--type=service",
+                "-p",
+                "Id",
+                "-p",
+                "NRestarts",
+                "-p",
+                "SubState",
+                "*.service",
+            ],
+            5,
+        )
+        .await
+        {
+            Ok(t) => {
+                let now_units = parse_restarts(&t);
+                h.restarting = restarting(&now_units, &prev.restarts);
+                next.restarts = now_units.into_iter().map(|(u, n, _)| (u, n)).collect();
+            }
+            Err(e) => h.errors.push(e),
+        }
         if let Ok(t) = run("timedatectl", &["show"], 5).await {
             let synced = parse_timedatectl(&t);
             next.ntp_unsynced = synced == Some(false);
@@ -670,10 +883,56 @@ pub fn findings(h: &Health, now: i64) -> Vec<(&'static str, String)> {
             format!("{} failed systemd unit(s): {names}{more}", u.len()),
         ));
     }
-    if let Some(s) = h.reboot_required_since.filter(|s| now - s > 3 * 86_400) {
+    // REQ-PROBE-015: at once, red after 7 days
+    if let Some(s) = h.reboot_required_since {
+        let days = (now - s).max(0) / 86_400;
+        let why = match &h.reboot {
+            Some(Reboot {
+                newest_kernel: Some(k),
+                ..
+            }) => format!(": kernel {k} is installed, not running"),
+            Some(Reboot { pkgs: Some(n), .. }) => format!(": {n} package(s) wait for it"),
+            _ => String::new(),
+        };
         f.push((
-            "amber",
-            format!("reboot required for {} days", (now - s) / 86_400),
+            if days >= 7 { "red" } else { "amber" },
+            if days >= 1 {
+                format!("reboot required for {days} day(s){why}")
+            } else {
+                format!("reboot required{why}")
+            },
+        ));
+    }
+    // REQ-PROBE-017: a filesystem recording errors
+    for e in &h.fs_errors {
+        f.push(if e.delta > 0 {
+            (
+                "red",
+                format!(
+                    "filesystem {} recorded {} new error(s) ({} since the last fsck): the disk or SD card may be failing",
+                    e.dev, e.delta, e.errors
+                ),
+            )
+        } else {
+            (
+                "amber",
+                format!("filesystem {} has {} error(s) recorded: run fsck", e.dev, e.errors),
+            )
+        });
+    }
+    // REQ-PROBE-016: restarting services
+    for r in &h.restarting {
+        let looping = r.delta >= 3 || r.state == "auto-restart";
+        f.push((
+            if looping { "red" } else { "amber" },
+            if looping {
+                format!(
+                    "{} is crash-looping: {} restart(s) since the last report, {} in all",
+                    r.unit, r.delta, r.restarts
+                )
+            } else {
+                format!("{} restarted ({} in all)", r.unit, r.restarts)
+            },
         ));
     }
     if let Some(u) = &h.updates {

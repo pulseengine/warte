@@ -1024,7 +1024,7 @@ artifacts:
     type: requirement
     title: The GitHub source keeps a job ledger, so the monthly report and runner minutes work without a smithy agent
     status: approved
-    release: v1.6.7
+    release: v1.6.8
     description: Without a smithy agent (warte at work), the GitHub scan SHALL record each finished job of the scanned repos (created, started, completed, pool, runner, conclusion) into the ground station ledger, with conditional requests, and SHALL mark a day complete only when every run created that day is finished and read; until then the report says preliminary.
     fields:
       category: functional
@@ -1036,3 +1036,71 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-11-08T14:12:43Z
+
+  - id: REQ-PROBE-015
+    type: requirement
+    title: A machine that needs a reboot is a finding at once, without relying on persisted state
+    status: verified
+    release: v1.6.7
+    description: "The probe SHALL report reboot_required with a reason: on Debian /var/run/reboot-required (with the number of packages in reboot-required.pkgs), and on any Linux a running kernel older than the newest installed /boot/vmlinuz-*. warte SHALL show it as an amber finding as soon as it is reported and red after 7 days; the age comes from the probe state when it persists, else from the newest kernel image modification time."
+    fields:
+      category: functional
+      priority: must
+    links:
+      - type: refines
+        target: REQ-PROBE-011
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-08T16:43:39Z
+
+  - id: REQ-PROBE-016
+    type: requirement
+    title: A crash-looping systemd unit is a finding, not only a failed one
+    status: verified
+    release: v1.6.7
+    description: "The probe SHALL report systemd units in state activating (auto-restart) with their restart count (NRestarts), and warte SHALL raise a red finding naming the unit when its restart count rose since the previous report: a Restart= crash loop never reaches failed."
+    fields:
+      category: functional
+      priority: must
+    links:
+      - type: refines
+        target: REQ-PROBE-011
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-08T16:43:39Z
+
+  - id: REQ-TEMPER-003
+    type: requirement
+    title: A temper report that is missing or stale is an outage finding
+    status: verified
+    release: v1.6.7
+    description: When [temper] is configured, warte SHALL raise a red finding in the fleet findings (so outage alerts notify) when no temper report has arrived within stale_after_s of the ground station starting, or the last report is older than stale_after_s.
+    fields:
+      category: functional
+      priority: must
+    links:
+      - type: refines
+        target: REQ-TEMPER-002
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-08T16:43:39Z
+
+  - id: REQ-PROBE-017
+    type: requirement
+    title: ext4 filesystem errors are reported, and a rising count is red
+    status: verified
+    release: v1.6.7
+    description: "On Linux the probe SHALL report each mounted ext4 filesystem's error count from /sys/fs/ext4/<dev>/errors_count (no root needed) and the change since its previous report; warte SHALL show a count above zero as amber and a count that rose as red: on an SD-card machine it is the early warning a failed unit gives only by accident."
+    fields:
+      category: functional
+      priority: should
+    links:
+      - type: refines
+        target: REQ-PROBE-011
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-08T17:16:17Z
