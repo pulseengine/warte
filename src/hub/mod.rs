@@ -29,7 +29,7 @@ use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::Router;
-use model::{Point, Snapshot};
+use model::{DayManifest, JobRecord, Point, Snapshot};
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::net::{IpAddr, SocketAddr, UdpSocket};
@@ -401,6 +401,18 @@ impl Hub {
         self.tick.send_modify(|n| *n += 1);
     }
 
+    /// Finished-job records and day manifests from the GitHub source's
+    /// ledger pass (REQ-RUNNERS-005), the way the agent's packets bring them.
+    pub fn ingest_ledger(&self, recs: Vec<JobRecord>, manifests: Vec<DayManifest>) {
+        if !recs.is_empty() {
+            lk(&self.ledger).ingest(recs);
+        }
+        let mut g = lk(&self.shared);
+        for m in manifests {
+            g.asm.manifests.insert(m.day.clone(), m);
+        }
+    }
+
     /// Latest snapshot and when it was received (unix seconds), for the
     /// dashboard. `None` until the first complete frame arrives.
     pub fn snapshot(&self) -> Option<(Snapshot, i64)> {
@@ -641,7 +653,16 @@ fn month_report(h: &Hub, query: &str) -> Result<belt::BeltReport, &'static str> 
                 .map(|s| {
                     s.runners
                         .iter()
-                        .map(|r| (format!("{}-{}", s.host, r.id), r.labels.clone()))
+                        .map(|r| {
+                            // the agent names its runners <host>-<id>; the
+                            // GitHub source has GitHub's runner names
+                            let name = if s.host.starts_with("github:") {
+                                r.unit.clone()
+                            } else {
+                                format!("{}-{}", s.host, r.id)
+                            };
+                            (name, r.labels.clone())
+                        })
                         .collect()
                 })
                 .unwrap_or_default();

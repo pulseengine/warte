@@ -192,6 +192,21 @@ pub struct GithubConfig {
     /// case-insensitive. Empty: only `self-hosted` does (REQ-GHSRC-005).
     #[serde(default)]
     pub self_hosted_labels: Vec<String>,
+    /// Job ledger (REQ-RUNNERS-005): days back from today whose runs are
+    /// read into the ledger for the monthly report. 0 turns it off.
+    #[serde(default = "default_github_ledger_days")]
+    pub ledger_days: u32,
+    /// Seconds between ledger passes.
+    #[serde(default = "default_github_ledger_interval_s")]
+    pub ledger_interval_s: u64,
+}
+
+fn default_github_ledger_days() -> u32 {
+    2
+}
+
+fn default_github_ledger_interval_s() -> u64 {
+    600
 }
 
 impl Default for GithubConfig {
@@ -208,6 +223,8 @@ impl Default for GithubConfig {
             data_dir: default_github_data_dir(),
             rate_reserve: default_github_rate_reserve(),
             self_hosted_labels: vec![],
+            ledger_days: default_github_ledger_days(),
+            ledger_interval_s: default_github_ledger_interval_s(),
         }
     }
 }

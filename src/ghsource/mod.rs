@@ -10,6 +10,8 @@
 //! `https://api.<tenant>.ghe.com` (Enterprise Cloud with data residency) or
 //! `https://<host>/api/v3` (GHES). Read-only: only GETs are issued.
 
+pub mod ledger;
+
 use crate::config::GithubConfig;
 use crate::hub::model::{
     HostedGroup, HostedJob, JobContext, PoolQueue, Queue, QueuedEntry, QueuedRun, Runner, Snapshot,
@@ -266,6 +268,15 @@ impl Client {
     /// [`MAX_PAGES`]. `key` names the array in an object body; `None` for a
     /// bare array.
     async fn all(&self, path: &str, key: Option<&str>) -> Result<Vec<Value>, GhError> {
+        Ok(self.all_paged(path, key).await?.0)
+    }
+
+    /// [`Client::all`], and whether a further page was left unread.
+    async fn all_paged(
+        &self,
+        path: &str,
+        key: Option<&str>,
+    ) -> Result<(Vec<Value>, bool), GhError> {
         let mut out = vec![];
         let mut url = Some(format!("{}{path}", self.base));
         for _ in 0..MAX_PAGES {
@@ -278,7 +289,7 @@ impl Client {
             out.extend(items.unwrap_or_default());
             url = next;
         }
-        Ok(out)
+        Ok((out, url.is_some()))
     }
 
     /// Org runners as GitHub sees them. There is no host view here, so
@@ -619,6 +630,50 @@ pub async fn snapshot(c: &Client, cfg: &GithubConfig) -> Result<Snapshot, GhErro
     })
 }
 
+/// One ledger pass; a failure is logged and retried at the next pass (the
+/// state keeps what was read, the ledger drops duplicates).
+async fn ledger_pass(
+    c: &Client,
+    cfg: &GithubConfig,
+    hub: &crate::hub::Hub,
+    st: &mut ledger::LedgerState,
+    path: &std::path::Path,
+    now: i64,
+) {
+    let calls = c.calls.load(Ordering::Relaxed);
+    let repos = match c.active_repos(&cfg.org, cfg.active_days, now).await {
+        Ok(r) => r,
+        Err(e) => {
+            tracing::warn!(error = %e, "GitHub ledger pass: repos not listed");
+            return;
+        }
+    };
+    match ledger::pass(
+        c,
+        &cfg.org,
+        &repos,
+        st,
+        now,
+        cfg.ledger_days,
+        &cfg.self_hosted_labels,
+    )
+    .await
+    {
+        Ok((recs, mans)) => {
+            tracing::debug!(
+                records = recs.len(),
+                requests = c.calls.load(Ordering::Relaxed) - calls,
+                "GitHub ledger pass"
+            );
+            hub.ingest_ledger(recs, mans);
+        }
+        Err(e) => tracing::warn!(error = %e, "GitHub ledger pass failed"),
+    }
+    if let Err(e) = st.save(path) {
+        tracing::warn!(error = %e, "GitHub ledger state not saved");
+    }
+}
+
 /// Scan every `interval_s` and hand each snapshot to the hub. A rate limit
 /// waits for its reset; a refused token is reported once per scan and the
 /// scan is retried at the normal interval, so fixing the token needs no
@@ -629,6 +684,13 @@ pub fn spawn(
     runners: crate::hub::pools::RunnersConfig,
 ) -> Result<(), String> {
     let client = Client::new(&cfg)?;
+    // the ledger pass has its own client, so its ETags outlive the scans
+    // between two passes (REQ-RUNNERS-005)
+    let lclient = Client::new(&cfg)?;
+    let lpath = std::path::Path::new(&cfg.data_dir).join("ghledger.json");
+    let mut lstate = ledger::LedgerState::load(&lpath);
+    hub.ingest_ledger(vec![], lstate.manifests());
+    let mut last_ledger = i64::MIN;
     tokio::spawn(async move {
         loop {
             let (calls, cached) = (
@@ -652,6 +714,11 @@ pub fn spawn(
                         "GitHub scan"
                     );
                     hub.ingest_snapshot(s);
+                    let now = crate::hub::now();
+                    if cfg.ledger_days > 0 && now - last_ledger >= cfg.ledger_interval_s as i64 {
+                        last_ledger = now;
+                        ledger_pass(&lclient, &cfg, &hub, &mut lstate, &lpath, now).await;
+                    }
                     Duration::from_secs(cfg.interval_s)
                 }
                 Err(e @ GhError::RateLimited { until }) => {

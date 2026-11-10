@@ -4,6 +4,10 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.8 — 2026-11-10
+
+- **The monthly report works without a smithy agent** (REQ-RUNNERS-005). The GitHub source now keeps the job ledger: every `ledger_interval_s` (600) it reads the finished jobs of the scanned repos for the last `ledger_days` (2) days and today, records each once, and marks a day complete only when the day is over, every run created on it has finished and its jobs were read. Runner minutes, costs per pool, waits and flow efficiency in `/api/report` then come from GitHub's own records. Listings go out with their ETag, finished runs are read once and complete days are not listed again. The report matches GitHub runner names to their labels in this mode too.
+
 ## v1.6.7 — 2026-11-08
 
 What went unnoticed on a host for days now reaches Outages and the outage alerts. On netcup, temper crash-looped for two days and a newer kernel waited 22 days for a reboot; warte showed neither.
