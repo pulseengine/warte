@@ -84,6 +84,7 @@ pub fn build_routes() -> Router<AppState> {
         .route("/compliance", get(api_compliance))
         .route("/pressure", get(api_pressure))
         .route("/forecast", get(api_forecast))
+        .route("/operator", get(api_operator))
         .route("/openapi.json", get(api_openapi));
     // /api/ws and /api/events are not mounted: they broadcast agent and
     // access events without authentication, and nothing uses them (agents
@@ -1526,6 +1527,15 @@ async fn sync_update(
 /// Whether a host's disks are low (REQ-PRESSURE-001): a verdict per volume
 /// from its latest report, the host's being the worst, with the GB agents
 /// hold there as totals per kind. No names or paths (DD-PRESSURE-001).
+/// Which operator duties are met, late or not set up (REQ-OPS-003).
+async fn api_operator(State(state): State<AppState>) -> Json<serde_json::Value> {
+    let now = crate::hub::now();
+    Json(serde_json::json!({
+        "generated_at": now,
+        "duties": crate::operator::judge(&crate::operator::inputs(&state, now)),
+    }))
+}
+
 /// What is forecast to reach its limit (REQ-PREDICT-001).
 async fn api_forecast(State(state): State<AppState>) -> axum::response::Response {
     match state

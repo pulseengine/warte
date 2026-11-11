@@ -1,0 +1,12 @@
+# One probe report (operator duty: probes). Enroll once first:
+#   on the ground station:  warte probe token --host <this-host>
+#   on this machine:        warte probe enroll <token> --ground https://warte.example.internal/warte
+# Replace: the user (warte), warte.example.internal, the CA file if a local CA signs the proxy.
+[Unit]
+Description=warte probe: send one report
+
+[Service]
+Type=oneshot
+User=warte
+ExecStart=/usr/local/bin/warte probe send --ground https://warte.example.internal/warte --state-dir /var/lib/warte-probe --ca-cert /etc/warte/proxy-ca.pem
+StateDirectory=warte-probe

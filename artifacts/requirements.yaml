@@ -1338,3 +1338,85 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-11-11T17:52:47Z
+
+  - id: REQ-OPS-001
+    type: requirement
+    title: What an operator does for warte is written down, and cannot drift
+    status: verified
+    release: v1.6.17
+    description: "docs/topics/operator.md SHALL list every duty warte expects from whoever runs it: run warte behind a TLS proxy with the probe routes left open; enroll and run a probe on each machine; send the costs and skill-usage reports; run the briefing and triage jobs; optionally an OIDC provider. Per duty: what warte expects, how often, which token right it needs, and what warte shows when it is missed. A test SHALL fail when a token right exists that no duty names, or when a duty the duty check knows is missing from the document."
+    fields:
+      category: functional
+      priority: should
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-11T18:50:14Z
+
+  - id: REQ-OPS-002
+    type: requirement
+    title: Templates let anyone run warte without the reference operator
+    status: verified
+    release: v1.6.17
+    description: "deploy/operator/ SHALL hold working templates for each duty: systemd units for warte serve and the probe's send timer, a Caddy snippet that leaves the probe routes open, and timer units with job scripts for the costs report, the briefing and triage. They SHALL use placeholders only, never a real host, address or secret, and SHALL call only commands and routes warte has; a test SHALL check both."
+    fields:
+      category: functional
+      priority: should
+    links:
+      - type: refines
+        target: REQ-OPS-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-11T18:50:14Z
+
+  - id: REQ-OPS-003
+    type: requirement
+    title: warte shows which operator duties are met, late or never set up
+    status: verified
+    release: v1.6.17
+    description: "warte SHALL judge each duty from its own data: the CI source's freshness, probes reporting, the costs and skill-usage reports' age (and the costs data lag), the latest briefing written by a model rather than the plain version, triage hand-outs not left waiting, and whether a login provider is configured. Each duty SHALL be met, late (with since when, where known) or not set up. /api/operator SHALL answer this to a signed-in viewer (it names machines and reports), and the Health view SHALL show it, so whoever runs warte sees what they still owe."
+    fields:
+      category: functional
+      priority: should
+    links:
+      - type: refines
+        target: REQ-OPS-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-11T18:50:14Z
+
+  - id: REQ-OPS-004
+    type: requirement
+    title: The operator kit is released, signed, with the binary
+    status: verified
+    release: v1.6.17
+    description: Every release SHALL carry deploy/operator/ as operator-kit-<version>.tar.gz, made with git archive from the tagged commit, listed in SHA256SUMS.txt and so covered by its cosign signature, so an operator fetches and verifies the templates exactly as it does the binary. It SHALL NOT be named warte-*, which varve's layer deposit reads as platform binaries.
+    fields:
+      category: interface
+      priority: should
+    links:
+      - type: refines
+        target: REQ-OPS-002
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-11T19:00:51Z
+
+  - id: REQ-DEPLOY-003
+    type: requirement
+    title: The config file --config names is the one warte reads, and it must exist
+    status: verified
+    release: v1.6.17
+    description: "Every warte command SHALL read the config file named by --config or WARTE_CONFIG. A named file that does not exist SHALL stop warte with an error, never fall back to the defaults. Without a name, warte.toml in the working directory is read if present, as before. Found 2026-11-11: --config was accepted and ignored, so a unit naming /etc/warte/warte.toml from another working directory ran on defaults."
+    fields:
+      category: functional
+      priority: must
+    links:
+      - type: refines
+        target: REQ-DEPLOY-002
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-11T19:04:48Z

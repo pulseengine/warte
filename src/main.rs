@@ -20,10 +20,12 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let cli = Cli::parse();
+    // REQ-DEPLOY-003: every command reads the config --config names
+    let config_path = cli.config.clone();
 
     match cli.command {
         Commands::Serve { bind } => {
-            let mut config = Config::load()?;
+            let mut config = Config::load_at(config_path.as_deref())?;
             if let Some(bind) = bind {
                 config.bind = bind;
             }
@@ -32,7 +34,7 @@ async fn main() -> anyhow::Result<()> {
         }
 
         Commands::Status => {
-            let config = Config::load()?;
+            let config = Config::load_at(config_path.as_deref())?;
             let client = reqwest::Client::new();
             let url = format!("http://{}/api/health", config.bind);
             match client.get(&url).send().await {
@@ -59,7 +61,7 @@ async fn main() -> anyhow::Result<()> {
         }
 
         Commands::Agents { health } => {
-            let config = Config::load()?;
+            let config = Config::load_at(config_path.as_deref())?;
             let client = reqwest::Client::new();
             let url = format!("http://{}/api/agents", config.bind);
             let resp = client.get(&url).send().await?;
@@ -107,7 +109,7 @@ async fn main() -> anyhow::Result<()> {
         } => {
             let base = match url {
                 Some(u) => u.trim_end_matches('/').to_string(),
-                None => format!("http://{}", Config::load()?.bind),
+                None => format!("http://{}", Config::load_at(config_path.as_deref())?.bind),
             };
             let code = warte::watch::client::run(
                 &base,
@@ -165,7 +167,7 @@ async fn main() -> anyhow::Result<()> {
                 any_agent,
                 mut rights,
             } => {
-                let config = Config::load()?;
+                let config = Config::load_at(config_path.as_deref())?;
                 if any_agent {
                     rights.push(warte::auth::RIGHT_ANY_AGENT.to_string());
                 }
@@ -177,7 +179,7 @@ async fn main() -> anyhow::Result<()> {
 
         Commands::Probe { action } => match action {
             warte::cli::ProbeCommands::Token { host } => {
-                let config = Config::load()?;
+                let config = Config::load_at(config_path.as_deref())?;
                 let db = Database::connect(&config.db_path).await?;
                 let t =
                     warte::probe::enroll::mint(&db, &host, chrono::Utc::now().timestamp()).await?;
@@ -188,7 +190,7 @@ async fn main() -> anyhow::Result<()> {
                 );
             }
             warte::cli::ProbeCommands::Revoke { host } => {
-                let config = Config::load()?;
+                let config = Config::load_at(config_path.as_deref())?;
                 let db = Database::connect(&config.db_path).await?;
                 warte::probe::enroll::revoke(&db, &host, chrono::Utc::now().timestamp()).await?;
                 eprintln!(
@@ -336,7 +338,7 @@ async fn main() -> anyhow::Result<()> {
                     // TODO: call API
                 }
                 AccessCommands::List { agent_id } => {
-                    let config = Config::load()?;
+                    let config = Config::load_at(config_path.as_deref())?;
                     let client = reqwest::Client::new();
                     let url = format!("http://{}/api/access/list/{}", config.bind, agent_id);
                     let resp = client.get(&url).send().await?;
@@ -356,7 +358,7 @@ async fn main() -> anyhow::Result<()> {
         }
 
         Commands::Migrate { source, path } => {
-            let config = Config::load()?;
+            let config = Config::load_at(config_path.as_deref())?;
             let db = Database::connect(&config.db_path).await?;
             let path = std::path::PathBuf::from(&path);
 
@@ -401,7 +403,7 @@ async fn main() -> anyhow::Result<()> {
             use warte::cli::ArtifactCommands;
             match action {
                 ArtifactCommands::List => {
-                    let config = Config::load()?;
+                    let config = Config::load_at(config_path.as_deref())?;
                     let client = reqwest::Client::new();
                     let url = format!("http://{}/api/artifacts", config.bind);
                     let resp = client.get(&url).send().await?;

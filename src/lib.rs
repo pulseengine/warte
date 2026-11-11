@@ -30,6 +30,7 @@ pub mod hub;
 pub mod jobs;
 pub mod login;
 pub mod migrate;
+pub mod operator;
 pub mod platform;
 pub mod probe;
 pub mod realtime;

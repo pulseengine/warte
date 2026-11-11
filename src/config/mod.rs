@@ -367,7 +367,18 @@ impl Config {
     /// silently the defaults: that once ran the ground station without its
     /// hub, fleet model and jobs (2026-11-03).
     pub fn load() -> anyhow::Result<Self> {
-        let mut config = Self::from_path(std::path::Path::new("warte.toml"))?.unwrap_or_default();
+        Self::load_at(None)
+    }
+
+    /// The config at `path` when one is named (`--config`, `WARTE_CONFIG`):
+    /// it must exist, since a named file that is missing would otherwise run
+    /// warte on defaults (REQ-DEPLOY-003). Without one, as [`Config::load`].
+    pub fn load_at(path: Option<&std::path::Path>) -> anyhow::Result<Self> {
+        let mut config = match path {
+            Some(p) => Self::from_path(p)?
+                .ok_or_else(|| anyhow::anyhow!("config file {} does not exist", p.display()))?,
+            None => Self::from_path(std::path::Path::new("warte.toml"))?.unwrap_or_default(),
+        };
         config.apply_env_overrides();
         Ok(config)
     }

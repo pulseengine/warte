@@ -4,6 +4,16 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.17 — 2026-11-11
+
+- **The operator kit** (REQ-OPS-001..004). This release writes down what whoever runs warte owes it, ships a template for each duty, and shows which duties are done. Until now the reference operator held this knowledge privately.
+  - `docs/topics/operator.md` (`warte docs operator`) lists the duties: feed the CI source, run a probe on each machine, send the costs and skill-usage reports, run the briefing and triage jobs, and provide a login. Each comes with how often, its token right, and when warte calls it late.
+  - `deploy/operator/` holds the templates, with placeholders only. That means systemd units for warte and the probe, a launchd plist, a Caddy snippet, and job scripts for costs, briefing and triage run by one `warte-job@.service`. The scripts read their token from a systemd credential, never from the command line or the environment.
+  - Every release now carries `operator-kit-<version>.tar.gz`, made with `git archive` from the tagged commit and listed in the signed `SHA256SUMS.txt`, so an operator fetches and verifies it like the binary.
+  - **Operator duties** on the Health view and `GET /api/operator` (signed in) show each duty as met, late or not set up, judged from warte's own data.
+  - Tests keep the document, the templates and the code in step: every right is named, every route and `warte` command a template uses exists and parses, and no template holds a real host, address or secret.
+- **`--config` is honoured** (REQ-DEPLOY-003). Every command accepted `--config` and `WARTE_CONFIG` but read `./warte.toml` regardless, so a service started from another directory ran on defaults. The named file is now the one read, and a named file that does not exist stops warte.
+
 ## v1.6.16 — 2026-11-11
 
 - **Coming up: disks and memory forecast before they fill** (REQ-PREDICT-001/002, DD-PREDICT-001). This is the first part of predictive maintenance. For every machine that reports, warte fits a straight line through the last week's hourly means of each disk's used share and of memory use. It lists a forecast when the line rises steadily (R² at least 0.7), rests on at least 24 hours and 12 points, and reaches 95% within 14 days at its current rate.

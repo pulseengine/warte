@@ -1,0 +1,12 @@
+# Every 10 minutes (operator duty: triage). warte calls an issue handed out
+# for more than 2 hours late.
+[Unit]
+Description=warte triage, every 10 minutes
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=10min
+Unit=warte-job@triage.service
+
+[Install]
+WantedBy=timers.target
