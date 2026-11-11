@@ -633,6 +633,22 @@ impl Hub {
         }
     }
 
+    /// Ledger records of the days `from..=until` (`YYYY-MM-DD`), for the
+    /// briefing's CI facts (REQ-BRIEF-001). Reads files: call off the async
+    /// workers for long ranges.
+    pub fn ledger_days(&self, from: &str, until: &str) -> Vec<JobRecord> {
+        let l = lk(&self.ledger);
+        let mut months: Vec<String> = vec![from[..7.min(from.len())].to_string()];
+        if until.get(..7) != from.get(..7) {
+            months.push(until[..7.min(until.len())].to_string());
+        }
+        months
+            .iter()
+            .flat_map(|m| l.month(m))
+            .filter(|r| r.d.as_str() >= from && r.d.as_str() <= until)
+            .collect()
+    }
+
     /// The month's report as data, for the dashboard.
     pub async fn month_report(&self, month: &str) -> Result<belt::BeltReport, &'static str> {
         month_report_blocking(self.clone(), Some(format!("month={month}"))).await

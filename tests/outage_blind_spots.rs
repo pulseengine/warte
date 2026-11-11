@@ -53,6 +53,7 @@ async fn state(temper: bool) -> (tempfile::TempDir, warte::server::AppState) {
                     restarts: 1101,
                     delta: 11,
                     state: "auto-restart".into(),
+                    instances: vec![],
                 }],
                 reboot_required_since: Some(now - 22 * 86_400),
                 reboot: Some(Reboot {

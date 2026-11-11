@@ -1138,3 +1138,51 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-11-10T21:44:36Z
+
+  - id: REQ-BRIEF-001
+    type: requirement
+    title: Briefing facts every two days from records, public repositories only
+    status: verified
+    release: v1.6.10
+    description: "For each closed two-day period (UTC) warte SHALL build a fact sheet: merged pull requests, closed issues, releases and pull requests open for more than a day of the configured organisation, read from GitHub without a token so that only public repositories can appear; CI runs and failed jobs of those repositories from the ledger; the notional costs of the last 7 days against the 7 before; and the configured setup markers of the last two weeks. What could not be read SHALL be listed as a gap. Every briefing SHALL be kept with its facts."
+    fields:
+      category: functional
+      priority: should
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-11T01:01:06Z
+
+  - id: REQ-BRIEF-002
+    type: requirement
+    title: A written briefing names only what the facts hold; otherwise the template stays
+    status: verified
+    release: v1.6.10
+    description: "warte SHALL write a template briefing from the facts at once. A text posted with the briefing:write right SHALL replace it only when it has one line and three bullets, at most 130 words, no link or markup, and every repository, #number, version and count it names is in that period's facts; otherwise warte SHALL answer 422 with the reason, keep the template and record the refusal. warte SHALL hold no model credential."
+    fields:
+      category: functional
+      priority: should
+    links:
+      - type: refines
+        target: REQ-BRIEF-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-11T01:01:06Z
+
+  - id: REQ-BRIEF-003
+    type: requirement
+    title: "Briefing view: a plain line, three bullets, a collapsed IT section and earlier briefings"
+    status: verified
+    release: v1.6.10
+    description: "The dashboard SHALL show the latest briefing (or a chosen earlier one): the line, the three bullets, and collapsed, per repository the merged pull requests and closed issues with links, releases, CI runs and failed jobs, the pull requests waiting, the token check, the setup markers and any gaps. Every string from GitHub or a model run SHALL be escaped."
+    fields:
+      category: functional
+      priority: should
+    links:
+      - type: refines
+        target: REQ-BRIEF-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-11T01:01:06Z

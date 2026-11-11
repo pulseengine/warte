@@ -17,6 +17,7 @@
     </div>
     <nav class="nav">
       <button hx-get="api/dashboard/overview-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn active">Overview</button>
+      <button hx-get="api/dashboard/briefing-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn" data-no-refresh>Briefing</button>
       <button hx-get="api/dashboard/airport-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn" data-no-refresh>Airport</button>
       <button hx-get="api/dashboard/machines-partial" hx-vals="js:{range: warteRange(), open: warteOpen()}" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Machines</button>
       <button hx-get="api/dashboard/jobs-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Jobs</button>

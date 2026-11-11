@@ -360,7 +360,7 @@ fn a_crash_loop_is_red_although_the_unit_never_fails() {
         ("temper.service".to_string(), 1090),
         ("nginx.service".to_string(), 0),
         ("ollama.service".to_string(), 3),
-        ("getty@.service".to_string(), 1),
+        ("getty@tty1.service".to_string(), 1),
     ]);
     let r = restarting(&now, &prev);
     // nginx and getty did not restart (negative control)
@@ -390,6 +390,77 @@ fn a_crash_loop_is_red_although_the_unit_never_fails() {
         &BTreeMap::from([("x.service".to_string(), 50)]),
     );
     assert_eq!(r[0].delta, 2);
+}
+
+// rivet: verifies REQ-PROBE-016
+#[test]
+fn template_instances_are_counted_apart_and_shown_once() {
+    use std::collections::BTreeMap;
+    use warte::probe::health::{findings, parse_restarts, restarting, Health};
+    // twelve runners of one template; two of them restarted, one is looping
+    let mut shown = String::new();
+    for i in 1..=12 {
+        let n = match i {
+            3 => 40,
+            7 => 6,
+            _ => 5,
+        };
+        shown +=
+            &format!("Id=github-runner@runner{i}.service\nNRestarts={n}\nSubState=running\n\n");
+    }
+    shown += "Id=systemd-fsck@dev-disk-by\\x2duuid-1234.service\nNRestarts=2\nSubState=running\n\n";
+    shown += "Id=user@1000.service\nNRestarts=3\nSubState=running\n";
+    let now = parse_restarts(&shown);
+    // the instances' previous counts are their own
+    let mut prev: BTreeMap<String, u64> = (1..=12)
+        .map(|i| (format!("github-runner@runner{i}.service"), 5))
+        .collect();
+    prev.insert("user@1000.service".into(), 0);
+    let r = restarting(&now, &prev);
+    let runners: Vec<_> = r
+        .iter()
+        .filter(|x| x.unit == "github-runner@.service")
+        .collect();
+    assert_eq!(runners.len(), 1, "one entry per template: {r:?}");
+    assert_eq!(
+        (runners[0].delta, runners[0].restarts),
+        (35, 40),
+        "the worst instance's"
+    );
+    assert_eq!(runners[0].instances, vec!["runner3", "runner7"]);
+    // an instance that names a number (a uid) is grouped but never named
+    let user = r.iter().find(|x| x.unit == "user@.service").expect("user@");
+    assert!(user.instances.is_empty(), "{user:?}");
+    // an instance name that is not even clean is counted under its template
+    let fsck = r
+        .iter()
+        .find(|x| x.unit == "systemd-fsck@.service")
+        .expect("fsck");
+    assert!(fsck.instances.is_empty() && fsck.delta == 2, "{fsck:?}");
+    let f = findings(
+        &Health {
+            restarting: r,
+            ..Default::default()
+        },
+        0,
+    );
+    assert!(
+        f[0].1
+            .starts_with("github-runner@.service (runner3, runner7) is crash-looping: 35"),
+        "{f:?}"
+    );
+    let all = format!("{f:?}");
+    assert!(!all.contains("1000") && !all.contains("x2duuid"), "{all}");
+    // counts kept per template before this release still give a delta
+    let old = BTreeMap::from([("github-runner@.service".to_string(), 5)]);
+    let r = restarting(&now, &old);
+    assert_eq!(
+        r.iter()
+            .find(|x| x.unit == "github-runner@.service")
+            .unwrap()
+            .delta,
+        35
+    );
 }
 
 // rivet: verifies REQ-PROBE-017

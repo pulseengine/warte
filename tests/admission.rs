@@ -278,6 +278,8 @@ async fn endpoints_answer_as_documented() {
             "/api/eta" => "?repo=spar&pr=1",
             "/api/fleet" => continue, // 404 without a model; tests/fleet_model.rs covers it
             "/api/pressure" => continue, // needs a reporting host; tests/pressure.rs covers it
+            // 503 without [briefing]; tests/briefing.rs covers both
+            "/api/briefing" | "/api/briefing/facts" => continue,
             _ => "",
         };
         assert_eq!(get(&format!("{p}{q}")).await.unwrap().status(), 200, "{p}");

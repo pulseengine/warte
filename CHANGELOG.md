@@ -4,6 +4,20 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.10 — 2026-11-11
+
+- **The briefing** (REQ-BRIEF-001..003). Every two days, a Briefing view says what the agents did:
+  - one line anyone understands;
+  - three plain bullets: done; what went wrong and how it was caught; what waits for you;
+  - collapsed, the numbers for an IT reader: merged pull requests, closed issues, releases, CI runs and failed jobs per repository, pull requests open for more than a day, this week's notional cost against last week's, and the setup changes of the last two weeks.
+
+  How it is made:
+  - The facts are read from GitHub without a token, so only public repositories appear.
+  - warte writes a plain version from the facts at once.
+  - A scheduled model run elsewhere may post a friendlier text with `briefing:write`. It is kept only if every repository, number and version it names is in the facts; otherwise the plain version stays and the view says why.
+  - Every briefing is kept with its facts. Configure with `[briefing] org = ...`.
+- **Crash loops of template units are told apart** (REQ-PROBE-016). The probe kept restart counts per template, so twelve `github-runner@runnerN.service` instances collapsed onto `github-runner@.service`. The list showed it twice, and the deltas were wrong. Counts are now kept per instance on the machine. What is published is one entry per template, with the worst instance's restarts, and names the instances that restarted when their name is a plain word (`runner3`); an instance named after a path or a user id is never shown. The probes need this release for it.
+
 ## v1.6.9 — 2026-11-10
 
 - **Costs schema 2** (REQ-COSTS-002). The nightly costs report may now carry `weeks`: per ISO week, the sessions; advisor calls, compactions, cross-session messages received and SendMessage calls, main sessions and subagents apart; and per repository and active skill, tool uses and tool errors by tool (MCP tools by server), permission denials, failure streaks (3 or more in a row) and loop-guard firings. Counts and names only: error text, a raw MCP tool name, a path or more errors than uses refuse the report. The Costs view shows the newest week against the one before, the failed calls by tool and the wasted effort by repository and skill. Schema 1 is still accepted. The schema is in `warte docs costs-schema`.
