@@ -18,7 +18,8 @@ Commands:
   docs      Show embedded documentation
 
 Options:
-  --config <CONFIG>  Config file path [default: warte.toml]
+  --config <CONFIG>  Config file path; it must exist when named [default: warte.toml in the
+                     working directory, if there is one] [env: WARTE_CONFIG=]
   --format <FORMAT>  Output format [text, json] [default: text]
   -h, --help         Print help
   -V, --version      Print version (warte <semver>)

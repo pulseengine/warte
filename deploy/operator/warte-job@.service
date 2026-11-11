@@ -1,0 +1,20 @@
+# One run of a job (operator duties: costs, briefing, triage).
+# %i is the job: costs-report, briefing or triage. Per job:
+#   /etc/warte/jobs/%i.env    WARTE_URL=..., the job's own settings
+#                             (COSTS_GENERATOR, MODEL_CMD and MODEL_ID, REPLY_CMD)
+#   /etc/warte/jobs/%i.token  the job's token, readable by root only;
+#                             systemd hands it to the job as a credential
+# The scripts need sh, curl and jq.
+[Unit]
+Description=warte job %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=warte
+EnvironmentFile=/etc/warte/jobs/%i.env
+LoadCredential=warte-token:/etc/warte/jobs/%i.token
+ExecStart=/usr/local/lib/warte/jobs/%i.sh
+NoNewPrivileges=yes
+PrivateTmp=yes

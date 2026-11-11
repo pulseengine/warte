@@ -825,6 +825,7 @@ pub async fn health_partial(State(state): State<crate::server::AppState>) -> Res
     </div>
     {}
   </div>
+  {}
   <p class="freshness">Rendered {}</p>
 </div>"#,
         fleet::health_view(state.hub.as_ref()),
@@ -832,6 +833,11 @@ pub async fn health_partial(State(state): State<crate::server::AppState>) -> Res
         healthy,
         unhealthy,
         fleet::health_cards(state.hub.as_ref()),
+        // REQ-OPS-003: what the operator still owes
+        crate::operator::panel(&crate::operator::judge(&crate::operator::inputs(
+            &state,
+            crate::hub::now(),
+        ))),
         chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC"),
     );
 

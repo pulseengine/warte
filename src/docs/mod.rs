@@ -72,6 +72,11 @@ const TOPICS: &[Topic] = &[
         content: include_str!("../../docs/topics/costs-schema.md"),
     },
     Topic {
+        name: "operator",
+        title: "Running warte: the operator's duties",
+        content: include_str!("../../docs/topics/operator.md"),
+    },
+    Topic {
         name: "probe-privileged",
         title: "Privileged collector (SMART for the probe)",
         content: include_str!("../../docs/topics/probe-privileged.md"),

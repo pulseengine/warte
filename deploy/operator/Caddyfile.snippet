@@ -1,0 +1,11 @@
+# TLS in front of warte (operator duty: ci-source). Replace:
+# warte.example.internal, 127.0.0.1:8080 (warte's bind address).
+# The four probe routes carry their own authentication (a one-time token,
+# then a signature by the enrolled key) and must stay reachable for POST.
+# With [auth] in warte.toml, warte itself asks for a login for personal data;
+# without it, put a login here and leave those four routes outside it.
+warte.example.internal {
+	handle_path /warte/* {
+		reverse_proxy 127.0.0.1:8080
+	}
+}

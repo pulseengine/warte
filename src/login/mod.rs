@@ -596,6 +596,7 @@ pub enum Class {
 /// tests/auth.rs fails when a route is in neither list.
 pub const SIGNED_IN: &[&str] = &[
     "/api/costs",
+    "/api/operator",
     "/api/skill-usage",
     "/api/agents",
     "/api/agents/{id}",

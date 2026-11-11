@@ -11,9 +11,10 @@ use clap::{Parser, Subcommand};
 )]
 #[command(long_about = None)]
 pub struct Cli {
-    /// Config file path
-    #[arg(long, env = "WARTE_CONFIG", default_value = "warte.toml")]
-    pub config: String,
+    /// Config file path; it must exist when named [default: warte.toml in
+    /// the working directory, if there is one]
+    #[arg(long, env = "WARTE_CONFIG")]
+    pub config: Option<std::path::PathBuf>,
 
     /// Output format
     #[arg(long, value_enum, default_value = "text")]

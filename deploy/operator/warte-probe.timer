@@ -1,0 +1,11 @@
+# Every minute (operator duty: probes). warte calls a machine late after 3 minutes.
+[Unit]
+Description=warte probe every minute
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=60s
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target

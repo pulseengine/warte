@@ -1,0 +1,13 @@
+# Nightly, after the day's agent work (operator duties: costs, skills).
+# warte calls the report late after 26 hours.
+[Unit]
+Description=warte costs report, nightly
+
+[Timer]
+OnCalendar=*-*-* 03:30
+RandomizedDelaySec=15min
+Persistent=true
+Unit=warte-job@costs-report.service
+
+[Install]
+WantedBy=timers.target

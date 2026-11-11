@@ -1,0 +1,23 @@
+# warte, the ground station (operator duty: ci-source; see docs/topics/operator.md)
+# Replace: the user (warte), the config path. Install the binary from a
+# signed release first (cosign verify-blob, then shasum -c).
+[Unit]
+Description=warte ground station
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=warte
+ExecStart=/usr/local/bin/warte --config /etc/warte/warte.toml serve
+Restart=on-failure
+RestartSec=5
+StateDirectory=warte
+WorkingDirectory=/var/lib/warte
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/warte
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

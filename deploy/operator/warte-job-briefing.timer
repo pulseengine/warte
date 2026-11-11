@@ -1,0 +1,13 @@
+# Daily; the job acts once per two-day period (operator duty: briefing).
+# warte calls it late when the plain version is still up after 6 hours.
+[Unit]
+Description=warte briefing, daily
+
+[Timer]
+OnCalendar=*-*-* 06:00
+RandomizedDelaySec=30min
+Persistent=true
+Unit=warte-job@briefing.service
+
+[Install]
+WantedBy=timers.target
