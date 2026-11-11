@@ -77,6 +77,12 @@ pub async fn overview_partial(State(state): State<crate::server::AppState>) -> R
     fleet_found.extend(fleet::host_detected(&state, crate::hub::now()));
     let gh = state.status.get_status().await.map_err(|e| e.to_string());
     let strip = fleet::outages_summary(&fleet_found, gh.as_ref().map_err(Clone::clone));
+    // REQ-PREDICT-001: what is forecast to reach its limit
+    let coming = state
+        .machines
+        .as_ref()
+        .and_then(|m| crate::forecast::of_machines(m, crate::hub::now()));
+    let strip = strip + &crate::forecast::panel(coming.as_ref());
     let html = format!(
         r#"<div class="overview">
   <h2>Overview</h2>

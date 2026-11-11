@@ -73,6 +73,16 @@
         }
       }
     },
+    "/api/forecast": {
+      "get": {
+        "summary": "What is forecast to reach its limit?",
+        "description": "Per reporting machine, a straight line through the last week's hourly means of each disk's used share and of memory use. A forecast is listed when the line rises steadily (R² at least 0.7), rests on at least 24 hours and 12 points, and reaches 95% within 14 days at its current rate; each carries its evidence. Series with too little data are counted, never forecast. Within 3 days a forecast is an amber outage finding, within 1 day a red one.",
+        "responses": {
+          "200": {"description": "Forecasts, soonest first", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Forecast"}}}},
+          "503": {"description": "no ground station with history configured"}
+        }
+      }
+    },
     "/api/machines": {
       "get": {
         "summary": "Every machine the ground station hears from, with drift findings",
@@ -199,6 +209,23 @@
   },
   "components": {
     "schemas": {
+      "Forecast": {
+        "type": "object",
+        "required": ["generated_at", "horizon_days", "limit_pct", "watched", "not_enough_data", "items"],
+        "properties": {
+          "generated_at": {"type": "integer"},
+          "horizon_days": {"type": "number"},
+          "limit_pct": {"type": "number"},
+          "watched": {"type": "integer", "description": "series looked at"},
+          "not_enough_data": {"type": "integer", "description": "of those, series with too little data to forecast"},
+          "items": {"type": "array", "items": {"type": "object", "properties": {
+            "host": {"type": "string"}, "metric": {"type": "string"}, "what": {"type": "string"},
+            "now": {"type": "number"}, "limit": {"type": "number"}, "per_day": {"type": "number"},
+            "due_at": {"type": "integer"}, "days": {"type": "number"},
+            "span_h": {"type": "integer"}, "points": {"type": "integer"}, "r2": {"type": "number"}
+          }}}
+        }
+      },
       "Pressure": {
         "type": "object",
         "required": ["host", "verdict", "reason", "measured_at", "recheck_s", "volumes"],

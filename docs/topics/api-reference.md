@@ -154,6 +154,24 @@ station itself) and `report`, whose `probe_version` is `null` unless it is a
 plain version string. Probes older than 1.5.0 cannot renew their certificate;
 the findings say so 14 days before it ends.
 
+## Coming up (REQ-PREDICT-001/002)
+
+```
+GET /api/forecast
+```
+
+What is forecast to reach its limit. For each reporting machine, warte fits a
+straight line through the last week's hourly means of each disk's used share
+(`disk.used_pct{mount=…}`) and of memory use (`mem.used_pct`). A forecast is
+listed when the line rises steadily (R² at least 0.7), rests on at least 24
+hours and 12 hourly points, and reaches 95% within 14 days at its current
+rate, while the latest value is still below it. Each item carries its
+evidence: `now`, `per_day`, `due_at`, `days`, `span_h`, `points` and `r2`.
+Series with too little data are counted in `not_enough_data`, never
+forecast. Within 3 days a forecast is an amber outage finding and within 1 day
+a red one, so the alerts notify. Open like `/api/machines`; the overview shows
+the same as its Coming up panel.
+
 ## Disk pressure (REQ-PRESSURE-001)
 
 ```

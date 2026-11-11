@@ -4,6 +4,14 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.16 — 2026-11-11
+
+- **Coming up: disks and memory forecast before they fill** (REQ-PREDICT-001/002, DD-PREDICT-001). This is the first part of predictive maintenance. For every machine that reports, warte fits a straight line through the last week's hourly means of each disk's used share and of memory use. It lists a forecast when the line rises steadily (R² at least 0.7), rests on at least 24 hours and 12 points, and reaches 95% within 14 days at its current rate.
+
+  Each forecast shows its evidence: the value now, the rate per day, the date, and the data it rests on. Too little data is counted as such, never forecast. The overview shows the forecasts as a Coming up panel, and `/api/forecast` answers the same, open like `/api/machines`. A forecast due within 3 days is an amber outage finding and within 1 day a red one, so the alerts notify.
+- **The self-probe no longer blocks the server** (REQ-PROBE-001). On a Mac, sysinfo's disk listing has taken 31 s. The ground station's own probe ran it on an async thread, holding that thread for as long as the call took. On a single-threaded runtime that stalls everything, which made a ground-station test fail most of the time on a developer Mac. Process and disk listing now run on the blocking pool.
+- REQ-CI-005 (backlog): failures that share one cause across repositories are to be shown as one incident. This comes from the 2026-11-11 Google Public DNS failure for Canonical's package servers.
+
 ## v1.6.15 — 2026-11-11
 
 - **The v1.6.11 and v1.6.14 changes get their own requirements**, so they can be released. Both tags were refused by the release gate because no rivet artifact was scoped to them, and neither has a GitHub release. REQ-COSTS-003: a counter that was not measured shows as not measured, never as 0 (the v1.6.11 change). REQ-COSTS-004: a report whose newest data is more than a day old is stale (the v1.6.14 change). No code changes; v1.6.15 carries both.
