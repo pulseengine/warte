@@ -73,7 +73,9 @@ fn fleet_snapshot() -> Snapshot {
                 pr: Some(511),
                 pool: "rust-cpu".into(),
                 jobs: 7,
-                since: now() - 600,
+                // well inside the pool's p90 (600 s): exactly 600 turned
+                // overdue when a second passed before the check
+                since: now() - 300,
             }],
             ..Default::default()
         }),
@@ -715,7 +717,8 @@ fn health_and_outages_come_from_the_snapshot_not_from_decoration() {
     assert!(!o.contains("<script>x"));
     // a calm fleet says so
     let (_d2, calm) = hub_with(&fleet_snapshot());
-    assert!(fleet::incidents(Some(&calm)).contains("all clear"));
+    let c = fleet::incidents(Some(&calm));
+    assert!(c.contains("all clear"), "{c}");
     assert!(fleet::incidents(None).contains("not configured"));
 }
 
