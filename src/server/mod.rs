@@ -40,6 +40,8 @@ pub struct AppState {
     pub temper: Option<Arc<crate::temper::Store>>,
     /// The dashboard's idle scene (REQ-DASH-018).
     pub idle: crate::config::IdleConfig,
+    /// Login through the provider, with `[auth]` (DD-AUTH-001).
+    pub login: Option<Arc<crate::login::Login>>,
     /// Every briefing with its facts (REQ-BRIEF-001).
     pub briefing: Option<Arc<crate::briefing::Store>>,
     /// Issues people opened, waiting for a first reply (REQ-TRIAGE-001).
@@ -57,6 +59,16 @@ pub fn build_router(state: AppState) -> Router {
     // `warte hub` still serves them on its own port.
     Router::new()
         .merge(api::build_routes())
+        .route("/auth/login", axum::routing::get(crate::login::login_route))
+        .route(
+            "/auth/callback",
+            axum::routing::get(crate::login::callback_route),
+        )
+        .route(
+            "/auth/logout",
+            axum::routing::get(crate::login::logout_route),
+        )
+        .route("/api/me", axum::routing::get(crate::login::me_route))
         .route("/ci", axum::routing::any(ci_gone))
         .route("/ci/", axum::routing::any(ci_gone))
         .route("/ci/{*rest}", axum::routing::any(ci_gone))
@@ -256,6 +268,12 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
     let token_seed = crate::auth::load_or_create_seed(&config.token_seed_file())?;
     let state = AppState {
         idle: config.idle.clone(),
+        login: match &config.auth {
+            Some(a) => Some(Arc::new(
+                crate::login::Login::new(a.clone()).map_err(anyhow::Error::msg)?,
+            )),
+            None => None,
+        },
         briefing,
         triage,
         ca: ca.clone(),

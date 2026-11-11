@@ -568,3 +568,7 @@ body.idle-on #idle-caption { opacity: 1; transform: translate(-50%, 0); }
 .briefing details summary { cursor: pointer; color: var(--muted, #93a1b3); margin: 6px 0; }
 .briefing h4 { margin: 14px 0 6px; font-size: 13px; letter-spacing: .04em; }
 .briefing .periods { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* signed-in user (REQ-AUTH-003) */
+.who { font-size: 12px; color: var(--muted, #93a1b3); margin-right: 12px; white-space: nowrap; }
+.who a { color: var(--accent, #3ee6ff); }

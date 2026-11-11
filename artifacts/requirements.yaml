@@ -1217,3 +1217,45 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-11-11T05:29:42Z
+
+  - id: REQ-AUTH-001
+    type: requirement
+    title: Without a login, only fleet status is readable; personal data needs a Zitadel login
+    status: verified
+    release: v1.6.13
+    description: "With [auth] configured, every route SHALL carry a data class in code: public (dashboard shell and assets, health, overview, machines, queue, outages, CI history, ETA, admission, watch, status, report, pressure, history, OpenAPI, probe and agent-token routes) or signed-in (costs, skills, briefing, triage, agents, artifacts, Ask, friction, health detail). A signed-in route without a valid session or token SHALL answer 401 (API) or show a sign-in link (dashboard). A route without a class SHALL fail a test. Without [auth], warte SHALL behave as today."
+    fields:
+      category: non-functional
+      priority: must
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-11T06:17:13Z
+
+  - id: REQ-AUTH-002
+    type: requirement
+    title: "warte verifies Zitadel tokens: signature, issuer, audience, expiry; roles from project roles"
+    status: verified
+    release: v1.6.13
+    description: warte SHALL accept a token only when its signature verifies against the issuer's JWKS (refetched on an unknown key id, at most once a minute), iss equals the configured issuer, aud contains the configured audience, and exp is in the future (60 s leeway). Roles SHALL come from the urn:zitadel:iam:org:project:roles claim, mapped by [auth] roles to viewer, member or owner; a token with none of the configured roles SHALL be refused (403). No header other than a verified token SHALL establish identity.
+    fields:
+      category: non-functional
+      priority: must
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-11T06:17:13Z
+
+  - id: REQ-AUTH-003
+    type: requirement
+    title: "OIDC hand-over: code flow with PKCE, state and nonce, server-side sessions"
+    status: verified
+    release: v1.6.13
+    description: /auth/login SHALL redirect to the issuer's authorization endpoint with a fresh state, nonce and S256 PKCE challenge; /auth/callback SHALL accept only a known unexpired state, exchange the code with the verifier, verify the ID token (as REQ-AUTH-002, plus the nonce) and set a random session cookie (HttpOnly, Secure, SameSite=Lax, path-scoped) for at most the token lifetime; /auth/logout SHALL drop the session and redirect to the issuer's end-session endpoint. Sessions SHALL be kept server-side; the browser never holds a token.
+    fields:
+      category: non-functional
+      priority: must
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-11T06:17:13Z

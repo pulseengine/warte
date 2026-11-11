@@ -36,6 +36,7 @@
       <button hx-get="api/dashboard/agents-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Agents</button>
       <button hx-get="api/dashboard/artifacts-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Artifacts</button>
     </nav>
+    <span class="who" id="who"></span>
     <span class="clock" title="tower time">UTC <b id="utc">--:--:--</b></span>
   </header>
 
@@ -123,6 +124,21 @@
         htmx.trigger(current, 'click');
       }
     }, 30000);
+  </script>
+  <script>
+    // who is signed in (REQ-AUTH-003); nothing shows without [auth]
+    fetch("api/me").then(function (r) { return r.json(); }).then(function (m) {
+      var el = document.getElementById("who");
+      if (!m.auth || !el) return;
+      if (m.user) {
+        el.textContent = m.user.name + " · " + m.user.role + " · ";
+        var a = document.createElement("a"); a.href = "auth/logout"; a.textContent = "Sign out";
+        el.appendChild(a);
+      } else {
+        var b = document.createElement("a"); b.href = "auth/login"; b.textContent = "Sign in";
+        el.appendChild(b);
+      }
+    }).catch(function () {});
   </script>
   <script src="idle.js" defer></script>
 </body>

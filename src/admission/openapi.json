@@ -155,6 +155,13 @@
         }
       }
     },
+    "/api/me": {
+      "get": {
+        "summary": "Who this browser is signed in as",
+        "description": "{auth: false} without [auth]; with it, {auth: true, user: null} or user {sub, name, role}. Login is through the OIDC provider (/auth/login); warte never sees a password.",
+        "responses": {"200": {"description": "the identity, if any"}}
+      }
+    },
     "/api/skill-usage": {
       "get": {
         "summary": "The latest skill-usage report of every source",

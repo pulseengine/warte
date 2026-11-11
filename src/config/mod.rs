@@ -115,6 +115,10 @@ pub struct Config {
     /// The dashboard's idle scene (REQ-DASH-018).
     #[serde(default)]
     pub idle: IdleConfig,
+    /// Login through an OIDC provider (DD-AUTH-001). Without it every read
+    /// stays open.
+    #[serde(default)]
+    pub auth: Option<crate::login::AuthConfig>,
     /// The briefing every two days (REQ-BRIEF-001).
     #[serde(default)]
     pub briefing: Option<crate::briefing::BriefingConfig>,
@@ -348,6 +352,7 @@ impl Default for Config {
             pressure: Default::default(),
             runners: Default::default(),
             idle: Default::default(),
+            auth: None,
             briefing: None,
             triage: None,
         }

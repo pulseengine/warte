@@ -4,6 +4,24 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.13 — 2026-11-11
+
+- **Login through Zitadel** (DD-AUTH-001, REQ-AUTH-001..003). With an `[auth]` section, personal data needs a login. That means costs, skills, briefing, triage, agents, artifacts, Ask, friction and health. Fleet status stays open on the LAN, and so do the APIs agents and probes use.
+
+  warte never sees a password. Either a proxy passes the provider's JWT, or **Sign in** hands the browser to Zitadel (code flow with PKCE, state and nonce) and warte keeps a server-side session behind an HttpOnly, Secure, SameSite=Lax cookie. Either way warte verifies the signature (JWKS), issuer, audience and expiry. Roles come from Zitadel project roles (viewer, member, owner). `alg: none`, shared-secret tokens and bare identity headers are refused.
+
+  Every read route has a data class, and a route without one needs a login and fails a test. Without `[auth]` nothing changes.
+
+  An independent security review before release found six issues, all fixed with a test each:
+  - A login is bound to the browser that started it (login CSRF).
+  - The return path is a local path from a short allow-list. A tab character could turn it into another site on a root deployment.
+  - Only warte's project-scoped roles count.
+  - A flood of login starts pushes out the oldest instead of locking everyone out.
+  - The provider's keys are fetched at most once a minute, even while it is down.
+  - The local test issuer is matched by exact host.
+
+  Tokens with a `crit` header are refused, and `ca_bundle` trusts a LAN CA for the provider.
+
 ## v1.6.12 — 2026-11-11
 
 - **Issue triage queue** (REQ-TRIAGE-001/002). Every 10 minutes warte reads the organisation's public event feed, without a token and with its ETag, and queues each issue a person opens or reopens. Bots, configured logins, pull requests and issues carrying an agent marker are skipped. `GET /api/triage` hands the oldest out, at most 10 an hour, and counts the rest. The reply run, posting as its own bot outside warte, marks each one done with `triage:write`. warte stays read-only on GitHub. Configure with `[triage] org = ...`.

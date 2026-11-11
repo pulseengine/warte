@@ -132,6 +132,53 @@ The base is set, never guessed from a web URL. The same settings as a
   githubstatus.com: set `status_url = "off"`.
 - `[hub]` and `[github]` are exclusive: one CI source per instance.
 
+## Login (Zitadel or another OIDC provider)
+
+With an `[auth]` section, personal data needs a login (DD-AUTH-001,
+REQ-AUTH-001..003). warte never sees a password: the provider logs people in,
+and warte verifies its signed tokens itself.
+
+```toml
+[auth]
+issuer = "https://<zitadel-host>"          # exactly the tokens' iss
+client_id = "<application client id>"      # Web application, PKCE, no secret
+project_id = "<project id>"                # roles claim and audience
+base_url = "https://<warte host>/warte"    # redirect URI: <base_url>/auth/callback
+# session_hours = 12
+# ca_bundle = "/path/to/lan-root.pem"      # the provider's TLS, if a LAN CA signs it
+# roles: provider role key -> viewer | member | owner (default: same names)
+# [auth.roles]
+# admins = "owner"
+```
+
+- **Two ways in, one check.** A proxy in front may pass the provider's JWT
+  access token as `Authorization: Bearer`. Or the browser follows **Sign in**
+  to `/auth/login`, which hands it to the provider (code flow, PKCE, state,
+  nonce). Then `/auth/callback` sets a random, HttpOnly, Secure, SameSite=Lax
+  session cookie; the session is kept in warte, and the browser never holds a
+  token. Either way warte checks the signature against the provider's JWKS,
+  the issuer, the audience (client or project id) and the expiry. `alg: none`
+  and shared-secret algorithms are refused. A header like `X-Forwarded-User`
+  is never an identity.
+- **Zitadel settings:** a project with roles `viewer`, `member`, `owner` and
+  "assert roles on authentication"; one Web application with PKCE, redirect
+  URI `<base_url>/auth/callback`, post-logout URI `<base_url>/`; JWT access
+  tokens. The roles come from `urn:zitadel:iam:org:project:<project_id>:roles`
+  (or the older `urn:zitadel:iam:org:project:roles`). A login with none of
+  the configured roles gets 403.
+- **What stays open:** fleet status: the dashboard shell, overview, machines,
+  queue, outages, CI history, jobs, compliance, critical path, resources,
+  schedule, the idle scene, and the APIs agents and probes use (`/api/queue`,
+  `/api/eta`, `/api/admission`, `/api/watch`, `/api/status.md`, `/api/report`,
+  `/api/history/*`, `/api/machines`, `/api/pressure`, the probe routes).
+- **What needs a login:** costs, skills, briefing, triage, agents and their
+  data, artifacts, Ask, friction and health. A view inside the page shows a
+  sign-in link; the API answers 401. The briefing and triage jobs read their
+  routes with the warte token they write with (`briefing:write`,
+  `triage:write`). Writes keep their warte tokens as before.
+- Every read route has a class in `src/login/mod.rs`; a route without one
+  needs a login and fails a test. Without `[auth]` nothing changes.
+
 ## The briefing
 
 Every two days warte writes a briefing of what the agents did (REQ-BRIEF-001..003):
