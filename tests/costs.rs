@@ -417,6 +417,7 @@ fn report_v2() -> serde_json::Value {
 }
 
 // rivet: verifies REQ-COSTS-002
+// rivet: verifies REQ-COSTS-003
 #[tokio::test]
 async fn a_schema_2_report_shows_this_week_against_the_previous_one() {
     let srv = serve().await;
@@ -511,7 +512,7 @@ async fn schema_2_takes_counts_and_names_only() {
     assert!(get_json(&base, "/api/costs").await["report"].is_null());
 }
 
-// rivet: verifies REQ-COSTS-002
+// rivet: verifies REQ-COSTS-004
 #[tokio::test]
 async fn a_fresh_report_with_old_data_is_called_stale() {
     let srv = serve().await;
