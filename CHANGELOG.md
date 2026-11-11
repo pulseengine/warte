@@ -4,6 +4,10 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.15 — 2026-11-11
+
+- **The v1.6.11 and v1.6.14 changes get their own requirements**, so they can be released. Both tags were refused by the release gate because no rivet artifact was scoped to them, and neither has a GitHub release. REQ-COSTS-003: a counter that was not measured shows as not measured, never as 0 (the v1.6.11 change). REQ-COSTS-004: a report whose newest data is more than a day old is stale (the v1.6.14 change). No code changes; v1.6.15 carries both.
+
 ## v1.6.14 — 2026-11-11
 
 - **A fresh costs report with old data is stale** (REQ-COSTS-002). On 2026-11-11 the transcript archive had failed for three days. The nightly report was generated on time from stale input and showed as "fresh". warte now compares the newest day with data against the report's generation. More than a day apart makes the report stale, and the Costs view says the input may have stopped. `/api/costs` adds `data_through` and `data_lag_days`.
