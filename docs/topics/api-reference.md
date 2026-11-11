@@ -28,12 +28,13 @@ warte token mint <agent-id> [--valid-hours 720] [--any-agent] [--right <r>]...
   | `POST /api/costs` | `costs:write` |
   | `POST /api/skill-usage` | `skills:write` |
   | `POST /api/briefing` | `briefing:write` |
+  | `POST /api/triage/done` | `triage:write` |
 
   A write route with no row in that table (`MUTATING_ROUTES` in
   `src/auth/mod.rs`) is refused with `403`. The probe routes authenticate
   themselves and are not in it.
 - A bare mint carries `agents:register`, `agents:data` and `agents:heartbeat`:
-  enough for an agent, not for `access:*`, `sync:update`, `costs:write`, `skills:write` or `briefing:write`.
+  enough for an agent, not for `access:*`, `sync:update`, `costs:write`, `skills:write`, `briefing:write` or `triage:write`.
   `--right <r>` (repeatable) adds a right, e.g. `--right costs:write`; a name
   that is not in the table is refused at mint time.
 - The agent binding: a token names an agent by the name it registers under.

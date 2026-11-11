@@ -42,6 +42,8 @@ pub struct AppState {
     pub idle: crate::config::IdleConfig,
     /// Every briefing with its facts (REQ-BRIEF-001).
     pub briefing: Option<Arc<crate::briefing::Store>>,
+    /// Issues people opened, waiting for a first reply (REQ-TRIAGE-001).
+    pub triage: Option<Arc<crate::triage::Triage>>,
 }
 
 /// Build the Axum router with all routes.
@@ -214,6 +216,22 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
         None => None,
     };
 
+    let triage = match &config.triage {
+        Some(t) => {
+            let dir = t
+                .data_dir
+                .clone()
+                .or_else(|| config.hub.as_ref().map(|h| h.data_dir.clone()))
+                .or_else(|| config.github.as_ref().map(|g| g.data_dir.clone()))
+                .ok_or_else(|| anyhow::anyhow!("[triage] needs data_dir, [hub] or [github]"))?;
+            let q =
+                Arc::new(crate::triage::Triage::open(&dir, t.clone()).map_err(anyhow::Error::msg)?);
+            crate::triage::spawn(q.clone());
+            Some(q)
+        }
+        None => None,
+    };
+
     let temper = match (&config.temper, &config.hub) {
         (Some(_), Some(h)) => Some(Arc::new(crate::temper::Store::open(&h.data_dir))),
         _ => None,
@@ -239,6 +257,7 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
     let state = AppState {
         idle: config.idle.clone(),
         briefing,
+        triage,
         ca: ca.clone(),
         hub,
         machines,

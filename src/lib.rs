@@ -38,6 +38,7 @@ pub mod skills;
 pub mod status;
 pub mod sync;
 pub mod temper;
+pub mod triage;
 pub mod watch;
 
 pub use config::Config;

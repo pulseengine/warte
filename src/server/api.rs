@@ -34,6 +34,9 @@ pub fn build_routes() -> Router<AppState> {
         // facts a model run reads, and its text, checked against them
         .route("/briefing", get(api_briefing).post(api_briefing_post))
         .route("/briefing/facts", get(api_briefing_facts))
+        // issues people opened, for the run that replies (REQ-TRIAGE-001/002)
+        .route("/triage", get(api_triage))
+        .route("/triage/done", post(api_triage_done))
         // a workstation job replaces its source's skill-usage report whole
         // (REQ-SKILLS-001); GET serves the latest per source.
         .route(
@@ -514,6 +517,54 @@ async fn api_costs_post(
                 "could not store the report",
             )
         }
+    }
+}
+
+/// The triage queue: what the run may take now, and what waits.
+async fn api_triage(State(state): State<AppState>) -> axum::response::Response {
+    match state.triage.as_deref() {
+        Some(t) => Json(t.offer(crate::hub::now())).into_response(),
+        None => plain(StatusCode::SERVICE_UNAVAILABLE, "no [triage] configured"),
+    }
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TriageDone {
+    repo: String,
+    number: u64,
+    outcome: String,
+}
+
+/// The run is done with an issue (replied, asked or skipped).
+async fn api_triage_done(
+    State(state): State<AppState>,
+    body: axum::body::Bytes,
+) -> axum::response::Response {
+    let Some(t) = state.triage.as_deref() else {
+        return plain(StatusCode::SERVICE_UNAVAILABLE, "no [triage] configured");
+    };
+    let d: TriageDone = match serde_json::from_slice(&body) {
+        Ok(d) => d,
+        Err(e) => {
+            return plain(
+                StatusCode::BAD_REQUEST,
+                &format!(
+                    "not a triage result ({:?} error at line {} column {})",
+                    e.classify(),
+                    e.line(),
+                    e.column()
+                ),
+            )
+        }
+    };
+    match t.done(&d.repo, d.number, &d.outcome, crate::hub::now()) {
+        Ok(()) => (
+            StatusCode::CREATED,
+            Json(serde_json::json!({ "done": true })),
+        )
+            .into_response(),
+        Err(why) => plain(StatusCode::UNPROCESSABLE_ENTITY, &why),
     }
 }
 
