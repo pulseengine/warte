@@ -102,6 +102,37 @@
         }
       }
     },
+    "/api/briefing": {
+      "get": {
+        "summary": "The latest briefing, or the one of ?from=YYYY-MM-DD, with the periods kept",
+        "description": "Every two days: one plain line, three bullets, and the facts they were made from (public repositories only: merged pull requests, closed issues, releases, pull requests open for more than a day, CI runs and failed jobs, a notional token check, setup changes). source is template or model.",
+        "responses": {
+          "200": {"description": "briefing (null before the first period closes) and periods, newest first"},
+          "404": {"description": "no briefing for that period"},
+          "503": {"description": "no [briefing] configured"}
+        }
+      },
+      "post": {
+        "summary": "A model run's text for a period (needs briefing:write)",
+        "description": "Body: from, model, line, bullets (exactly 3). Kept only when every repository, #number, version and count it names is in that period's facts and the text has at most 130 words, no links and no markup; otherwise 422 with the reason, and the template stays.",
+        "responses": {
+          "201": {"description": "stored"},
+          "400": {"description": "not a briefing"},
+          "422": {"description": "the text does not fit the facts; the template stays"},
+          "503": {"description": "no [briefing] configured"}
+        }
+      }
+    },
+    "/api/briefing/facts": {
+      "get": {
+        "summary": "The facts of the latest period, for the run that writes the text",
+        "responses": {
+          "200": {"description": "from, until, source, facts and the rules a text must meet"},
+          "404": {"description": "no briefing yet"},
+          "503": {"description": "no [briefing] configured"}
+        }
+      }
+    },
     "/api/skill-usage": {
       "get": {
         "summary": "The latest skill-usage report of every source",

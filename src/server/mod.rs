@@ -40,6 +40,8 @@ pub struct AppState {
     pub temper: Option<Arc<crate::temper::Store>>,
     /// The dashboard's idle scene (REQ-DASH-018).
     pub idle: crate::config::IdleConfig,
+    /// Every briefing with its facts (REQ-BRIEF-001).
+    pub briefing: Option<Arc<crate::briefing::Store>>,
 }
 
 /// Build the Axum router with all routes.
@@ -195,6 +197,23 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
         ))
     });
 
+    // the briefing keeps its files in its own data_dir, or the ground
+    // station's, or the GitHub source's
+    let briefing = match &config.briefing {
+        Some(b) => {
+            let dir = b
+                .data_dir
+                .clone()
+                .or_else(|| config.hub.as_ref().map(|h| h.data_dir.clone()))
+                .or_else(|| config.github.as_ref().map(|g| g.data_dir.clone()))
+                .ok_or_else(|| anyhow::anyhow!("[briefing] needs data_dir, [hub] or [github]"))?;
+            let store = Arc::new(crate::briefing::Store::open(&dir).map_err(anyhow::Error::msg)?);
+            crate::briefing::spawn(store.clone(), b.clone(), hub.clone(), costs.clone());
+            Some(store)
+        }
+        None => None,
+    };
+
     let temper = match (&config.temper, &config.hub) {
         (Some(_), Some(h)) => Some(Arc::new(crate::temper::Store::open(&h.data_dir))),
         _ => None,
@@ -219,6 +238,7 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
     let token_seed = crate::auth::load_or_create_seed(&config.token_seed_file())?;
     let state = AppState {
         idle: config.idle.clone(),
+        briefing,
         ca: ca.clone(),
         hub,
         machines,

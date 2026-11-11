@@ -173,6 +173,15 @@ pub fn current_contract() -> AgentContract {
                 auth_required: true,
                 required_right: right_for("/api/skill-usage"),
             },
+            ContractOperation {
+                name: "post_briefing".to_string(),
+                direction: OperationDirection::AgentToTower,
+                request_type: "{ from: string, model: string, line: string, bullets: [string; 3] }"
+                    .to_string(),
+                response_type: "{ stored: bool }".to_string(),
+                auth_required: true,
+                required_right: right_for("/api/briefing"),
+            },
         ],
         data_types: vec![
             ContractDataType {
@@ -292,7 +301,7 @@ mod tests {
     fn test_agent_contract() {
         let contract = current_contract();
         assert_eq!(contract.version, "0.1.0");
-        assert_eq!(contract.operations.len(), 10);
+        assert_eq!(contract.operations.len(), 11);
         assert_eq!(contract.data_types.len(), 4);
 
         // Every operation requires auth; every mutating route's right is listed.

@@ -297,6 +297,11 @@ fn week_ok(s: &str) -> bool {
     s.len() == 8 && chrono::NaiveDate::from_isoywd_opt(y, w, chrono::Weekday::Mon).is_some()
 }
 
+/// The name check, for other reports that carry model ids.
+pub fn name_ok_pub(s: &str) -> bool {
+    !s.is_empty() && name_ok(s)
+}
+
 fn id_ok(s: &str) -> bool {
     (1..=16).contains(&s.len()) && s.chars().all(|c| c.is_ascii_alphanumeric())
 }

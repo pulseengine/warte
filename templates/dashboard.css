@@ -561,3 +561,10 @@ body.idle-on #idle-caption { opacity: 1; transform: translate(-50%, 0); }
 @media (prefers-reduced-motion: reduce) {
   #idle-scene, #idle-caption { transition: none; }
 }
+
+/* briefing (REQ-BRIEF-003): the plain layers read like a note, not a table */
+.briefing .brief-line { font-size: 20px; line-height: 1.4; margin: 4px 0 12px; color: var(--text); }
+.briefing .brief-bullets { margin: 0 0 14px 1.1em; padding: 0; line-height: 1.6; font-size: 15px; }
+.briefing details summary { cursor: pointer; color: var(--muted, #93a1b3); margin: 6px 0; }
+.briefing h4 { margin: 14px 0 6px; font-size: 13px; letter-spacing: .04em; }
+.briefing .periods { display: flex; flex-wrap: wrap; gap: 6px; }

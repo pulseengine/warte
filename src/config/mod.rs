@@ -115,6 +115,9 @@ pub struct Config {
     /// The dashboard's idle scene (REQ-DASH-018).
     #[serde(default)]
     pub idle: IdleConfig,
+    /// The briefing every two days (REQ-BRIEF-001).
+    #[serde(default)]
+    pub briefing: Option<crate::briefing::BriefingConfig>,
 }
 
 /// Machine history retention (REQ-MHIST-001).
@@ -342,6 +345,7 @@ impl Default for Config {
             pressure: Default::default(),
             runners: Default::default(),
             idle: Default::default(),
+            briefing: None,
         }
     }
 }

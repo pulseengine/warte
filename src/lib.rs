@@ -11,6 +11,7 @@ pub mod agent;
 pub mod alerts;
 pub mod artifact;
 pub mod auth;
+pub mod briefing;
 pub mod ca;
 pub mod cli;
 pub mod config;

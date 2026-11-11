@@ -10,6 +10,7 @@
 //! Views refresh every 30 s and show the age of the data they render.
 
 pub mod airport;
+pub mod briefing;
 pub mod charts;
 pub mod cihistory;
 pub mod compliance;
@@ -253,6 +254,23 @@ pub async fn compliance_partial(State(state): State<crate::server::AppState>) ->
 /// HTMX partial: skills (REQ-SKILLS-001).
 pub async fn skills_partial(State(state): State<crate::server::AppState>) -> Response {
     Html(skills::view(state.skills.as_deref(), crate::hub::now())).into_response()
+}
+
+/// HTMX partial: the briefing (REQ-BRIEF-003), the latest or `?from=`.
+pub async fn briefing_partial(
+    State(state): State<crate::server::AppState>,
+    axum::extract::RawQuery(q): axum::extract::RawQuery,
+) -> Response {
+    let from = q
+        .as_deref()
+        .and_then(|q| q.split('&').find_map(|kv| kv.strip_prefix("from=")))
+        .map(String::from);
+    let store = state.briefing.clone();
+    let html =
+        tokio::task::spawn_blocking(move || briefing::view(store.as_deref(), from.as_deref()))
+            .await
+            .unwrap_or_default();
+    Html(html).into_response()
 }
 
 /// HTMX partial: costs (REQ-COSTS-001).

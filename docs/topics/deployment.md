@@ -132,6 +132,38 @@ The base is set, never guessed from a web URL. The same settings as a
   githubstatus.com: set `status_url = "off"`.
 - `[hub]` and `[github]` are exclusive: one CI source per instance.
 
+## The briefing
+
+Every two days warte writes a briefing of what the agents did (REQ-BRIEF-001..003):
+one line anyone understands, three plain bullets (done; what went wrong and how
+it was caught; what waits for you) and, collapsed, the numbers for an IT reader.
+
+```toml
+[briefing]
+org = "<github-org>"
+# api_url = "https://api.github.com"
+# data_dir: default the ground station's
+[[briefing.markers]]
+date = "2026-11-08"
+text = "effort medium for sessions and subagents"
+```
+
+- **Facts:** merged pull requests, closed issues, releases and pull requests
+  open for more than a day, read from GitHub **without a token**, so only
+  public repositories appear; CI runs and failed jobs of those repositories
+  from the ledger; the last 7 days' notional costs against the 7 before; the
+  `markers` of the last two weeks. Periods are two UTC days; the facts of a
+  closed period are read once, about a dozen requests plus one release listing
+  per repository pushed in the period.
+- **Text:** warte writes a plain version from the facts at once. A scheduled
+  model run (outside warte; warte holds no model credential) reads
+  `GET /api/briefing/facts` and posts `{from, model, line, bullets}` to
+  `POST /api/briefing` with a token carrying `briefing:write`
+  (`warte token mint briefing-job --right briefing:write`). Its text is kept only when every
+  repository, `#number`, version and count it names is in the facts; otherwise
+  the plain version stays and the Briefing view says why.
+- Every briefing is kept with its facts in `<data_dir>/briefings/`.
+
 ## The idle scene
 
 After two minutes without input the dashboard shows a seasonal layer

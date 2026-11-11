@@ -30,6 +30,10 @@ pub fn build_routes() -> Router<AppState> {
                 .post(api_costs_post)
                 .layer(axum::extract::DefaultBodyLimit::max(crate::costs::MAX_BODY)),
         )
+        // the briefing (REQ-BRIEF-001..003): the latest or one period, the
+        // facts a model run reads, and its text, checked against them
+        .route("/briefing", get(api_briefing).post(api_briefing_post))
+        .route("/briefing/facts", get(api_briefing_facts))
         // a workstation job replaces its source's skill-usage report whole
         // (REQ-SKILLS-001); GET serves the latest per source.
         .route(
@@ -135,6 +139,10 @@ pub fn build_routes() -> Router<AppState> {
             get(crate::dashboard::ci_history_partial),
         )
         .route("/airport.js", get(crate::dashboard::airport_js))
+        .route(
+            "/api/dashboard/briefing-partial",
+            get(crate::dashboard::briefing_partial),
+        )
         .route(
             "/api/dashboard/airport-partial",
             get(crate::dashboard::airport_partial),
@@ -506,6 +514,91 @@ async fn api_costs_post(
                 "could not store the report",
             )
         }
+    }
+}
+
+fn no_briefing() -> axum::response::Response {
+    plain(StatusCode::SERVICE_UNAVAILABLE, "no [briefing] configured")
+}
+
+fn period_query(q: &Option<String>) -> Option<String> {
+    q.as_deref()?
+        .split('&')
+        .find_map(|kv| kv.strip_prefix("from="))
+        .map(String::from)
+}
+
+/// The latest briefing (or `?from=YYYY-MM-DD`), and the periods kept.
+async fn api_briefing(
+    State(state): State<AppState>,
+    axum::extract::RawQuery(q): axum::extract::RawQuery,
+) -> axum::response::Response {
+    let Some(s) = state.briefing.as_deref() else {
+        return no_briefing();
+    };
+    let b = match period_query(&q) {
+        Some(p) => match s.get(&p) {
+            Some(b) => Some(b),
+            None => return plain(StatusCode::NOT_FOUND, "no briefing for that period"),
+        },
+        None => s.latest(),
+    };
+    Json(serde_json::json!({ "briefing": b, "periods": s.periods() })).into_response()
+}
+
+/// The facts of the latest period, for the model run that writes the text.
+async fn api_briefing_facts(State(state): State<AppState>) -> axum::response::Response {
+    let Some(s) = state.briefing.as_deref() else {
+        return no_briefing();
+    };
+    match s.latest() {
+        Some(b) => Json(serde_json::json!({
+            "from": b.facts.from,
+            "until": b.facts.until,
+            "source": b.source,
+            "facts": b.facts,
+            "rules": {
+                "bullets": 3,
+                "max_words": crate::briefing::MAX_WORDS,
+                "only_from_facts": "name only repositories, #numbers, versions and counts that are in the facts",
+            },
+        }))
+        .into_response(),
+        None => plain(StatusCode::NOT_FOUND, "no briefing yet"),
+    }
+}
+
+/// A model run's text for a period: kept when every repository, number and
+/// version in it is in that period's facts; otherwise 422 and the template
+/// stays (REQ-BRIEF-002).
+async fn api_briefing_post(
+    State(state): State<AppState>,
+    body: axum::body::Bytes,
+) -> axum::response::Response {
+    let Some(s) = state.briefing.as_deref() else {
+        return no_briefing();
+    };
+    let sub: crate::briefing::Submission = match serde_json::from_slice(&body) {
+        Ok(x) => x,
+        Err(e) => {
+            return plain(
+                StatusCode::BAD_REQUEST,
+                &format!(
+                    "not a briefing ({:?} error at line {} column {})",
+                    e.classify(),
+                    e.line(),
+                    e.column()
+                ),
+            )
+        }
+    };
+    match s.submit(sub, crate::hub::now()) {
+        Ok(()) => (
+            StatusCode::CREATED,
+            Json(serde_json::json!({ "stored": true })),
+        )
+            .into_response(),
+        Err(why) => plain(StatusCode::UNPROCESSABLE_ENTITY, &why),
     }
 }
 
