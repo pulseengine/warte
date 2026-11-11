@@ -699,6 +699,14 @@ pub fn host_detected(state: &crate::server::AppState, now: i64) -> Vec<Detected>
             _ => {}
         }
     }
+    // forecasts due within days notify like any finding (REQ-PREDICT-002)
+    if let Some(f) = state
+        .machines
+        .as_ref()
+        .and_then(|m| crate::forecast::of_machines(m, now))
+    {
+        list.extend(crate::forecast::detected(&f));
+    }
     list
 }
 

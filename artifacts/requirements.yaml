@@ -1293,3 +1293,48 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-11-11T13:21:56Z
+
+  - id: REQ-CI-005
+    type: requirement
+    title: Failures that share one cause across repositories are shown as one incident
+    status: proposed
+    release: v1.7.0
+    description: "On 2026-11-11, Google Public DNS could not resolve Canonical's package servers for about three hours. Every GitHub-hosted job that installed Ubuntu packages failed with the same resolver error, in warte, gale and others, while GitHub's status page reported no incident. warte showed each failure on its own. warte SHALL group failed CI jobs from two or more repositories whose failing step carries the same normalised error signature within one hour, and SHALL show the group as one shared incident on the overview: the signature, the repositories, the first and last failure, and whether it is still occurring. The signature SHALL be built from fixed patterns (a resolver failure for a host, an apt or package-manager exit, a registry or network timeout), never from raw log text, so no paths, secrets or log lines reach the read API."
+    fields:
+      category: functional
+      priority: should
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-11T17:24:11Z
+
+  - id: REQ-PREDICT-001
+    type: requirement
+    title: "Coming up: a machine's disk or memory is forecast to reach its limit"
+    status: verified
+    release: v1.6.16
+    description: "From each reporting machine's history, warte SHALL fit a straight line to the hourly means of every disk's used share and of memory use over the last seven days, and SHALL list a forecast when the line rises steadily (R² at least 0.7, at least 24 hours and 12 hourly points of data) and reaches the limit (95%) within 14 days and the latest value is still below it. Each forecast SHALL carry its evidence: the current value, the rate per day, the date the limit is reached, and how many hours and points it rests on. Series with too little data SHALL be counted as not enough data, never forecast. /api/forecast SHALL answer this, open like the machines API, and the overview SHALL show it as a Coming up panel."
+    fields:
+      category: functional
+      priority: should
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-11T17:52:47Z
+
+  - id: REQ-PREDICT-002
+    type: requirement
+    title: A forecast due within three days raises an alert
+    status: verified
+    release: v1.6.16
+    description: A forecast whose limit is reached within three days SHALL become an amber outage finding, and within one day a red one, so the existing alerts (REQ-ALERT-001) notify the owner without anyone opening the overview. A forecast further out SHALL NOT notify.
+    fields:
+      category: functional
+      priority: should
+    links:
+      - type: refines
+        target: REQ-ALERT-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-11T17:52:47Z

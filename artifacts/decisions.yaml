@@ -286,3 +286,21 @@ artifacts:
         target: REQ-AUTH-002
       - type: satisfies
         target: REQ-AUTH-003
+
+  - id: DD-PREDICT-001
+    type: design-decision
+    title: Forecasts are straight lines through hourly means, shown with their evidence
+    status: verified
+    release: v1.6.16
+    description: warte forecasts with ordinary least squares over the history store's hourly means of the last seven days, and gates each forecast on goodness of fit, data span and horizon. No model and no new dependency.
+    fields:
+      rationale: A straight line can be checked by eye against the history chart and explained in one sentence (rate per day, date reached). Weekly cycles and sudden jumps fit badly and are held back by the R² gate rather than guessed at. The model hypothesis (planned later) adds explanation, not the forecast itself.
+    links:
+      - type: satisfies
+        target: REQ-PREDICT-001
+      - type: satisfies
+        target: REQ-PREDICT-002
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-11T17:52:47Z

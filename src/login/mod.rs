@@ -642,6 +642,7 @@ pub const PUBLIC: &[&str] = &[
     "/api/report",
     "/api/report.md",
     "/api/pressure",
+    "/api/forecast",
     "/api/fleet",
     "/api/jobs",
     "/api/machines",

@@ -237,20 +237,26 @@ async fn tool(name: &str) -> Tool {
 /// reports devices and pressure without rates.
 pub async fn collect(io_prev: Option<&std::path::Path>) -> Report {
     use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
-    let mut sys = System::new();
-    sys.refresh_memory();
-    sys.refresh_cpu_list(sysinfo::CpuRefreshKind::nothing());
-    sys.refresh_processes_specifics(
-        ProcessesToUpdate::All,
-        true,
-        ProcessRefreshKind::nothing()
-            .with_cmd(UpdateKind::Always)
-            .with_cwd(UpdateKind::Always),
-    );
+    // sysinfo blocks: listing processes, and on macOS listing disks has taken
+    // 30 s. Off the async threads, so it never stalls the server (or the one
+    // thread a test runs on).
+    let (sys, la, disks) = tokio::task::spawn_blocking(|| {
+        let mut sys = System::new();
+        sys.refresh_memory();
+        sys.refresh_cpu_list(sysinfo::CpuRefreshKind::nothing());
+        sys.refresh_processes_specifics(
+            ProcessesToUpdate::All,
+            true,
+            ProcessRefreshKind::nothing()
+                .with_cmd(UpdateKind::Always)
+                .with_cwd(UpdateKind::Always),
+        );
+        let la = System::load_average();
+        (sys, la, disks())
+    })
+    .await
+    .unwrap_or_else(|_| (System::new(), System::load_average(), Vec::new()));
     let mb = |b: u64| b / (1024 * 1024);
-    let la = System::load_average();
-
-    let disks = disks();
 
     let mut sessions: Vec<Session> = innermost(
         sys.processes()

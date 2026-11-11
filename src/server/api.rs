@@ -83,6 +83,7 @@ pub fn build_routes() -> Router<AppState> {
         )
         .route("/compliance", get(api_compliance))
         .route("/pressure", get(api_pressure))
+        .route("/forecast", get(api_forecast))
         .route("/openapi.json", get(api_openapi));
     // /api/ws and /api/events are not mounted: they broadcast agent and
     // access events without authentication, and nothing uses them (agents
@@ -1525,6 +1526,21 @@ async fn sync_update(
 /// Whether a host's disks are low (REQ-PRESSURE-001): a verdict per volume
 /// from its latest report, the host's being the worst, with the GB agents
 /// hold there as totals per kind. No names or paths (DD-PRESSURE-001).
+/// What is forecast to reach its limit (REQ-PREDICT-001).
+async fn api_forecast(State(state): State<AppState>) -> axum::response::Response {
+    match state
+        .machines
+        .as_ref()
+        .and_then(|m| crate::forecast::of_machines(m, crate::hub::now()))
+    {
+        Some(f) => Json(f).into_response(),
+        None => plain(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "no ground station with history configured",
+        ),
+    }
+}
+
 async fn api_pressure(
     State(state): State<AppState>,
     Query(q): Query<std::collections::HashMap<String, String>>,

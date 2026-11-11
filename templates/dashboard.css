@@ -572,3 +572,7 @@ body.idle-on #idle-caption { opacity: 1; transform: translate(-50%, 0); }
 /* signed-in user (REQ-AUTH-003) */
 .who { font-size: 12px; color: var(--muted, #93a1b3); margin-right: 12px; white-space: nowrap; }
 .who a { color: var(--accent, #3ee6ff); }
+
+/* Coming up (REQ-PREDICT-001) */
+.coming-up .dim { color: var(--dim); }
+.coming-up tr.badrow td { color: var(--err); }
