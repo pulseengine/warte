@@ -109,7 +109,11 @@ pub struct Facts {
     pub known_repos: Vec<String>,
     /// Repositories with any activity, most merged first.
     pub repos: Vec<RepoFacts>,
+    /// The oldest open pull requests (at most 20 listed).
     pub open_prs: Vec<OpenPr>,
+    /// How many were open for more than a day, listed or not.
+    #[serde(default)]
+    pub open_prs_total: u32,
     pub totals: Totals,
     pub tokens: Option<TokenCheck>,
     pub markers: Vec<Marker>,
@@ -237,7 +241,7 @@ impl Facts {
             t.ci_runs += r.ci_runs;
             t.ci_failed_jobs += r.ci_failed_jobs;
         }
-        t.open_prs = self.open_prs.len() as u32;
+        t.open_prs = self.open_prs_total.max(self.open_prs.len() as u32);
     }
 
     /// Every number a text may use: counts, item numbers, days open.
@@ -366,25 +370,30 @@ fn list(names: &[String]) -> String {
 /// The plain layers written from the facts alone.
 pub fn template(f: &Facts) -> Text {
     let t = &f.totals;
+    let plural = |n: u32, one: &str, many: &str| {
+        if n == 1 {
+            one.to_string()
+        } else {
+            many.to_string()
+        }
+    };
+    // counts and names only: the facts do not say who did the work or what
+    // a failure led to, so neither does the template
     let line = if t.merged == 0 && t.releases == 0 {
-        "A quiet two days: the agents finished nothing new.".to_string()
+        "A quiet two days: nothing new was finished.".to_string()
     } else {
         let mut l = format!(
-            "In the last two days the agents finished {} {} in {} {}",
+            "In the last two days {} {} finished in {} {}",
             t.merged,
-            if t.merged == 1 { "change" } else { "changes" },
+            plural(t.merged, "change was", "changes were"),
             t.repos,
-            if t.repos == 1 { "project" } else { "projects" }
+            plural(t.repos, "project", "projects")
         );
         if t.releases > 0 {
             l += &format!(
-                " and published {} new {}",
+                ", and {} new {} published",
                 t.releases,
-                if t.releases == 1 {
-                    "version"
-                } else {
-                    "versions"
-                }
+                plural(t.releases, "version was", "versions were")
             );
         }
         l + "."
@@ -401,23 +410,32 @@ pub fn template(f: &Facts) -> Text {
     } else {
         format!("Done: most work went into {}.", list(&top))
     };
+    let mut worst: Vec<&RepoFacts> = f.repos.iter().filter(|r| r.ci_failed_jobs > 0).collect();
+    worst.sort_by(|a, b| {
+        b.ci_failed_jobs
+            .cmp(&a.ci_failed_jobs)
+            .then(a.repo.cmp(&b.repo))
+    });
     let caught = if t.ci_failed_jobs > 0 {
+        let names: Vec<String> = worst
+            .iter()
+            .take(3)
+            .map(|r| format!("{} ({})", r.repo, r.ci_failed_jobs))
+            .collect();
         format!(
-            "Caught: the automatic checks failed {} times and held those changes back until they passed.",
-            t.ci_failed_jobs
+            "Caught: the automatic checks flagged {} failed test {}, most in {}.",
+            t.ci_failed_jobs,
+            plural(t.ci_failed_jobs, "job", "jobs"),
+            list(&names)
         )
     } else {
-        "Caught: the automatic checks found nothing wrong.".to_string()
+        "Caught: the automatic checks flagged no failed test job.".to_string()
     };
     let waits = match f.open_prs.iter().max_by_key(|p| p.days_open) {
         Some(p) => format!(
             "Waiting for you: {} {} open for more than a day, the oldest {} #{}.",
             t.open_prs,
-            if t.open_prs == 1 {
-                "change is"
-            } else {
-                "changes are"
-            },
+            plural(t.open_prs, "change is", "changes are"),
             p.repo,
             p.number
         ),
@@ -455,9 +473,16 @@ impl Store {
             .then(|| self.dir.join(format!("{from}.json")))
     }
 
+    /// A briefing as kept. A template's text is written again from its
+    /// facts, so a better wording reaches the briefings already kept.
     pub fn get(&self, from: &str) -> Option<Briefing> {
         let b = std::fs::read(self.path(from)?).ok()?;
-        serde_json::from_slice(&b).ok()
+        let mut b: Briefing = serde_json::from_slice(&b).ok()?;
+        if b.source == "template" {
+            b.facts.finish();
+            b.text = template(&b.facts);
+        }
+        Some(b)
     }
 
     pub fn put(&self, b: &Briefing) -> Result<(), String> {
