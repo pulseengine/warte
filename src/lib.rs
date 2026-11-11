@@ -27,6 +27,7 @@ pub mod ghsource;
 pub mod history;
 pub mod hub;
 pub mod jobs;
+pub mod login;
 pub mod migrate;
 pub mod platform;
 pub mod probe;

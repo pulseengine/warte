@@ -420,6 +420,12 @@ pub async fn auth_middleware(
         || method == axum::http::Method::HEAD
         || method == axum::http::Method::OPTIONS
     {
+        // with [auth], reads of personal data need a login (REQ-AUTH-001)
+        if let Some(l) = state.login.as_deref() {
+            if let Some(r) = crate::login::gate(l, &state.tokens, &mut req).await {
+                return Ok(r);
+            }
+        }
         return Ok(next.run(req).await);
     }
 

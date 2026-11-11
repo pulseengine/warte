@@ -265,3 +265,24 @@ artifacts:
         target: REQ-RUNNERS-003
       - type: satisfies
         target: REQ-RUNNERS-004
+
+  - id: DD-AUTH-001
+    type: design-decision
+    title: "Login through Zitadel: warte verifies signed tokens itself, from a proxy or after an OIDC hand-over; never a password, never a bare header"
+    status: verified
+    release: v1.6.13
+    description: "Owner decision 2026-11-11. Zitadel (deployed by smithy) authenticates. warte accepts a Zitadel JWT access token in Authorization: Bearer (a proxy in front passes it) or runs the OIDC authorization-code flow with PKCE itself and keeps a server-side session behind a random HttpOnly Secure SameSite=Lax cookie. Either way warte verifies signature (JWKS from the issuer's discovery document), issuer, audience (the client id or project id) and expiry. Roles are Zitadel project roles from urn:zitadel:iam:org:project:roles."
+    fields:
+      category: security
+      rationale: Authentication is never built into warte (owner, 2026-11-08); verifying a signed token closes the spoofed-header hole a header-trusting proxy setup leaves, and both topologies share one check.
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-11T06:17:00Z
+    links:
+      - type: satisfies
+        target: REQ-AUTH-001
+      - type: satisfies
+        target: REQ-AUTH-002
+      - type: satisfies
+        target: REQ-AUTH-003
