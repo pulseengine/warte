@@ -389,6 +389,28 @@ pub struct Restarting {
     pub delta: u64,
     /// SubState, e.g. `auto-restart` while waiting for the next try.
     pub state: String,
+    /// For a template unit (`github-runner@.service`): the instances that
+    /// restarted, where the instance name is a plain word (`runner3`); an
+    /// instance that names a path or a number is never published.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub instances: Vec<String>,
+}
+
+fn which(instances: &[String]) -> String {
+    if instances.is_empty() {
+        String::new()
+    } else {
+        format!(" ({})", instances.join(", "))
+    }
+}
+
+/// An instance name safe to publish: a plain word that starts with a letter
+/// (`runner3`), never a path (`dev-sda1`) or a user id (`1000`).
+pub fn plain_instance(s: &str) -> Option<String> {
+    let ok = (1..=24).contains(&s.len())
+        && s.starts_with(|c: char| c.is_ascii_alphabetic())
+        && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
+    ok.then(|| s.to_string())
 }
 
 /// Is a reboot needed, why, and since when (REQ-PROBE-015)? `running`: the
@@ -438,7 +460,14 @@ pub fn parse_restarts(text: &str) -> Vec<(String, u64, String)> {
             let mut sub = String::new();
             for l in b.lines() {
                 match l.split_once('=') {
-                    Some(("Id", v)) => id = unit_name(v),
+                    // the full name, instance and all: the previous counts
+                    // are kept per instance on the machine; what is
+                    // published is grouped by template (`restarting`)
+                    Some(("Id", v)) => {
+                        id = clean(v)
+                            .filter(|_| unit_name(v).is_some())
+                            .or_else(|| unit_name(v))
+                    }
                     Some(("NRestarts", v)) => n = v.trim().parse::<u64>().ok(),
                     Some(("SubState", v)) => sub = v.trim().to_string(),
                     _ => {}
@@ -453,19 +482,48 @@ pub fn parse_restarts(text: &str) -> Vec<(String, u64, String)> {
 /// counter that went down (the unit was restarted by hand or the machine
 /// rebooted) counts from zero.
 pub fn restarting(now: &[(String, u64, String)], prev: &BTreeMap<String, u64>) -> Vec<Restarting> {
-    let mut out: Vec<Restarting> = now
-        .iter()
-        .filter_map(|(u, n, sub)| {
-            let before = prev.get(u).copied().unwrap_or(0);
-            let delta = if *n >= before { n - before } else { *n };
-            (delta > 0 || sub == "auto-restart").then(|| Restarting {
-                unit: u.clone(),
-                restarts: *n,
-                delta,
-                state: clean(sub).unwrap_or_default(),
-            })
-        })
-        .collect();
+    // per unit as systemd names it, then grouped by template: one entry per
+    // template, its delta the worst instance's (a crash loop is per unit)
+    let mut by: BTreeMap<String, Restarting> = BTreeMap::new();
+    for (u, n, sub) in now {
+        let Some(template) = unit_name(u) else {
+            continue;
+        };
+        // before v1.6.11 the counts were kept per template
+        let before = prev
+            .get(u)
+            .or_else(|| prev.get(&template))
+            .copied()
+            .unwrap_or(0);
+        let delta = if *n >= before { n - before } else { *n };
+        if delta == 0 && sub != "auto-restart" {
+            continue;
+        }
+        let e = by.entry(template.clone()).or_insert_with(|| Restarting {
+            unit: template.clone(),
+            restarts: 0,
+            delta: 0,
+            state: String::new(),
+            instances: vec![],
+        });
+        if delta > e.delta || (delta == e.delta && *n > e.restarts) {
+            e.restarts = *n;
+            e.delta = delta;
+        }
+        if e.state != "auto-restart" {
+            e.state = clean(sub).unwrap_or_default();
+        }
+        if let Some(i) = u
+            .split_once('@')
+            .and_then(|(_, rest)| rest.rsplit_once('.'))
+            .and_then(|(inst, _)| plain_instance(inst))
+        {
+            if e.instances.len() < 12 {
+                e.instances.push(i);
+            }
+        }
+    }
+    let mut out: Vec<Restarting> = by.into_values().collect();
     out.sort_by(|a, b| b.delta.cmp(&a.delta).then(a.unit.cmp(&b.unit)));
     out.truncate(20);
     out
@@ -927,11 +985,19 @@ pub fn findings(h: &Health, now: i64) -> Vec<(&'static str, String)> {
             if looping { "red" } else { "amber" },
             if looping {
                 format!(
-                    "{} is crash-looping: {} restart(s) since the last report, {} in all",
-                    r.unit, r.delta, r.restarts
+                    "{}{} is crash-looping: {} restart(s) since the last report, {} in all",
+                    r.unit,
+                    which(&r.instances),
+                    r.delta,
+                    r.restarts
                 )
             } else {
-                format!("{} restarted ({} in all)", r.unit, r.restarts)
+                format!(
+                    "{}{} restarted ({} in all)",
+                    r.unit,
+                    which(&r.instances),
+                    r.restarts
+                )
             },
         ));
     }

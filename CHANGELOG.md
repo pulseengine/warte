@@ -16,6 +16,7 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
   - warte writes a plain version from the facts at once.
   - A scheduled model run elsewhere may post a friendlier text with `briefing:write`. It is kept only if every repository, number and version it names is in the facts; otherwise the plain version stays and the view says why.
   - Every briefing is kept with its facts. Configure with `[briefing] org = ...`.
+- **Crash loops of template units are told apart** (REQ-PROBE-016). The probe kept restart counts per template, so twelve `github-runner@runnerN.service` instances collapsed onto `github-runner@.service`. The list showed it twice, and the deltas were wrong. Counts are now kept per instance on the machine. What is published is one entry per template, with the worst instance's restarts, and names the instances that restarted when their name is a plain word (`runner3`); an instance named after a path or a user id is never shown. The probes need this release for it.
 
 ## v1.6.9 — 2026-11-10
 
