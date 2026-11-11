@@ -330,10 +330,18 @@ pub fn view(costs: Option<&Costs>, now: i64) -> String {
     };
     let r = &stored.report;
     let age = now - stored.received_at;
-    let (pill, word) = if age <= STALE_S {
+    let lag = r.data_lag_days();
+    let (pill, word) = if age <= STALE_S && lag.is_none() {
         ("pill", "fresh")
     } else {
         ("pill stale", "stale")
+    };
+    let lagging = match (lag, r.data_through()) {
+        (Some(n), Some(d)) => format!(
+            r#"<div class="finding amber">The report is {n} days ahead of its data: the newest day with data is {}. The extractor ran, but its input (the transcript archive) may have stopped updating.</div>"#,
+            esc(&d)
+        ),
+        _ => String::new(),
     };
     let today = chrono::DateTime::from_timestamp(now, 0)
         .unwrap_or_default()
@@ -410,7 +418,7 @@ pub fn view(costs: Option<&Costs>, now: i64) -> String {
         String::new()
     };
     format!(
-        r#"<div class="overview"><h2>Costs <span class="{pill}">{word} · {} ago</span></h2>{banner}{unpriced}<section class="panel">{kpis}</section><section class="panel"><h3>Notional $ per day · last 30 days</h3><div class="hbars">{daily}</div></section><section class="panel"><h3>Top sessions · last 30 days</h3>{}</section>{}{}<div class="note">Prices: list prices of {} (<a href="{}">source</a>), per request: 5m and 1h cache writes apart, the long-prompt tier where a model has one, advisor calls on their own model. Report generated {}, received {} ago. A session's date is its first message; the daily bars use each message's own date.</div></div>"#,
+        r#"<div class="overview"><h2>Costs <span class="{pill}">{word} · {} ago</span></h2>{banner}{lagging}{unpriced}<section class="panel">{kpis}</section><section class="panel"><h3>Notional $ per day · last 30 days</h3><div class="hbars">{daily}</div></section><section class="panel"><h3>Top sessions · last 30 days</h3>{}</section>{}{}<div class="note">Prices: list prices of {} (<a href="{}">source</a>), per request: 5m and 1h cache writes apart, the long-prompt tier where a model has one, advisor calls on their own model. Report generated {}, received {} ago. A session's date is its first message; the daily bars use each message's own date.</div></div>"#,
         dur(age),
         table(
             r#"<th>Date</th><th>Machine</th><th>Repository</th><th>Model</th><th class="n">Subagents</th><th class="n">Main</th><th class="n">Subagents</th><th class="n">Advisor</th><th class="n">Total</th>"#,

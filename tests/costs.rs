@@ -510,3 +510,40 @@ async fn schema_2_takes_counts_and_names_only() {
     }
     assert!(get_json(&base, "/api/costs").await["report"].is_null());
 }
+
+// rivet: verifies REQ-COSTS-002
+#[tokio::test]
+async fn a_fresh_report_with_old_data_is_called_stale() {
+    let srv = serve().await;
+    let base = srv.base.clone();
+    let mut r = report();
+    r["generated_at"] = chrono::Utc::now().to_rfc3339().into();
+    let old = (chrono::Utc::now() - chrono::Duration::days(3))
+        .format("%Y-%m-%d")
+        .to_string();
+    r["daily"][0]["day"] = old.clone().into();
+    assert_eq!(post(&srv, &r).await.0, 201);
+    let v = get_json(&base, "/api/costs").await;
+    assert_eq!(v["stale"], true, "{v}");
+    assert_eq!(v["data_through"], old.as_str());
+    assert_eq!(v["data_lag_days"], 3);
+    let html = page(&base).await;
+    assert!(
+        html.contains("ahead of its data") && html.contains("pill stale"),
+        "{html}"
+    );
+    // yesterday's data in a report generated today is normal (negative control)
+    let mut r = report();
+    r["generated_at"] = chrono::Utc::now().to_rfc3339().into();
+    r["daily"][0]["day"] = (chrono::Utc::now() - chrono::Duration::days(1))
+        .format("%Y-%m-%d")
+        .to_string()
+        .into();
+    assert_eq!(post(&srv, &r).await.0, 201);
+    let v = get_json(&base, "/api/costs").await;
+    assert_eq!(
+        (v["stale"].as_bool(), v["data_lag_days"].is_null()),
+        (Some(false), true),
+        "{v}"
+    );
+}

@@ -469,7 +469,11 @@ async fn api_costs(State(state): State<AppState>) -> axum::response::Response {
             "label": crate::costs::LABEL,
             "received_at": s.received_at,
             "age_s": now - s.received_at,
-            "stale": now - s.received_at > crate::costs::STALE_S,
+            "stale": now - s.received_at > crate::costs::STALE_S
+                || s.report.data_lag_days().is_some(),
+            // the newest day with data: a fresh report can carry old data
+            "data_through": s.report.data_through(),
+            "data_lag_days": s.report.data_lag_days(),
             "report": s.report,
         }))
         .into_response(),
