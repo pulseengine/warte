@@ -63,7 +63,7 @@ Source: the transcript JSONL records, each counted in the ISO week (UTC) of its
 | `tool_errors` | `is_error` tool results by tool, permission denials excluded; never more than the tool's uses |
 | `permission_denials` | `is_error` tool results whose text matches the pattern below |
 | `repeated_failures` | runs of 3 or more failed results of the same tool in a row within a session; each run counts once |
-| `loop_guard_fired` | times the loop guard stopped or warned the agent |
+| `loop_guard_fired` | times the loop guard stopped or warned the agent; **optional**: leave it out where no loop guard is installed, so the view says "not measured" instead of a 0 that could never be anything else |
 
 **Tool names:** a built-in tool by its name (`Bash`, `Edit`), every MCP tool
 reduced to its server as `mcp:<server>`. `mcp__server__tool` is refused.

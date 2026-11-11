@@ -4,6 +4,10 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.11 — 2026-11-11
+
+- **Costs schema 2: `loop_guard_fired` is optional** (REQ-COSTS-002). Where no loop guard is installed, the extractor leaves it out, and the Costs view says "not measured" instead of a 0 that could never be anything else. Asked for by the owner through the extractor's maintainer.
+
 ## v1.6.10 — 2026-11-11
 
 - **The briefing** (REQ-BRIEF-001..003). Every two days, a Briefing view says what the agents did:

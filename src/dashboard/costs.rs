@@ -138,9 +138,17 @@ fn effort_total(w: &Week) -> Effort {
         }
         t.permission_denials += e.permission_denials;
         t.repeated_failures += e.repeated_failures;
-        t.loop_guard_fired += e.loop_guard_fired;
+        // measured when any row measured it
+        if let Some(n) = e.loop_guard_fired {
+            *t.loop_guard_fired.get_or_insert(0) += n;
+        }
     }
     t
+}
+
+/// A count that may not have been measured: "not measured" is not 0.
+fn measured(n: Option<u64>) -> String {
+    n.map_or_else(|| "not measured".into(), |n| n.to_string())
 }
 
 fn rate(errors: u64, uses: u64) -> String {
@@ -221,8 +229,8 @@ fn weekly(r: &CostReport) -> String {
     );
     rows += &row(
         "Loop guard fired",
-        ec.loop_guard_fired.to_string(),
-        ep.as_ref().map(|e| e.loop_guard_fired.to_string()),
+        measured(ec.loop_guard_fired),
+        ep.as_ref().map(|e| measured(e.loop_guard_fired)),
     );
     let check = table(
         &format!(
@@ -254,7 +262,10 @@ fn weekly(r: &CostReport) -> String {
     // by repository and skill, most wasted first
     let mut by: Vec<&Effort> = cur.effort.iter().collect();
     let waste = |e: &Effort| {
-        sum(&e.tool_errors) + e.permission_denials + e.repeated_failures + e.loop_guard_fired
+        sum(&e.tool_errors)
+            + e.permission_denials
+            + e.repeated_failures
+            + e.loop_guard_fired.unwrap_or(0)
     };
     by.sort_by(|a, b| waste(b).cmp(&waste(a)).then(a.repo.cmp(&b.repo)));
     let by_rows: String = by
@@ -270,7 +281,7 @@ fn weekly(r: &CostReport) -> String {
                 errs(e),
                 e.permission_denials,
                 e.repeated_failures,
-                e.loop_guard_fired,
+                measured(e.loop_guard_fired),
                 sum(&e.tool_uses)
             )
         })

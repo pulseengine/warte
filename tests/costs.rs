@@ -403,7 +403,7 @@ fn report_v2() -> serde_json::Value {
         {"week": "2026-W44", "sessions": 9, "main": sig(4, 2, 1, 3), "sidechain": sig(0, 0, 0, 1),
          "effort": [{"repo": "alpha", "skill": "none", "sessions": 9,
                      "tool_uses": {"Bash": 200, "Edit": 40}, "tool_errors": {"Bash": 10},
-                     "permission_denials": 1, "repeated_failures": 0, "loop_guard_fired": 0}]},
+                     "permission_denials": 1, "repeated_failures": 0}]},
         {"week": "2026-W45", "sessions": 12, "main": sig(7, 3, 5, 6), "sidechain": sig(1, 0, 0, 2),
          "effort": [
             {"repo": "alpha", "skill": "plugin-x:issue-hunt", "sessions": 5,
@@ -441,6 +441,8 @@ async fn a_schema_2_report_shows_this_week_against_the_previous_one() {
         "mcp:rivet",
         "plugin-x:issue-hunt",
         "Wasted effort by repository and skill",
+        // the week before had no loop guard: not measured, not 0
+        "not measured",
     ] {
         assert!(html.contains(want), "{want} missing: {html}");
     }

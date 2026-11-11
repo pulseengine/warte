@@ -202,8 +202,10 @@ pub struct Effort {
     /// Runs of [`STREAK`] or more failed results of the same tool in a row
     /// within a session; each run counts once.
     pub repeated_failures: u64,
-    /// Times the loop guard stopped or warned the agent.
-    pub loop_guard_fired: u64,
+    /// Times the loop guard stopped or warned the agent. Absent: not
+    /// measured (no loop guard installed), which is not the same as 0.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub loop_guard_fired: Option<u64>,
 }
 
 /// One ISO week of schema-2 counters (REQ-COSTS-002). Counts only: never a
