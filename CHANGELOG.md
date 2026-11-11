@@ -4,6 +4,10 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.14 — 2026-11-11
+
+- **A fresh costs report with old data is stale** (REQ-COSTS-002). On 2026-11-11 the transcript archive had failed for three days. The nightly report was generated on time from stale input and showed as "fresh". warte now compares the newest day with data against the report's generation. More than a day apart makes the report stale, and the Costs view says the input may have stopped. `/api/costs` adds `data_through` and `data_lag_days`.
+
 ## v1.6.13 — 2026-11-11
 
 - **Login through Zitadel** (DD-AUTH-001, REQ-AUTH-001..003). With an `[auth]` section, personal data needs a login. That means costs, skills, briefing, triage, agents, artifacts, Ask, friction and health. Fleet status stays open on the LAN, and so do the APIs agents and probes use.

@@ -496,6 +496,34 @@ impl CostReport {
     }
 }
 
+/// Days the newest data may lag the report's generation before the input is
+/// called stale (the job runs nightly; yesterday is normal).
+pub const DATA_LAG_DAYS: i64 = 1;
+
+impl CostReport {
+    /// The newest day the report has data for, if any.
+    pub fn data_through(&self) -> Option<String> {
+        self.daily
+            .iter()
+            .map(|d| d.day.clone())
+            .filter(|d| d != "unknown")
+            .max()
+    }
+
+    /// Days between the newest data and the report's generation, when the
+    /// data lags by more than [`DATA_LAG_DAYS`]: the extractor ran, but its
+    /// input stopped (2026-11-11: a transcript archive failed for three days
+    /// and the report still looked fresh).
+    pub fn data_lag_days(&self) -> Option<i64> {
+        let gen = chrono::DateTime::parse_from_rfc3339(&self.generated_at)
+            .ok()?
+            .date_naive();
+        let last = chrono::NaiveDate::parse_from_str(&self.data_through()?, "%Y-%m-%d").ok()?;
+        let lag = (gen - last).num_days();
+        (lag > DATA_LAG_DAYS).then_some(lag)
+    }
+}
+
 /// The stored report and when it arrived.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Stored {
