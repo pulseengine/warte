@@ -219,6 +219,7 @@ pub async fn facts(
             }
             f.open_prs
                 .sort_by(|a, b| b.days_open.cmp(&a.days_open).then(a.number.cmp(&b.number)));
+            f.open_prs_total = f.open_prs.len() as u32;
             f.open_prs.truncate(20);
         }
         Err(e) => f.gaps.push(format!("open pull requests: {e}")),

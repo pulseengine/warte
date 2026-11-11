@@ -409,3 +409,62 @@ async fn a_model_text_replaces_the_template_only_when_it_fits_the_facts() {
         .unwrap();
     assert_eq!(r.status().as_u16(), 404);
 }
+
+// rivet: verifies REQ-BRIEF-002
+#[test]
+fn the_template_claims_counts_only_and_counts_past_the_list() {
+    let mut f = Facts {
+        known_repos: vec!["alpha".into(), "beta".into()],
+        repos: vec![
+            warte::briefing::RepoFacts {
+                repo: "alpha".into(),
+                merged: vec![warte::briefing::Item {
+                    number: 1,
+                    title: "x".into(),
+                }],
+                ci_runs: 9,
+                ci_failed_jobs: 4,
+                ..Default::default()
+            },
+            warte::briefing::RepoFacts {
+                repo: "beta".into(),
+                ci_runs: 3,
+                ci_failed_jobs: 7,
+                ..Default::default()
+            },
+        ],
+        open_prs: (0..20)
+            .map(|i| warte::briefing::OpenPr {
+                repo: "alpha".into(),
+                number: 100 + i,
+                title: "t".into(),
+                days_open: 2,
+            })
+            .collect(),
+        open_prs_total: 26,
+        ..Default::default()
+    };
+    f.finish();
+    let t = briefing::template(&f);
+    let all = format!("{} {}", t.line, t.bullets.join(" "));
+    // what the facts cannot say is not said
+    for never in ["agents", "until they passed", "held"] {
+        assert!(!all.contains(never), "{never}: {all}");
+    }
+    assert!(
+        t.line
+            .starts_with("In the last two days 1 change was finished in 1 project"),
+        "{}",
+        t.line
+    );
+    assert_eq!(
+        t.bullets[1],
+        "Caught: the automatic checks flagged 11 failed test jobs, most in beta (7) and alpha (4)."
+    );
+    assert!(
+        t.bullets[2].starts_with("Waiting for you: 26 changes are open"),
+        "the list holds 20, the count is 26: {}",
+        t.bullets[2]
+    );
+    briefing::check(&t, &f).unwrap();
+}

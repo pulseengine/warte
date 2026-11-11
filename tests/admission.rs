@@ -280,6 +280,8 @@ async fn endpoints_answer_as_documented() {
             "/api/pressure" => continue, // needs a reporting host; tests/pressure.rs covers it
             // 503 without [briefing]; tests/briefing.rs covers both
             "/api/briefing" | "/api/briefing/facts" => continue,
+            // 503 without [triage]; tests/triage.rs covers it
+            "/api/triage" | "/api/triage/done" => continue,
             _ => "",
         };
         assert_eq!(get(&format!("{p}{q}")).await.unwrap().status(), 200, "{p}");

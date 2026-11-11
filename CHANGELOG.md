@@ -4,6 +4,11 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.12 — 2026-11-11
+
+- **Issue triage queue** (REQ-TRIAGE-001/002). Every 10 minutes warte reads the organisation's public event feed, without a token and with its ETag, and queues each issue a person opens or reopens. Bots, configured logins, pull requests and issues carrying an agent marker are skipped. `GET /api/triage` hands the oldest out, at most 10 an hour, and counts the rest. The reply run, posting as its own bot outside warte, marks each one done with `triage:write`. warte stays read-only on GitHub. Configure with `[triage] org = ...`.
+- **The briefing's plain version claims counts only** (REQ-BRIEF-002). The first briefing on fourpi said the checks "held those changes back until they passed" and that "the agents" finished the work. Neither is in the facts: a failed job may be on main or never fixed, and merged pull requests include people's and bots'. It now names the counts and the repositories with the most failed jobs. The open pull requests are counted in full, not capped at the 20 listed. Template briefings already kept are written again from their facts when shown.
+
 ## v1.6.11 — 2026-11-11
 
 - **Costs schema 2: `loop_guard_fired` is optional** (REQ-COSTS-002). Where no loop guard is installed, the extractor leaves it out, and the Costs view says "not measured" instead of a 0 that could never be anything else. Asked for by the owner through the extractor's maintainer.

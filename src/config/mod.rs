@@ -118,6 +118,9 @@ pub struct Config {
     /// The briefing every two days (REQ-BRIEF-001).
     #[serde(default)]
     pub briefing: Option<crate::briefing::BriefingConfig>,
+    /// The issue triage queue (REQ-TRIAGE-001).
+    #[serde(default)]
+    pub triage: Option<crate::triage::TriageConfig>,
 }
 
 /// Machine history retention (REQ-MHIST-001).
@@ -346,6 +349,7 @@ impl Default for Config {
             runners: Default::default(),
             idle: Default::default(),
             briefing: None,
+            triage: None,
         }
     }
 }

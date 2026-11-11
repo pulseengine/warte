@@ -1186,3 +1186,34 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-11-11T01:01:06Z
+
+  - id: REQ-TRIAGE-001
+    type: requirement
+    title: Issues people open are detected within minutes and queued, public repositories only
+    status: verified
+    release: v1.6.12
+    description: warte SHALL read the organisation's public event feed every interval_s (600) without a token and with the previous answer's ETag, and SHALL queue each issue a person opens or reopens. It SHALL skip bots, configured logins, non-User accounts, pull requests and issues whose body carries a configured agent marker. The queue SHALL survive a restart, and warte SHALL never write to GitHub.
+    fields:
+      category: functional
+      priority: should
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-11T05:29:42Z
+
+  - id: REQ-TRIAGE-002
+    type: requirement
+    title: The reply run takes at most per_hour issues an hour and marks each done with triage:write
+    status: verified
+    release: v1.6.12
+    description: GET /api/triage SHALL offer the oldest queued issues up to per_hour (10) less those done in the last hour, and count the rest as waiting. Only the title, cut to 120 characters, SHALL be carried. POST /api/triage/done with the triage:write right SHALL mark a queued issue replied, asked or skipped; anything else is refused.
+    fields:
+      category: functional
+      priority: should
+    links:
+      - type: refines
+        target: REQ-TRIAGE-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-11T05:29:42Z

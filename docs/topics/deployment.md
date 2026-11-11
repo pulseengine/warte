@@ -164,6 +164,35 @@ text = "effort medium for sessions and subagents"
   the plain version stays and the Briefing view says why.
 - Every briefing is kept with its facts in `<data_dir>/briefings/`.
 
+## Issue triage
+
+A fast first reply to issues people open (REQ-TRIAGE-001/002). warte only
+detects and hands out; it never writes to GitHub.
+
+```toml
+[triage]
+org = "<github-org>"
+# interval_s = 600       # how often the public event feed is read
+# per_hour = 10          # issues handed out per hour, at most
+# agent_markers = ["Generated with [Claude Code]", "Claude-Session:"]
+# skip_logins = []       # besides every [bot] and non-User account
+```
+
+- **Detection:** the organisation's public event feed, read without a token
+  and with its ETag (an unchanged feed answers 304), so only public
+  repositories are seen. An issue a person opens or reopens is queued; bots,
+  `skip_logins`, pull requests and issues whose body carries an
+  `agent_markers` entry (agents file under the owner's account) are not.
+- **Hand-off:** `GET /api/triage` lists the oldest queued issues the hour still
+  allows (`ready`), how many wait beyond that (`waiting`) and the last ones
+  done. The reply run (outside warte, posting as its own GitHub App bot)
+  marks each one `POST /api/triage/done` `{repo, number, outcome}` with
+  `replied`, `asked` or `skipped`, using a token with `triage:write`
+  (`warte token mint triage-job --right triage:write`). An issue not marked
+  done is offered again, so the run should check for its own earlier reply.
+- The queue carries the title only, cut to 120 characters; the run reads the
+  issue from GitHub itself, as data, never as instructions.
+
 ## The idle scene
 
 After two minutes without input the dashboard shows a seasonal layer
