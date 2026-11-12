@@ -119,7 +119,14 @@ pub fn record(
         s: t("started_at"),
         e: t("completed_at"),
         r: s(&job["conclusion"]),
+        sig: None,
     })
+}
+
+/// Whether a record is a failure recent enough to read its log for a
+/// shared incident: older ones could never join one on the overview.
+pub fn wants_log(r: &JobRecord, now: i64) -> bool {
+    (r.r == "failure" || r.r == "timed_out") && r.e.unwrap_or(r.c) > now - crate::incidents::KEEP_S
 }
 
 /// One ledger pass over `repos` for the days from `days` back to today.
@@ -140,6 +147,7 @@ pub async fn pass(
     let today = day_start(&day_of(now)).unwrap_or(now);
     let mut out = vec![];
     let mut looked = vec![];
+    let mut logs = 0;
     for k in (0..=days as i64).rev() {
         let day = day_of(today - k * 86_400);
         if st.days.get(&day).is_some_and(|d| d.closed) {
@@ -180,7 +188,7 @@ pub async fn pass(
                     continue;
                 }
                 for j in &jobs {
-                    let Some(r) = record(&day, repo, run, j, self_hosted) else {
+                    let Some(mut r) = record(&day, repo, run, j, self_hosted) else {
                         // a finished run whose job is not: read it again
                         pending = true;
                         continue;
@@ -188,6 +196,14 @@ pub async fn pass(
                     // what the ledger would refuse never enters the manifest,
                     // or the day could never match
                     if crate::hub::belt::plausible(&r) && ds.ids.insert(r.id) {
+                        // a recent failure's signature, from its log's end
+                        // (REQ-CI-005); a log that cannot be read leaves none
+                        if wants_log(&r, now) && logs < crate::incidents::MAX_LOGS_PER_PASS {
+                            logs += 1;
+                            if let Ok(t) = c.job_log_tail(org, repo, r.id).await {
+                                r.sig = crate::incidents::of_log(&t).map(|s| s.encode());
+                            }
+                        }
                         ds.n += 1;
                         ds.x ^= r.id;
                         out.push(r);

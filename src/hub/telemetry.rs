@@ -694,6 +694,7 @@ pub fn encode_ledger(
             runner: cap(&r.runner, 40),
             ev: cap(&r.ev, 24),
             r: cap(&r.r, 16),
+            sig: r.sig.as_deref().map(|s| cap(s, 270)),
             ..r.clone()
         })
         .collect();
@@ -1190,6 +1191,7 @@ mod tests {
             s: Some(2),
             e: Some(3),
             r: "success".into(),
+            sig: None,
         };
         let recs: Vec<JobRecord> = (0..50).map(rec).collect();
         let ms = vec![DayManifest {

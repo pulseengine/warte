@@ -114,6 +114,7 @@ fn rec(id: u64, run: u64, repo: &str, d: &str, r: &str) -> warte::hub::model::Jo
         s: Some(t + 10),
         e: Some(t + 100),
         r: r.into(),
+        sig: None,
     }
 }
 

@@ -112,6 +112,16 @@
         }
       }
     },
+    "/api/incidents": {
+      "get": {
+        "summary": "Is one cause failing jobs in several repositories?",
+        "description": "Failed jobs from two or more repositories whose failing step carries the same error signature (a resolver failure, a connection timeout or refusal, or server errors, for one host) within an hour of each other, over the last day. A host is named only when it is a well-known public dependency or a name the dependency canaries watch. Signatures come from fixed patterns, never from log text.",
+        "responses": {
+          "200": {"description": "the shared incidents, ongoing first"},
+          "503": {"description": "no CI source configured"}
+        }
+      }
+    },
     "/api/machines": {
       "get": {
         "summary": "Every machine the ground station hears from, with drift findings",

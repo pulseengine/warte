@@ -87,6 +87,7 @@ pub fn build_routes() -> Router<AppState> {
         .route("/canaries", get(api_canaries))
         .route("/expiry", get(api_expiry))
         .route("/ci-health", get(api_ci_health))
+        .route("/incidents", get(api_incidents))
         .route("/operator", get(api_operator))
         .route("/openapi.json", get(api_openapi));
     // /api/ws and /api/events are not mounted: they broadcast agent and
@@ -1599,6 +1600,20 @@ async fn api_ci_health(State(state): State<AppState>) -> axum::response::Respons
         )
         .into_response(),
         None => plain(StatusCode::SERVICE_UNAVAILABLE, "no CI source configured"),
+    }
+}
+
+/// Shared incidents: one error failing jobs in several repositories (REQ-CI-005).
+async fn api_incidents(State(state): State<AppState>) -> axum::response::Response {
+    match (&state.hub, &state.incidents) {
+        (Some(h), Some(i)) => {
+            let r = match i.latest() {
+                Some(r) => r,
+                None => i.refresh(h, crate::hub::now()).await,
+            };
+            Json(r.as_ref().clone()).into_response()
+        }
+        _ => plain(StatusCode::SERVICE_UNAVAILABLE, "no CI source configured"),
     }
 }
 

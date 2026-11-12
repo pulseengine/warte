@@ -260,6 +260,50 @@ impl Client {
         Ok((v, next))
     }
 
+    /// The end of one job's log (at most [`crate::incidents::LOG_TAIL`]
+    /// bytes), for its error signature only (REQ-CI-005). GitHub answers
+    /// with a redirect to a signed download URL; the token is not sent to
+    /// that other host.
+    pub async fn job_log_tail(&self, org: &str, repo: &str, id: u64) -> Result<String, GhError> {
+        let now = crate::hub::now();
+        let reset = self.reset.load(Ordering::Relaxed);
+        if self.remaining.load(Ordering::Relaxed) <= self.reserve && now < reset {
+            return Err(GhError::RateLimited { until: reset });
+        }
+        let url = format!("{}/repos/{org}/{repo}/actions/jobs/{id}/logs", self.base);
+        self.calls.fetch_add(1, Ordering::Relaxed);
+        let mut r = self
+            .http
+            .get(&url)
+            .bearer_auth(&self.token)
+            .header("X-GitHub-Api-Version", "2022-11-28")
+            .send()
+            .await
+            .map_err(|e| GhError::Other(format!("GET job log: {e}")))?;
+        if !r.status().is_success() {
+            return Err(GhError::Other(format!(
+                "GET job log: HTTP {}",
+                r.status().as_u16()
+            )));
+        }
+        let cap = crate::incidents::LOG_TAIL;
+        let mut tail: Vec<u8> = Vec::new();
+        while let Some(chunk) = r
+            .chunk()
+            .await
+            .map_err(|e| GhError::Other(format!("GET job log: {e}")))?
+        {
+            tail.extend_from_slice(&chunk);
+            if tail.len() > 2 * cap {
+                tail.drain(..tail.len() - cap);
+            }
+        }
+        if tail.len() > cap {
+            tail.drain(..tail.len() - cap);
+        }
+        Ok(String::from_utf8_lossy(&tail).into_owned())
+    }
+
     async fn get(&self, path: &str) -> Result<Value, GhError> {
         Ok(self.get_url(&format!("{}{path}", self.base)).await?.0)
     }

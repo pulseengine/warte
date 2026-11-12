@@ -30,6 +30,7 @@ pub mod forecast;
 pub mod ghsource;
 pub mod history;
 pub mod hub;
+pub mod incidents;
 pub mod jobs;
 pub mod login;
 pub mod migrate;

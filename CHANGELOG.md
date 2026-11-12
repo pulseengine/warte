@@ -4,6 +4,15 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.21 — 2026-11-12
+
+- **Shared incidents** (REQ-CI-005, DD-CI-002). When one cause fails CI jobs in several repositories, warte now shows it once instead of once per failure. The case that prompted it is the 2026-11-11 DNS outage, when apt failed the same way in warte, gale and others.
+  - **Signature:** each failed job gets an error signature: a resolver failure, a connection timeout or refusal, or server errors (HTTP 500 to 504), each for one host. It is built from fixed patterns in the end of the job's log. No log text, path or secret is kept or shown, and a record carrying anything outside this vocabulary is ignored.
+  - **Grouping:** failures with the same signature in two or more repositories, each within an hour of the last, form one incident. The overview has a Shared incidents panel covering the last day, an ongoing incident raises an alert, and `GET /api/incidents` returns the incidents.
+  - **Host names:** a host is named only when it is a well-known public dependency or a name the dependency canaries watch. Any other host still groups the same way, but is shown only as "a host".
+  - **Where signatures come from:** in GitHub-only mode, warte reads the log of each failed job from the last day once (at most 30 per ledger pass) and keeps only the signature. The download host never receives the token. Job records gain an optional `sig` field, so older agents keep working; smithy's agent will send signatures in a later smithy change.
+  - REQ-CI-005 moved from v1.7.0 to v1.6.21 as a logged scope decision.
+
 ## v1.6.20 — 2026-11-12
 
 - **CI health trends** (REQ-PREDICT-005, DD-PREDICT-004). This is the fourth part of predictive maintenance. warte compares the last seven days of CI with the seven before, from the finished-job ledger, so it makes no extra GitHub requests and works in GitHub-only mode. It looks at:

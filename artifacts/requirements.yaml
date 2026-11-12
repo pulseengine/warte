@@ -1297,8 +1297,8 @@ artifacts:
   - id: REQ-CI-005
     type: requirement
     title: Failures that share one cause across repositories are shown as one incident
-    status: proposed
-    release: v1.7.0
+    status: verified
+    release: v1.6.21
     description: "On 2026-11-11, Google Public DNS could not resolve Canonical's package servers for about three hours. Every GitHub-hosted job that installed Ubuntu packages failed with the same resolver error, in warte, gale and others, while GitHub's status page reported no incident. warte showed each failure on its own. warte SHALL group failed CI jobs from two or more repositories whose failing step carries the same normalised error signature within one hour, and SHALL show the group as one shared incident on the overview: the signature, the repositories, the first and last failure, and whether it is still occurring. The signature SHALL be built from fixed patterns (a resolver failure for a host, an apt or package-manager exit, a registry or network timeout), never from raw log text, so no paths, secrets or log lines reach the read API."
     fields:
       category: functional

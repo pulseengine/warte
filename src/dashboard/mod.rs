@@ -92,6 +92,11 @@ pub async fn overview_partial(State(state): State<crate::server::AppState>) -> R
         Some(h) => strip + &crate::cihealth::panel(&*state.ci_health.get(h, now).await),
         None => strip,
     };
+    // REQ-CI-005: one cause failing jobs in several repositories
+    let strip = match state.incidents.as_ref().and_then(|i| i.latest()) {
+        Some(r) => strip + &crate::incidents::panel(&r),
+        None => strip,
+    };
     let html = format!(
         r#"<div class="overview">
   <h2>Overview</h2>

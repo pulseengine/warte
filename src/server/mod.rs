@@ -52,6 +52,8 @@ pub struct AppState {
     pub expiry: Arc<crate::expiry::Expiry>,
     /// CI health trends, recomputed every ten minutes (REQ-PREDICT-005).
     pub ci_health: Arc<crate::cihealth::Cache>,
+    /// Shared incidents from the ledger (REQ-CI-005); with a hub only.
+    pub incidents: Option<Arc<crate::incidents::Incidents>>,
 }
 
 /// Build the Axum router with all routes.
@@ -293,6 +295,17 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
         )
     });
     // A stored seed, not a fresh key per start: tokens survive a restart.
+    let incidents = hub.as_ref().map(|h| {
+        let watched = config
+            .canaries
+            .as_ref()
+            .map(|c| c.names.clone())
+            .unwrap_or_default();
+        let store = Arc::new(crate::incidents::Incidents::new(watched));
+        crate::incidents::spawn(store.clone(), h.clone());
+        store
+    });
+
     let token_seed = crate::auth::load_or_create_seed(&config.token_seed_file())?;
     let state = AppState {
         idle: config.idle.clone(),
@@ -307,6 +320,7 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
         canaries,
         expiry,
         ci_health: Default::default(),
+        incidents,
         ca: ca.clone(),
         hub,
         machines,
