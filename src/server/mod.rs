@@ -223,6 +223,7 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
     // station's, or the GitHub source's
     let briefing = match &config.briefing {
         Some(b) => {
+            b.check().map_err(anyhow::Error::msg)?;
             let dir = b
                 .data_dir
                 .clone()

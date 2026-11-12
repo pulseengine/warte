@@ -181,7 +181,7 @@ base_url = "https://<warte host>/warte"    # redirect URI: <base_url>/auth/callb
 
 ## The briefing
 
-Every two days warte writes a briefing of what the agents did (REQ-BRIEF-001..003):
+Every two days (or every `period_days`) warte writes a briefing of what the agents did (REQ-BRIEF-001..003):
 one line anyone understands, three plain bullets (done; what went wrong and how
 it was caught; what waits for you) and, collapsed, the numbers for an IT reader.
 
@@ -190,6 +190,7 @@ it was caught; what waits for you) and, collapsed, the numbers for an IT reader.
 org = "<github-org>"
 # api_url = "https://api.github.com"
 # data_dir: default the ground station's
+# period_days = 2   # 1 to 7; 1 writes a briefing of yesterday every day
 [[briefing.markers]]
 date = "2026-11-08"
 text = "effort medium for sessions and subagents"
@@ -199,7 +200,8 @@ text = "effort medium for sessions and subagents"
   open for more than a day, read from GitHub **without a token**, so only
   public repositories appear; CI runs and failed jobs of those repositories
   from the ledger; the last 7 days' notional costs against the 7 before; the
-  `markers` of the last two weeks. Periods are two UTC days; the facts of a
+  `markers` of the last two weeks. Periods are `period_days` UTC days (default two),
+  counted from the epoch so they tile; the facts of a
   closed period are read once, about a dozen requests plus one release listing
   per repository pushed in the period.
 - **Text:** warte writes a plain version from the facts at once. A scheduled

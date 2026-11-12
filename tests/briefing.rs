@@ -94,6 +94,7 @@ fn cfg(base: &str) -> BriefingConfig {
             date: briefing::last_period(now()).1,
             text: "advisor moved to a cheaper model".into(),
         }],
+        period_days: 2,
     }
 }
 
@@ -209,6 +210,34 @@ async fn a_text_may_name_only_what_the_facts_hold() {
         ],
     );
     briefing::check(&good, &f).unwrap();
+    // the period's own dates are facts: a model may name the year and day
+    let (y, m, d) = (&f.until[..4], &f.until[5..7], &f.until[8..10]);
+    let dated = text(
+        &format!(
+            "In {y}, up to {}.{}, alpha moved on.",
+            d.trim_start_matches('0'),
+            m
+        ),
+        [
+            &format!("Done on {}: alpha got 2 fixes (#10, #11).", f.until),
+            "Caught: the checks failed 2 times.",
+            "Waiting for you: one change in beta.",
+        ],
+    );
+    briefing::check(&dated, &f).unwrap();
+    // but a year outside the period is still refused
+    let next_year = y.parse::<u64>().unwrap() + 1;
+    let other = text(
+        &format!("By {next_year} alpha moved on."),
+        [
+            "Done: alpha.",
+            "Caught: nothing.",
+            "Waiting for you: nothing.",
+        ],
+    );
+    assert!(briefing::check(&other, &f)
+        .unwrap_err()
+        .contains(&next_year.to_string()));
     for (what, bad, want) in [
         (
             "an invented number",
@@ -273,6 +302,68 @@ fn periods_are_two_closed_days_that_tile() {
             b + 86_400,
             "periods tile"
         );
+    }
+}
+
+// rivet: verifies REQ-BRIEF-004
+#[test]
+fn a_one_day_period_is_yesterday_and_the_template_says_day() {
+    for t in [1_794_355_200_i64, 1_794_355_200 + 1, 1_794_355_200 + 86_399] {
+        let (from, until) = briefing::last_period_of(t, 1);
+        assert_eq!(from, until, "one day");
+        let a = warte::hub::report::day_start(&from).unwrap();
+        assert_eq!(a, t - t.rem_euclid(86_400) - 86_400, "yesterday");
+        let (next, _) = briefing::last_period_of(t + 86_400, 1);
+        assert_eq!(
+            warte::hub::report::day_start(&next).unwrap(),
+            a + 86_400,
+            "days tile"
+        );
+    }
+    // a seven-day period is seven days, and the default is still two
+    let (from, until) = briefing::last_period_of(1_794_355_200, 7);
+    let span = warte::hub::report::day_start(&until).unwrap()
+        - warte::hub::report::day_start(&from).unwrap();
+    assert_eq!(span, 6 * 86_400);
+    assert_eq!(
+        briefing::last_period(1_794_355_200),
+        briefing::last_period_of(1_794_355_200, 2)
+    );
+
+    let quiet = |from: &str, until: &str| {
+        briefing::template(&Facts {
+            from: from.into(),
+            until: until.into(),
+            ..Default::default()
+        })
+        .line
+    };
+    assert_eq!(
+        quiet("2026-11-11", "2026-11-11"),
+        "A quiet day: nothing new was finished."
+    );
+    assert_eq!(
+        quiet("2026-11-10", "2026-11-11"),
+        "A quiet two days: nothing new was finished."
+    );
+    // a model text may say "one day" of a one-day period
+    let f = Facts {
+        from: "2026-11-11".into(),
+        until: "2026-11-11".into(),
+        ..Default::default()
+    };
+    assert_eq!(f.days(), 1);
+
+    let parsed: BriefingConfig = toml::from_str("org = \"acme\"").unwrap();
+    assert_eq!(parsed.period_days, 2, "absent means two days");
+    let one: BriefingConfig = toml::from_str("org = \"acme\"\nperiod_days = 1").unwrap();
+    assert!(one.check().is_ok());
+    for bad in [0, 8, -1] {
+        let c = BriefingConfig {
+            period_days: bad,
+            ..one.clone()
+        };
+        assert!(c.check().unwrap_err().contains("period_days"), "{bad}");
     }
 }
 

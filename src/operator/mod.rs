@@ -73,7 +73,7 @@ pub const DUTIES: [Spec; 7] = [
         key: "briefing",
         title: "Run the briefing job",
         right: Some("briefing:write"),
-        every: "every two days",
+        every: "once per period",
     },
     Spec {
         key: "triage",

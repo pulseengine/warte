@@ -121,7 +121,7 @@ pub fn view(store: Option<&Store>, period: Option<&str>) -> String {
         None => s.latest(),
     };
     let Some(b) = b else {
-        return r#"<div class="overview"><h2>Briefing</h2><p class="empty">The first briefing is written after the first two-day period closes.</p></div>"#.into();
+        return r#"<div class="overview"><h2>Briefing</h2><p class="empty">The first briefing is written after the first period closes.</p></div>"#.into();
     };
     let bullets: String = b
         .text
