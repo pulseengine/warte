@@ -85,6 +85,7 @@ pub fn build_routes() -> Router<AppState> {
         .route("/pressure", get(api_pressure))
         .route("/forecast", get(api_forecast))
         .route("/canaries", get(api_canaries))
+        .route("/expiry", get(api_expiry))
         .route("/operator", get(api_operator))
         .route("/openapi.json", get(api_openapi));
     // /api/ws and /api/events are not mounted: they broadcast agent and
@@ -1571,6 +1572,17 @@ async fn api_canaries(State(state): State<AppState>) -> axum::response::Response
             ),
         },
     }
+}
+
+/// What runs out and when (REQ-PREDICT-004).
+async fn api_expiry(State(state): State<AppState>) -> axum::response::Response {
+    let now = crate::hub::now();
+    let r = state.expiry.report(&state.tokens.seen(now));
+    let findings: Vec<_> = crate::expiry::detected(&r, now)
+        .iter()
+        .map(|d| serde_json::json!({"key": d.key, "sev": d.sev, "text": d.text}))
+        .collect();
+    Json(serde_json::json!({"report": r, "findings": findings})).into_response()
 }
 
 async fn api_pressure(

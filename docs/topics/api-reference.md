@@ -186,6 +186,21 @@ The latest round of DNS checks configured in `[canaries]` (see deployment):
 resolver, the dependency's DNS, or warte's network. Resolver addresses are
 never shown. 503 without `[canaries]` or before the first round.
 
+## Expiry dates (REQ-PREDICT-004)
+
+```
+GET /api/expiry
+```
+
+What runs out, soonest first: warte's own certificates, the endpoints and
+files in `[expiry]` (every certificate in the chain, by label and place:
+`leaf`, `intermediate 1`, `root`), the dates in `[expiry]`, and the token each
+job last used, by the job's name. Each item has `kind` (`own`, `tls`, `pem`,
+`date`, `token`), `what`, `part`, `expires_at`, and `problem` (`unreachable`,
+`timed_out`, `handshake_failed`, `unreadable`, `no_certificate`) when it could
+not be read. `findings` are the end dates within `amber_days` (amber) or
+`red_days` (red). Addresses and paths are never shown.
+
 ## Disk pressure (REQ-PRESSURE-001)
 
 ```

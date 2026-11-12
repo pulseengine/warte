@@ -276,6 +276,43 @@ address = "9.9.9.9"
   unauthenticated. The names are shown as written, so list only public
   hosts here.
 
+## Expiry dates
+
+What runs out, and when (REQ-PREDICT-004). Without any section warte
+watches its own CA and TLS certificates and the tokens its jobs use. The
+section adds endpoints, files and dates it cannot see for itself.
+
+```toml
+[expiry]
+# every_s = 21600        # seconds between checks of endpoints and files
+# amber_days = 30
+# red_days = 7
+[[expiry.tls]]
+label = "dashboard"
+address = "warte.example.internal:443"
+# server_name = "warte.example.internal"   # default: the host of address
+[[expiry.pem]]
+label = "proxy root"
+path = "/var/lib/caddy/root.crt"
+[[expiry.date]]
+what = "GitHub App private key"
+on = "2027-05-01"
+```
+
+- **Endpoints:** warte connects and reads every certificate the endpoint
+  sends: the leaf and its intermediates. It reads them without trusting
+  them, so a proxy's internal CA is checked too. Endpoints rarely send their
+  root, so give it as a PEM file.
+- **Tokens:** warte remembers when the token each job last used ends, by the
+  job's name, until a week after it ends. A job whose token ran out shows as
+  expired until a new one is used.
+- Within `amber_days` an end date is an amber outage finding, and within
+  `red_days` or past it a red one, so the alerts notify. `GET /api/expiry`
+  and the overview's Expiring panel list everything.
+- Endpoints and files are shown by `label` only, never by address or path:
+  the read API is unauthenticated. Labels, dates' `what` and job names are
+  shown as written.
+
 ## The idle scene
 
 After two minutes without input the dashboard shows a seasonal layer
