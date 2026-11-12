@@ -56,6 +56,15 @@ a:hover { text-decoration: underline; }
   display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap;
 }
 .brand { display: flex; align-items: center; gap: .6rem; }
+/* nav v1: the home link and the other apps on this host (REQ-NAV-001) */
+nav.apps {
+  flex-basis: 100%; display: flex; flex-wrap: wrap; gap: .9rem;
+  font: .72rem/1.4 var(--mono); letter-spacing: .04em;
+}
+nav.apps a { color: var(--dim); text-decoration: none; }
+nav.apps a:hover, nav.apps a:focus-visible { color: var(--accent); }
+nav.apps a.home { color: var(--text); }
+nav.apps a[aria-current="page"] { color: var(--accent); }
 .brand svg { width: 26px; height: 26px; }
 .brand svg .sweep { transform-origin: 13px 13px; animation: spin 4s linear infinite; }
 .header h1 {

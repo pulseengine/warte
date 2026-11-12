@@ -72,6 +72,11 @@ const TOPICS: &[Topic] = &[
         content: include_str!("../../docs/topics/job-state.md"),
     },
     Topic {
+        name: "nav",
+        title: "Contract: nav v1, the home link and app switcher",
+        content: include_str!("../../docs/topics/nav.md"),
+    },
+    Topic {
         name: "costs-schema",
         title: "Costs report schema (1 and 2)",
         content: include_str!("../../docs/topics/costs-schema.md"),

@@ -40,6 +40,9 @@ pub struct AppState {
     pub temper: Option<Arc<crate::temper::Store>>,
     /// The dashboard's idle scene (REQ-DASH-018).
     pub idle: crate::config::IdleConfig,
+    /// The header's nav v1 links, rendered once at startup; empty without
+    /// `[nav]` (REQ-NAV-001).
+    pub nav: Arc<String>,
     /// Login through the provider, with `[auth]` (DD-AUTH-001).
     pub login: Option<Arc<crate::login::Login>>,
     /// Every briefing with its facts (REQ-BRIEF-001).
@@ -307,9 +310,18 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
         store
     });
 
+    let nav = match &config.nav {
+        Some(n) => {
+            let f = crate::nav::load(n).map_err(anyhow::Error::msg)?;
+            crate::nav::html(&f, &n.self_id)
+        }
+        None => String::new(),
+    };
+
     let token_seed = crate::auth::load_or_create_seed(&config.token_seed_file())?;
     let state = AppState {
         idle: config.idle.clone(),
+        nav: Arc::new(nav),
         login: match &config.auth {
             Some(a) => Some(Arc::new(
                 crate::login::Login::new(a.clone()).map_err(anyhow::Error::msg)?,
