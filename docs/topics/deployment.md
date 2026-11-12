@@ -42,9 +42,9 @@ repo's pools along the chain. Run times are not modelled. Only declared
 dependencies are used so far; rivet externals and GitHub's dependency
 graph as sources are still open (REQ-CRIT-001).
 
-## Without a smithy agent: GitHub's API as the CI source
+## Without a fleet agent: GitHub's API as the CI source
 
-A team without a smithy agent (GitHub-hosted runners, or a GitHub Enterprise
+A team without a fleet agent (GitHub-hosted runners, or a GitHub Enterprise
 tenant) points warte at GitHub's REST API. The scan fills the same model, so
 every view and `/api/eta`, `/api/queue`, `/api/admission` and `/api/watch`
 work unchanged.
@@ -121,7 +121,7 @@ The base is set, never guessed from a web URL. The same settings as a
   and does not read the system store. Point `WARTE_CA_BUNDLE` (or
   `ca_bundle`) at the proxy's PEM CA; it is trusted in addition to the
   bundled roots. A file without a certificate stops startup.
-- **Outages and alerts:** the same findings and notices as with smithy, from
+- **Outages and alerts:** the same findings and notices as with a fleet agent, from
   what GitHub shows: GitHub-hosted jobs queued 15 min or more per runner
   type, queued runs overdue for their pool, self-hosted runners offline (with
   the runner scope), GitHub's status, and the scan itself failing or

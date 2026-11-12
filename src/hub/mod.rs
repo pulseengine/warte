@@ -1,6 +1,6 @@
-//! Ground station absorbed from smithy hub (DD-SMITHY-001, REQ-SMITHY-001..003).
+//! Ground station absorbed from the original hub (DD-SMITHY-001, REQ-SMITHY-001..003).
 //!
-//! The smithy agent on the CI host collects a snapshot and dials OUT to us with
+//! The fleet agent on the CI host collects a snapshot and dials OUT to us with
 //! CCSDS space packets over UDP (relay-ccsds), so the CI host exposes nothing.
 //! We accept telemetry only from allow-listed source addresses, keep the latest
 //! snapshot plus per-minute history in `hub-state.json` and every finished job
@@ -8,11 +8,11 @@
 //! (`web/openapi.json` is the contract; REQ-SMITHY-002).
 //!
 //! `model`, `telemetry`, `eta`, `belt`, `report` and `parse` come from
-//! pulseengine/smithy `tools/smithy` at e087dae (see `UPSTREAM`), with only
+//! the original hub, with only
 //! their `crate::` paths rewritten. They are kept whole, agent-side items
 //! included, so the wire format and on-disk formats stay byte-compatible with
-//! the agent and with an existing `/var/lib/smithy-hub`. Only the HTTP layer is
-//! new: smithy served it with tiny_http, here it is an axum router.
+//! the agent and with an existing `/var/lib/warte-hub`. Only the HTTP layer is
+//! new: the original hub served it with tiny_http, here it is an axum router.
 #![allow(dead_code)]
 
 pub mod belt;
@@ -37,20 +37,16 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{SystemTime, UNIX_EPOCH};
 use telemetry::{apid_name, Assembler};
 
-/// The smithy commit these modules and `web/` were taken from.
-pub const UPSTREAM: &str =
-    "pulseengine/smithy@e087dae2423fd55b1cfee605fabbff7a6106921b tools/smithy";
-
 /// One point per completed frame (~1/min) for 7 days.
 const HISTORY_MAX: usize = 7 * 24 * 60;
 pub const INDEX: &str = include_str!("web/index.html");
 pub const OPENAPI: &str = include_str!("web/openapi.json");
 
-/// Lock, or end the process if a panic poisoned the lock. smithy hub served
+/// Lock, or end the process if a panic poisoned the lock. the original hub served
 /// HTTP on one thread, so any panic there ended the process and systemd
 /// restarted it with state from disk. Under axum a panic only ends one task;
 /// carrying on with a poisoned lock would leave ingest dead and every request
-/// failing, so restore smithy's behaviour: exit and let systemd restart us.
+/// failing, so restore the original hub's behaviour: exit and let systemd restart us.
 fn lk<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|_| {
         tracing::error!("hub state lock poisoned by a panic; exiting for a clean restart");
@@ -234,7 +230,7 @@ fn save(path: &str, p: &Persisted) {
     }
 }
 
-/// smithy hub refused to start without an allow-list before touching anything.
+/// the original hub refused to start without an allow-list before touching anything.
 pub fn check_allow(allow: &[IpAddr]) -> Result<(), String> {
     if allow.is_empty() {
         return Err("refusing to start: no --allow source address for telemetry".into());
@@ -263,8 +259,8 @@ pub struct Hub {
 }
 
 impl Hub {
-    /// Open (or create) a hub data directory. The layout is smithy hub's:
-    /// `hub-state.json` plus `ledger/`, so an existing `/var/lib/smithy-hub`
+    /// Open (or create) a hub data directory. The layout is the original hub's:
+    /// `hub-state.json` plus `ledger/`, so an existing `/var/lib/warte-hub`
     /// is read as-is.
     pub fn open(data_dir: &str, org: &str) -> Result<Self, String> {
         std::fs::create_dir_all(data_dir).map_err(|e| format!("{data_dir}: {e}"))?;
@@ -476,7 +472,7 @@ impl Hub {
         }
     }
 
-    /// The hub's HTTP API, same paths and responses as smithy hub.
+    /// The hub's HTTP API, same paths and responses as the original hub.
     pub fn router(&self) -> Router {
         Router::new()
             .route("/api/state", get(api_state))
@@ -498,7 +494,7 @@ impl Hub {
     }
 }
 
-/// smithy hub answered only GET; HEAD and every other method got its 404.
+/// the original hub answered only GET; HEAD and every other method got its 404.
 /// axum would answer HEAD from the GET route and other methods with 405.
 async fn get_only(req: Request, next: Next) -> Response {
     if req.method() != Method::GET {
@@ -532,8 +528,33 @@ fn markdown(s: String) -> Response {
     body(200, "text/markdown; charset=utf-8", s.into_bytes())
 }
 
+/// The name the hub's page and status report carry; `warte hub --brand`.
+static BRAND: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+/// The brand when none is set.
+pub const DEFAULT_BRAND: &str = "warte";
+
+/// Set the brand once, before serving; later calls are ignored.
+pub fn set_brand(b: &str) {
+    let _ = BRAND.set(b.to_string());
+}
+
+pub fn brand() -> &'static str {
+    BRAND.get().map(String::as_str).unwrap_or(DEFAULT_BRAND)
+}
+
+/// The page with its brand in place of `__BRAND__`, HTML-escaped.
+pub fn index_html() -> String {
+    let b = brand()
+        .to_uppercase()
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;");
+    INDEX.replace("__BRAND__", &b)
+}
+
 async fn index() -> Response {
-    body(200, "text/html; charset=utf-8", INDEX.into())
+    body(200, "text/html; charset=utf-8", index_html().into_bytes())
 }
 
 fn link_rows(g: &Shared) -> Vec<LinkRow> {

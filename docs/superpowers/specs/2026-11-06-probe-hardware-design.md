@@ -43,15 +43,15 @@ whitelist (`clean_label`) or are dropped.
 ## Owner's decisions (2026-11-06)
 
 1. **SMART on Linux: no capabilities for the probe; warte ships the privileged part.** First
-   answer was "give the probe capabilities"; the owner then decided (relayed by the smithy
+   answer was "give the probe capabilities"; the owner then decided (relayed by the deployment
    session, same day) that the probe keeps zero capabilities and that the root part must be in
-   open-source warte, not a private smithy script: `warte probe privileged`, a root oneshot
+   open-source warte, not a private deployment script: `warte probe privileged`, a root oneshot
    (hourly timer, no network) writes `smart.json`; the probe reads it as untrusted data
    (size cap, strict schema, names and values re-checked) and reports "privileged collector
    not running" when it is missing or stale, never old numbers. Both units are documented in
-   `docs/topics/probe-privileged.md`; smithy only deploys them.
+   `docs/topics/probe-privileged.md`; the private configuration repo only deploys them.
 2. **A debug probe gone is an amber finding**: attached in the last 7 days, not now.
-3. **Macs get smartmontools through smithy** (Homebrew); with it, wear and power-on hours.
+3. **Macs get smartmontools through the private configuration repo** (Homebrew); with it, wear and power-on hours.
 
 ## Non-goals
 

@@ -63,8 +63,13 @@ const TOPICS: &[Topic] = &[
     },
     Topic {
         name: "ground-station",
-        title: "Ground station (absorbed smithy hub)",
+        title: "Ground station (absorbed hub)",
         content: include_str!("../../docs/topics/ground-station.md"),
+    },
+    Topic {
+        name: "job-state",
+        title: "Contract: job state files and the expected-jobs manifest",
+        content: include_str!("../../docs/topics/job-state.md"),
     },
     Topic {
         name: "costs-schema",

@@ -1,7 +1,7 @@
 # Machine history: numbers over time, not just the current state
 
 Status: approved by the owner 2026-11-05, with the owner's change: warte owns probe, store and
-charts; smithy only deploys it (install, pin, configure, back up).
+charts; the private configuration repo only deploys it (install, pin, configure, back up).
 
 ## Why
 
@@ -20,7 +20,7 @@ the ground station keeps 7 days).
   switch (1 h · 24 h · 7 d · 90 d); a machine detail page shows larger charts.
 - A finding links to the chart of the number behind it.
 - Outages show as gaps, never as a line drawn across them.
-- Works the same with or without smithy, so the owner's work site gets charts too.
+- Works the same with or without a fleet agent, so the owner's work site gets charts too.
 
 ## Non-goals
 
@@ -38,8 +38,8 @@ the ground station keeps 7 days).
 
 ## Owner's decisions
 
-1. warte collects, stores and draws the history; smithy only deploys warte (2026-11-05,
-   reversing an earlier "smithy stores" choice the same day).
+1. warte collects, stores and draws the history; the private configuration repo only deploys warte (2026-11-05,
+   reversing an earlier "the deployment stores" choice the same day).
 2. Retention 90 days or more.
 3. First step: history and charts for the numbers probes already send.
 4. Store engine: redb (pure Rust), not SQLite.
@@ -129,11 +129,11 @@ already shown on the Machines view and stay. Sessions contribute only their coun
 feeds a report holding a secret path and error text and asserts neither reaches the store or
 the API.
 
-## smithy's part (deployment only)
+## The deployment's part (deployment only)
 
 - Nothing new to build. The existing warte role keeps deploying warte; it backs up
   `history.redb` with the rest of warte's data dir and may set the retention.
-- Mac probes managed by smithy (smithy#40): release binaries for macOS arm64 exist.
+- Mac probes managed by the private configuration repo: release binaries for macOS arm64 exist.
 
 ## Left to the builder
 

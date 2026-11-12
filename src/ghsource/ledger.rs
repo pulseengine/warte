@@ -1,4 +1,4 @@
-//! The job ledger for the GitHub source (REQ-RUNNERS-005): what the smithy
+//! The job ledger for the GitHub source (REQ-RUNNERS-005): what the fleet
 //! agent's ledger does, from GitHub's REST API, so the monthly report and the
 //! runner minutes work at a site without an agent.
 //!

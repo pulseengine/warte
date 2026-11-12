@@ -1,9 +1,9 @@
-//! GitHub's REST API as a CI source, for teams without a smithy agent (#81).
+//! GitHub's REST API as a CI source, for teams without a fleet agent (#81).
 //!
 //! The scan fills the ground station's model (`hub::model::Snapshot`) the way
-//! the smithy agent does, so every view and `/api/eta`, `/api/queue`,
+//! the fleet agent does, so every view and `/api/eta`, `/api/queue`,
 //! `/api/admission` and `/api/watch` work on it unchanged. It is the agent's
-//! queue scan (smithy `tools/smithy/src/github.rs`) without the host view:
+//! queue scan (the original hub) without the host view:
 //! busy/idle comes from GitHub's runner API alone.
 //!
 //! The API base is configured, never derived: `https://api.github.com`,

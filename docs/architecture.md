@@ -211,9 +211,9 @@ See `artifacts/security.yaml` for the full TARA. Key threats:
 
 ## Migration
 
-### From smithy hub
+### From the original hub
 
-smithy hub was absorbed as warte's ground station (DD-SMITHY-001): `warte hub`
+the original hub was absorbed as warte's ground station (DD-SMITHY-001): `warte hub`
 reads its data directory as-is. See `warte docs migration` for the parallel run
 and cut-over, and `warte docs ground-station` for the data path.
 
@@ -261,7 +261,7 @@ Scope: 48 artifacts (12 design decisions + 27 requirements + 9 verifications).
 | Artifact store | Download, integrity verification, scoping | done (sigil signatures pending) |
 | Multi-instance sync | CRDT, version vectors, divergence detection | done |
 | Dashboard API | Overview, ask, queue, critical path | partial |
-| Migration | smithy import, temper import | pending |
+| Migration | original-hub import, temper import | pending |
 | Edge deployment | edge config, WireGuard, auto-patch | docs done |
 
 ### v0.2.0 — Toolchain integration, discovery, multi-platform

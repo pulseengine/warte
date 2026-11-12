@@ -121,7 +121,7 @@ fn findings_name_drift_silence_and_full_disks_worst_first() {
         removable: false,
     });
     let list = vec![
-        seen(report("fourpi", "6.12.75+rpt", Some("2.1.9")), 30),
+        seen(report("tower-pi", "6.12.75+rpt", Some("2.1.9")), 30),
         seen(report("wohl", "6.18.50+rpt", None), 3600),
         seen(full, 30),
     ];
@@ -133,14 +133,14 @@ fn findings_name_drift_silence_and_full_disks_worst_first() {
             .collect::<Vec<_>>()
     };
     assert!(
-        text("fourpi")
+        text("tower-pi")
             .iter()
             .any(|t| t.contains("kernel 6.12.75+rpt behind 6.18.50+rpt")),
         "{f:?}"
     );
     // 2.1.9 < 2.1.312 numerically, not as text
     assert!(
-        text("fourpi")
+        text("tower-pi")
             .iter()
             .any(|t| t == "claude 2.1.9 behind 2.1.312"),
         "{f:?}"

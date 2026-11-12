@@ -102,7 +102,7 @@ public
       api_req : in data port Message;
       api_resp : out data port Message;
       sync : in out data port Message;
-      -- CCSDS space packets from the smithy agent (UDP over WireGuard), DD-SMITHY-001
+      -- CCSDS space packets from the fleet agent (UDP over WireGuard), DD-SMITHY-001
       telemetry : in data port Telemetry;
   end WarteInstance;
 
@@ -127,8 +127,8 @@ public
   end WarteInstance.impl;
 
   -----------------------------------------------------------------------
-  -- Ground station (DD-SMITHY-001) — absorbed from smithy hub.
-  -- Ingests the smithy agent's CCSDS telemetry (relay-ccsds), keeps hub
+  -- Ground station (DD-SMITHY-001) — absorbed from the original hub.
+  -- Ingests the fleet agent's CCSDS telemetry (relay-ccsds), keeps hub
   -- state and the per-day JSONL ledger (GitHub is the store of record),
   -- answers ETA from measured pool waits, serves the hub API.
   -----------------------------------------------------------------------
@@ -171,17 +171,17 @@ public
   end BeltLedger.impl;
 
   -----------------------------------------------------------------------
-  -- smithy agent on the CI host. Read-only observer;
+  -- fleet agent on the CI host. Read-only observer;
   -- dials OUT to the ground station, so the CI host exposes nothing.
   -----------------------------------------------------------------------
 
-  system SmithyAgent
+  system FleetAgent
     features
       telemetry_out : out data port Telemetry;
-  end SmithyAgent;
+  end FleetAgent;
 
-  system implementation SmithyAgent.impl
-  end SmithyAgent.impl;
+  system implementation FleetAgent.impl
+  end FleetAgent.impl;
 
   process APIServer
     features
@@ -334,7 +334,7 @@ public
       mobile : system MobileClient.impl;
       agent1 : system AgentRuntime.impl;
       agent2 : system AgentRuntime.impl;
-      ci_host : system SmithyAgent.impl;
+      ci_host : system FleetAgent.impl;
     connections
       -- Internet ↔ Edge Proxy
       c_internet_edge : port internet <-> edge.ext_in;

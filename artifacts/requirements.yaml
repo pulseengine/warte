@@ -409,10 +409,10 @@ artifacts:
   # --- Migration ---
   - id: REQ-MIGRATE-001
     type: requirement
-    title: Replace smithy-hub with warte hub in place, after a parallel run
+    title: Replace the original hub with warte hub in place, after a parallel run
     status: verified
     release: v1.5.0
-    description: "There SHALL be no data import: warte hub SHALL read smithy hub's data directory (hub-state.json, ledger/*.jsonl) in place, with smithy hub's flags. Cut-over SHALL follow a parallel run in which the smithy agent feeds both hubs and scripts/hub-parity.sh reports zero differences, after which smithy-hub.service on the ground-station host runs warte hub instead."
+    description: "There SHALL be no data import: warte hub SHALL read the original hub's data directory (hub-state.json, ledger/*.jsonl) in place, with the original hub's flags. Cut-over SHALL follow a parallel run in which the fleet agent feeds both hubs and scripts/hub-parity.sh reports zero differences, after which the hub's systemd unit on the ground-station host runs warte hub instead."
     links:
       - type: satisfies
         target: SC-005
@@ -718,10 +718,10 @@ artifacts:
 
   - id: REQ-ALERT-002
     type: requirement
-    title: Outage findings and alerts work without smithy, in GitHub-only mode, worded for that source
+    title: Outage findings and alerts work without a fleet agent, in GitHub-only mode, worded for that source
     status: verified
     release: v1.6.0
-    description: "With only the [github] source (no smithy agent, no host telemetry), warte SHALL detect and alert on what GitHub shows: hosted jobs stuck in the queue, overdue queued runs, self-hosted runners offline, GitHub's status, and a scan that is failing or rate-limited. It SHALL NOT report host-telemetry findings it cannot see, and SHALL word staleness and collection errors for GitHub (a scan), not for a smithy agent or a telemetry link. A rate limit SHALL be shown as its own finding rather than only as stale data. Motivated by the owner running warte at an employer on github.com (2026-11-05)."
+    description: "With only the [github] source (no fleet agent, no host telemetry), warte SHALL detect and alert on what GitHub shows: hosted jobs stuck in the queue, overdue queued runs, self-hosted runners offline, GitHub's status, and a scan that is failing or rate-limited. It SHALL NOT report host-telemetry findings it cannot see, and SHALL word staleness and collection errors for GitHub (a scan), not for a fleet agent or a telemetry link. A rate limit SHALL be shown as its own finding rather than only as stale data. Motivated by the owner running warte at an employer on github.com (2026-11-05)."
     fields:
       category: functional
     links:
@@ -865,7 +865,7 @@ artifacts:
     title: warte's own API gives the start estimate, so the /ci view can be retired
     status: verified
     release: v1.6.2
-    description: "warte SHALL answer GET /api/eta under its own API with the same answer as the ground station's /ci/api/eta: status, running jobs (on, hosted, workflow, job, for_s) and per queued part run_id, workflow, pool, jobs, waited_s, model and estimate (start_in_low_s, start_in_high_s, overdue, basis), so agents and the ci-status skill read one API and the absorbed smithy-hub surface under /ci can be removed in a later release. It SHALL answer 503 when no ground station or snapshot exists, and work on the GitHub source too."
+    description: "warte SHALL answer GET /api/eta under its own API with the same answer as the ground station's /ci/api/eta: status, running jobs (on, hosted, workflow, job, for_s) and per queued part run_id, workflow, pool, jobs, waited_s, model and estimate (start_in_low_s, start_in_high_s, overdue, basis), so agents and the ci-status skill read one API and the absorbed hub surface under /ci can be removed in a later release. It SHALL answer 503 when no ground station or snapshot exists, and work on the GitHub source too."
     fields:
       category: interface
       priority: must
@@ -896,10 +896,10 @@ artifacts:
 
   - id: REQ-SMITHY-007
     type: requirement
-    title: warte serve no longer mounts the smithy-hub page and API under /ci
+    title: warte serve no longer mounts the the original hub page and API under /ci
     status: verified
     release: v1.6.3
-    description: Once every reader of /ci reads warte's own API (owner decision 2026-11-07; the ci-status skill, the commit-merge-guard hook and the owner's environment moved in pulseengine.eu#355 and smithy#84), warte serve SHALL NOT serve /ci or anything below it (404). The ground station's answers stay available under /api (REQ-SMITHY-005, REQ-SMITHY-006). The standalone warte hub keeps serving the hub API on its own port (REQ-SMITHY-002).
+    description: Once every reader of /ci reads warte's own API (owner decision 2026-11-07; the ci-status skill, the commit-merge-guard hook and the owner's environment moved in pulseengine.eu#355 and the private configuration repo), warte serve SHALL NOT serve /ci or anything below it (404). The ground station's answers stay available under /api (REQ-SMITHY-005, REQ-SMITHY-006). The standalone warte hub keeps serving the hub API on its own port (REQ-SMITHY-002).
     fields:
       category: interface
       priority: must
@@ -1022,10 +1022,10 @@ artifacts:
 
   - id: REQ-RUNNERS-005
     type: requirement
-    title: The GitHub source keeps a job ledger, so the monthly report and runner minutes work without a smithy agent
+    title: The GitHub source keeps a job ledger, so the monthly report and runner minutes work without a fleet agent
     status: verified
     release: v1.6.8
-    description: Without a smithy agent (warte at work), the GitHub scan SHALL record each finished job of the scanned repos (created, started, completed, pool, runner, conclusion) into the ground station ledger, with conditional requests, and SHALL mark a day complete only when every run created that day is finished and read; until then the report says preliminary.
+    description: Without a fleet agent (warte at work), the GitHub scan SHALL record each finished job of the scanned repos (created, started, completed, pool, runner, conclusion) into the ground station ledger, with conditional requests, and SHALL mark a day complete only when every run created that day is finished and read; until then the report says preliminary.
     fields:
       category: functional
       priority: must
@@ -1479,3 +1479,31 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-11-12T07:57:39Z
+
+  - id: REQ-TEMPLATE-001
+    type: requirement
+    title: "Public warte is a template: it never names the owners' private configuration repo or hosts"
+    status: verified
+    release: v1.6.23
+    description: "Owner decision 2026-11-12: warte is a public template others can use. No tracked file SHALL name the owners' private configuration repository or their own hosts; text says the fleet agent, the private configuration repository or a generic example host instead, and deployment-specific names are config values (the hub page's brand, default warte). Existing requirement IDs that contain such a name stay, and git history is not rewritten. A CI test SHALL scan every tracked text file against SHA-256 hashes of the forbidden words, so the check itself names none, fail closed on an empty scan, and spare the middle part of an uppercase ID."
+    fields:
+      category: non-functional
+      priority: must
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-12T10:02:25Z
+
+  - id: REQ-TEMPLATE-002
+    type: requirement
+    title: Interfaces a deployment feeds warte are versioned contracts in the docs
+    status: verified
+    release: v1.6.23
+    description: The fleet agent wire format (CCSDS APIDs, ledger records including sig, day manifests), the job state files and expected-jobs manifest, the costs report schema and the operator duties SHALL each be documented as a contract with a version, the first warte release that carries it and a change list, so a deployment pins against the contract as it pins the binary. Tests SHALL fail when the code's ledger record fields, APIDs or job state fields differ from the documented ones.
+    fields:
+      category: functional
+      priority: should
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-12T10:02:25Z

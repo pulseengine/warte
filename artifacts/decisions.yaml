@@ -157,17 +157,17 @@ artifacts:
 
   - id: DD-ARCH-009
     type: design-decision
-    title: "Migration from smithy — agent fleet data import"
+    title: "Migration from the original hub — agent fleet data import"
     status: deprecated
     release: v0.1.0
     description: >
-      The smithy migration imports agent registrations, captured session data,
+      The original hub migration imports agent registrations, captured session data,
       and tool friction reports.
     tags: [superseded-by-ground-station]
     fields:
       rationale: >
         The migration is a one-time import via a CLI command (warte migrate
-        smithy --source <path>). The import is idempotent (re-running produces
+        hub --source <path>). The import is idempotent (re-running produces
         the same state) and verifiable (checksums match).
     links:
       - type: satisfies
@@ -271,7 +271,7 @@ artifacts:
     title: "Login through Zitadel: warte verifies signed tokens itself, from a proxy or after an OIDC hand-over; never a password, never a bare header"
     status: verified
     release: v1.6.13
-    description: "Owner decision 2026-11-11. Zitadel (deployed by smithy) authenticates. warte accepts a Zitadel JWT access token in Authorization: Bearer (a proxy in front passes it) or runs the OIDC authorization-code flow with PKCE itself and keeps a server-side session behind a random HttpOnly Secure SameSite=Lax cookie. Either way warte verifies signature (JWKS from the issuer's discovery document), issuer, audience (the client id or project id) and expiry. Roles are Zitadel project roles from urn:zitadel:iam:org:project:roles."
+    description: "Owner decision 2026-11-11. Zitadel (deployed by the private configuration repo) authenticates. warte accepts a Zitadel JWT access token in Authorization: Bearer (a proxy in front passes it) or runs the OIDC authorization-code flow with PKCE itself and keeps a server-side session behind a random HttpOnly Secure SameSite=Lax cookie. Either way warte verifies signature (JWKS from the issuer's discovery document), issuer, audience (the client id or project id) and expiry. Roles are Zitadel project roles from urn:zitadel:iam:org:project:roles."
     fields:
       category: security
       rationale: Authentication is never built into warte (owner, 2026-11-08); verifying a signed token closes the spoofed-header hole a header-trusting proxy setup leaves, and both topologies share one check.
@@ -344,7 +344,7 @@ artifacts:
     release: v1.6.20
     description: Trends come from the ledger both CI sources already fill, compared week against week with fixed thresholds and minimum sample sizes, recomputed at most every ten minutes.
     fields:
-      rationale: The ledger holds every finished job with its attempt, pool and times, from the smithy agent or GitHub's API alike, so trends cost no GitHub requests and work at work in GitHub-only mode. Week against week absorbs the weekly rhythm of work. Fixed thresholds with minimum samples keep the panel quiet unless a change is worth acting on. Failing step signatures for shared incidents (REQ-CI-005) need data the ledger does not carry and are left to that requirement.
+      rationale: The ledger holds every finished job with its attempt, pool and times, from the fleet agent or GitHub's API alike, so trends cost no GitHub requests and work at work in GitHub-only mode. Week against week absorbs the weekly rhythm of work. Fixed thresholds with minimum samples keep the panel quiet unless a change is worth acting on. Failing step signatures for shared incidents (REQ-CI-005) need data the ledger does not carry and are left to that requirement.
     links:
       - type: satisfies
         target: REQ-PREDICT-005
@@ -358,7 +358,7 @@ artifacts:
     title: Shared incidents group failures by a fixed-pattern error signature for one host; hosts named only when public or watched
     status: verified
     release: v1.6.21
-    description: A failed job's signature is kind:host, where kind is resolver, timeout, refused or server_error, taken from the last matching line of the log's end (256 KiB). smithy's agent sends it in the job record; in GitHub-only mode warte reads the log of each failed job of the last day once, at most 30 per ledger pass, and keeps only the signature. Records whose signature does not parse into the vocabulary are ignored. Failures with one signature in two or more repositories, each within an hour of the previous, form one incident; ongoing ones (a failure in the last hour) alert.
+    description: A failed job's signature is kind:host, where kind is resolver, timeout, refused or server_error, taken from the last matching line of the log's end (256 KiB). the fleet agent sends it in the job record; in GitHub-only mode warte reads the log of each failed job of the last day once, at most 30 per ledger pass, and keeps only the signature. Records whose signature does not parse into the vocabulary are ignored. Failures with one signature in two or more repositories, each within an hour of the previous, form one incident; ongoing ones (a failure in the last hour) alert.
     fields:
       rationale: "Only the real error tells a shared cause from coincidence (owner decision 20261112T020351-a391f8, agent-and-api). Fixed patterns keep log text, paths and secrets out of the unauthenticated read API; parsing on ingest means an agent cannot push free text through. Showing a host only when it is a well-known public dependency or a canary name keeps internal hostnames off the API while still grouping by them. The log's redirect target never receives the token. Rejected: grouping by step name, which joins unrelated apt failures; canaries alone, which miss registry 5xx and runner-image causes."
     links:

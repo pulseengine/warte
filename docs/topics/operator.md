@@ -1,5 +1,10 @@
 # Running warte: the operator's duties
 
+Contract version **1**, since warte v1.6.17: the duty keys below, each duty's
+cadence and right, and the templates in `deploy/operator/`, shipped with every
+release as `operator-kit-<version>.tar.gz`. A deployment pins against this
+version; a new duty or a renamed key bumps it.
+
 warte watches; it does not run itself. Whoever runs it, whether a team at
 work, a home lab or an infrastructure repository, owes it a few things. This
 page lists every one, and `deploy/operator/` holds a template for each. The
@@ -46,7 +51,7 @@ warte token mint briefing-job --valid-hours 720 --right briefing:write
 ## ci-source
 
 **Feed the CI source.** Run `warte serve` (`warte.service`) behind a TLS
-proxy (`Caddyfile.snippet`). Feed it either from a smithy agent (`[hub]`)
+proxy (`Caddyfile.snippet`). Feed it either from a fleet agent (`[hub]`)
 or from GitHub's API (`[github]`, see deployment). The proxy must leave
 `POST` to `/api/probe/enroll`, `/api/probe/report`, `/api/probe/renew` and
 `/api/probe/feed/temper` reachable: probes authenticate themselves and cannot

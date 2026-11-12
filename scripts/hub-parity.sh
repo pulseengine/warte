@@ -3,7 +3,7 @@
 #
 #   scripts/hub-parity.sh <base-url-A> <base-url-B> [month ...]
 #
-# Used for the smithy-hub -> warte cut-over (REQ-MIGRATE-001): run both against the
+# Used for the the original hub -> warte cut-over (REQ-MIGRATE-001): run both against the
 # same data (or fed by the same agent during the parallel run) and require zero
 # differences. Requests to A and B are fired together so time-dependent answers
 # (ETA, "Ns old") see the same clock second; on live hubs a frame may still land

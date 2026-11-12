@@ -63,7 +63,7 @@ pub fn build_router(state: AppState) -> Router {
     // build_routes() already places the API under /api and the dashboard at /.
     // (Before v1.4.0 this nested it a second time: /api/api/..., no dashboard.)
     // The ground station's answers are under warte's own API; the absorbed
-    // smithy-hub page and API once mounted at /ci are retired (REQ-SMITHY-007).
+    // the original hub page and API once mounted at /ci are retired (REQ-SMITHY-007).
     // `warte hub` still serves them on its own port.
     Router::new()
         .merge(api::build_routes())
@@ -137,7 +137,7 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
 
     if config.hub.is_some() && config.github.is_some() {
         anyhow::bail!(
-            "[hub] and [github] are both set: choose one CI source (the smithy agent's telemetry, or GitHub's API)"
+            "[hub] and [github] are both set: choose one CI source (the fleet agent's telemetry, or GitHub's API)"
         );
     }
     let hub = match &config.hub {
@@ -151,7 +151,7 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
             Some(hub)
         }
         None => match &config.github {
-            // No smithy agent: GitHub's API is the CI source (#81).
+            // No fleet agent: GitHub's API is the CI source (#81).
             Some(g) => {
                 std::fs::create_dir_all(&g.data_dir)
                     .map_err(|e| anyhow::anyhow!("{}: {e}", g.data_dir))?;

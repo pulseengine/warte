@@ -21,8 +21,8 @@ env:
   TAG: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', inputs.version) || github.ref_name }}
 
 # Release jobs sign (cosign/OIDC) and publish, so they run on ephemeral
-# GitHub-hosted runners, never on the shared smithy pool, and restore no caches
-# (a cache written by a smithy run on main would otherwise reach a tag run).
+# GitHub-hosted runners, never on the shared runner pool, and restore no caches
+# (a cache written by a shared-pool run on main would otherwise reach a tag run).
 jobs:
   release-gate:
     name: V-model traceability gate
@@ -35,7 +35,7 @@ jobs:
         with:
           toolchain: stable
 
-      # No cache here: main's CI runs on the shared smithy pool and writes caches
+      # No cache here: main's CI runs on the shared runner pool and writes caches
       # a tag run could restore. The release gate always builds rivet from the
       # pinned rev.
       - name: Install rivet (pinned rev, job-scoped, uncached)
@@ -63,7 +63,7 @@ jobs:
           - runner: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             asset: linux-amd64
-          # the probes on the Raspberry Pis (and fourpi, the ground station)
+          # the probes on the Raspberry Pis (and the ground station)
           - runner: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
             asset: linux-arm64

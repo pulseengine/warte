@@ -498,7 +498,7 @@ async fn misconfiguration_is_refused_at_startup() {
 
 // rivet: verifies REQ-ALERT-002
 #[tokio::test]
-async fn without_smithy_findings_come_from_github_and_say_so() {
+async fn without_a_fleet_agent_findings_come_from_github_and_say_so() {
     let (m, base) = mock().await;
     // a normal scan: no host telemetry, so no host findings can appear
     let dir = tempfile::tempdir().unwrap();

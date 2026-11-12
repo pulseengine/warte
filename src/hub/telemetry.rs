@@ -1,5 +1,5 @@
 //! Agent -> hub telemetry as CCSDS space packets, using pulseengine/relay's
-//! `relay-ccsds` codec. The CI host is the spacecraft, fourpi the ground
+//! `relay-ccsds` codec. The CI host is the spacecraft, warte the ground
 //! station.
 //!
 //! One APID per stream, each with its own 14-bit sequence counter, so the

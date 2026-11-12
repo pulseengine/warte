@@ -108,7 +108,7 @@ async fn a_token_is_bound_to_its_host_its_time_and_one_use() {
     assert_eq!(post(&base, "wpe_00", "wohl", csr_for("wohl")).await.0, 403);
     // a CSR cannot choose its identity: the certificate names the token's host
     let t2 = enroll::mint(&db, "wohl", now).await.unwrap();
-    let (code, body) = post(&base, &t2, "wohl", csr_for("fourpi")).await;
+    let (code, body) = post(&base, &t2, "wohl", csr_for("tower-pi")).await;
     assert_eq!(code, 200, "{body}");
     let resp: serde_json::Value = serde_json::from_str(&body).unwrap();
     assert_eq!(subject_cn(resp["cert"].as_str().unwrap()), "wohl");

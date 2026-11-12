@@ -250,7 +250,7 @@ artifacts:
     title: test_migrate_temper — temper migration imports branch protection config and issue labels
     status: accepted
     release: v0.1.0
-    description: "Unit test test_migrate_temper: the temper migration imports branch protection config and issue labels from config.yml and produces a MigrationResult with imported/skipped/errors/checksum. (Its former smithy half tested a format smithy never had and was removed in v1.4.0.)"
+    description: "Unit test test_migrate_temper: the temper migration imports branch protection config and issue labels from config.yml and produces a MigrationResult with imported/skipped/errors/checksum. (Its former original-hub half tested a format the original hub never had and was removed in v1.4.0.)"
     links:
       - type: verifies
         target: REQ-MIGRATE-002

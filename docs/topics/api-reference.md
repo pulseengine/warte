@@ -236,7 +236,7 @@ kept or shown. `incidents` lists `kind`, `host` (only for a well-known public
 dependency or a name the dependency canaries watch, otherwise `null`),
 `what` (the signature in words), `repos`, `jobs`, `first`, `last` and
 `ongoing` (a failure within the last hour). Ongoing incidents also raise an
-alert. The signature comes from smithy's agent where it runs; in GitHub-only
+alert. The signature comes from the fleet agent where it runs; in GitHub-only
 mode warte reads the log of each failed job of the last day once, at most 30
 per ledger pass. 503 without a CI source.
 
@@ -292,7 +292,7 @@ devices and runners: `load.1`, `load.per_core`, `mem.used_pct`, `swap.used_mb`,
 
 ## Retired: `/ci`
 
-Up to v1.6.2, `warte serve` also mounted the absorbed smithy-hub page and API
+Up to v1.6.2, `warte serve` also mounted the absorbed hub page and API
 under `/ci`. Since v1.6.3 it is gone; since v1.6.4 every `/ci` path answers
 `410 Gone` with JSON `{"error":"gone","see":…,"reason":…}`, where `see` is the
 replacement relative to warte's base URL, query kept. Use the routes above

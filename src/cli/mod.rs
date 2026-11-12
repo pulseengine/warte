@@ -98,7 +98,7 @@ pub enum Commands {
 
     /// Migrate data from an existing system
     Migrate {
-        /// Source system (temper; smithy hub data is read in place by `warte hub`)
+        /// Source system (temper; the original hub data is read in place by `warte hub`)
         source: String,
 
         /// Path to the source data
@@ -118,9 +118,9 @@ pub enum Commands {
         action: ProbeCommands,
     },
 
-    /// Run the ground station: CCSDS telemetry from the smithy agent in, hub API out
+    /// Run the ground station: CCSDS telemetry from the fleet agent in, hub API out
     ///
-    /// Same flags and data-dir layout as `smithy hub`, so it replaces it in place.
+    /// Same flags and data-dir layout as the original hub, so it replaces it in place.
     Hub {
         /// HTTP listen address. Loopback by default: publish it through Caddy.
         #[arg(long, default_value = "127.0.0.1:8091")]
@@ -133,11 +133,14 @@ pub enum Commands {
         #[arg(long, required = true)]
         allow: Vec<std::net::IpAddr>,
         /// Hub state directory (hub-state.json + ledger/)
-        #[arg(long, default_value = "/var/lib/smithy-hub")]
+        #[arg(long, default_value = "/var/lib/warte-hub")]
         data_dir: String,
         /// GitHub org the agent scans (qualifies repo names in /api/eta)
         #[arg(long, default_value = "pulseengine")]
         org: String,
+        /// Name on the hub's page and status report
+        #[arg(long, default_value = crate::hub::DEFAULT_BRAND)]
+        brand: String,
     },
 
     /// Manage artifacts

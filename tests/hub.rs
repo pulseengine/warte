@@ -1,7 +1,7 @@
-//! Oracles for the ground station absorbed from smithy hub (DD-SMITHY-001).
+//! Oracles for the ground station absorbed from the original hub (DD-SMITHY-001).
 //!
 //! Telemetry is produced with the agent's own encoder (`telemetry::encode_*`),
-//! so these tests exercise the same bytes the smithy agent sends. Snapshots are
+//! so these tests exercise the same bytes the fleet agent sends. Snapshots are
 //! synthetic: real hub state carries operational detail that does not belong in
 //! a public repo. Parity with the live hub is checked separately during the
 //! parallel run.
@@ -15,10 +15,11 @@ use warte::hub::{now, Hub, OPENAPI};
 const CI_HOST: IpAddr = IpAddr::V4(Ipv4Addr::new(192, 0, 2, 201));
 const STRANGER: IpAddr = IpAddr::V4(Ipv4Addr::new(198, 51, 100, 7));
 
-/// sha256 of smithy's `tools/smithy/web/openapi.json` at the UPSTREAM commit.
-/// The vendored copy must not drift silently from the contract agents use.
+/// sha256 of the hub contract, `src/hub/web/openapi.json` (fleet agent wire
+/// contract, `docs/topics/ground-station.md`). It must not drift silently from
+/// the contract agents use: change it with the contract version.
 const UPSTREAM_OPENAPI_SHA256: &str =
-    "a18f74c14bf44b56e9bac4fc9c3d0ec7985be6be9cdc8f77046aaf7690acf9ce";
+    "af630b5c04d69c1eabea7f63b0a19c73d6b91fe9a341d892be8af21dcf064bde";
 
 fn snapshot(host: &str) -> Snapshot {
     Snapshot {
@@ -131,8 +132,8 @@ fn vendored_contract_is_the_upstream_one() {
     let got = hex::encode(Sha256::digest(OPENAPI.as_bytes()));
     assert_eq!(
         got, UPSTREAM_OPENAPI_SHA256,
-        "src/hub/web/openapi.json differs from smithy's contract; update both \
-         deliberately (UPSTREAM in src/hub/mod.rs and this hash)"
+        "src/hub/web/openapi.json differs from the hub contract; change it \
+         deliberately, with the contract version in docs/topics/ground-station.md and this hash"
     );
 }
 
@@ -177,7 +178,7 @@ async fn every_contract_path_is_served() {
 
 // rivet: verifies REQ-SMITHY-002
 #[tokio::test]
-async fn eta_rejects_what_smithy_rejects() {
+async fn eta_rejects_what_the_original_hub_rejects() {
     let dir = tempfile::tempdir().unwrap();
     let hub = Hub::open(dir.path().to_str().unwrap(), "pulseengine").unwrap();
     let mut seq = SeqCounters::default();
@@ -200,11 +201,11 @@ async fn eta_rejects_what_smithy_rejects() {
             .await
             .unwrap()
     };
-    // no queue scan yet: smithy says "unknown", never a false "not_queued"
+    // no queue scan yet: the original hub says "unknown", never a false "not_queued"
     let v = eta().await;
     assert_eq!(
         v["repo"], "pulseengine/warte",
-        "org-qualified as smithy does"
+        "org-qualified as the original hub does"
     );
     assert_eq!(v["status"], "unknown");
 
@@ -241,7 +242,7 @@ fn job(id: u64, day: &str) -> JobRecord {
 
 // rivet: verifies REQ-SMITHY-003
 #[test]
-fn ledger_is_per_day_jsonl_in_smithys_format_and_deduplicated() {
+fn ledger_is_per_day_jsonl_in_the_original_format_and_deduplicated() {
     let dir = tempfile::tempdir().unwrap();
     let data = dir.path().to_str().unwrap();
     let hub = Hub::open(data, "pulseengine").unwrap();
@@ -274,7 +275,7 @@ fn ledger_is_per_day_jsonl_in_smithys_format_and_deduplicated() {
         .collect();
     assert_eq!(files, vec!["2026-10-27.jsonl"]);
     // nor may it escape the ledger directory: the data dir holds only what
-    // smithy hub's layout has
+    // the original hub's layout has
     let root: Vec<String> = std::fs::read_dir(dir.path())
         .unwrap()
         .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
@@ -297,7 +298,7 @@ fn ledger_is_per_day_jsonl_in_smithys_format_and_deduplicated() {
         .keys()
         .map(String::as_str)
         .collect();
-    // smithy hub's on-disk record: an existing /var/lib/smithy-hub reads as-is
+    // the original hub's on-disk record: an existing /var/lib/warte-hub reads as-is
     for k in [
         "d", "id", "run", "att", "repo", "wf", "job", "pool", "runner", "ev", "c", "s", "e", "r",
     ] {
@@ -313,7 +314,7 @@ async fn hub_state_survives_a_restart() {
     {
         let hub = Hub::open(data, "pulseengine").unwrap();
         let mut seq = SeqCounters::default();
-        // state is written every 5th frame, as smithy hub does
+        // state is written every 5th frame, as the original hub does
         for _ in 0..5 {
             send(
                 &hub,
@@ -457,7 +458,7 @@ async fn every_declared_status_code_is_produced() {
     );
     let produced = [
         ("/api/eta", 503, eta_503),
-        // not declared in the contract (inherited from upstream), but smithy does it
+        // not declared in the contract (inherited from upstream), but the original hub does it
         ("/status.md", 503, status_503),
         ("/api/eta", 200, get("/api/eta?repo=warte&pr=1").await),
         ("/api/eta", 400, get("/api/eta?repo=warte").await),
@@ -491,7 +492,7 @@ async fn every_declared_status_code_is_produced() {
 
 // rivet: verifies REQ-SMITHY-002
 #[tokio::test]
-async fn only_get_is_served_like_smithy() {
+async fn only_get_is_served_like_the_original_hub() {
     let dir = tempfile::tempdir().unwrap();
     let hub = Hub::open(dir.path().to_str().unwrap(), "pulseengine").unwrap();
     let base = serve(&hub).await;
@@ -513,7 +514,10 @@ async fn only_get_is_served_like_smithy() {
         let r = reqwest::get(format!("{base}{p}")).await.unwrap();
         assert_eq!(r.status(), 200, "{p}");
         assert!(
-            r.text().await.unwrap().contains("SMITHY"),
+            r.text()
+                .await
+                .unwrap()
+                .contains("<a class=\"logo\" href=\"#\">WARTE</a>"),
             "{p} serves the web view"
         );
     }
@@ -582,7 +586,7 @@ async fn implausible_ledger_records_are_rejected() {
     assert!(!f.exists(), "an implausible record was stored");
 
     // a re-run attempt legitimately starts before its run was created (GitHub
-    // keeps started_at of a reused job); it must be kept, as smithy keeps it
+    // keeps started_at of a reused job); it must be kept, as the original hub keeps it
     let mut rerun = job(200, day);
     (rerun.att, rerun.c, rerun.s, rerun.e) =
         (2, 1_793_000_000, Some(1_792_990_000), Some(1_792_990_300));

@@ -1,4 +1,4 @@
-//! Oracles for REQ-RUNNERS-005: without a smithy agent, the GitHub source
+//! Oracles for REQ-RUNNERS-005: without a fleet agent, the GitHub source
 //! keeps the job ledger, and a day counts as complete only once every run
 //! created on it has finished and been read.
 

@@ -4,6 +4,21 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.23 — 2026-11-12
+
+- **warte is a public template** (REQ-TEMPLATE-001). Public warte no longer names the owners' private configuration repository or their own hosts. The text says "fleet agent", "the original hub" or a generic example host instead, including in the rivet artifacts.
+  - **Brand setting:** the hub page's name is now a setting, `warte hub --brand`, default warte.
+  - **Defaults:** the default hub data directory is `/var/lib/warte-hub`, and the hint for importing from the original hub is now `warte migrate hub`.
+  - **Name check:** a new test scans every tracked file against SHA-256 hashes of the forbidden words, so the check itself names none. It fails on an empty scan and spares existing requirement IDs; planting a name turns it red.
+  - **Not changed:** existing requirement IDs and git history.
+- **Contracts for what a deployment feeds warte** (REQ-TEMPLATE-002). Four interfaces are now versioned contracts, each stating its version, its first release and its changes:
+  - the fleet agent's wire format: CCSDS APIDs, ledger record fields including `sig`, and day manifests, in `ground-station.md`;
+  - job state files and the expected-jobs manifest, in the new `warte docs job-state`;
+  - the costs report schema;
+  - the operator duties.
+
+  Tests fail when the ledger record fields, the APIDs or the job state fields drift from the documents. The hub's `openapi.json` is now warte's own contract, titled "warte hub".
+
 ## v1.6.22 — 2026-11-12
 
 - **Briefing period setting** (REQ-BRIEF-004). A new setting, `[briefing] period_days`, sets the briefing period length from 1 to 7 UTC days. The default stays at 2, so existing installs don't change; any other value stops warte at start. Set to 1, the briefing covers yesterday and is written every day, to go with a daily model run.
@@ -17,7 +32,7 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
   - **Signature:** each failed job gets an error signature: a resolver failure, a connection timeout or refusal, or server errors (HTTP 500 to 504), each for one host. It is built from fixed patterns in the end of the job's log. No log text, path or secret is kept or shown, and a record carrying anything outside this vocabulary is ignored.
   - **Grouping:** failures with the same signature in two or more repositories, each within an hour of the last, form one incident. The overview has a Shared incidents panel covering the last day, an ongoing incident raises an alert, and `GET /api/incidents` returns the incidents.
   - **Host names:** a host is named only when it is a well-known public dependency or a name the dependency canaries watch. Any other host still groups the same way, but is shown only as "a host".
-  - **Where signatures come from:** in GitHub-only mode, warte reads the log of each failed job from the last day once (at most 30 per ledger pass) and keeps only the signature. The download host never receives the token. Job records gain an optional `sig` field, so older agents keep working; smithy's agent will send signatures in a later smithy change.
+  - **Where signatures come from:** in GitHub-only mode, warte reads the log of each failed job from the last day once (at most 30 per ledger pass) and keeps only the signature. The download host never receives the token. Job records gain an optional `sig` field, so older agents keep working; the fleet agent will send them in a later release of the agent.
   - REQ-CI-005 moved from v1.7.0 to v1.6.21 as a logged scope decision.
 
 ## v1.6.20 — 2026-11-12
@@ -98,7 +113,7 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 ## v1.6.12 — 2026-11-11
 
 - **Issue triage queue** (REQ-TRIAGE-001/002). Every 10 minutes warte reads the organisation's public event feed, without a token and with its ETag, and queues each issue a person opens or reopens. Bots, configured logins, pull requests and issues carrying an agent marker are skipped. `GET /api/triage` hands the oldest out, at most 10 an hour, and counts the rest. The reply run, posting as its own bot outside warte, marks each one done with `triage:write`. warte stays read-only on GitHub. Configure with `[triage] org = ...`.
-- **The briefing's plain version claims counts only** (REQ-BRIEF-002). The first briefing on fourpi said the checks "held those changes back until they passed" and that "the agents" finished the work. Neither is in the facts: a failed job may be on main or never fixed, and merged pull requests include people's and bots'. It now names the counts and the repositories with the most failed jobs. The open pull requests are counted in full, not capped at the 20 listed. Template briefings already kept are written again from their facts when shown.
+- **The briefing's plain version claims counts only** (REQ-BRIEF-002). The first live briefing said the checks "held those changes back until they passed" and that "the agents" finished the work. Neither is in the facts: a failed job may be on main or never fixed, and merged pull requests include people's and bots'. It now names the counts and the repositories with the most failed jobs. The open pull requests are counted in full, not capped at the 20 listed. Template briefings already kept are written again from their facts when shown.
 
 ## v1.6.11 — 2026-11-11
 
@@ -126,7 +141,7 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## v1.6.8 — 2026-11-10
 
-- **The monthly report works without a smithy agent** (REQ-RUNNERS-005). The GitHub source now keeps the job ledger: every `ledger_interval_s` (600) it reads the finished jobs of the scanned repos for the last `ledger_days` (2) days and today, records each once, and marks a day complete only when the day is over, every run created on it has finished and its jobs were read. Runner minutes, costs per pool, waits and flow efficiency in `/api/report` then come from GitHub's own records. Listings go out with their ETag, finished runs are read once and complete days are not listed again. The report matches GitHub runner names to their labels in this mode too.
+- **The monthly report works without a fleet agent** (REQ-RUNNERS-005). The GitHub source now keeps the job ledger: every `ledger_interval_s` (600) it reads the finished jobs of the scanned repos for the last `ledger_days` (2) days and today, records each once, and marks a day complete only when the day is over, every run created on it has finished and its jobs were read. Runner minutes, costs per pool, waits and flow efficiency in `/api/report` then come from GitHub's own records. Listings go out with their ETag, finished runs are read once and complete days are not listed again. The report matches GitHub runner names to their labels in this mode too.
 
 ## v1.6.7 — 2026-11-08
 
@@ -144,7 +159,7 @@ The probes need this release for the reboot reason and the crash loops.
 
 - **GitHub runners are told apart** (REQ-RUNNERS-001..004). GitHub-hosted jobs no longer share one `hosted` pool: each runs-on label is its own pool (`hosted:ubuntu-latest`, `hosted:macos-15`, `hosted:linux-16core`), with a kind (standard hosted, larger hosted, self-hosted) and an OS. CI history charts queued and busy per pool; start estimates use each pool's own waits; the monthly report shows runner minutes per pool and, where `[runners]` gives a per-minute rate, a notional cost. **API change:** `pool` in `/api/eta`, `/api/report` and the queue now reads `hosted:<label>` for GitHub-hosted jobs (old records keep `hosted`).
 - **A runner inventory in config** (REQ-RUNNERS-002). Where GitHub refuses to list the org's runners (GitHub Enterprise without admin rights), `[[runners.pool]]` gives each pool's labels, count, kind, OS and size; idle capacity then shows. Where GitHub lists runners, its list wins. Each runner says where it is known from (`config`, `inferred`).
-- Not yet: without a smithy agent the monthly report has no job ledger (REQ-RUNNERS-005, next release); at home the smithy agent still reports GitHub-hosted finished jobs as one `hosted` pool until it sends the label.
+- Not yet: without a fleet agent the monthly report has no job ledger (REQ-RUNNERS-005, next release); at home the fleet agent still reports GitHub-hosted finished jobs as one `hosted` pool until it sends the label.
 
 ## v1.6.5 — 2026-11-08
 
@@ -158,7 +173,7 @@ The probes need this release for the reboot reason and the crash loops.
 
 `/ci` is retired: everything it offered is in warte's own API and dashboard since v1.6.2.
 
-- **`/ci` is retired** (REQ-SMITHY-007). `warte serve` no longer mounts the absorbed smithy-hub page and API under `/ci`; it answers `404`. Everything it offered is under warte's own API and dashboard: `/ci/api/eta` → `/api/eta`, `/ci/status.md` → `/api/status.md`, `/ci/api/report` and `/ci/report.md` → `/api/report` and `/api/report.md`, `/ci/api/history` → `/api/history/fleet`, the page → the CI history and Health views. `/ci/api/state` has no successor (it carried raw log lines). The standalone `warte hub` still serves the old API on its own port.
+- **`/ci` is retired** (REQ-SMITHY-007). `warte serve` no longer mounts the absorbed hub page and API under `/ci`; it answers `404`. Everything it offered is under warte's own API and dashboard: `/ci/api/eta` → `/api/eta`, `/ci/status.md` → `/api/status.md`, `/ci/api/report` and `/ci/report.md` → `/api/report` and `/api/report.md`, `/ci/api/history` → `/api/history/fleet`, the page → the CI history and Health views. `/ci/api/state` has no successor (it carried raw log lines). The standalone `warte hub` still serves the old API on its own port.
 
 ## v1.6.2 — 2026-11-07
 
@@ -194,11 +209,11 @@ Machine history and hardware. warte now keeps 90 days of history for every numbe
 
 - **Terraform for one hosting setup moved out of the public repo**: `terraform/main.tf` and REQ-DEPLOY-001/TEST-DEPLOY-001 are gone from warte; deployment lives in the private infrastructure repository.
 
-- **Machine history: numbers over time, not just now** (REQ-MHIST-001..003). Beszel kept a few series and too little of them. warte now keeps every machine's numbers itself, in its own file next to the machines state (`history.redb`, pure-Rust redb): per minute for 7 days and hourly min/avg/max for 90 days (`[history] keep_days`). Every probe report goes in (load and load per core, memory, swap, disk used per mount, disk IO per device and IO pressure on Linux, agent sessions, uptime), and so does every ground-station snapshot (CPU and memory pressure, runners online/busy/offline, per-runner CPU and memory, queue depth and longest wait), the ground station's existing 7 days imported once. Only names and numbers are stored. Writes are buffered for the SD card (durable every 5 minutes and at shutdown) and a store error never touches a report: it is one amber finding. The Machines view gets trend lines on each card with a 1 h · 24 h · 7 d · 90 d switch that the browser remembers, and a collapsible full history per machine grouped by CPU, memory, disks, IO, runners, queue and agents, with hover values; gaps break the line. Disk, load, memory and IO findings link to their chart. `GET /api/history/machines[/<host>/metrics|/<host>/series]` serves the series. Works the same without smithy, so GitHub-only setups get charts too.
+- **Machine history: numbers over time, not just now** (REQ-MHIST-001..003). Beszel kept a few series and too little of them. warte now keeps every machine's numbers itself, in its own file next to the machines state (`history.redb`, pure-Rust redb): per minute for 7 days and hourly min/avg/max for 90 days (`[history] keep_days`). Every probe report goes in (load and load per core, memory, swap, disk used per mount, disk IO per device and IO pressure on Linux, agent sessions, uptime), and so does every ground-station snapshot (CPU and memory pressure, runners online/busy/offline, per-runner CPU and memory, queue depth and longest wait), the ground station's existing 7 days imported once. Only names and numbers are stored. Writes are buffered for the SD card (durable every 5 minutes and at shutdown) and a store error never touches a report: it is one amber finding. The Machines view gets trend lines on each card with a 1 h · 24 h · 7 d · 90 d switch that the browser remembers, and a collapsible full history per machine grouped by CPU, memory, disks, IO, runners, queue and agents, with hover values; gaps break the line. Disk, load, memory and IO findings link to their chart. `GET /api/history/machines[/<host>/metrics|/<host>/series]` serves the series. Works the same without a fleet agent, so GitHub-only setups get charts too.
 
 - **Probe inventory: what agents actually run** (REQ-PROBE-010, #52). The session-start hook checks, in the agent's own PATH, every tool varve has a shim for, and records the ones another binary shadows; the probe adds their versions. The probe also reports installed Claude Code plugins and the machine's scheduled jobs with their last result (macOS LaunchAgents, systemd timers, crontab schedule and program name, never arguments). Machines shows them folded on each card and raises drift findings: tools run unpinned, a scheduled job whose last run failed, a plugin behind the newest version installed anywhere. On the first run on the main Mac it found varve's shims missing from agents' PATH (8 tools unpinned, rivet 0.38.0 among them) and a monthly job killed with signal 9. The read API and the views show where a binary comes from ("cargo install", "Homebrew") instead of its path, and only a count of what could not be read.
 
-- **Outages and alerts without smithy** (REQ-ALERT-002). In GitHub-only mode the findings are worded for GitHub ("No GitHub scan for …", "GitHub scan: …") instead of a smithy agent and a telemetry link, and a rate limit is its own finding instead of only stale data. A secondary rate limit (`retry-after`) is now remembered, so no request goes out before it lifts. Documented under "Without a smithy agent".
+- **Outages and alerts without a fleet agent** (REQ-ALERT-002). In GitHub-only mode the findings are worded for GitHub ("No GitHub scan for …", "GitHub scan: …") instead of a fleet agent and a telemetry link, and a rate limit is its own finding instead of only stale data. A secondary rate limit (`retry-after`) is now remembered, so no request goes out before it lifts. Documented under "Without a fleet agent".
 
 - **Skills view: which agent skills are actually used** (REQ-SKILLS-001, #125). Same design as Costs: a workstation job counts skill invocations in its local agent transcripts and pushes one `skill-usage.v1` report, whole, by `POST /api/skill-usage` (new right `skills:write`: `warte token mint <agent> --right skills:write`) or as a file (`[hub] skill_usage_file`, re-read when it changes). warte keeps the latest report per `source` and shows, per skill, invocations (model / slash / subagent), sessions and SKILL.md reads, summed and per source; the installed skills never invoked; the share of sessions using any skill; and each report's window and age. `GET /api/skill-usage` serves the reports. Unknown fields, free text (a strict character class on every string) and negative counts are rejected with a 400, nothing is stored, and the reason never quotes the input.
 
@@ -247,26 +262,26 @@ Probes on every machine: they enroll, send signed reports, renew their own certi
   - **Runner groups without a `self-hosted` label** (REQ-GHSRC-005): `self_hosted_labels` (`WARTE_SELF_HOSTED_LABELS`), `*` wildcards, case-insensitive.
 - **Critical Path draws the chain** (REQ-DASH-006, #44): `repo_dependencies` in warte.toml declares which repo depends on which. The view shows the longest chain with a repo queued or running, its bottleneck, and a lower bound on release time from the measured pool waits. The path search now walks every simple path and needs a blocking repo, as the requirement says. rivet externals and GitHub's dependency graph as sources follow (REQ-CRIT-001, v1.6.0).
 - **Ask refreshes itself** (REQ-DASH-016): its answer and in-flight list re-ask every 30 s while visible; the form stays as typed.
-- **smithy-hub retired** (REQ-MIGRATE-001, REQ-SMITHY-004): warte's ground station replaced it in place, reading its data directory as-is, after a parallel run in which one smithy agent fed both and a full UTC day of ledgers matched (6765 records, 0 differences).
+- **the original hub retired** (REQ-MIGRATE-001, REQ-SMITHY-004): warte's ground station replaced it in place, reading its data directory as-is, after a parallel run in which one fleet agent fed both and a full UTC day of ledgers matched (6765 records, 0 differences).
 - **A config file that does not parse stops warte from starting** (REQ-DEPLOY-002). Before, warte fell back to its defaults and ran for minutes without its hub, fleet model and jobs while looking healthy.
 - **Docs:** enterprise deployment notes (REQ-DOCS-010): GHE data residency behind a TLS-intercepting proxy, a static musl build, HTTP basic auth in front with the three probe routes left open (the documented Caddy matcher is checked against the server's exempt paths).
 - **CI:** all GitHub Actions pinned to commit SHAs.
 
 ## v1.4.0 — 2026-10-29
 
-One release for everything since v1.3.2: the ground station absorbed into warte, warte without a smithy agent (GitHub API, including `.ghe.com`), machine supervision, the agent APIs, and the control-tower dashboard. Machine supervision covers the ground station's own machine and the CI host; other machines join once probes can enroll and send (v1.5.0). Retiring smithy-hub follows its parity run (moved to v1.5.0).
+One release for everything since v1.3.2: the ground station absorbed into warte, warte without a fleet agent (GitHub API, including `.ghe.com`), machine supervision, the agent APIs, and the control-tower dashboard. Machine supervision covers the ground station's own machine and the CI host; other machines join once probes can enroll and send (v1.5.0). Retiring the original hub follows its parity run (moved to v1.5.0).
 
 
 - **Fleet model** (REQ-FLEET-001). The fleet a deployment intends (machines, where they live, which bench board is attached to which machine) is an AADL model of the new `Warte_Fleet` types (`architecture/fleet/`), instantiated with spar. `warte fleet show` reads the instance, and exits 1 when the model has problems. With `fleet_model` set, warte compares the model with what reports in: `GET /api/fleet`, plus a "model vs reality" panel in Machines that draws modelled-but-silent machines dashed. spar models; warte draws.
 - **Costs:** a `costs_file` that exists but cannot be read (a denied directory, a unit sandbox hiding the path) is now shown as rejected, with the error kind (`cannot read the report: permission denied`), instead of looking like "no report received yet" (#80). Only a missing file stays the quiet empty state.
-- **GitHub's API as a CI source** (#81, REQ-GHSRC-001/002). warte now works without a smithy agent: set `WARTE_GITHUB_API_URL` (default `https://api.github.com`; `https://api.<tenant>.ghe.com` for Enterprise Cloud with data residency; `…/api/v3` for GHES), `WARTE_GITHUB_ORG` and `WARTE_GITHUB_TOKEN`. The scan fills the ground station's model, so every view and the agent APIs work unchanged. It follows paging, waits out rate limits, and shows a refused token in Health and Outages. `WARTE_CA_BUNDLE` trusts a TLS-intercepting proxy's CA. The status-page URL is configurable or `off`. The `WARTE_GITHUB_ORG`/`WARTE_GITHUB_TOKEN` settings, parsed but unused since v1.3, now drive this source.
+- **GitHub's API as a CI source** (#81, REQ-GHSRC-001/002). warte now works without a fleet agent: set `WARTE_GITHUB_API_URL` (default `https://api.github.com`; `https://api.<tenant>.ghe.com` for Enterprise Cloud with data residency; `…/api/v3` for GHES), `WARTE_GITHUB_ORG` and `WARTE_GITHUB_TOKEN`. The scan fills the ground station's model, so every view and the agent APIs work unchanged. It follows paging, waits out rate limits, and shows a refused token in Health and Outages. `WARTE_CA_BUNDLE` trusts a TLS-intercepting proxy's CA. The status-page URL is configurable or `off`. The `WARTE_GITHUB_ORG`/`WARTE_GITHUB_TOKEN` settings, parsed but unused since v1.3, now drive this source.
 - **Costs view** and `GET /api/costs` (REQ-COSTS-001). They show the notional cost of agent chats and subagents, labelled **notional list price, not billed**: list prices applied to the token counts in agent transcripts.
   - **What it shows:** $ per day for the last 30 days, the top sessions, repositories and models, and subagent spend by task category. It also shows the share of subagent work that ran on a cheaper tier than its caller.
   - **How the report arrives:** a workstation job copies it to the ground station (`[hub] costs_file`, re-read when it changes). `POST /api/costs` also takes it, behind bearer-token auth.
   - **What gets rejected:** reports with unknown fields, free text in a name, or bad amounts. Nothing from them is stored, and the reason shown never quotes the input. The read API is public (#46), so a task description must not reach it.
 - The dashboard view lives in the URL (`#machines`, `#queue`, ...). A reload stays on the view, a link opens it, and back/forward move between views. Before, a reload always went back to the Overview.
 - **Security:** removed the permissive CORS layer. It let any web page a LAN user opened read warte's whole unauthenticated read API cross-origin. Nothing needed it: the dashboard is same-origin, and agents use the CLI. `/api/machines` publishes a reduced record, without tool paths, tool error output, process ids or working directories.
-- **Machines view** and `GET /api/machines` (REQ-PROBE-001/003). The ground station probes its own machine every minute (`[hub] probe_self`, on by default) and shows a card per machine: OS, kernel, load, memory, disks, agent CLIs with versions, and agent sessions. The CI host gets a card from the smithy agent's data. Findings across machines, worst first: kernel or tool versions behind the newest seen, disks at 85% or more, low memory, load above the core count, and machines silent for 3 minutes. More machines appear as they are enrolled.
+- **Machines view** and `GET /api/machines` (REQ-PROBE-001/003). The ground station probes its own machine every minute (`[hub] probe_self`, on by default) and shows a card per machine: OS, kernel, load, memory, disks, agent CLIs with versions, and agent sessions. The CI host gets a card from the fleet agent's data. Findings across machines, worst first: kernel or tool versions behind the newest seen, disks at 85% or more, low memory, load above the core count, and machines silent for 3 minutes. More machines appear as they are enrolled.
 - **`warte probe report`** (REQ-PROBE-001, first part) prints what a machine is and runs: OS, kernel and architecture, CPU and load, memory and swap, disks, the agent CLIs and tools on PATH with their versions (`claude`, `copilot`, `codex`, `gh`, `varve`), and the agent sessions running now. It is read-only and sends nothing yet. For agent processes it reports the agent, pid, start time and working-directory name, never command lines. Sending (QUIC + mTLS + relay-sec), one-time-token enrollment (DD-PROBE-002) and hook-based agent state (DD-PROBE-003) build on it.
 
 - **Every view now reads the ground station, not just the Overview.**
@@ -282,12 +297,12 @@ One release for everything since v1.3.2: the ground station absorbed into warte,
 - **The Overview is a control tower** (REQ-DASH-014). It shows a runway gauge with one cell per runner, KPIs with two-hour trends and six hours of traffic, all drawn from the ground station's own history. Each runner is a flight strip showing what it is running, for how long, its cgroup CPU and memory, and whether GitHub's busy flag disagrees with the host. A departures board lists queued runs, longest waiting first. It estimates start from the pool's measured median wait and marks runs past p90 as overdue. Every view gets warte's own look: night sky, tower cyan for what is moving, amber for what is waiting, and a UTC tower clock. No new requests and no external assets: the page is still offline-capable, and motion stops under `prefers-reduced-motion`.
 - `GET /api/queue` and `GET /api/admission` give agents a machine-readable queue and an `open | batch | hold` verdict before they open a PR (#55). The verdicts come from the ground station's snapshot, the thresholds live in warte, and stale data never gates. Documented in the new `/api/openapi.json`.
 
-- **Ground station** (absorbed smithy hub, DD-SMITHY-001): `warte hub` takes smithy hub's flags and reads its data directory as-is; it serves the hub API unchanged. Behaviour on the ground-station host's real data was checked against smithy's own binary: 0 differences in 26 requests (`scripts/hub-parity.sh`).
+- **Ground station** (absorbed hub, DD-SMITHY-001): `warte hub` takes the original hub's flags and reads its data directory as-is; it serves the hub API unchanged. Behaviour on the ground-station host's real data was checked against the original hub's own binary: 0 differences in 26 requests (`scripts/hub-parity.sh`).
 - `warte serve` runs the ground station in-process when warte.toml has a `[hub]` section, and mounts its API under `/ci`. The Queue, Critical Path, Ask and Health views now read the hub's live data, escape repo/branch/job names, and show the snapshot's real age.
 - **Removed duplicates of the hub:**
   - the poller (never started), the GitHub and GitLab webhooks, and the `eta` module;
   - the `ci_jobs`, `wait_history` and `ci_status` tables (migration 005);
-  - `warte migrate smithy`, which imported a format smithy never had;
+  - `warte migrate` for the original hub, which imported a format the original hub never had;
   - the stub `/api/dashboard/ask`.
   REQ-POLLER-*, REQ-CI-DATA-001, REQ-WEBHOOK-001/002 and REQ-ASK-* are deprecated in rivet and traced to DD-SMITHY-001.
 - **Fixed:**
@@ -318,10 +333,10 @@ Tagged at `b5ce41c`; the release run failed at SBOM generation (fixed in v1.3.2)
 
 - CI installs rivet from `pulseengine/rivet` git at a pinned rev (v0.41.1, matching the varve layer). It used to install crates.io `rivet-cli`, which is a different project (#34).
 - The release gate runs `rivet release status` for the tag being cut and fails on rivet's exit code (#34).
-- CI jobs (build, test, clippy, rivet) run on the smithy `rust-cpu` pool. Pull requests from forks are routed to GitHub-hosted runners. That is routing, not isolation: a fork PR can edit the workflow, so the smithy runner-group policy and fork-PR approval are the actual boundary. All release jobs run on GitHub-hosted runners and restore no caches (#35).
+- CI jobs (build, test, clippy, rivet) run on the self-hosted `rust-cpu` pool. Pull requests from forks are routed to GitHub-hosted runners. That is routing, not isolation: a fork PR can edit the workflow, so the self-hosted runner-group policy and fork-PR approval are the actual boundary. All release jobs run on GitHub-hosted runners and restore no caches (#35).
 - rivet is installed into a job-scoped `$RUNNER_TEMP` directory and never reused from `$HOME`; third-party actions are pinned to commit SHAs; workflows default to `bash`.
 - Release assets: binaries, `SHA256SUMS` and the cosign bundle are now laid out flat, so signing and the GitHub release find them. Before this, every Release workflow run (v1.0.0–v1.3.0) failed, and the published releases have no assets. A missing asset now fails the release (`fail_on_unmatched_files`).
-- License changed from MIT to **Apache-2.0**, the PulseEngine default; `LICENSE` added (there was none before). This also lets smithy hub's code move into warte unchanged (v1.4.0).
+- License changed from MIT to **Apache-2.0**, the PulseEngine default; `LICENSE` added (there was none before). This also lets the original hub's code move into warte unchanged (v1.4.0).
 - `tests/ci_workflows.rs` checks all of the above from the parsed workflow YAML; each check was confirmed to fail on an injected violation.
 - Release notes moved from 13 root `RELEASE_NOTES_*` files into this changelog; root `SHA256SUMS*` files removed (they ship as release assets). `Cargo.toml` version now follows the release, and release CI checks that `warte --version` reports the tag (#39).
 
@@ -1055,7 +1070,7 @@ Automotive SPICE 11-03 names these release-note elements. rivet does not yet com
 - `DD-ARCH-006` (accepted) — WebSocket/SSE for real-time dashboard and mobile push
 - `DD-ARCH-007` (accepted) — Edge proxy as the sole internet-facing component (Hetzner/Netcup)
 - `DD-ARCH-008` (accepted) — Mobile app uses native iOS (Swift) and Android (Kotlin)
-- `DD-ARCH-009` (accepted) — Migration from smithy — agent fleet data import
+- `DD-ARCH-009` (accepted) — Migration from the original hub — agent fleet data import
 - `DD-ARCH-010` (accepted) — Migration from temper — repo hardening config import
 - `DD-ARCH-011` (accepted) — CLI follows PulseEngine CLI conventions
 - `DD-ARCH-012` (accepted) — RBAC with per-resource, per-action scoping
@@ -1081,7 +1096,7 @@ Automotive SPICE 11-03 names these release-note elements. rivet does not yet com
 - `REQ-EDGE-001` (accepted) — Edge proxy terminates TLS 1.3 and enforces rate limiting
 - `REQ-EDGE-002` (accepted) — Edge proxy validates all requests against schemas
 - `REQ-EDGE-003` (accepted) — Edge proxy auto-patches within 24 hours
-- `REQ-MIGRATE-001` (accepted) — Migrate agent fleet data from smithy
+- `REQ-MIGRATE-001` (accepted) — Migrate agent fleet data from the original hub
 - `REQ-MIGRATE-002` (accepted) — Migrate repo hardening config from temper
 - `REQ-SYNC-001` (accepted) — Instances synchronize state via an authenticated sync protocol
 - `REQ-SYNC-002` (accepted) — Sync conflicts are detected and resolved deterministically
@@ -1102,7 +1117,7 @@ Automotive SPICE 11-03 names these release-note elements. rivet does not yet com
 - `TEST-DASH-001` (accepted) — dashboard overview returns agent and artifact counts
 - `TEST-EDGE-003` (accepted) — Edge proxy auto-patching configuration — unattended-upgrades with 24h CVE window
 - `TEST-HEALTH-001` (accepted) — health endpoint returns structured status with freshness
-- `TEST-MIGRATE-001` (accepted) — test_migrate_smithy + test_migrate_temper — migration commands import data from smithy and temper
+- `TEST-MIGRATE-001` (accepted) — test_migrate_hub + test_migrate_temper — migration commands import data from the original hub and temper
 - `TEST-SYNC-001` (accepted) — test_sync_version_vectors — version vector increment, merge, divergence
 
 ### Limitations in relation to the committed scope

@@ -52,7 +52,7 @@ model (`artifacts/security.yaml`):
 | R6 | **Operational simplicity.** Two small VPS (2 vCPU / 4 GB). No DBA. Deployment, monitoring, backup must be scriptable and boring. | `docs/deployment.md` |
 | R7 | **Security.** mTLS between instances (exists), integrity proofs on sync payloads (CG-006), encryption at rest desirable — the SQLite file holds agent public keys, certs, captured data. | TS-006 / CG-006 |
 | R8 | **License compatibility.** warte is MIT. Dependencies must be MIT/Apache-2.0/BSD-compatible; BUSL/LGPL need scrutiny. | `Cargo.toml` |
-| R9 | **Keep SQLite.** The codebase (sqlx), migrations, CLI, and migration paths (smithy/temper import) are built on SQLite. Replacing the engine is a rewrite, not a swap. | `Cargo.toml`, `src/db/` |
+| R9 | **Keep SQLite.** The codebase (sqlx), migrations, CLI, and migration paths (hub/temper import) are built on SQLite. Replacing the engine is a rewrite, not a swap. | `Cargo.toml`, `src/db/` |
 
 ### 1.3 Non-goals
 

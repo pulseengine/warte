@@ -110,7 +110,7 @@ fn read_day(dir: &std::path::Path, day: &str) -> Vec<JobRecord> {
         .collect()
 }
 
-/// warte addition (not in smithy hub): ledger records arrive over UDP whose
+/// warte addition (not in the original hub): ledger records arrive over UDP whose
 /// only check is the source address, and the report walks every hour a job's
 /// wait and run cover. Reject values no real record has, so a forged record
 /// cannot overflow that arithmetic or make the walk unbounded.
@@ -118,8 +118,8 @@ fn read_day(dir: &std::path::Path, day: &str) -> Vec<JobRecord> {
 /// Deliberately NOT required: `s >= c`. On a re-run, GitHub stamps a new
 /// `created_at` but keeps `started_at` of a job reused from the earlier
 /// attempt; 2223 of 112665 real records (all `att > 1`) start up to 10 days
-/// "before" they were created. smithy's ledger also writes `c = 0` when
-/// `created_at` is missing. Measured on fourpi's ledger, 2026-10-27: longest
+/// "before" they were created. the original hub's ledger also writes `c = 0` when
+/// `created_at` is missing. Measured on a live ledger, 2026-10-27: longest
 /// wait 0.77 d, longest run 0.25 d.
 const MAX_SPAN_S: i64 = 31 * 86_400;
 
@@ -987,7 +987,7 @@ mod tests {
 
     #[test]
     fn hub_ledger_dedups_and_refuses_path_days() {
-        let dir = std::env::temp_dir().join(format!("smithy-belt-test-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("warte-belt-test-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         let mut h = HubLedger::open(dir.to_str().unwrap()).unwrap();
         let mut evil = rec(3, "hosted", "x", 0, 0, 0);

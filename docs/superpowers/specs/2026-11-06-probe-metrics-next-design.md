@@ -6,7 +6,7 @@ every new number below becomes a series and gets a chart with no extra work.
 ## Why
 
 The owner found Beszel showed too little over time. History now exists; this fills it. The
-smithy session's list of what incidents needed and Beszel lacked: memory and CPU pressure next
+deployment session's list of what incidents needed and Beszel lacked: memory and CPU pressure next
 to IO pressure, swap and OOM kills, runner state, long history. Runner state and history are
 done; pressure for CPU and memory exists only for the CI host today.
 
@@ -54,8 +54,8 @@ in the full history; health items appear as findings and as chips (`2 failed uni
    IOKit as an ordinary user (sysinfo components: CPU die, SSD), and `softwareupdate --list`
    needs no root either. The owner's intent (both on macOS) holds with less privilege; a root
    helper stays available if a Mac turns out to need it.
-3. **Terraform** (`terraform/main.tf`, REQ-DEPLOY-001): moved out of public warte; the smithy
-   session takes it into private smithy if still wanted.
+3. **Terraform** (`terraform/main.tf`, REQ-DEPLOY-001): moved out of public warte; the deployment
+   session takes it into the private configuration repo if still wanted.
 
 ## Built differently from the draft
 

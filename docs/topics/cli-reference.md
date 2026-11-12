@@ -43,7 +43,7 @@ warte agents --health unhealthy
 warte token mint <agent-id> --valid-hours 720   # see api-reference.md
 warte access grant <agent-id> --rights "artifacts:download"
 warte migrate temper --path /etc/temper/config.yml
-warte hub --udp <wireguard-address>:8092 --allow <ci-host-tunnel-ip> --data-dir /var/lib/smithy-hub
+warte hub --udp <wireguard-address>:8092 --allow <ci-host-tunnel-ip> --data-dir /var/lib/warte-hub
 warte docs architecture
 ```
 
@@ -178,7 +178,7 @@ warte probe send --ground https://<host>/warte \
 ```
 
 After the machine report, the probe sends the file as one CCSDS segmented
-sequence on APID 0x400 (the relay-ccsds codec the smithy agent's telemetry
+sequence on APID 0x400 (the relay-ccsds codec the fleet agent's telemetry
 uses), signed with its key, to `POST /api/probe/feed/temper`. A missing or
 refused feed fails the run but does not hold back the machine report. Only
 known feeds are accepted (`temper`); an unknown name is a usage error.
