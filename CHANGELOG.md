@@ -4,6 +4,12 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.22 — 2026-11-12
+
+- **Briefing period setting** (REQ-BRIEF-004). A new setting, `[briefing] period_days`, sets the briefing period length from 1 to 7 UTC days. The default stays at 2, so existing installs don't change; any other value stops warte at start. Set to 1, the briefing covers yesterday and is written every day, to go with a daily model run.
+  - **Periods:** counted from the epoch, so consecutive periods follow on without gaps or overlap, and every install with the same length agrees on them.
+  - **Text:** the plain version says "a quiet day", "two days" or "N days", and the count check accepts the period length.
+
 ## v1.6.21 — 2026-11-12
 
 - **Shared incidents** (REQ-CI-005, DD-CI-002). When one cause fails CI jobs in several repositories, warte now shows it once instead of once per failure. The case that prompted it is the 2026-11-11 DNS outage, when apt failed the same way in warte, gale and others.

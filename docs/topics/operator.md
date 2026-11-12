@@ -16,7 +16,7 @@ belong in your private infrastructure repository, never in a public one.
 | [probes](#probes) | every minute | — (enrolled key) | `warte-probe.service` + `.timer`, `warte-probe.plist` |
 | [costs](#costs) | nightly | `costs:write` | `jobs/costs-report.sh`, `warte-job-costs-report.timer` |
 | [skills](#skills) | nightly | `skills:write` | `jobs/costs-report.sh` (`SKILLS_GENERATOR`) |
-| [briefing](#briefing) | every two days | `briefing:write` | `jobs/briefing.sh`, `warte-job-briefing.timer` |
+| [briefing](#briefing) | once per period (`period_days`, default two days) | `briefing:write` | `jobs/briefing.sh`, `warte-job-briefing.timer` |
 | [triage](#triage) | within the hour | `triage:write` | `jobs/triage.sh`, `warte-job-triage.timer` |
 | [login](#login) | once | — | `[auth]` in `warte.toml` |
 
@@ -92,7 +92,8 @@ time but its newest data is more than a day old (its input stopped).
 
 ## briefing
 
-**Run the briefing job.** Every two days warte writes a plain briefing from
+**Run the briefing job.** Once per period (`[briefing] period_days`, default
+two days) warte writes a plain briefing from
 public facts at once. The job reads `GET /api/briefing/facts`, has a model
 write the text, and posts it to `POST /api/briefing` (right
 `briefing:write`). warte holds no model credential. It keeps the text only if

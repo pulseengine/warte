@@ -119,7 +119,7 @@ pub struct Config {
     /// stays open.
     #[serde(default)]
     pub auth: Option<crate::login::AuthConfig>,
-    /// The briefing every two days (REQ-BRIEF-001).
+    /// The briefing, once per `period_days` (REQ-BRIEF-001, REQ-BRIEF-004).
     #[serde(default)]
     pub briefing: Option<crate::briefing::BriefingConfig>,
     /// The issue triage queue (REQ-TRIAGE-001).

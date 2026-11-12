@@ -1,4 +1,4 @@
-//! The briefing (REQ-BRIEF-001..003): every two days, what the agents did, in
+//! The briefing (REQ-BRIEF-001..004): every `period_days` (default two), what the agents did, in
 //! plain words for the family and with numbers for an IT reader.
 //!
 //! warte builds the FACT SHEET from records: merged pull requests, closed
@@ -46,6 +46,26 @@ pub struct BriefingConfig {
     pub data_dir: Option<String>,
     #[serde(default)]
     pub markers: Vec<Marker>,
+    /// Days per period, 1 to 7; default [`PERIOD_DAYS`].
+    #[serde(default = "default_period_days")]
+    pub period_days: i64,
+}
+
+fn default_period_days() -> i64 {
+    PERIOD_DAYS
+}
+
+impl BriefingConfig {
+    /// Why the section is wrong, if it is.
+    pub fn check(&self) -> Result<(), String> {
+        if !(1..=7).contains(&self.period_days) {
+            return Err(format!(
+                "[briefing] period_days must be 1 to 7, not {}",
+                self.period_days
+            ));
+        }
+        Ok(())
+    }
 }
 
 fn default_api_url() -> String {
@@ -159,12 +179,28 @@ pub fn day(t: i64) -> String {
     crate::hub::report::day_of(t)
 }
 
-/// The last closed period at `now`: two UTC days, ending before today's
-/// even-numbered day boundary. `(from, until)`, inclusive.
+/// The last closed period at `now` of the default length ([`PERIOD_DAYS`]).
 pub fn last_period(now: i64) -> (String, String) {
+    last_period_of(now, PERIOD_DAYS)
+}
+
+/// The last closed period at `now`: `days` UTC days, ending at the last day
+/// boundary that is a multiple of `days` since the epoch, so every install
+/// with the same length agrees. `(from, until)`, inclusive.
+pub fn last_period_of(now: i64, days: i64) -> (String, String) {
+    let days = days.max(1);
     let d = now.div_euclid(86_400);
-    let end = d - d.rem_euclid(PERIOD_DAYS); // exclusive
-    (day((end - PERIOD_DAYS) * 86_400), day((end - 1) * 86_400))
+    let end = d - d.rem_euclid(days); // exclusive
+    (day((end - days) * 86_400), day((end - 1) * 86_400))
+}
+
+/// A period's length in words: "day", "two days", "4 days".
+pub fn span_words(days: i64) -> String {
+    match days {
+        1 => "day".into(),
+        2 => "two days".into(),
+        n => format!("{n} days"),
+    }
 }
 
 // ---------- facts from records ----------
@@ -244,6 +280,15 @@ impl Facts {
         t.open_prs = self.open_prs_total.max(self.open_prs.len() as u32);
     }
 
+    /// The period's length in days, from its first and last day.
+    pub fn days(&self) -> i64 {
+        let p = |s: &str| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok();
+        match (p(&self.from), p(&self.until)) {
+            (Some(a), Some(b)) => (b - a).num_days() + 1,
+            _ => PERIOD_DAYS,
+        }
+    }
+
     /// Every number a text may use: counts, item numbers, days open.
     fn numbers(&self) -> BTreeSet<u64> {
         let t = &self.totals;
@@ -260,7 +305,7 @@ impl Facts {
         .map(|x| *x as u64)
         .collect();
         // "two days", "three things", and the like
-        n.extend([1, 2, 3, PERIOD_DAYS as u64]);
+        n.extend([1, 2, 3, self.days() as u64]);
         for r in &self.repos {
             n.extend([
                 r.merged.len() as u64,
@@ -380,10 +425,14 @@ pub fn template(f: &Facts) -> Text {
     // counts and names only: the facts do not say who did the work or what
     // a failure led to, so neither does the template
     let line = if t.merged == 0 && t.releases == 0 {
-        "A quiet two days: nothing new was finished.".to_string()
+        format!(
+            "A quiet {}: nothing new was finished.",
+            span_words(f.days())
+        )
     } else {
         let mut l = format!(
-            "In the last two days {} {} finished in {} {}",
+            "In the last {} {} {} finished in {} {}",
+            span_words(f.days()),
             t.merged,
             plural(t.merged, "change was", "changes were"),
             t.repos,
@@ -568,7 +617,7 @@ pub fn spawn(
         let client = github::Client::new(&cfg.api_url);
         loop {
             let now = crate::hub::now();
-            let (from, until) = last_period(now);
+            let (from, until) = last_period_of(now, cfg.period_days);
             if store.get(&from).is_none() {
                 match build(
                     &client,
