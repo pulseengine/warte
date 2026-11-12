@@ -4,6 +4,16 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.20 — 2026-11-12
+
+- **CI health trends** (REQ-PREDICT-005, DD-PREDICT-004). This is the fourth part of predictive maintenance. warte compares the last seven days of CI with the seven before, from the finished-job ledger, so it makes no extra GitHub requests and works in GitHub-only mode. It looks at:
+  - the failure rate, per repository and overall;
+  - flaky jobs, meaning jobs that failed and then passed when the run was re-run;
+  - the queue wait per runner pool;
+  - how long a release run takes.
+
+  It calls out only large changes that rest on enough data. Examples are a failure rate of 10% or more that at least doubled, or a queue wait of 5 minutes or more that at least doubled. The overview has a new CI health panel, and `GET /api/ci-health` returns the same data.
+
 ## v1.6.19 — 2026-11-12
 
 - **Expiry dates** (REQ-PREDICT-004, DD-PREDICT-003). This is the third part of predictive maintenance. warte lists what runs out, soonest first. Without any configuration that is its own CA and TLS certificates, and the token each job last used, shown by the job's name. An optional `[expiry]` section adds:

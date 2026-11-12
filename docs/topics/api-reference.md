@@ -201,6 +201,26 @@ job last used, by the job's name. Each item has `kind` (`own`, `tls`, `pem`,
 not be read. `findings` are the end dates within `amber_days` (amber) or
 `red_days` (red). Addresses and paths are never shown.
 
+## CI health (REQ-PREDICT-005)
+
+```
+GET /api/ci-health
+```
+
+This week (the last seven days) against the week before, from the
+finished-job ledger, with no extra GitHub requests. `all` and `repos` carry
+each week's finished jobs (successes and failures; cancelled and skipped are
+not counted), failures and flaky jobs (failed, then passed when the run was
+re-run). `waits` has each runner pool's 90th-percentile queue wait over first
+attempts, and `release_this_p50_s` / `release_last_p50_s` the median release
+run (workflows named release, first start to last end, successful runs only).
+`warnings` lists only large changes resting on enough data: a failure rate of
+10% or more that at least doubled (20 jobs a week or more), 3 or more flaky
+jobs and more than before, a queue wait of 5 minutes or more that at least
+doubled, a release run 50% and 5 minutes slower (5 samples a week or more).
+Recomputed at most every 10 minutes; 503 without a CI source. The overview
+shows it as its CI health panel.
+
 ## Disk pressure (REQ-PRESSURE-001)
 
 ```

@@ -87,6 +87,11 @@ pub async fn overview_partial(State(state): State<crate::server::AppState>) -> R
         strip + &crate::canary::panel(state.canaries.as_ref().and_then(|c| c.latest()).as_ref());
     let now = crate::hub::now();
     let strip = strip + &crate::expiry::panel(&state.expiry.report(&state.tokens.seen(now)), now);
+    // REQ-PREDICT-005: CI health, this week against the week before
+    let strip = match &state.hub {
+        Some(h) => strip + &crate::cihealth::panel(&*state.ci_health.get(h, now).await),
+        None => strip,
+    };
     let html = format!(
         r#"<div class="overview">
   <h2>Overview</h2>

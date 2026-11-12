@@ -86,6 +86,7 @@ pub fn build_routes() -> Router<AppState> {
         .route("/forecast", get(api_forecast))
         .route("/canaries", get(api_canaries))
         .route("/expiry", get(api_expiry))
+        .route("/ci-health", get(api_ci_health))
         .route("/operator", get(api_operator))
         .route("/openapi.json", get(api_openapi));
     // /api/ws and /api/events are not mounted: they broadcast agent and
@@ -1583,6 +1584,22 @@ async fn api_expiry(State(state): State<AppState>) -> axum::response::Response {
         .map(|d| serde_json::json!({"key": d.key, "sev": d.sev, "text": d.text}))
         .collect();
     Json(serde_json::json!({"report": r, "findings": findings})).into_response()
+}
+
+/// CI health trends, this week against the week before (REQ-PREDICT-005).
+async fn api_ci_health(State(state): State<AppState>) -> axum::response::Response {
+    match &state.hub {
+        Some(h) => Json(
+            state
+                .ci_health
+                .get(h, crate::hub::now())
+                .await
+                .as_ref()
+                .clone(),
+        )
+        .into_response(),
+        None => plain(StatusCode::SERVICE_UNAVAILABLE, "no CI source configured"),
+    }
 }
 
 async fn api_pressure(

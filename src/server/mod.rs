@@ -50,6 +50,8 @@ pub struct AppState {
     pub canaries: Option<Arc<crate::canary::Canaries>>,
     /// What runs out and when (REQ-PREDICT-004).
     pub expiry: Arc<crate::expiry::Expiry>,
+    /// CI health trends, recomputed every ten minutes (REQ-PREDICT-005).
+    pub ci_health: Arc<crate::cihealth::Cache>,
 }
 
 /// Build the Axum router with all routes.
@@ -304,6 +306,7 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
         triage,
         canaries,
         expiry,
+        ci_health: Default::default(),
         ca: ca.clone(),
         hub,
         machines,

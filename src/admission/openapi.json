@@ -102,6 +102,16 @@
         }
       }
     },
+    "/api/ci-health": {
+      "get": {
+        "summary": "Is CI getting worse? This week against the week before",
+        "description": "From the finished-job ledger: per repository and overall, finished jobs, failures and flaky jobs (failed, then passed on a re-run) for each week; per runner pool the 90th-percentile queue wait; the median release run; and warnings for large changes resting on enough data. Recomputed at most every 10 minutes.",
+        "responses": {
+          "200": {"description": "the two weeks and the warnings"},
+          "503": {"description": "no CI source configured"}
+        }
+      }
+    },
     "/api/machines": {
       "get": {
         "summary": "Every machine the ground station hears from, with drift findings",
