@@ -1507,3 +1507,20 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-11-12T10:02:25Z
+
+  - id: REQ-BRIEF-005
+    type: requirement
+    title: The briefing job asks for the exact shape and retries a refused answer once with the reason
+    status: verified
+    release: v1.6.24
+    description: The operator kit's briefing job SHALL tell the model that bullets is an array of exactly three strings, written even on a quiet day. It SHALL check the shape before posting. When warte refuses the answer (422) or the shape is wrong, it SHALL ask the model once more, giving the refusal reason, and SHALL exit non-zero after a second refusal so the plain version stays and the failure shows in the job log.
+    fields:
+      category: functional
+      priority: should
+    links:
+      - type: refines
+        target: REQ-BRIEF-002
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-12T16:19:39Z
