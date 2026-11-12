@@ -9,6 +9,7 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 - **Briefing period setting** (REQ-BRIEF-004). A new setting, `[briefing] period_days`, sets the briefing period length from 1 to 7 UTC days. The default stays at 2, so existing installs don't change; any other value stops warte at start. Set to 1, the briefing covers yesterday and is written every day, to go with a daily model run.
   - **Periods:** counted from the epoch, so consecutive periods follow on without gaps or overlap, and every install with the same length agrees on them.
   - **Text:** the plain version says "a quiet day", "two days" or "N days", and the count check accepts the period length.
+- **Fix: a model briefing that names the date was refused.** The count check (REQ-BRIEF-002) treated the year as a number not in the facts: the first live model run got "the number 2026 is not in the facts". The year, month and day of every date in the period now count as facts, and so does a day written day.month (`10.11`). A year outside the period is still refused.
 
 ## v1.6.21 — 2026-11-12
 

@@ -210,6 +210,34 @@ async fn a_text_may_name_only_what_the_facts_hold() {
         ],
     );
     briefing::check(&good, &f).unwrap();
+    // the period's own dates are facts: a model may name the year and day
+    let (y, m, d) = (&f.until[..4], &f.until[5..7], &f.until[8..10]);
+    let dated = text(
+        &format!(
+            "In {y}, up to {}.{}, alpha moved on.",
+            d.trim_start_matches('0'),
+            m
+        ),
+        [
+            &format!("Done on {}: alpha got 2 fixes (#10, #11).", f.until),
+            "Caught: the checks failed 2 times.",
+            "Waiting for you: one change in beta.",
+        ],
+    );
+    briefing::check(&dated, &f).unwrap();
+    // but a year outside the period is still refused
+    let next_year = y.parse::<u64>().unwrap() + 1;
+    let other = text(
+        &format!("By {next_year} alpha moved on."),
+        [
+            "Done: alpha.",
+            "Caught: nothing.",
+            "Waiting for you: nothing.",
+        ],
+    );
+    assert!(briefing::check(&other, &f)
+        .unwrap_err()
+        .contains(&next_year.to_string()));
     for (what, bad, want) in [
         (
             "an invented number",

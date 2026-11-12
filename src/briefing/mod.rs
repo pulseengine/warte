@@ -289,6 +289,24 @@ impl Facts {
         }
     }
 
+    /// Whether `v` is a day of the period written day.month (`9.11`, `09.11`).
+    fn names_a_day(&self, v: &str) -> bool {
+        let Some((d, m)) = v.split_once('.') else {
+            return false;
+        };
+        let (Ok(d), Ok(m)) = (d.parse::<u32>(), m.parse::<u32>()) else {
+            return false;
+        };
+        let day = |s: &str| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok();
+        let (Some(a), Some(b)) = (day(&self.from), day(&self.until)) else {
+            return false;
+        };
+        a.iter_days().take_while(|x| *x <= b).any(|x| {
+            use chrono::Datelike;
+            x.day() == d && x.month() == m
+        })
+    }
+
     /// Every number a text may use: counts, item numbers, days open.
     fn numbers(&self) -> BTreeSet<u64> {
         let t = &self.totals;
@@ -319,6 +337,16 @@ impl Facts {
         for p in &self.open_prs {
             n.insert(p.number);
             n.insert(p.days_open as u64);
+        }
+        // the period's dates: a text may say "2026", "11 November", "11-09"
+        let day = |s: &str| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok();
+        if let (Some(a), Some(b)) = (day(&self.from), day(&self.until)) {
+            let mut d = a;
+            while d <= b {
+                use chrono::Datelike;
+                n.extend([d.year() as u64, d.month() as u64, d.day() as u64]);
+                d += chrono::Duration::days(1);
+            }
         }
         n
     }
@@ -388,7 +416,7 @@ pub fn check(text: &Text, f: &Facts) -> Result<(), String> {
             && v.split('.')
                 .all(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit()))
         {
-            if !versions.contains(v) {
+            if !versions.contains(v) && !f.names_a_day(v) {
                 return Err(format!("version {w} is not a release of the period"));
             }
             continue;
