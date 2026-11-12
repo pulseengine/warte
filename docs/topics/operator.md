@@ -104,7 +104,9 @@ write the text, and posts it to `POST /api/briefing` (right
 `briefing:write`). warte holds no model credential. It keeps the text only if
 every repository, `#number`, version and count it names is in the facts.
 `jobs/briefing.sh` needs `MODEL_CMD` (reads a prompt on stdin, prints
-`{"line", "bullets"}`) and `MODEL_ID`.
+`{"line": "...", "bullets": [three strings]}`) and `MODEL_ID`. A refused
+answer gets one more model call carrying the reason; after a second refusal
+the job fails and the plain version stays.
 
 *Late when* the plain version is still up 6 hours after it was written.
 *Not set up* without `[briefing]`.

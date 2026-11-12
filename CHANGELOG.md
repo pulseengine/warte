@@ -4,6 +4,10 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.24 — 2026-11-12
+
+- **The briefing job asks for the exact shape and tries once more** (REQ-BRIEF-005). The first one-day briefing was refused because the model did not send exactly three bullets, so the plain version stood. The operator kit's `jobs/briefing.sh` now spells out that `bullets` is an array of exactly three strings, written even on a quiet day, and checks the shape before posting. A refused answer gets one more model call that carries the refusal reason; after a second refusal the job exits non-zero and the plain version stays. A test runs the script against a live warte with a fake model; the previous script fails it.
+
 ## v1.6.23 — 2026-11-12
 
 - **warte is a public template** (REQ-TEMPLATE-001). Public warte no longer names the owners' private configuration repository or their own hosts. The text says "fleet agent", "the original hub" or a generic example host instead, including in the rivet artifacts.

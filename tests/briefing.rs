@@ -560,3 +560,92 @@ fn the_template_claims_counts_only_and_counts_past_the_list() {
     );
     briefing::check(&t, &f).unwrap();
 }
+
+/// Run the operator kit's briefing job against `s` with a fake model that
+/// prints `answers` in turn, one per call. Returns the exit status and stderr.
+async fn run_job(s: &Server, answers: &[serde_json::Value]) -> (bool, String) {
+    let dir = tempfile::tempdir().unwrap();
+    for (i, a) in answers.iter().enumerate() {
+        std::fs::write(dir.path().join(format!("answer{}", i + 1)), a.to_string()).unwrap();
+    }
+    std::fs::write(dir.path().join("token"), &s.token).unwrap();
+    // the fake model counts its calls and reads the prompt like a model would
+    let model = format!(
+        "d={d}; n=$(( $(cat $d/n 2>/dev/null || echo 0) + 1 )); echo $n > $d/n; \
+         cat > $d/prompt$n; cat $d/answer$n",
+        d = dir.path().display()
+    );
+    let script = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/deploy/operator/jobs/briefing.sh"
+    );
+    let base = s.base.clone();
+    let tok = dir.path().join("token");
+    let out = tokio::task::spawn_blocking(move || {
+        std::process::Command::new("sh")
+            .arg(script)
+            .env("WARTE_URL", base)
+            .env("WARTE_TOKEN_FILE", tok)
+            .env_remove("CREDENTIALS_DIRECTORY")
+            .env("MODEL_CMD", model)
+            .env("MODEL_ID", "claude-haiku-5-5")
+            .output()
+            .unwrap()
+    })
+    .await
+    .unwrap();
+    let prompts: Vec<String> = (1..=answers.len())
+        .filter_map(|n| std::fs::read_to_string(dir.path().join(format!("prompt{n}"))).ok())
+        .collect();
+    (
+        out.status.success(),
+        format!(
+            "{}\n--- prompts ---\n{}",
+            String::from_utf8_lossy(&out.stderr),
+            prompts.join("\n---\n")
+        ),
+    )
+}
+
+// rivet: verifies REQ-BRIEF-005
+#[tokio::test(flavor = "multi_thread")]
+async fn the_briefing_job_retries_a_refused_answer_once_with_the_reason() {
+    let (_m, gh) = mock().await;
+    let s = serve(&gh).await;
+    for _ in 0..50 {
+        if !get(&s.base, "/api/briefing").await["briefing"].is_null() {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+    let two = json!({"line": "A quiet day.", "bullets": ["Done: little.", "Nothing waits."]});
+    let wrong = json!({"line": "The helpers finished 40 changes.",
+        "bullets": ["Done: 40 changes.", "Nothing went wrong.", "Nothing waits."]});
+    let good = json!({
+        "line": "The helpers finished 2 changes in alpha and published one new version.",
+        "bullets": ["Done: two fixes in alpha and release v1.2.0.",
+                    "Caught: the checks failed 2 times and held the work back.",
+                    "Waiting for you: one change in beta, open for 3 days."]});
+
+    // two bad answers: the job gives up, the plain version stays
+    let (ok, log) = run_job(&s, &[two.clone(), wrong.clone()]).await;
+    assert!(!ok, "{log}");
+    assert!(log.contains("exactly three bullets"), "{log}");
+    let v = get(&s.base, "/api/briefing").await;
+    assert_eq!(v["briefing"]["source"], "template", "{v}");
+
+    // the second try is told why the first was refused, and passes
+    let (ok, log) = run_job(&s, &[wrong, good]).await;
+    assert!(ok, "{log}");
+    let second = log.rsplit("\n---\n").next().unwrap();
+    assert!(
+        second.contains("was refused by the check") && second.contains("40"),
+        "{log}"
+    );
+    let v = get(&s.base, "/api/briefing").await;
+    assert_eq!(v["briefing"]["source"], "model", "{v}");
+
+    // a period a model already wrote is left alone, without a model call
+    let (ok, log) = run_job(&s, &[]).await;
+    assert!(ok, "{log}");
+}
