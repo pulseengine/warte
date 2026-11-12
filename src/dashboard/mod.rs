@@ -85,6 +85,8 @@ pub async fn overview_partial(State(state): State<crate::server::AppState>) -> R
     let strip = strip + &crate::forecast::panel(coming.as_ref());
     let strip =
         strip + &crate::canary::panel(state.canaries.as_ref().and_then(|c| c.latest()).as_ref());
+    let now = crate::hub::now();
+    let strip = strip + &crate::expiry::panel(&state.expiry.report(&state.tokens.seen(now)), now);
     let html = format!(
         r#"<div class="overview">
   <h2>Overview</h2>

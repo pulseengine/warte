@@ -48,6 +48,8 @@ pub struct AppState {
     pub triage: Option<Arc<crate::triage::Triage>>,
     /// The latest dependency-canary round (REQ-PREDICT-003).
     pub canaries: Option<Arc<crate::canary::Canaries>>,
+    /// What runs out and when (REQ-PREDICT-004).
+    pub expiry: Arc<crate::expiry::Expiry>,
 }
 
 /// Build the Axum router with all routes.
@@ -256,6 +258,18 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
         None => None,
     };
 
+    let expiry = {
+        let cfg = config.expiry.clone().unwrap_or_default();
+        cfg.check().map_err(anyhow::Error::msg)?;
+        let own = crate::expiry::Own {
+            ca: Some(config.ca_cert_path.clone()),
+            tls: config.tls_enabled.then(|| config.tls_cert_path.clone()),
+        };
+        let e = Arc::new(crate::expiry::Expiry::new(cfg, own));
+        crate::expiry::spawn(e.clone());
+        e
+    };
+
     let temper = match (&config.temper, &config.hub) {
         (Some(_), Some(h)) => Some(Arc::new(crate::temper::Store::open(&h.data_dir))),
         _ => None,
@@ -289,6 +303,7 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
         briefing,
         triage,
         canaries,
+        expiry,
         ca: ca.clone(),
         hub,
         machines,

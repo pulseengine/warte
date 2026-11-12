@@ -4,6 +4,15 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.19 — 2026-11-12
+
+- **Expiry dates** (REQ-PREDICT-004, DD-PREDICT-003). This is the third part of predictive maintenance. warte lists what runs out, soonest first. Without any configuration that is its own CA and TLS certificates, and the token each job last used, shown by the job's name. An optional `[expiry]` section adds:
+  - TLS endpoints: warte reads every certificate the endpoint sends without trusting it, so a proxy's internal intermediate is checked too;
+  - PEM files, for roots that endpoints do not send;
+  - dates warte cannot read for itself, such as signing keys and GitHub App keys.
+
+  An end date within 30 days is an amber outage finding, and within 7 days or past it a red one, so the alerts notify. The overview has a new Expiring panel, and `GET /api/expiry` returns the same list. Endpoints and files are shown by label, never by address or path. No new dependency.
+
 ## v1.6.18 — 2026-11-12
 
 - **Dependency canaries** (REQ-PREDICT-003, DD-PREDICT-002). This is the second part of predictive maintenance. With `[canaries]`, warte resolves the names your CI downloads from (for example the Ubuntu mirrors, crates.io, ghcr.io and npm) every five minutes. It asks each configured resolver directly and the system's resolver too.

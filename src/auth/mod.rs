@@ -48,6 +48,8 @@ pub struct TokenManager {
     verifying_key: VerifyingKey,
     /// Token validity in hours.
     token_validity_hours: i64,
+    /// Per agent, the end date of the token it last used (REQ-PREDICT-004).
+    seen: std::sync::Mutex<std::collections::HashMap<String, i64>>,
 }
 
 impl TokenManager {
@@ -59,6 +61,7 @@ impl TokenManager {
             signing_key: Arc::new(signing_key),
             verifying_key,
             token_validity_hours,
+            seen: Default::default(),
         }
     }
 
@@ -70,6 +73,7 @@ impl TokenManager {
             signing_key: Arc::new(signing_key),
             verifying_key,
             token_validity_hours,
+            seen: Default::default(),
         }
     }
 
@@ -124,7 +128,23 @@ impl TokenManager {
             anyhow::bail!("token expired");
         }
 
+        if let Ok(mut seen) = self.seen.lock() {
+            seen.insert(payload.agent_id.clone(), payload.expires_at.timestamp());
+        }
         Ok(payload)
+    }
+
+    /// Each agent's last-used token and when it ends (REQ-PREDICT-004).
+    /// A token that ended more than seven days ago is forgotten: its job
+    /// was retired or has a new one.
+    pub fn seen(&self, now: i64) -> Vec<(String, i64)> {
+        let Ok(mut seen) = self.seen.lock() else {
+            return Vec::new();
+        };
+        seen.retain(|_, at| *at > now - 7 * 86_400);
+        let mut v: Vec<(String, i64)> = seen.iter().map(|(k, v)| (k.clone(), *v)).collect();
+        v.sort();
+        v
     }
 }
 

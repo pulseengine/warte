@@ -578,3 +578,5 @@ body.idle-on #idle-caption { opacity: 1; transform: translate(-50%, 0); }
 .coming-up tr.badrow td { color: var(--err); }
 .canaries .dim { color: var(--dim); }
 .canaries td.bad { color: var(--err); }
+.expiring .dim { color: var(--dim); }
+.expiring tr.badrow td { color: var(--err); }

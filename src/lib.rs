@@ -23,6 +23,7 @@ pub mod dashboard;
 pub mod db;
 pub mod discovery;
 pub mod docs;
+pub mod expiry;
 pub mod fleet;
 pub mod forecast;
 pub mod ghsource;

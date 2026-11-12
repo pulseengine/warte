@@ -93,6 +93,15 @@
         }
       }
     },
+    "/api/expiry": {
+      "get": {
+        "summary": "What runs out, and when?",
+        "description": "warte's own certificates, every certificate the [expiry] endpoints send and the [expiry] PEM files hold (by label and place in the chain), the [expiry] dates, and the token each job last used, soonest first, plus findings for end dates within amber_days (amber) or red_days (red). Addresses and paths are never shown.",
+        "responses": {
+          "200": {"description": "everything that runs out, and its findings", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Expiry"}}}}
+        }
+      }
+    },
     "/api/machines": {
       "get": {
         "summary": "Every machine the ground station hears from, with drift findings",
@@ -248,6 +257,25 @@
               "name": {"type": "string"}, "resolver": {"type": "string"},
               "outcome": {"type": "string", "enum": ["ok", "timed_out", "server_failure", "no_such_name", "refused", "no_address", "failed"]},
               "ms": {"type": "integer"}, "failing_rounds": {"type": "integer"}, "failing_since": {"type": "integer", "nullable": true}
+            }}}
+          }},
+          "findings": {"type": "array", "items": {"type": "object", "properties": {
+            "key": {"type": "string"}, "sev": {"type": "integer"}, "text": {"type": "string"}
+          }}}
+        }
+      },
+      "Expiry": {
+        "type": "object",
+        "required": ["report", "findings"],
+        "properties": {
+          "report": {"type": "object", "properties": {
+            "checked_at": {"type": "integer", "description": "when endpoints and files were last checked; 0 before the first check"},
+            "amber_days": {"type": "number"}, "red_days": {"type": "number"},
+            "items": {"type": "array", "items": {"type": "object", "properties": {
+              "kind": {"type": "string", "enum": ["own", "tls", "pem", "date", "token"]},
+              "what": {"type": "string"}, "part": {"type": "string", "nullable": true},
+              "expires_at": {"type": "integer", "nullable": true},
+              "problem": {"type": "string", "nullable": true, "enum": ["unreachable", "timed_out", "handshake_failed", "unreadable", "no_certificate", null]}
             }}}
           }},
           "findings": {"type": "array", "items": {"type": "object", "properties": {

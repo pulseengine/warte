@@ -128,6 +128,10 @@ pub struct Config {
     /// External canaries: do the names CI depends on resolve (REQ-PREDICT-003).
     #[serde(default)]
     pub canaries: Option<crate::canary::CanariesConfig>,
+    /// What runs out and when (REQ-PREDICT-004). Without it warte still
+    /// watches its own certificates and the tokens it sees.
+    #[serde(default)]
+    pub expiry: Option<crate::expiry::ExpiryConfig>,
 }
 
 /// Machine history retention (REQ-MHIST-001).
@@ -359,6 +363,7 @@ impl Default for Config {
             briefing: None,
             triage: None,
             canaries: None,
+            expiry: None,
         }
     }
 }
