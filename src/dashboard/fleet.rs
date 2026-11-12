@@ -711,6 +711,10 @@ pub fn host_detected(state: &crate::server::AppState, now: i64) -> Vec<Detected>
     if let Some(r) = state.canaries.as_ref().and_then(|c| c.latest()) {
         list.extend(crate::canary::judge(&r, now));
     }
+    // one cause failing jobs in several repositories (REQ-CI-005)
+    if let Some(r) = state.incidents.as_ref().and_then(|i| i.latest()) {
+        list.extend(crate::incidents::detected(&r));
+    }
     // what runs out within weeks (REQ-PREDICT-004)
     list.extend(crate::expiry::detected(
         &state.expiry.report(&state.tokens.seen(now)),

@@ -221,6 +221,25 @@ doubled, a release run 50% and 5 minutes slower (5 samples a week or more).
 Recomputed at most every 10 minutes; 503 without a CI source. The overview
 shows it as its CI health panel.
 
+## Shared incidents (REQ-CI-005)
+
+```
+GET /api/incidents
+```
+
+Failed jobs from two or more repositories whose failing step carries the same
+error signature, within an hour of each other, over the last day: one cause,
+shown once. A signature is one of `resolver` (the host did not resolve),
+`timeout`, `refused` or `server_error` (HTTP 500, 502, 503 or 504), for one
+host, built from fixed patterns in the end of the job's log; no log text is
+kept or shown. `incidents` lists `kind`, `host` (only for a well-known public
+dependency or a name the dependency canaries watch, otherwise `null`),
+`what` (the signature in words), `repos`, `jobs`, `first`, `last` and
+`ongoing` (a failure within the last hour). Ongoing incidents also raise an
+alert. The signature comes from smithy's agent where it runs; in GitHub-only
+mode warte reads the log of each failed job of the last day once, at most 30
+per ledger pass. 503 without a CI source.
+
 ## Disk pressure (REQ-PRESSURE-001)
 
 ```

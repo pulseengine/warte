@@ -235,6 +235,7 @@ fn job(id: u64, day: &str) -> JobRecord {
         s: Some(1_793_000_060),
         e: Some(1_793_000_330),
         r: "success".into(),
+        sig: None,
     }
 }
 

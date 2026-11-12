@@ -39,6 +39,7 @@ fn rec(r: &R, run: u64, att: u32, c: i64, wait: i64, run_s: i64, result: &str) -
         s: Some(c + wait),
         e: Some(c + wait + run_s),
         r: result.into(),
+        sig: None,
     }
 }
 

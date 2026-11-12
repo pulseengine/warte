@@ -459,6 +459,10 @@ pub struct JobRecord {
     pub e: Option<i64>,
     /// conclusion: success, failure, cancelled, skipped, ...
     pub r: String,
+    /// A failed job's error signature, `kind:host` from fixed patterns
+    /// (REQ-CI-005); absent from older agents and for jobs that passed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sig: Option<String>,
 }
 
 /// What the agent holds for one UTC day: lets the hub tell a complete day from
