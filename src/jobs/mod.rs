@@ -47,6 +47,17 @@ fn safe(rel: &str) -> bool {
             .all(|c| !c.is_empty() && c != "." && c != "..")
 }
 
+/// The state file's fields, as `docs/topics/job-state.md` documents them.
+pub const STATE_FILE_FIELDS: &[&str] = &[
+    "name",
+    "host",
+    "finished",
+    "exit",
+    "duration_s",
+    "expect_within_s",
+    "last_success",
+];
+
 #[derive(Debug, Deserialize)]
 struct StateFile {
     #[serde(default)]
@@ -184,6 +195,33 @@ pub fn read(dir: &Path, manifest: Option<&str>, now: i64) -> Vec<Job> {
 
 #[cfg(test)]
 mod tests {
+    // rivet: verifies REQ-TEMPLATE-002
+    #[test]
+    fn the_documented_state_fields_are_the_parsed_ones() {
+        let mut m = serde_json::Map::new();
+        for f in super::STATE_FILE_FIELDS {
+            let v = if *f == "name" || *f == "host" {
+                serde_json::json!("x")
+            } else {
+                serde_json::json!(7)
+            };
+            m.insert(f.to_string(), v);
+        }
+        let f: super::StateFile = serde_json::from_value(m.into()).unwrap();
+        assert_eq!((f.name.as_str(), f.host.as_str()), ("x", "x"));
+        assert_eq!(
+            (
+                f.finished,
+                f.exit,
+                f.duration_s,
+                f.expect_within_s,
+                f.last_success
+            ),
+            (Some(7), Some(7), Some(7), Some(7), Some(7)),
+            "every documented field is read"
+        );
+    }
+
     use super::*;
 
     fn write(dir: &Path, rel: &str, v: serde_json::Value) {

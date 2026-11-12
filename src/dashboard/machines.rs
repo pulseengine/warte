@@ -1,5 +1,5 @@
 //! Machines view: every machine the ground station hears from (REQ-PROBE-001,
-//! REQ-PROBE-003), plus the CI host as the smithy agent reports it.
+//! REQ-PROBE-003), plus the CI host as the fleet agent reports it.
 //! Host names, paths and tool output come from the machines: escaped.
 
 use super::fleet::{dur_pub as dur, esc};
@@ -538,7 +538,7 @@ fn probe_line(s: &Seen) -> String {
     format!("{ver}{cert}")
 }
 
-/// The smithy agent's runner line for a CI host that also runs a probe: the
+/// The fleet agent's runner line for a CI host that also runs a probe: the
 /// host keeps one card, and the agent's view adds what only it knows.
 fn ci_line(hub: &crate::hub::Hub) -> Option<(String, String)> {
     let (s, _) = hub.snapshot()?;
@@ -546,7 +546,7 @@ fn ci_line(hub: &crate::hub::Hub) -> Option<(String, String)> {
     Some((
         s.host.clone(),
         format!(
-            " · CI host, {busy}/{} runners busy (smithy agent {}, CCSDS; details under Health)",
+            " · CI host, {busy}/{} runners busy (fleet agent {}, CCSDS; details under Health)",
             s.runners.len(),
             esc(&s.agent_version)
         ),
@@ -661,7 +661,7 @@ fn inventory(i: &crate::probe::inventory::Inventory) -> String {
     )
 }
 
-/// The CI host as the smithy agent reports it: a smaller card, no tools.
+/// The CI host as the fleet agent reports it: a smaller card, no tools.
 fn ci_card(
     hub: &crate::hub::Hub,
     now: i64,
@@ -713,7 +713,7 @@ fn ci_card(
         })
         .unwrap_or_default();
     Some(format!(
-        r#"<div class="machine"><div class="mhead"><span class="mname">{}</span><span class="pill">live · {} ago</span></div><div class="mos">CI host · {busy}/{} runners busy</div><div class="hbars">{body}</div>{trend}<div class="mvia">via smithy agent {} (CCSDS); details under Health</div></div>"#,
+        r#"<div class="machine"><div class="mhead"><span class="mname">{}</span><span class="pill">live · {} ago</span></div><div class="mos">CI host · {busy}/{} runners busy</div><div class="hbars">{body}</div>{trend}<div class="mvia">via fleet agent {} (CCSDS); details under Health</div></div>"#,
         esc(&s.host),
         dur(now - at),
         s.runners.len(),

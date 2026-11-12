@@ -53,7 +53,7 @@ fn prop(node: &Value, name: &str) -> Option<String> {
     literal(node["properties"].get(format!("Warte_Fleet::{name}"))?)
 }
 
-/// The component a connection end names (`fourpi.usb` → `fourpi`).
+/// The component a connection end names (`tower-pi.usb` → `tower-pi`).
 fn owner(end: &str) -> &str {
     end.split('.').next().unwrap_or(end)
 }

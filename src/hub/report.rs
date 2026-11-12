@@ -80,7 +80,7 @@ pub fn utc(t: i64) -> String {
 pub fn markdown(s: &Snapshot, now: i64, lost: Option<u64>) -> String {
     let mut o = String::new();
     let age = now - s.taken_at;
-    let _ = writeln!(o, "# smithy · CI fleet status\n");
+    let _ = writeln!(o, "# {} · CI fleet status\n", super::brand());
     let _ = writeln!(
         o,
         "_snapshot {} ({} old{}) · {} · agent {}_\n",

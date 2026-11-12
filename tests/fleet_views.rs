@@ -352,7 +352,7 @@ async fn serve_with_a_hub_answers_under_its_own_api_and_no_longer_at_ci() {
         skill_usage_file: None,
     };
     let (_d, base) = serve_app(Some(cfg)).await;
-    // the absorbed smithy-hub page and API are retired from `warte serve`
+    // the absorbed hub page and API are retired from `warte serve`
     for p in [
         "/ci",
         "/ci/",
@@ -983,7 +983,7 @@ fn a_ci_host_with_a_probe_gets_one_card_with_the_agents_runners() {
         alone.matches(r#"<span class="mname">ci-01</span>"#).count(),
         1
     );
-    assert!(alone.contains("via smithy agent"));
+    assert!(alone.contains("via fleet agent"));
 
     // the probe too: one card, the probe's, carrying the agent's runner count
     let dir = tempfile::tempdir().unwrap();
@@ -1021,7 +1021,7 @@ fn a_ci_host_with_a_probe_gets_one_card_with_the_agents_runners() {
     let both = warte::dashboard::machines::view(Some(&m), Some(&hub));
     assert_eq!(both.matches(r#"class="mname""#).count(), 1, "{both}");
     assert!(both.contains("CI-01") && both.contains(&runners));
-    assert!(!both.contains("via smithy agent"));
+    assert!(!both.contains("via fleet agent"));
 
     // a probe on another host leaves the CI host's own card in place
     r.host = "laptop".into();
@@ -1030,5 +1030,5 @@ fn a_ci_host_with_a_probe_gets_one_card_with_the_agents_runners() {
     m2.record(r, "probe", now());
     let other = warte::dashboard::machines::view(Some(&m2), Some(&hub));
     assert_eq!(other.matches(r#"class="mname""#).count(), 2);
-    assert!(other.contains("via smithy agent"));
+    assert!(other.contains("via fleet agent"));
 }

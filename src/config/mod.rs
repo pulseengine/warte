@@ -86,13 +86,13 @@ pub struct Config {
     #[serde(default)]
     pub repo_dependencies: Vec<crate::critpath::RepoDependency>,
 
-    /// GitHub's API as a CI source, for teams without a smithy agent (#81).
+    /// GitHub's API as a CI source, for teams without a fleet agent (#81).
     /// Set by a `[github]` section or by `WARTE_GITHUB_ORG` + `WARTE_GITHUB_TOKEN`.
     #[serde(default)]
     pub github: Option<GithubConfig>,
 
-    /// Ground station (absorbed smithy hub). When set, `warte serve` ingests the
-    /// smithy agent's telemetry and the Queue,
+    /// Ground station (absorbed hub). When set, `warte serve` ingests the
+    /// fleet agent's telemetry and the Queue,
     /// Resources, Ask and Overview views read from it (DD-SMITHY-001).
     #[serde(default)]
     pub hub: Option<HubConfig>,
@@ -151,7 +151,7 @@ pub struct JobsConfig {
     /// The manifest: `<path relative to dir> <window_s>` per line.
     #[serde(default)]
     pub expected: Option<PathBuf>,
-    /// Job host directory name -> machine name, e.g. `mini = "Mac.fritz.box"`.
+    /// Job host directory name -> machine name, e.g. `mini = "mac.lan"`.
     #[serde(default)]
     pub hosts: std::collections::BTreeMap<String, String>,
 }
@@ -202,7 +202,7 @@ impl Default for IdleConfig {
 }
 
 /// GitHub's REST API as a CI source (#81). The scan fills the same model as
-/// the smithy agent's telemetry, so every view and agent API works on it.
+/// the fleet agent's telemetry, so every view and agent API works on it.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GithubConfig {
     /// API base. `https://api.github.com`; GitHub Enterprise Cloud with data
@@ -480,7 +480,7 @@ impl Config {
 }
 
 fn default_hub_data_dir() -> String {
-    "/var/lib/smithy-hub".to_string()
+    "/var/lib/warte-hub".to_string()
 }
 fn default_hub_org() -> String {
     "pulseengine".to_string()

@@ -36,7 +36,7 @@ pub struct AuthConfig {
     /// The Zitadel project id: its roles claim and audience.
     #[serde(default)]
     pub project_id: Option<String>,
-    /// warte's external URL, e.g. `https://fourpi.local/warte`: the
+    /// warte's external URL, e.g. `https://tower.lan/warte`: the
     /// redirect URI is `<base_url>/auth/callback`.
     pub base_url: String,
     /// Provider role key -> warte role (`viewer`, `member`, `owner`).

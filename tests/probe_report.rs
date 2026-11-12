@@ -82,20 +82,20 @@ async fn hosts(base: &str) -> Vec<String> {
 #[tokio::test]
 async fn an_enrolled_machine_reports_and_a_replay_is_refused() {
     let (dir, base, db) = serve().await;
-    let (key, cert) = enrolled(&base, &db, "Mac.fritz.box", &dir.path().join("p")).await;
+    let (key, cert) = enrolled(&base, &db, "mac.lan", &dir.path().join("p")).await;
     let now = warte::hub::now();
-    let r = report("Mac.fritz.box", now);
+    let r = report("mac.lan", now);
     let body = send::SignedReport {
         sig: send::sign(&key, &r).unwrap(),
         cert: cert.clone(),
         report: r,
     };
     assert_eq!(post(&base, &body).await, 204);
-    assert!(hosts(&base).await.iter().any(|h| h == "Mac.fritz.box"));
+    assert!(hosts(&base).await.iter().any(|h| h == "mac.lan"));
     // the same report again: a replay
     assert_eq!(post(&base, &body).await, 403);
     // a newer one is fine
-    let r2 = report("Mac.fritz.box", now + 1);
+    let r2 = report("mac.lan", now + 1);
     let b2 = send::SignedReport {
         sig: send::sign(&key, &r2).unwrap(),
         cert,
@@ -112,7 +112,7 @@ async fn a_machine_cannot_speak_for_another_or_alter_or_forge() {
     let now = warte::hub::now();
 
     // another host's name under PowerBook's certificate
-    let r = report("fourpi", now);
+    let r = report("tower-pi", now);
     let b = send::SignedReport {
         sig: send::sign(&key, &r).unwrap(),
         cert: cert.clone(),
@@ -156,7 +156,7 @@ async fn a_machine_cannot_speak_for_another_or_alter_or_forge() {
     assert!(!hosts(&base)
         .await
         .iter()
-        .any(|h| h == "PowerBook" || h == "fourpi"));
+        .any(|h| h == "PowerBook" || h == "tower-pi"));
 }
 
 fn report_v(host: &str, taken_at: i64, version: &str) -> String {

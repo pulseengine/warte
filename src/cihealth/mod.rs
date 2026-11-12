@@ -1,7 +1,7 @@
 //! CI health trends: this week against the week before (REQ-PREDICT-005,
 //! DD-PREDICT-004).
 //!
-//! From the finished-job ledger (the smithy agent's or the GitHub source's;
+//! From the finished-job ledger (the fleet agent's or the GitHub source's;
 //! no extra GitHub requests), warte compares the last seven days with the
 //! seven before:
 //!

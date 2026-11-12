@@ -1,5 +1,8 @@
 # Costs report schema
 
+Contract version **2** (schema 2), since warte v1.6.9; schema 1 is still
+accepted. A report generator pins against the schema number it sends.
+
 A workstation job reads its agent transcripts nightly and sends warte one
 report, whole: `POST /api/costs` (right `costs:write`) or the `[hub]
 costs_file` it copies over. warte accepts schema 1 and schema 2. The read API

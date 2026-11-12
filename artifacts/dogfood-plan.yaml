@@ -34,10 +34,10 @@ artifacts:
 
   - id: REQ-CI-003
     type: requirement
-    title: CI jobs run on smithy; fork PRs and release jobs run on GitHub-hosted runners
+    title: CI jobs run self-hosted; fork PRs and release jobs run on GitHub-hosted runners
     status: verified
     release: v1.3.1
-    description: "warte's CI jobs (build, test, clippy, rivet) SHALL run on the smithy rust-cpu pool [self-hosted, linux, x64, rust-cpu], with pull requests from forks routed to GitHub-hosted runners by default. Release jobs (gate, build, sign, publish) SHALL run on ephemeral GitHub-hosted runners and SHALL restore no caches. Tools a job relies on SHALL be installed job-scoped ($RUNNER_TEMP), never reused from a persistent $HOME, and third-party actions SHALL be pinned to a commit SHA. The fork routing is not a security boundary (a fork PR can edit the workflow): isolation of the smithy pool from untrusted code SHALL be enforced by the org runner-group policy and fork-PR approval."
+    description: "warte's CI jobs (build, test, clippy, rivet) SHALL run on the self-hosted rust-cpu pool [self-hosted, linux, x64, rust-cpu], with pull requests from forks routed to GitHub-hosted runners by default. Release jobs (gate, build, sign, publish) SHALL run on ephemeral GitHub-hosted runners and SHALL restore no caches. Tools a job relies on SHALL be installed job-scoped ($RUNNER_TEMP), never reused from a persistent $HOME, and third-party actions SHALL be pinned to a commit SHA. The fork routing is not a security boundary (a fork PR can edit the workflow): isolation of the self-hosted pool from untrusted code SHALL be enforced by the org runner-group policy and fork-PR approval."
     fields:
       category: non-functional
       priority: should
@@ -64,12 +64,12 @@ artifacts:
 
   - id: DD-CI-001
     type: design-decision
-    title: "CI dogfoods the PulseEngine toolchain: rivet from git at a pinned rev, smithy runners"
+    title: "CI dogfoods the PulseEngine toolchain: rivet from git at a pinned rev, self-hosted runners"
     status: verified
     release: v1.3.1
-    description: Install rivet with cargo install --locked --git https://github.com/pulseengine/rivet --rev <rev> --bin rivet rivet-cli, cache the binary keyed on the rev (the spar/gale pattern), and run Linux jobs on the smithy pools.
+    description: Install rivet with cargo install --locked --git https://github.com/pulseengine/rivet --rev <rev> --bin rivet rivet-cli, cache the binary keyed on the rev (the spar/gale pattern), and run Linux jobs on the self-hosted pools.
     fields:
-      rationale: "The crates.io rivet-cli is a different project (panchenkoai/rivet), so every rivet gate ran a foreign binary and went red (#34). Pinning the git rev to the varve layer's rivet (v0.41.1) keeps CI and local runs on the same tool. CI runs on smithy, the fleet warte monitors (#35). Security: smithy runners are persistent and shared. So rivet is installed into $RUNNER_TEMP, never from $HOME; release jobs (cosign OIDC, publish rights) run on ephemeral GitHub-hosted runners and restore no caches, because main's smithy runs write caches a tag run could restore; third-party actions are SHA-pinned. Fork PRs are routed to GitHub-hosted runners, but that is routing, not isolation: on pull_request a fork can edit the workflow, so the boundary is the org runner-group policy plus fork-PR approval (an org-admin setting outside this repo). Rejected: varve in CI, because I found no CI install path for it; revisit once one exists."
+      rationale: "The crates.io rivet-cli is a different project (panchenkoai/rivet), so every rivet gate ran a foreign binary and went red (#34). Pinning the git rev to the varve layer's rivet (v0.41.1) keeps CI and local runs on the same tool. CI runs on the self-hosted fleet, the fleet warte monitors (#35). Security: self-hosted runners are persistent and shared. So rivet is installed into $RUNNER_TEMP, never from $HOME; release jobs (cosign OIDC, publish rights) run on ephemeral GitHub-hosted runners and restore no caches, because main's self-hosted runs write caches a tag run could restore; third-party actions are SHA-pinned. Fork PRs are routed to GitHub-hosted runners, but that is routing, not isolation: on pull_request a fork can edit the workflow, so the boundary is the org runner-group policy plus fork-PR approval (an org-admin setting outside this repo). Rejected: varve in CI, because I found no CI install path for it; revisit once one exists."
     links:
       - type: satisfies
         target: REQ-CI-001
@@ -138,10 +138,10 @@ artifacts:
 
   - id: REQ-SMITHY-001
     type: requirement
-    title: warte ingests the smithy agent's CCSDS telemetry
+    title: warte ingests the fleet agent's CCSDS telemetry
     status: verified
     release: v1.4.0
-    description: warte SHALL receive the smithy agent's CCSDS space packets over UDP using relay-ccsds (same APIDs and framing as smithy hub), accept them only from allow-listed source addresses (the CI host's WireGuard tunnel IP), count rejected packets, and serve HTTP on loopback behind Caddy. Runner, queue, machine and automation state for the Queue, Resources and Overview views come from this telemetry.
+    description: warte SHALL receive the fleet agent's CCSDS space packets over UDP using relay-ccsds (same APIDs and framing as the original hub), accept them only from allow-listed source addresses (the CI host's WireGuard tunnel IP), count rejected packets, and serve HTTP on loopback behind Caddy. Runner, queue, machine and automation state for the Queue, Resources and Overview views come from this telemetry.
     fields:
       category: interface
       priority: should
@@ -194,10 +194,10 @@ artifacts:
 
   - id: REQ-SMITHY-002
     type: requirement
-    title: warte serves smithy hub's API contract unchanged
+    title: warte serves the original hub's API contract unchanged
     status: verified
     release: v1.4.0
-    description: warte SHALL serve the endpoints of smithy hub's OpenAPI document (/api/eta, /api/state, /api/history, /api/report, /status.md, /report.md, /healthz, /api/openapi.json) with compatible request parameters and response shapes, so agents following the ci-status skill keep working when the ground-station host switches from smithy-hub to warte. A test SHALL check warte's OpenAPI document against smithy's.
+    description: warte SHALL serve the endpoints of the original hub's OpenAPI document (/api/eta, /api/state, /api/history, /api/report, /status.md, /report.md, /healthz, /api/openapi.json) with compatible request parameters and response shapes, so agents following the ci-status skill keep working when the ground-station host switches from the original hub to warte. A test SHALL check warte's OpenAPI document against the original hub's.
     fields:
       category: interface
       priority: must
@@ -215,7 +215,7 @@ artifacts:
     title: Finished-job ledger kept as per-day JSONL with GitHub as store of record
     status: verified
     release: v1.4.0
-    description: warte SHALL keep finished CI jobs as one JSONL file per UTC day in smithy's ledger record format (d, id, run, att, repo, wf, job, pool, runner, ev, c, s, e, r). Days are re-read on the next two days and then closed; GitHub remains the store of record. This replaces the SQLite ci_jobs and wait_history tables, and ETA SHALL be computed from measured pool waits in this ledger, not from queue position.
+    description: warte SHALL keep finished CI jobs as one JSONL file per UTC day in the original hub's ledger record format (d, id, run, att, repo, wf, job, pool, runner, ev, c, s, e, r). Days are re-read on the next two days and then closed; GitHub remains the store of record. This replaces the SQLite ci_jobs and wait_history tables, and ETA SHALL be computed from measured pool waits in this ledger, not from queue position.
     fields:
       category: functional
       priority: must
@@ -232,10 +232,10 @@ artifacts:
 
   - id: REQ-SMITHY-004
     type: requirement
-    title: smithy agent can send telemetry to more than one hub (parallel run)
+    title: fleet agent can send telemetry to more than one hub (parallel run)
     status: verified
     release: v1.5.0
-    description: The smithy agent on the CI host SHALL accept a repeatable --hub, so the same snapshots and ledger frames reach both smithy-hub and warte during the parallel run, without doubling GitHub API calls. Owned by pulseengine/smithy; held at implemented here until smithy ships it.
+    description: The fleet agent on the CI host SHALL accept a repeatable --hub, so the same snapshots and ledger frames reach both the original hub and warte during the parallel run, without doubling GitHub API calls. Owned by the fleet agent; held at implemented here until the agent ships it.
     fields:
       category: interface
       priority: should
@@ -247,12 +247,12 @@ artifacts:
 
   - id: DD-SMITHY-001
     type: design-decision
-    title: "warte absorbs smithy hub: CCSDS ingest, ledger, ETA and the hub API move into warte"
+    title: "warte absorbs the original hub: CCSDS ingest, ledger, ETA and the hub API move into warte"
     status: accepted
     release: v1.4.0
-    description: "warte becomes the ground station. It receives the smithy agent's CCSDS telemetry over UDP (relay-ccsds), keeps the per-day JSONL ledger and hub state, computes ETA from measured waits, and serves the hub's API. The smithy agent stays on the CI host. warte's own poller, CI webhooks, eta module and SQLite telemetry tables are removed. Cut-over: run side by side (agent sends to both), compare /api/eta and /status.md, then retire smithy-hub.service on the ground-station host."
+    description: "warte becomes the ground station. It receives the fleet agent's CCSDS telemetry over UDP (relay-ccsds), keeps the per-day JSONL ledger and hub state, computes ETA from measured waits, and serves the hub's API. The fleet agent stays on the CI host. warte's own poller, CI webhooks, eta module and SQLite telemetry tables are removed. Cut-over: run side by side (agent sends to both), compare /api/eta and /status.md, then retire the original hub.service on the ground-station host."
     fields:
-      rationale: "Decided by the project owner on 2026-10-27 (#36): one control tower instead of two dashboards. smithy hub is live and measured (14 runners, 35-day ledger, ETA from measured pool waits), while warte's copy was unit-tested only. Absorbing the hub's code and formats, instead of re-deriving them, keeps the measured behaviour. Its ledger also gives warte telemetry storage that needs no SQL. Licensing: both are PulseEngine-owned and Apache-2.0 (DD-LICENSE-001), so hub code moves across unchanged."
+      rationale: "Decided by the project owner on 2026-10-27 (#36): one control tower instead of two dashboards. the original hub is live and measured (14 runners, 35-day ledger, ETA from measured pool waits), while warte's copy was unit-tested only. Absorbing the hub's code and formats, instead of re-deriving them, keeps the measured behaviour. Its ledger also gives warte telemetry storage that needs no SQL. Licensing: both are PulseEngine-owned and Apache-2.0 (DD-LICENSE-001), so hub code moves across unchanged."
     links:
       - type: satisfies
         target: REQ-SMITHY-001
@@ -290,7 +290,7 @@ artifacts:
     release: v1.3.1
     description: "warte moves from MIT to Apache-2.0: LICENSE (the same text as pulseengine/relay), Cargo.toml license = \"Apache-2.0\", and README. tests/license.rs checks that the three agree."
     fields:
-      rationale: "Project owner, 2026-10-27: everything is PulseEngine-owned and Apache-2.0 is the default for all repos. warte had declared MIT with no LICENSE file at all. Apache-2.0 matches smithy, relay, varve, rivet and the other core tools, so smithy hub's code can move into warte without a cross-license step (DD-SMITHY-001), and it adds an explicit patent grant."
+      rationale: "Project owner, 2026-10-27: everything is PulseEngine-owned and Apache-2.0 is the default for all repos. warte had declared MIT with no LICENSE file at all. Apache-2.0 matches relay, varve, rivet and the other core tools, so the original hub's code can move into warte without a cross-license step (DD-SMITHY-001), and it adds an explicit patent grant."
     links:
       - type: traces-to
         target: DD-SMITHY-001
@@ -319,7 +319,7 @@ artifacts:
     type: asset
     title: CI fleet telemetry and ledger (ground station state)
     status: draft
-    description: hub-state.json (latest snapshot, per-minute history) and the per-day JSONL ledger of finished jobs, fed by the smithy agent's CCSDS telemetry. Agents schedule work on /api/eta answered from it; the monthly report is computed from it.
+    description: hub-state.json (latest snapshot, per-minute history) and the per-day JSONL ledger of finished jobs, fed by the fleet agent's CCSDS telemetry. Agents schedule work on /api/eta answered from it; the monthly report is computed from it.
     provenance:
       created-by: ai-assisted
       model: claude-opus-5-5
@@ -329,7 +329,7 @@ artifacts:
     type: threat-scenario
     title: Attacker spoofs the CI host's source address and injects telemetry
     status: draft
-    description: "Anyone who can reach the ground station's UDP port forges datagrams with the allow-listed source address (UDP source addresses are not authenticated). Forged snapshots make /api/eta and status.md lie to agents; forged ledger records skew the monthly report or pre-empt real job ids. Inherited from smithy hub. Partial mitigations in place: ledger values bounded (belt::plausible), --udp has no default, docs require binding the WireGuard address. Full mitigation: packet authentication (#41)."
+    description: "Anyone who can reach the ground station's UDP port forges datagrams with the allow-listed source address (UDP source addresses are not authenticated). Forged snapshots make /api/eta and status.md lie to agents; forged ledger records skew the monthly report or pre-empt real job ids. Inherited from the original hub. Partial mitigations in place: ledger values bounded (belt::plausible), --udp has no default, docs require binding the WireGuard address. Full mitigation: packet authentication (#41)."
     fields:
       attack-feasibility: medium
       attack-vector: adjacent
@@ -411,7 +411,7 @@ artifacts:
     title: Superseded PR CI runs are cancelled; main and release runs never are
     status: verified
     release: v1.4.0
-    description: A new push to a pull request SHALL cancel that PR's older CI runs, so stale commits don't hold the shared smithy runners. Runs for pushes to main and release/** SHALL never be cancelled.
+    description: A new push to a pull request SHALL cancel that PR's older CI runs, so stale commits don't hold the shared self-hosted runners. Runs for pushes to main and release/** SHALL never be cancelled.
     fields:
       category: non-functional
       priority: should
@@ -678,7 +678,7 @@ artifacts:
     title: Probes enroll with a one-time token; the probe makes its own key
     status: accepted
     release: v1.5.0
-    description: The operator runs 'warte probe token' on the ground station, which prints a short-lived single-use token; on the machine, 'warte probe enroll <token> --ground <address>' generates the probe's key locally, sends a certificate request with the token, and receives a certificate signed by warte's CA plus its relay-sec SPI. The private key never leaves the machine. Tokens expire (default 15 min), are single use, and are stored hashed. Ansible (smithy) runs the same two commands for hosts it manages.
+    description: The operator runs 'warte probe token' on the ground station, which prints a short-lived single-use token; on the machine, 'warte probe enroll <token> --ground <address>' generates the probe's key locally, sends a certificate request with the token, and receives a certificate signed by warte's CA plus its relay-sec SPI. The private key never leaves the machine. Tokens expire (default 15 min), are single use, and are stored hashed. The deployment runs the same two commands for hosts it manages.
     fields:
       rationale: Owner decision 2026-10-28. Works the same for Macs, Pis and Hetzner, by hand or by Ansible; keys never travel, unlike pushing certificates; and an explicit operator step, unlike trust on first use, is the security boundary for a new probe.
     links:
@@ -797,7 +797,7 @@ artifacts:
 
   - id: REQ-GHSRC-001
     type: requirement
-    title: GitHub's API as a CI source for teams without a smithy agent
+    title: GitHub's API as a CI source for teams without a fleet agent
     status: verified
     release: v1.4.0
     description: "With [github] (or WARTE_GITHUB_ORG and WARTE_GITHUB_TOKEN) warte SHALL scan GitHub's REST API at a configured base URL (api.github.com; api.<tenant>.ghe.com; <host>/api/v3 for GHES, never guessed) and fill the ground station's model: org runners, queued and running runs of recently pushed repos, their jobs per pool, and realized waits. Every view and /api/eta, /api/queue, /api/admission and /api/watch SHALL work on it unchanged. Read-only: GETs with a bearer token."
@@ -836,9 +836,9 @@ artifacts:
     title: The GitHub source feeds the ground station's model; one CI source per instance
     status: accepted
     release: v1.4.0
-    description: "The GitHub API scan is the smithy agent's queue scan ported to warte (async, configurable base URL) and its result enters the hub as a snapshot (Hub::ingest_snapshot). Views, ETA, admission and watch have one model and one code path whichever source fills it. [hub] and [github] are exclusive: two sources writing one model would make every view wrong."
+    description: "The GitHub API scan is the fleet agent's queue scan ported to warte (async, configurable base URL) and its result enters the hub as a snapshot (Hub::ingest_snapshot). Views, ETA, admission and watch have one model and one code path whichever source fills it. [hub] and [github] are exclusive: two sources writing one model would make every view wrong."
     fields:
-      rationale: "Reported from a GitHub Enterprise Cloud (data residency) deployment: since v1.4.0 the ground station was warte's only CI source, so a team without a smithy agent saw empty views. Reusing the model keeps the agent-facing APIs identical; there is no host view without an agent, so GitHub's busy flag stands in for it."
+      rationale: "Reported from a GitHub Enterprise Cloud (data residency) deployment: since v1.4.0 the ground station was warte's only CI source, so a team without a fleet agent saw empty views. Reusing the model keeps the agent-facing APIs identical; there is no host view without an agent, so GitHub's busy flag stands in for it."
     links:
       - type: satisfies
         target: REQ-GHSRC-001
@@ -868,10 +868,10 @@ artifacts:
       timestamp: 2026-10-29T19:08:20Z
   - id: DD-PROBE-004
     type: design-decision
-    title: The probe absorbs the smithy agent; the agent retires after a parallel run
+    title: The probe absorbs the fleet agent; the agent retires after a parallel run
     status: proposed
     release: v1.7.0
-    description: "Runner hosts run warte probe like every machine. Its machine data replaces the agent's host data (one card per host; the probe's report wins). The agent's CI duties move into warte one by one: the GitHub queue scan (already in warte, REQ-GHSRC-001); runner telemetry (host-view busy, job context, cgroup CPU/memory, OOM) as a probe capability on runner hosts; the job ledger over QUIC reliable streams (fixes smithy#34, lost UDP bursts). Then the smithy agent and the UDP/CCSDS ingest retire, after a parallel run with a parity check, as smithy-hub's retirement does (REQ-MIGRATE-001)."
+    description: "Runner hosts run warte probe like every machine. Its machine data replaces the agent's host data (one card per host; the probe's report wins). The agent's CI duties move into warte one by one: the GitHub queue scan (already in warte, REQ-GHSRC-001); runner telemetry (host-view busy, job context, cgroup CPU/memory, OOM) as a probe capability on runner hosts; the job ledger over QUIC reliable streams (fixes lost UDP bursts). Then the fleet agent and the UDP/CCSDS ingest retire, after a parallel run with a parity check, as the original hub's retirement does (REQ-MIGRATE-001)."
     fields:
       rationale: "Owner, 2026-10-29: the CI host's card should come from warte's own probe too. One collector per machine, one transport (QUIC with mTLS and relay-sec), and the ledger on a reliable stream instead of UDP."
     links:
@@ -989,7 +989,7 @@ artifacts:
     title: spar is warte's estimator; warte measures and renders
     status: approved
     release: v1.7.0
-    description: "Wherever warte estimates (ETA, critical path, admission thresholds, runner-pool capacity, expected job duration, link budgets) the estimate SHALL come from an AADL model analysed by spar (scheduling, response-time, flow latency, allocate, network WCTT), fed with warte's measurements (ledger, probes, telemetry). warte keeps measuring and draws both planned and real; every gap is a finding. Migration per estimator: spar's answer runs beside the current heuristic, they are compared on real data, and the heuristic goes only when spar's answer holds up (the smithy-hub pattern). Gaps in spar are filed as spar issues, not worked around in warte. Candidates: hub/eta (RTA over the CI model), critpath (flow latency), admission constants (scheduling feasibility), the belt report (allocate), REQ-TIMING-001 (WCET), REQ-TIMING-002 (WCTT)."
+    description: "Wherever warte estimates (ETA, critical path, admission thresholds, runner-pool capacity, expected job duration, link budgets) the estimate SHALL come from an AADL model analysed by spar (scheduling, response-time, flow latency, allocate, network WCTT), fed with warte's measurements (ledger, probes, telemetry). warte keeps measuring and draws both planned and real; every gap is a finding. Migration per estimator: spar's answer runs beside the current heuristic, they are compared on real data, and the heuristic goes only when spar's answer holds up (the the original hub pattern). Gaps in spar are filed as spar issues, not worked around in warte. Candidates: hub/eta (RTA over the CI model), critpath (flow latency), admission constants (scheduling feasibility), the belt report (allocate), REQ-TIMING-001 (WCET), REQ-TIMING-002 (WCTT)."
     fields:
       rationale: "Owner, 2026-10-29: get spar load-bearing wherever possible; if warte needs to estimate something, spar is the place. Dogfooding the toolchain, and a model makes planned-vs-real drift mechanical."
     links:
@@ -1080,10 +1080,10 @@ artifacts:
 
   - id: TEST-SMITHY-004
     type: verification
-    title: "Parallel run: one smithy agent feeds smithy-hub and warte; full-day ledgers identical"
+    title: "Parallel run: one fleet agent feeds the original hub and warte; full-day ledgers identical"
     status: accepted
     release: v1.5.0
-    description: "Measured on the ground-station host. 2026-10-29 (first full UTC day of the parallel run): smithy-hub 6765 ledger records, warte 6765, compared by (id, attempt): 0 only in smithy-hub, 0 only in warte, 0 differing. 2026-10-28: identical from 09:00 UTC, when warte's feed started (about 6800 records), nothing earlier by construction. Snapshots, ETA answers and history matched in the live A/B (scripts/hub-parity.sh). Link loss per APID stays low on both hubs (0x230/0x231)."
+    description: "Measured on the ground-station host. 2026-10-29 (first full UTC day of the parallel run): the original hub 6765 ledger records, warte 6765, compared by (id, attempt): 0 only in the original hub, 0 only in warte, 0 differing. 2026-10-28: identical from 09:00 UTC, when warte's feed started (about 6800 records), nothing earlier by construction. Snapshots, ETA answers and history matched in the live A/B (scripts/hub-parity.sh). Link loss per APID stays low on both hubs (0x230/0x231)."
     links:
       - type: verifies
         target: REQ-SMITHY-004
@@ -1094,10 +1094,10 @@ artifacts:
 
   - id: TEST-MIGRATE-002
     type: verification
-    title: smithy-hub replaced in place by warte's ground station after the parallel run
+    title: the original hub replaced in place by warte's ground station after the parallel run
     status: accepted
     release: v1.5.0
-    description: "2026-10-30 on the ground-station host, after full-day parity (TEST-SMITHY-004): smithy-hub's 2026-10-27/28 ledger files (supersets of warte's partial ones, checked: warte's 1187 and 7242 records all contained) installed in warte's ledger, the partial ones kept as .warte-partial; Caddy /ci/ routed to warte's /ci (validated, reloaded, host and container on the same inode); smithy-hub stopped and disabled, kept installed for rollback. Verified: /ci/, /ci/api/state and /ci/api/eta answer 200 from warte (link counters are warte's), snapshot fresh."
+    description: "2026-10-30 on the ground-station host, after full-day parity (TEST-SMITHY-004): the original hub's 2026-10-27/28 ledger files (supersets of warte's partial ones, checked: warte's 1187 and 7242 records all contained) installed in warte's ledger, the partial ones kept as .warte-partial; Caddy /ci/ routed to warte's /ci (validated, reloaded, host and container on the same inode); the original hub stopped and disabled, kept installed for rollback. Verified: /ci/, /ci/api/state and /ci/api/eta answer 200 from warte (link counters are warte's), snapshot fresh."
     links:
       - type: verifies
         target: REQ-MIGRATE-001
@@ -1342,7 +1342,7 @@ artifacts:
     title: A config file that does not parse stops warte from starting
     status: verified
     release: v1.5.0
-    description: "When warte.toml exists but cannot be read or parsed, warte SHALL refuse to start and name the file and the error; it SHALL NOT fall back to defaults. No file means defaults. Field case 2026-11-03: a JSON-rendered table made fourpi's warte run four minutes without hub, fleet model or jobs while looking healthy."
+    description: "When warte.toml exists but cannot be read or parsed, warte SHALL refuse to start and name the file and the error; it SHALL NOT fall back to defaults. No file means defaults. Field case 2026-11-03: a JSON-rendered table made the ground-station host's warte run four minutes without hub, fleet model or jobs while looking healthy."
     fields:
       category: functional
       priority: must
@@ -1356,9 +1356,9 @@ artifacts:
     title: temper's results reach warte as a report its host's probe forwards, as CCSDS packets; no HTML in temper, no GitHub calls in warte for it
     status: accepted
     release: v1.5.1
-    description: "temper (the GitHub App on its own host) keeps the GitHub side: webhooks and a rare sweep, on the App installation's own rate limit. It writes temper-report.v1 (enums, identifiers, times and hex only) to a local file. The enrolled warte probe on that host sends it as one CCSDS segmented sequence on APID 0x400 (relay-ccsds codec, the same as the smithy agent's telemetry), signed with the probe key, to POST /api/probe/feed/temper. warte accepts it only from the configured host, checks freshness, replay, revocation and the schema, and shows a Compliance view. temper's dashboard and its per-repo CI/PR/check calls go: warte already has those from the CI host. When DD-TRANSPORT-001 lands, the same packets move to QUIC + relay-sec unchanged. Supersedes the HTTP pull of DD-TEMPER-001."
+    description: "temper (the GitHub App on its own host) keeps the GitHub side: webhooks and a rare sweep, on the App installation's own rate limit. It writes temper-report.v1 (enums, identifiers, times and hex only) to a local file. The enrolled warte probe on that host sends it as one CCSDS segmented sequence on APID 0x400 (relay-ccsds codec, the same as the fleet agent's telemetry), signed with the probe key, to POST /api/probe/feed/temper. warte accepts it only from the configured host, checks freshness, replay, revocation and the schema, and shows a Compliance view. temper's dashboard and its per-repo CI/PR/check calls go: warte already has those from the CI host. When DD-TRANSPORT-001 lands, the same packets move to QUIC + relay-sec unchanged. Supersedes the HTTP pull of DD-TEMPER-001."
     fields:
-      rationale: "Owner, 2026-11-04: remove the HTML from temper, move its data via the probe, use as little GitHub API as possible (the personal token ran out at 05:56 UTC that day), and use the same CCSDS conventions between warte and temper. A warte-side re-run of temper's checks would spend the token warte and the agents share; temper's App has its own limit. Agreed with the temper session the same day; deployment through smithy (smithy#69)."
+      rationale: "Owner, 2026-11-04: remove the HTML from temper, move its data via the probe, use as little GitHub API as possible (the personal token ran out at 05:56 UTC that day), and use the same CCSDS conventions between warte and temper. A warte-side re-run of temper's checks would spend the token warte and the agents share; temper's App has its own limit. Agreed with the temper session the same day; deployment through the private configuration repo."
     provenance:
       created-by: ai-assisted
       model: claude-opus-5-5

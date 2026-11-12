@@ -1,6 +1,6 @@
 [package]
 name = "warte"
-version = "1.6.22"
+version = "1.6.23"
 edition = "2021"
 description = "Warte — the PulseEngine control tower. A CI dashboard with an ask feature and an API."
 license = "Apache-2.0"
@@ -65,8 +65,8 @@ reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-feature
 # CRDT / sync
 crdts = "7"
 
-# CCSDS space-packet codec (smithy agent -> ground station telemetry), the same
-# rev smithy hub used, so the wire format is unchanged (DD-SMITHY-001).
+# CCSDS space-packet codec (fleet agent -> ground station telemetry), the same
+# rev the original hub used, so the wire format is unchanged (DD-SMITHY-001).
 relay-ccsds = { git = "https://github.com/pulseengine/relay", rev = "4cc48b7577432d2403d50f8e961d5c1281e44fa8" }
 
 # Service discovery (mDNS/Bonjour)

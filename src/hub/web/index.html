@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SMITHY · CI fleet</title>
+<title>__BRAND__ · CI fleet</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚒️</text></svg>">
 <style>
 /* Visual language borrowed from pulseengine/temper's dashboard (MIT), so the
@@ -95,7 +95,7 @@ a{color:var(--accent)}a:hover{color:var(--ok)}
 </style>
 </head>
 <body>
-<nav><a class="logo" href="#">SMITHY</a>
+<nav><a class="logo" href="#">__BRAND__</a>
   <a class="t" href="#t-overview">Runners</a><a class="t" href="#t-hosted">Hosted</a><a class="t" href="#t-queue">Queue</a><a class="t" href="#t-ask">Ask</a><a class="t" href="#t-trends">Trends</a><a class="t" href="#t-link">Link</a><a class="t" href="#t-automation">Automation</a><a class="t ext" href="report.md" target="_blank" rel="noopener" title="monthly conveyor-belt report: work vs wait per pool, and whether the runner pool is the bottleneck">Belt ↗</a><a class="t" href="status.md" target="_blank" rel="noopener" title="the same status as Markdown, for terminals and agents">.md ↗</a><a class="t" href="api/openapi.json" target="_blank" rel="noopener" title="OpenAPI 3 description of the read-only API">API ↗</a>
   <span class="right"><span id="host">—</span><span class="pill" id="fresh">CONNECTING</span></span></nav>
 <main>
@@ -249,8 +249,8 @@ function renderDetail(){
   box.hidden=false;
   box.innerHTML=`<div class="dhead"><span class="n">runner${r.id}</span><span style="color:var(--dim)">details</span><button class="x" onclick="sel(${r.id})">close ✕</button></div><dl class="kv">${rows.join("")}</dl>`;
 }
-let RANGE=24;try{RANGE=+localStorage.getItem("smithy.range")||24}catch(e){}
-function setRange(h){RANGE=h;try{localStorage.setItem("smithy.range",h)}catch(e){}history.replaceState(null,"","#t-trends/"+h);trends()}
+let RANGE=24;try{RANGE=+localStorage.getItem("warte.hub.range")||24}catch(e){}
+function setRange(h){RANGE=h;try{localStorage.setItem("warte.hub.range",h)}catch(e){}history.replaceState(null,"","#t-trends/"+h);trends()}
 async function trends(){
   // the runner detail sparklines always use the last 24h; the Trends tab uses the chosen range
   let p,d;try{[p,d]=await Promise.all([fetch("api/history?hours="+RANGE,{cache:"no-store"}).then(r=>r.json()),RANGE===24?null:fetch("api/history?hours=24",{cache:"no-store"}).then(r=>r.json())])}catch(e){return}
@@ -303,17 +303,17 @@ $("askf").addEventListener("submit",e=>{e.preventDefault();ask($("ask-repo").val
 function pick(repo,pr,branch){$("ask-repo").value=repo;$("ask-pr").value=pr||"";$("ask-branch").value=pr?"":branch;ask(repo,pr,branch)}
 document.addEventListener("click",e=>{const tr=e.target.closest&&e.target.closest("tr.pick");if(tr&&!e.target.closest("a"))pick(tr.dataset.repo,tr.dataset.pr,tr.dataset.branch)});
 
-// ---- forge mode: the easter egg. A smithy is a forge, so the fleet becomes one. ----
-// Trigger: type "anvil", the Konami code, or tap the SMITHY logo five times.
+// ---- forge mode: the easter egg. The fleet becomes a forge. ----
+// Trigger: type "anvil", the Konami code, or tap the logo five times.
 // Heat colours are the ones smiths read off hot steel.
 const HEAT=[[0,"cold iron","#5a5f66",20],[.15,"black heat","#4a1a10",480],[.3,"dull red","#8b1a0a",650],[.45,"cherry red","#c4210c",800],[.6,"bright cherry","#e8400f",900],[.75,"orange","#ff7a1a",1000],[.88,"yellow","#ffc23a",1100],[1,"white heat","#fff4d6",1300]];
 const heatAt=f=>{let a=HEAT[0];for(const h of HEAT)if(f>=h[0])a=h;return a};
-let FORGE=false;try{FORGE=localStorage.getItem("smithy.forge")==="1"}catch(e){}
-function forge(on){FORGE=on;document.body.classList.toggle("forge",on);try{localStorage.setItem("smithy.forge",on?"1":"0")}catch(e){}if(on){strike(innerWidth/2,90,"THE FORGE IS LIT",.8);setTimeout(()=>clang(.8),260)}state()}
+let FORGE=false;try{FORGE=localStorage.getItem("warte.hub.forge")==="1"}catch(e){}
+function forge(on){FORGE=on;document.body.classList.toggle("forge",on);try{localStorage.setItem("warte.hub.forge",on?"1":"0")}catch(e){}if(on){strike(innerWidth/2,90,"THE FORGE IS LIT",.8);setTimeout(()=>clang(.8),260)}state()}
 // ---- the sound of the anvil: synthesized, no audio files ----
 // A struck metal block = a short noise burst (hammer contact) + inharmonic partials
 // (bar/plate mode ratios, not musical overtones) that decay at different rates.
-let AC=null, HUSH=false;try{HUSH=localStorage.getItem("smithy.forge.hush")==="1"}catch(e){}
+let AC=null, HUSH=false;try{HUSH=localStorage.getItem("warte.hub.forge.hush")==="1"}catch(e){}
 function clang(pitch=1){
   if(HUSH||document.hidden)return;
   try{AC=AC||new (window.AudioContext||window.webkitAudioContext)()}catch(e){return}
@@ -344,7 +344,7 @@ function forgePaint(){
     el.style.setProperty("--heat",Math.min(1,c/4).toFixed(2));el.style.setProperty("--glow",k[2]);el.title=`${k[1]} · ${c.toFixed(1)} cores`})}
 let KEYS="";const KONAMI="ArrowUpArrowUpArrowDownArrowDownArrowLeftArrowRightArrowLeftArrowRightba";
 addEventListener("keydown",e=>{if(e.target.closest&&e.target.closest("input,textarea"))return;KEYS=(KEYS+e.key).slice(-80);if(KEYS.endsWith("anvil")||KEYS.endsWith(KONAMI)){KEYS="";forge(!FORGE)}
-  if(FORGE&&KEYS.endsWith("hush")){KEYS="";HUSH=!HUSH;try{localStorage.setItem("smithy.forge.hush",HUSH?"1":"0")}catch(e){}strike(innerWidth/2,90,HUSH?"HUSHED":"RINGING")}});
+  if(FORGE&&KEYS.endsWith("hush")){KEYS="";HUSH=!HUSH;try{localStorage.setItem("warte.hub.forge.hush",HUSH?"1":"0")}catch(e){}strike(innerWidth/2,90,HUSH?"HUSHED":"RINGING")}});
 let TAPS=[];document.querySelector("nav .logo").addEventListener("click",e=>{e.preventDefault();const t=Date.now();TAPS=TAPS.filter(x=>t-x<2000);TAPS.push(t);if(TAPS.length>=5){TAPS=[];forge(!FORGE)}});
 document.addEventListener("click",e=>{if(!FORGE)return;const card=e.target.closest&&e.target.closest("#runners .r");if(card){const id=+(card.getAttribute("onclick").match(/\d+/)||[0])[0], r=LAST&&LAST.snapshot.runners.find(x=>x.id===id), c=(r&&r.stats&&r.stats.cpu_cores)||0;
   strike(e.clientX,e.clientY,["CLANG","TING","KLONK"][Math.floor(Math.random()*3)],.75+Math.min(1,c/4)*.6)}});

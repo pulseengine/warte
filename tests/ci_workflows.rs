@@ -310,20 +310,20 @@ fn runners(text: &str) -> Vec<String> {
         .collect()
 }
 
-/// smithy's rust-cpu pool, with fork PRs routed to a GitHub-hosted runner by
+/// the self-hosted rust-cpu pool, with fork PRs routed to a GitHub-hosted runner by
 /// default. Routing only: a fork PR can edit the workflow, so isolation itself
 /// is the org's runner-group policy and fork-PR approval, not this expression.
-const SMITHY_CPU_FORK_GUARDED: &str = "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || fromJSON('[\"self-hosted\",\"linux\",\"x64\",\"rust-cpu\"]') }}";
+const SELF_HOSTED_CPU_FORK_GUARDED: &str = "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || fromJSON('[\"self-hosted\",\"linux\",\"x64\",\"rust-cpu\"]') }}";
 
 // rivet: verifies DD-CI-001
 // rivet: verifies REQ-CI-003
 #[test]
-fn ci_jobs_run_on_smithy_with_forks_guarded() {
-    // Jobs that must run hosted, each with its reason. Every other job runs on smithy.
+fn ci_jobs_run_self_hosted_with_forks_guarded() {
+    // Jobs that must run hosted, each with its reason. Every other job runs self-hosted.
     const HOSTED: &[(&str, &str, &str)] = &[(
         "playwright",
         "ubuntu-24.04",
-        "playwright install --with-deps needs apt-get (sudo); smithy runners have none",
+        "playwright install --with-deps needs apt-get (sudo); self-hosted runners have none",
     )];
     let wf = workflow("ci.yml");
     let mut checked = 0;
@@ -333,7 +333,7 @@ fn ci_jobs_run_on_smithy_with_forks_guarded() {
         match HOSTED.iter().find(|(j, _, _)| *j == job) {
             Some((_, want, why)) => assert_eq!(runner, *want, "ci.yml job {job} ({why})"),
             None => assert_eq!(
-                runner, SMITHY_CPU_FORK_GUARDED,
+                runner, SELF_HOSTED_CPU_FORK_GUARDED,
                 "ci.yml job {job}: unexpected runner"
             ),
         }
@@ -356,7 +356,7 @@ fn release_jobs_run_on_github_hosted_runners() {
     for cache in ["actions/cache@", "Swatinem/rust-cache@"] {
         assert!(
             !text.contains(cache),
-            "release.yml must restore no caches ({cache}): main's smithy runs write \
+            "release.yml must restore no caches ({cache}): main's self-hosted runs write \
              caches a tag run could restore"
         );
     }

@@ -13,7 +13,7 @@ defaults:
     shell: bash
 
 # A new push to a PR cancels that PR's older runs, so stale commits don't hold
-# scarce smithy runners. Pushes to main and release/** are never cancelled.
+# scarce self-hosted runners. Pushes to main and release/** are never cancelled.
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -30,7 +30,7 @@ jobs:
     name: Build
     # Routes fork PRs to GitHub-hosted runners by default. This is NOT a security
     # boundary: a fork PR can edit this file. Isolation is enforced by the org's
-    # smithy runner-group policy and fork-PR approval (#35).
+    # self-hosted runner-group policy and fork-PR approval (#35).
     runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","rust-cpu"]') }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -111,8 +111,8 @@ jobs:
         run: rivet coverage
 
   # Browser E2E (tests/playwright), modelled on rivet's job. Hosted, not
-  # smithy: `playwright install --with-deps` needs apt-get (sudo), which the
-  # smithy runners don't have. Pinned to ubuntu-24.04 as rivet does: the
+  # self-hosted: `playwright install --with-deps` needs apt-get (sudo), which the
+  # self-hosted runners don't have. Pinned to ubuntu-24.04 as rivet does: the
   # pinned Playwright release does not support Ubuntu 26.04.
   playwright:
     name: Playwright E2E

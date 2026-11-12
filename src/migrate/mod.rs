@@ -2,8 +2,8 @@
 //!
 //! REQ-MIGRATE-002: Migrate repo hardening config from temper (GitHub App).
 //!
-//! smithy hub needs no import: `warte hub` reads its data directory as-is
-//! (DD-SMITHY-001). The earlier `migrate_smithy` parsed a format smithy never
+//! the original hub needs no import: `warte hub` reads its data directory as-is
+//! (DD-SMITHY-001). The earlier `migrate_hub` parsed a format the original hub never
 //! had and was removed.
 //!
 //! Temper is linked, not absorbed — we read its config.yml and convert

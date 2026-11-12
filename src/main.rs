@@ -370,9 +370,9 @@ async fn main() -> anyhow::Result<()> {
                     );
                     warte::migrate::migrate_temper(db.pool(), &path).await?
                 }
-                "smithy" => {
+                "hub" => {
                     eprintln!(
-                        "smithy needs no import: run `warte hub --data-dir <smithy-hub dir>`, which reads it as-is (see `warte docs ground-station`)."
+                        "the original hub needs no import: run `warte hub --data-dir <its dir>`, which reads it as-is (see `warte docs ground-station`)."
                     );
                     std::process::exit(2);
                 }
@@ -453,7 +453,9 @@ async fn main() -> anyhow::Result<()> {
             allow,
             data_dir,
             org,
+            brand,
         } => {
+            warte::hub::set_brand(&brand);
             warte::hub::check_allow(&allow).map_err(anyhow::Error::msg)?;
             let hub = warte::hub::Hub::open(&data_dir, &org).map_err(anyhow::Error::msg)?;
             hub.spawn_ingest(&udp, allow).map_err(anyhow::Error::msg)?;
