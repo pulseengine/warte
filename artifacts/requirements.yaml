@@ -1420,3 +1420,17 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-11-11T19:04:48Z
+
+  - id: REQ-PREDICT-003
+    type: requirement
+    title: "Dependency canaries: the names CI downloads from resolve, and the likely cause when they do not"
+    status: verified
+    release: v1.6.18
+    description: "With [canaries] configured, warte SHALL resolve every configured name through every configured resolver and the system resolver every every_s seconds (default 300, at least 60), with a 3-second timeout per query. A failure SHALL count after two failing rounds in a row. warte SHALL name the likely cause as an outage finding, so the alerts notify: a name failing through some resolvers but resolving through others is a resolver problem (amber); a name failing through every resolver is the dependency's DNS (red); a resolver answering none of two or more names is that resolver (amber); nothing resolving anywhere is warte's network (red); rounds that stopped are a finding too. /api/canaries and the overview's Dependencies panel SHALL show every check. Resolvers SHALL be shown by label only, never by address, and outcomes as a fixed set of words. It SHALL work without a ground station."
+    fields:
+      category: functional
+      priority: should
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-11T23:46:45Z

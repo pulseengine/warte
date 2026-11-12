@@ -83,6 +83,16 @@
         }
       }
     },
+    "/api/canaries": {
+      "get": {
+        "summary": "Do the names CI depends on resolve, and through which resolvers?",
+        "description": "The latest round of the [canaries] DNS checks: every configured name through every resolver (by label, never by address), each with its outcome and how many rounds in a row it has failed, plus findings naming the likely cause of failures two rounds old: a resolver, the dependency's DNS, or warte's network.",
+        "responses": {
+          "200": {"description": "the latest round and its findings", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Canaries"}}}},
+          "503": {"description": "no canaries configured, or the first round has not finished"}
+        }
+      }
+    },
     "/api/machines": {
       "get": {
         "summary": "Every machine the ground station hears from, with drift findings",
@@ -223,6 +233,25 @@
             "now": {"type": "number"}, "limit": {"type": "number"}, "per_day": {"type": "number"},
             "due_at": {"type": "integer"}, "days": {"type": "number"},
             "span_h": {"type": "integer"}, "points": {"type": "integer"}, "r2": {"type": "number"}
+          }}}
+        }
+      },
+      "Canaries": {
+        "type": "object",
+        "required": ["report", "findings"],
+        "properties": {
+          "report": {"type": "object", "properties": {
+            "at": {"type": "integer"}, "every_s": {"type": "integer"}, "report_after": {"type": "integer"},
+            "names": {"type": "array", "items": {"type": "string"}},
+            "resolvers": {"type": "array", "items": {"type": "string"}, "description": "labels only"},
+            "checks": {"type": "array", "items": {"type": "object", "properties": {
+              "name": {"type": "string"}, "resolver": {"type": "string"},
+              "outcome": {"type": "string", "enum": ["ok", "timed_out", "server_failure", "no_such_name", "refused", "no_address", "failed"]},
+              "ms": {"type": "integer"}, "failing_rounds": {"type": "integer"}, "failing_since": {"type": "integer", "nullable": true}
+            }}}
+          }},
+          "findings": {"type": "array", "items": {"type": "object", "properties": {
+            "key": {"type": "string"}, "sev": {"type": "integer"}, "text": {"type": "string"}
           }}}
         }
       },

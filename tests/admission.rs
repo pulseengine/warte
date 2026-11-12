@@ -282,6 +282,8 @@ async fn endpoints_answer_as_documented() {
             "/api/briefing" | "/api/briefing/facts" => continue,
             // 503 without [triage]; tests/triage.rs covers it
             "/api/triage" | "/api/triage/done" => continue,
+            // 503 without [canaries]; tests/canaries.rs covers both
+            "/api/canaries" => continue,
             _ => "",
         };
         assert_eq!(get(&format!("{p}{q}")).await.unwrap().status(), 200, "{p}");

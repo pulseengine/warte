@@ -707,6 +707,10 @@ pub fn host_detected(state: &crate::server::AppState, now: i64) -> Vec<Detected>
     {
         list.extend(crate::forecast::detected(&f));
     }
+    // dependency canaries name the likely cause (REQ-PREDICT-003)
+    if let Some(r) = state.canaries.as_ref().and_then(|c| c.latest()) {
+        list.extend(crate::canary::judge(&r, now));
+    }
     list
 }
 

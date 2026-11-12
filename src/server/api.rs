@@ -84,6 +84,7 @@ pub fn build_routes() -> Router<AppState> {
         .route("/compliance", get(api_compliance))
         .route("/pressure", get(api_pressure))
         .route("/forecast", get(api_forecast))
+        .route("/canaries", get(api_canaries))
         .route("/operator", get(api_operator))
         .route("/openapi.json", get(api_openapi));
     // /api/ws and /api/events are not mounted: they broadcast agent and
@@ -1548,6 +1549,27 @@ async fn api_forecast(State(state): State<AppState>) -> axum::response::Response
             StatusCode::SERVICE_UNAVAILABLE,
             "no ground station with history configured",
         ),
+    }
+}
+
+/// Do the names CI depends on resolve (REQ-PREDICT-003)?
+async fn api_canaries(State(state): State<AppState>) -> axum::response::Response {
+    match &state.canaries {
+        None => plain(StatusCode::SERVICE_UNAVAILABLE, "no canaries configured"),
+        Some(c) => match c.latest() {
+            Some(r) => Json(serde_json::json!({
+                "report": r,
+                "findings": crate::canary::judge(&r, crate::hub::now())
+                    .iter()
+                    .map(|d| serde_json::json!({"key": d.key, "sev": d.sev, "text": d.text}))
+                    .collect::<Vec<_>>(),
+            }))
+            .into_response(),
+            None => plain(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "the first canary round has not finished",
+            ),
+        },
     }
 }
 

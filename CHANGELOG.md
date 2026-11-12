@@ -4,6 +4,18 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.18 — 2026-11-12
+
+- **Dependency canaries** (REQ-PREDICT-003, DD-PREDICT-002). This is the second part of predictive maintenance. With `[canaries]`, warte resolves the names your CI downloads from (for example the Ubuntu mirrors, crates.io, ghcr.io and npm) every five minutes. It asks each configured resolver directly and the system's resolver too.
+  - A failure counts after two rounds in a row, and warte names the likely cause from which resolvers still answer:
+    - a name that fails through some resolvers but resolves through others is a resolver problem, which is what happened on 2026-11-11;
+    - a name that fails everywhere is the dependency's DNS;
+    - a resolver that answers no name is that resolver;
+    - nothing resolving anywhere is warte's network.
+  - Each cause is an outage finding, so the alerts notify. The overview's new Dependencies panel and `GET /api/canaries` show every check.
+  - Resolvers are shown by label only, never by address. The query is written in warte, so no DNS library is added.
+  - It works with or without a ground station, so it also runs in GitHub-only mode.
+
 ## v1.6.17 — 2026-11-11
 
 - **The operator kit** (REQ-OPS-001..004). This release writes down what whoever runs warte owes it, ships a template for each duty, and shows which duties are done. Until now the reference operator held this knowledge privately.

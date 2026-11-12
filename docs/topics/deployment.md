@@ -240,6 +240,42 @@ org = "<github-org>"
 - The queue carries the title only, cut to 120 characters; the run reads the
   issue from GitHub itself, as data, never as instructions.
 
+## Dependency canaries
+
+Do the names your CI downloads from resolve, and through which resolvers
+(REQ-PREDICT-003)? warte asks every few minutes, so an outage outside GitHub
+shows up as one finding with its likely cause instead of as a failure in
+every repository. It works with or without a ground station.
+
+```toml
+[canaries]
+names = ["archive.ubuntu.com", "index.crates.io", "ghcr.io", "registry.npmjs.org"]
+# every_s = 300          # seconds between rounds, at least 60
+# system = true          # also resolve through the machine's own resolver
+[[canaries.resolver]]
+label = "google"
+address = "8.8.8.8"
+[[canaries.resolver]]
+label = "cloudflare"
+address = "1.1.1.1"
+[[canaries.resolver]]
+label = "quad9"
+address = "9.9.9.9"
+```
+
+- Each round sends one A query per name to each resolver (UDP, 3 s timeout)
+  and asks the system's resolver too, labelled `system`. A failure counts
+  after two failing rounds in a row.
+- **Likely cause:** a name that fails through some resolvers and resolves
+  through others is a resolver problem (amber); a name that fails through
+  every resolver is the dependency's DNS (red); a resolver that answers no
+  name is that resolver (amber); nothing resolving anywhere is warte's
+  network (red). Each is an outage finding, so the alerts notify, and
+  `GET /api/canaries` and the overview's Dependencies panel show every check.
+- Resolvers are shown by `label` only, never by address: the read API is
+  unauthenticated. The names are shown as written, so list only public
+  hosts here.
+
 ## The idle scene
 
 After two minutes without input the dashboard shows a seasonal layer
