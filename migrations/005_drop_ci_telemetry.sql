@@ -1,4 +1,4 @@
--- CI telemetry now lives in the ground station (absorbed hub,
+-- CI telemetry now lives in the ground station (absorbed smithy hub,
 -- DD-SMITHY-001): hub-state.json plus the per-day JSONL ledger, with GitHub
 -- as the store of record. These tables were fed by the removed webhooks and
 -- poller and duplicated that data (REQ-STORE-002).
