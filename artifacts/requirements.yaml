@@ -1448,3 +1448,17 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-11-12T00:39:58Z
+
+  - id: REQ-PREDICT-005
+    type: requirement
+    title: "CI health: a failure rate, flaky jobs, queue wait or release duration that got much worse is called out"
+    status: verified
+    release: v1.6.20
+    description: "From the finished-job ledger, with no extra GitHub requests, warte SHALL compare the last seven days with the seven before: per repository and overall, finished jobs that succeeded or failed and the failures among them, and flaky jobs (failed, then passed when the run was re-run); per runner pool, the 90th-percentile queue wait of first attempts; and the median duration of successful release runs. It SHALL call out only large changes resting on enough data: a failure rate of 10% or more that at least doubled, with 20 jobs or more in each week; 3 or more flaky jobs, more than the week before; a queue wait of 5 minutes or more that at least doubled; a release run at least 50% and 5 minutes slower; waits and release runs need 5 samples in each week. /api/ci-health and the overview's CI health panel SHALL show it, open like the queue API."
+    fields:
+      category: functional
+      priority: should
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-12T02:03:07Z
