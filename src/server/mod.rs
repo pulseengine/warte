@@ -46,6 +46,8 @@ pub struct AppState {
     pub briefing: Option<Arc<crate::briefing::Store>>,
     /// Issues people opened, waiting for a first reply (REQ-TRIAGE-001).
     pub triage: Option<Arc<crate::triage::Triage>>,
+    /// The latest dependency-canary round (REQ-PREDICT-003).
+    pub canaries: Option<Arc<crate::canary::Canaries>>,
 }
 
 /// Build the Axum router with all routes.
@@ -244,6 +246,16 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
         None => None,
     };
 
+    let canaries = match &config.canaries {
+        Some(c) => {
+            let resolvers = c.resolvers().map_err(anyhow::Error::msg)?;
+            let store = Arc::new(crate::canary::Canaries::default());
+            crate::canary::spawn(store.clone(), c.clone(), resolvers);
+            Some(store)
+        }
+        None => None,
+    };
+
     let temper = match (&config.temper, &config.hub) {
         (Some(_), Some(h)) => Some(Arc::new(crate::temper::Store::open(&h.data_dir))),
         _ => None,
@@ -276,6 +288,7 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
         },
         briefing,
         triage,
+        canaries,
         ca: ca.clone(),
         hub,
         machines,

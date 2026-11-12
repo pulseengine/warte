@@ -125,6 +125,9 @@ pub struct Config {
     /// The issue triage queue (REQ-TRIAGE-001).
     #[serde(default)]
     pub triage: Option<crate::triage::TriageConfig>,
+    /// External canaries: do the names CI depends on resolve (REQ-PREDICT-003).
+    #[serde(default)]
+    pub canaries: Option<crate::canary::CanariesConfig>,
 }
 
 /// Machine history retention (REQ-MHIST-001).
@@ -355,6 +358,7 @@ impl Default for Config {
             auth: None,
             briefing: None,
             triage: None,
+            canaries: None,
         }
     }
 }

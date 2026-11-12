@@ -304,3 +304,19 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-11-11T17:52:47Z
+
+  - id: DD-PREDICT-002
+    type: design-decision
+    title: Canaries ask resolvers directly with a hand-written A query; resolvers are shown by label
+    status: verified
+    release: v1.6.18
+    description: warte builds the DNS query and reads the reply's code itself (about 30 lines) over a tokio UDP socket, plus tokio's lookup_host for the system resolver. No DNS library is added.
+    fields:
+      rationale: The cause of the 2026-11-11 incident was visible only by comparing resolvers, which the system resolver alone cannot do. A canary needs only the response code and whether there is an answer, so a DNS library would add a large dependency for one bit. Labels keep resolver addresses, which are infrastructure, off the unauthenticated read API.
+    links:
+      - type: satisfies
+        target: REQ-PREDICT-003
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-11T23:46:45Z

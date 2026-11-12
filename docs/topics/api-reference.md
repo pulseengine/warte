@@ -172,6 +172,20 @@ forecast. Within 3 days a forecast is an amber outage finding and within 1 day
 a red one, so the alerts notify. Open like `/api/machines`; the overview shows
 the same as its Coming up panel.
 
+## Dependency canaries (REQ-PREDICT-003)
+
+```
+GET /api/canaries
+```
+
+The latest round of DNS checks configured in `[canaries]` (see deployment):
+`report` holds every name through every resolver, by label, with its
+`outcome` (`ok`, `timed_out`, `server_failure`, `no_such_name`, `refused`,
+`no_address`, `failed`), `ms`, `failing_rounds` and `failing_since`;
+`findings` names the likely cause of what has failed two rounds in a row: a
+resolver, the dependency's DNS, or warte's network. Resolver addresses are
+never shown. 503 without `[canaries]` or before the first round.
+
 ## Disk pressure (REQ-PRESSURE-001)
 
 ```
