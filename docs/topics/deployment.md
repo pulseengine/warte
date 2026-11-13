@@ -315,6 +315,21 @@ on = "2027-05-01"
   the read API is unauthenticated. Labels, dates' `what` and job names are
   shown as written.
 
+## Home link and app switcher
+
+When several apps share one host behind the proxy, the operator writes one
+nav v1 file, and each app shows a home link and the other apps
+(REQ-NAV-001). The format and its rules are the contract in `warte docs nav`.
+
+```toml
+[nav]
+file = "/etc/pulseengine/nav.json"
+self = "warte"
+```
+
+The file is read once at startup, so restart warte after changing it. A file
+that breaks a rule stops startup and names the field.
+
 ## The idle scene
 
 After two minutes without input the dashboard shows a seasonal layer

@@ -4,6 +4,10 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.25 — 2026-11-12
+
+- **Home link and app switcher, contract nav v1** (REQ-NAV-001). With `[nav] file = "…"` and `self = "warte"`, warte reads one JSON file that the operator writes for all apps on a host. The dashboard header then shows `← <home>` and every app in file order, with warte's own entry marked as current. The file is checked once at startup, and a broken rule stops startup with the field named. The rules (version, unknown keys, id, name, URL and description limits, 1 to 20 apps) are the contract in `warte docs nav`, so every app that renders nav v1 accepts and refuses the same files. Without `[nav]` the page is byte-identical to before.
+
 ## v1.6.24 — 2026-11-12
 
 - **Fix: v1.6.23 did not start on a database an earlier release had migrated** (REQ-STORE-003). v1.6.23 edited a comment in the released migration `005_drop_ci_telemetry.sql`. sqlx checksums the whole file, so v1.6.23 exited with "migration 5 was previously applied but has been modified" on any existing database; a fresh one was fine. Do not run v1.6.23 on an existing database; v1.6.22 and v1.6.24 work. The file is restored byte for byte. `warte::db::RELEASED_MIGRATIONS` pins the SHA-384 of every released migration, and a test fails on any edit. Another test starts the build on a database that recorded the released checksums, and checks that a different checksum is refused. Released migrations are exempt from the private-name scan, because their bytes are frozen. Checked by hand as well: on a database made by the v1.6.22 binary, v1.6.23 exits and this build runs.

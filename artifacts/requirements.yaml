@@ -1541,3 +1541,17 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-11-12T17:50:12Z
+
+  - id: REQ-NAV-001
+    type: requirement
+    title: A home link and app switcher from a shared nav v1 file
+    status: verified
+    release: v1.6.25
+    description: With [nav] file and self set, warte SHALL read the nav v1 file (docs/topics/nav.md) once at startup, SHALL refuse to start naming the field when any rule fails (version 1, no unknown keys, id [a-z0-9-] 1-32 and unique, names 1-40, desc at most 120, url '/...' not '//' or 'https://...' without whitespace, quotes or angle brackets, 1-20 apps, self among the ids), and SHALL render in the dashboard header the home link and then every app in file order, the own entry marked aria-current, exactly 1 + apps links, everything HTML-escaped. Without [nav] the page SHALL be byte-identical to before. Owner decision 2026-11-12.
+    fields:
+      category: functional
+      priority: should
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-12T20:32:03Z

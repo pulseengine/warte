@@ -36,7 +36,8 @@ pub async fn dashboard_page(State(state): State<crate::server::AppState>) -> Res
     Html(
         include_str!("../../templates/dashboard.html")
             .replace("{{VERSION}}", env!("CARGO_PKG_VERSION"))
-            .replace("{{IDLE}}", &idle),
+            .replace("{{IDLE}}", &idle)
+            .replace("{{NAV}}", &state.nav),
     )
     .into_response()
 }

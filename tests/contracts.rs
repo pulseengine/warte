@@ -7,6 +7,7 @@ const WIRE: &str = include_str!("../docs/topics/ground-station.md");
 const JOBS: &str = include_str!("../docs/topics/job-state.md");
 const COSTS: &str = include_str!("../docs/topics/costs-schema.md");
 const OPS: &str = include_str!("../docs/topics/operator.md");
+const NAV: &str = include_str!("../docs/topics/nav.md");
 
 /// Field names in the first column of a doc table: "| `a`, `b` | ...".
 fn table_fields(doc: &str, after: &str) -> Vec<String> {
@@ -34,6 +35,7 @@ fn every_contract_states_its_version() {
         ("jobs", JOBS),
         ("costs", COSTS),
         ("operator", OPS),
+        ("nav", NAV),
     ] {
         assert!(
             doc.contains("ersion **"),

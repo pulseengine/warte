@@ -119,6 +119,10 @@ pub struct Config {
     /// stays open.
     #[serde(default)]
     pub auth: Option<crate::login::AuthConfig>,
+    /// The home link and app switcher, contract nav v1 (REQ-NAV-001).
+    /// Without it nothing renders.
+    #[serde(default)]
+    pub nav: Option<crate::nav::NavConfig>,
     /// The briefing, once per `period_days` (REQ-BRIEF-001, REQ-BRIEF-004).
     #[serde(default)]
     pub briefing: Option<crate::briefing::BriefingConfig>,
@@ -340,6 +344,7 @@ impl Default for Config {
             ca_cert_path: default_ca_path(),
             ca_key_path: default_ca_key_path(),
             token_seed_path: None,
+            nav: None,
             cert_validity_hours: default_cert_validity_hours(),
             revocation_timeout_secs: default_revocation_timeout_secs(),
             sync_peers: Vec::new(),
