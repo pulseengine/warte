@@ -1,6 +1,6 @@
 [package]
 name = "warte"
-version = "1.6.25"
+version = "1.7.0"
 edition = "2021"
 description = "Warte — the PulseEngine control tower. A CI dashboard with an ask feature and an API."
 license = "Apache-2.0"
@@ -16,6 +16,7 @@ tower-http = { version = "0.6", features = ["cors", "trace", "limit"] }
 # Serialization
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["raw_value"] }
+serde_path_to_error = "0.1.20"
 indexmap = { version = "2", features = ["serde"] }
 # Machine history store (REQ-MHIST-001): pure Rust, one file, buffered commits
 redb = "4.4"

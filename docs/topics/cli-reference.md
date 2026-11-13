@@ -14,6 +14,8 @@ Commands:
   migrate   Migrate data from an existing system
   probe     What this machine is and runs: hardware, disks, agent CLIs, sessions
   fleet     The fleet model: read a spar instance of the Warte_Fleet types
+  nav       The home link and app switcher file (contract nav v1)
+  sessions  The agent session list (contract sessions v1)
   artifact  Manage artifacts
   docs      Show embedded documentation
 
@@ -32,7 +34,7 @@ Options:
 - Unknown flags exit 2
 - Structured output via `--format json`
 - Subcommands: `serve`, `status`, `agents`, `schedule`, `watch`,
-  `access`, `migrate`, `probe`, `fleet`, `hub`, `artifact`, `docs`
+  `access`, `migrate`, `probe`, `fleet`, `nav`, `sessions`, `hub`, `artifact`, `docs`
 
 ## Examples
 
@@ -279,6 +281,26 @@ when it finished its turn (shown as "idle" after 30 minutes), otherwise what
 it does ("editing", "running tests", ...). No prompt, command, file name or
 path leaves the machine. Vibe has no session-start or prompt event, so a
 Vibe session shows its tools and "done" only.
+
+## warte nav
+
+Check a nav v1 file (`warte docs nav`) before deploying it, with the same
+rules and messages warte applies at startup:
+
+```bash
+warte nav check nav.json --self warte   # exit 1 naming the file and the field
+```
+
+Without `--self` the file is checked alone.
+
+## warte sessions
+
+The agent sessions a machine runs are listed in one JSON file, contract
+sessions v1 (`warte docs sessions`). Check a file before deploying it:
+
+```bash
+warte sessions check sessions.json   # exit 1 naming the file and the field
+```
 
 ## warte fleet
 

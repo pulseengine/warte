@@ -3151,7 +3151,7 @@ dependencies = [
 
 [[package]]
 name = "warte"
-version = "1.6.25"
+version = "1.7.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3174,6 +3174,7 @@ dependencies = [
  "rustls",
  "serde",
  "serde_json",
+ "serde_path_to_error",
  "serde_yaml",
  "sha2",
  "sqlx",

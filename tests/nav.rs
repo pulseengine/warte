@@ -13,7 +13,7 @@ fn example() -> serde_json::Value {
 }
 
 fn parse(v: &serde_json::Value) -> Result<NavFile, String> {
-    serde_json::from_value::<NavFile>(v.clone()).map_err(|e| e.to_string())
+    warte::nav::parse(&v.to_string())
 }
 
 fn hrefs(page: &str) -> Vec<String> {
@@ -89,6 +89,41 @@ fn every_rule_refuses_a_file_and_names_the_field() {
                 v["apps"][0].as_object_mut().unwrap().remove("url");
             }),
             "url",
+        ),
+        (
+            "backslash url",
+            Box::new(|v| v["apps"][1]["url"] = "/\\evil.example".into()),
+            "apps[1].url",
+        ),
+        (
+            "backslash home url",
+            Box::new(|v| v["home"]["url"] = "/a\\b".into()),
+            "home.url",
+        ),
+        (
+            "home as an array",
+            Box::new(|v| v["home"] = serde_json::json!(["t", "/"])),
+            "home",
+        ),
+        (
+            "app as an array",
+            Box::new(|v| v["apps"][1] = serde_json::json!(["photos", "Photos", "/photos/"])),
+            "apps[1]",
+        ),
+        (
+            "version as a string",
+            Box::new(|v| v["version"] = "1".into()),
+            "version",
+        ),
+        (
+            "version as a float",
+            Box::new(|v| v["version"] = serde_json::json!(1.0)),
+            "version",
+        ),
+        (
+            "name of the wrong type",
+            Box::new(|v| v["apps"][1]["name"] = 7.into()),
+            "apps[1].name",
         ),
         (
             "uppercase id",
@@ -195,6 +230,14 @@ fn every_rule_refuses_a_file_and_names_the_field() {
         };
         assert!(err.contains(field), "{what}: {err:?} does not name {field}");
     }
+    // duplicate keys are refused, null desc is no desc
+    assert!(warte::nav::parse(
+        r#"{"version":1,"version":1,"home":{"name":"h","url":"/"},"apps":[]}"#
+    )
+    .is_err());
+    let mut v = example();
+    v["apps"][1]["desc"] = serde_json::Value::Null;
+    check(&parse(&v).unwrap(), "warte").unwrap();
     // the limits themselves pass: 40-character names, 32-character ids, 120-character desc
     let mut v = example();
     v["apps"][1]["name"] = "n".repeat(40).into();
@@ -313,4 +356,47 @@ fn warte_toml_needs_both_file_and_self() {
     let extra: Result<warte::config::Config, _> =
         toml::from_str("[nav]\nfile = \"/n\"\nself = \"w\"\nicon = 1\n");
     assert!(extra.is_err());
+}
+
+fn run(args: &[&str]) -> (i32, String, String) {
+    let o = std::process::Command::new(env!("CARGO_BIN_EXE_warte"))
+        .args(args)
+        .env_remove("WARTE_CONFIG")
+        .current_dir(std::env::temp_dir())
+        .output()
+        .unwrap();
+    (
+        o.status.code().unwrap_or(-1),
+        String::from_utf8_lossy(&o.stdout).into(),
+        String::from_utf8_lossy(&o.stderr).into(),
+    )
+}
+
+// rivet: verifies REQ-NAV-002
+#[test]
+fn the_check_command_gives_the_startup_verdict() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = write_example(dir.path());
+    let f = file.to_str().unwrap();
+    let (code, out, err) = run(&["nav", "check", f, "--self", "warte"]);
+    assert_eq!((code, out.trim()), (0, "ok: nav v1, 3 apps"), "{err}");
+    let (code, _, _) = run(&["nav", "check", f]);
+    assert_eq!(code, 0);
+    // an id not in the file
+    let (code, _, err) = run(&["nav", "check", f, "--self", "other"]);
+    assert_eq!(code, 1);
+    assert!(err.contains("[nav]") && err.contains("self"), "{err}");
+    // the startup message, word for word
+    let mut v = example();
+    v["apps"][2]["url"] = "//x/".into();
+    std::fs::write(&file, v.to_string()).unwrap();
+    let (code, _, err) = run(&["nav", "check", f, "--self", "warte"]);
+    assert_eq!(code, 1);
+    let startup = warte::nav::load(&NavConfig {
+        file: file.clone(),
+        self_id: "warte".into(),
+    })
+    .unwrap_err();
+    assert!(err.contains(&startup), "{err:?} lacks {startup:?}");
+    assert!(startup.contains("apps[2].url"), "{startup}");
 }

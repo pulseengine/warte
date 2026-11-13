@@ -124,6 +124,51 @@ async fn main() -> anyhow::Result<()> {
             std::process::exit(code);
         }
 
+        Commands::Sessions { action } => match action {
+            warte::cli::SessionsCommands::Check { file } => {
+                let f = warte::sessions::load(&file).map_err(anyhow::Error::msg)?;
+                let enabled = f.sessions.iter().filter(|s| s.enabled).count();
+                match cli.format {
+                    OutputFormat::Json => println!(
+                        "{}",
+                        serde_json::json!({"ok": true, "version": f.version,
+                            "sessions": f.sessions.len(), "enabled": enabled})
+                    ),
+                    OutputFormat::Text => println!(
+                        "ok: sessions v{}, {} sessions, {} enabled",
+                        f.version,
+                        f.sessions.len(),
+                        enabled
+                    ),
+                }
+            }
+        },
+        Commands::Nav { action } => match action {
+            warte::cli::NavCommands::Check { file, self_id } => {
+                // with --self, exactly the startup path; without, any listed id
+                let f = match self_id {
+                    Some(id) => warte::nav::load(&warte::nav::NavConfig { file, self_id: id }),
+                    None => std::fs::read_to_string(&file)
+                        .map_err(|e| e.to_string())
+                        .and_then(|t| warte::nav::parse(&t))
+                        .and_then(|f| {
+                            let me = f.apps.first().map(|a| a.id.clone()).unwrap_or_default();
+                            warte::nav::check(&f, &me).map(|_| f)
+                        })
+                        .map_err(|e| format!("[nav] {}: {e}", file.display())),
+                }
+                .map_err(anyhow::Error::msg)?;
+                match cli.format {
+                    OutputFormat::Json => println!(
+                        "{}",
+                        serde_json::json!({"ok": true, "version": f.version, "apps": f.apps.len()})
+                    ),
+                    OutputFormat::Text => {
+                        println!("ok: nav v{}, {} apps", f.version, f.apps.len())
+                    }
+                }
+            }
+        },
         Commands::Fleet { action } => match action {
             warte::cli::FleetCommands::Show { instance } => {
                 let text = std::fs::read_to_string(&instance)
