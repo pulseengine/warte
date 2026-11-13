@@ -49,6 +49,7 @@ pub struct AppState {
     pub briefing: Option<Arc<crate::briefing::Store>>,
     /// Issues people opened, waiting for a first reply (REQ-TRIAGE-001).
     pub triage: Option<Arc<crate::triage::Triage>>,
+    pub news: Option<Arc<crate::news::News>>,
     /// The latest dependency-canary round (REQ-PREDICT-003).
     pub canaries: Option<Arc<crate::canary::Canaries>>,
     /// What runs out and when (REQ-PREDICT-004).
@@ -240,6 +241,16 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
         None => None,
     };
 
+    let news = match &config.news {
+        Some(n) => {
+            n.check().map_err(anyhow::Error::msg)?;
+            let s = Arc::new(crate::news::News::new(n.clone(), db.pool().clone()));
+            crate::news::spawn(s.clone());
+            Some(s)
+        }
+        None => None,
+    };
+
     let triage = match &config.triage {
         Some(t) => {
             let dir = t
@@ -330,6 +341,7 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
         },
         briefing,
         triage,
+        news,
         canaries,
         expiry,
         ci_health: Default::default(),

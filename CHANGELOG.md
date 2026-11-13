@@ -4,6 +4,10 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.27 — 2026-11-13
+
+- **News from the tools' public feeds, contract news v1** (REQ-NEWS-001). With `[news]` listing Atom or RSS feeds (a GitHub repository's `releases.atom` is one), warte polls them daily and keeps every entry: source, date, title, link, a plain-text excerpt and a content hash. `warte news --since 2026-11-01 [--source …] [--grep …]` and `GET /api/news` answer "what changed from then to now". A reader with the `news:write` right marks items found, decided, landed or dismissed through `POST /api/news/state`, and the mark survives edits to the upstream notes. Feed text is stored as plain text and served as data. `GET /api/news/sources` shows each feed's last poll as a result kind, never a raw error.
+
 ## v1.6.26 — 2026-11-13
 
 - **Agent session list, contract sessions v1** (REQ-SESS-001). One JSON file lists the agent sessions a machine runs: id, remote-control name, working directory, model, effort, permission mode, machine role and an enabled flag, every field required. `warte sessions check <file>` exits 1 naming the file and the field when a rule fails. This is the first part of the agent-fleet procedure warte publishes; a deployment's private configuration renders the file per machine and runs the check before deploying it.

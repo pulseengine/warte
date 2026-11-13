@@ -77,6 +77,11 @@ const TOPICS: &[Topic] = &[
         content: include_str!("../../docs/topics/nav.md"),
     },
     Topic {
+        name: "news",
+        title: "Contract: news v1, release notes from public feeds",
+        content: include_str!("../../docs/topics/news.md"),
+    },
+    Topic {
         name: "sessions",
         title: "Contract: sessions v1, the agent session list",
         content: include_str!("../../docs/topics/sessions.md"),

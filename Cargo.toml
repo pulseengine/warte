@@ -1,6 +1,6 @@
 [package]
 name = "warte"
-version = "1.6.26"
+version = "1.6.27"
 edition = "2021"
 description = "Warte — the PulseEngine control tower. A CI dashboard with an ask feature and an API."
 license = "Apache-2.0"
@@ -51,6 +51,7 @@ rcgen = { version = "0.13", features = ["pem", "x509-parser"] }
 # Integrity / signing
 sha2 = "0.10"
 hex = "0.4"
+quick-xml = "0.37"
 
 # Logging / tracing
 tracing = "0.1"
