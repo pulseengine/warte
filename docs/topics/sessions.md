@@ -1,6 +1,6 @@
 # Contract: sessions v1
 
-Version **1**, since warte v1.7.0. The agent sessions a machine runs are
+Version **1**, since warte v1.6.26. The agent sessions a machine runs are
 listed in one JSON file (REQ-SESS-001). The operator's private configuration
 renders the file per machine; warte publishes the format and the check, so a
 bad list stops before it is deployed.

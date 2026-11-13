@@ -4,7 +4,7 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
-## v1.7.0 — 2026-11-13
+## v1.6.26 — 2026-11-13
 
 - **Agent session list, contract sessions v1** (REQ-SESS-001). One JSON file lists the agent sessions a machine runs: id, remote-control name, working directory, model, effort, permission mode, machine role and an enabled flag, every field required. `warte sessions check <file>` exits 1 naming the file and the field when a rule fails. This is the first part of the agent-fleet procedure warte publishes; a deployment's private configuration renders the file per machine and runs the check before deploying it.
 - **`warte nav check <file> [--self <id>]`** (REQ-NAV-002) gives the verdict startup would, with the same message, so a configuration can refuse a bad nav file before it can stop an app.

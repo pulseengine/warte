@@ -65,7 +65,7 @@ The file contract does not fix how an app is told the path and its own id.
 
 ## The check
 
-`warte nav check <file> [--self <id>]` (since warte v1.7.0) applies the same
+`warte nav check <file> [--self <id>]` (since warte v1.6.26) applies the same
 rules and prints the same message as startup, and exits 1 when one fails, so
 a configuration can refuse a bad file before it reaches a running app.
 
