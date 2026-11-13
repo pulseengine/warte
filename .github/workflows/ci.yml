@@ -108,7 +108,7 @@ jobs:
         run: rivet validate
 
       - name: Check traceability coverage
-        run: rivet coverage
+        run: rivet coverage --fail-under 71 --strict-empty
 
   # Browser E2E (tests/playwright), modelled on rivet's job. Hosted, not
   # self-hosted: `playwright install --with-deps` needs apt-get (sudo), which the
