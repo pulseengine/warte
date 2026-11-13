@@ -1560,7 +1560,7 @@ artifacts:
     type: requirement
     title: warte nav check gives the startup verdict on a nav v1 file
     status: verified
-    release: v1.7.0
+    release: v1.6.26
     description: warte nav check <file> [--self <id>] SHALL apply the nav v1 rules with the message startup gives, exit 0 printing the version and app count, and exit 1 naming the file and the field when a rule fails, including a value of the wrong type, so a configuration can refuse a bad file before it reaches a running app. Requested by the fleet agent 2026-11-13.
     fields:
       category: functional
@@ -1577,7 +1577,7 @@ artifacts:
     type: requirement
     title: The agent session list is a checked sessions v1 file
     status: verified
-    release: v1.7.0
+    release: v1.6.26
     description: "warte SHALL publish contract sessions v1 (docs/topics/sessions.md): version 1, 1-64 sessions, each with id [a-z0-9-] 1-32 unique, name 1-64 without control characters unique ignoring case, an absolute dir without '..' or control characters, model [A-Za-z0-9._-[]] 1-64, effort and permission mode from fixed lists, a machine role [a-z0-9-] 1-32 (never a hostname), and a required enabled flag, all fields required and unknown keys refused. warte sessions check <file> SHALL exit 0 with the counts or exit 1 naming the file and the field. Owner decision 2026-11-13: warte publishes the agent-fleet procedure, the private configuration applies it."
     fields:
       category: functional
