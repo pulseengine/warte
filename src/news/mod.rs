@@ -73,7 +73,7 @@ impl NewsConfig {
             if !seen.insert(s.id.as_str()) {
                 return Err(format!("[news] sources[{i}].id {:?} is not unique", s.id));
             }
-            if !s.url.starts_with("https://") || s.url.chars().any(|c| c.is_whitespace()) {
+            if !link_ok(&s.url) {
                 return Err(format!("[news] sources[{i}].url must be an https:// URL"));
             }
         }
@@ -110,6 +110,14 @@ pub struct Item {
 }
 
 /// Collapse whitespace, drop markup, cut to `max` characters.
+/// An `https://` URL with no whitespace or control character, so a feed
+/// cannot smuggle a terminal escape into `warte news` output.
+pub fn link_ok(s: &str) -> bool {
+    s.starts_with("https://")
+        && s.len() > "https://".len()
+        && !s.chars().any(|c| c.is_whitespace() || c.is_control())
+}
+
 pub fn plain_text(s: &str, max: usize) -> String {
     let mut out = String::new();
     let mut in_tag = false;
@@ -219,7 +227,7 @@ pub fn parse_feed(xml: &str) -> Result<Vec<Entry>, String> {
                             .get("link")
                             .map(|s| s.trim().to_string())
                             .unwrap_or_default();
-                        if link.starts_with("https://") && !link.chars().any(char::is_whitespace) {
+                        if link_ok(&link) {
                             let pick = |ks: &[&str]| {
                                 ks.iter()
                                     .find_map(|k| m.get(*k).filter(|v| !v.trim().is_empty()))
@@ -425,6 +433,15 @@ impl News {
         let http = reqwest::Client::builder()
             .user_agent(concat!("warte/", env!("CARGO_PKG_VERSION"), " (news v1)"))
             .timeout(Duration::from_secs(30))
+            // A redirect may not leave https, so a feed cannot point warte
+            // at a plain-http or internal address.
+            .redirect(reqwest::redirect::Policy::custom(|a| {
+                if a.previous().len() >= 5 || a.url().scheme() != "https" {
+                    a.stop()
+                } else {
+                    a.follow()
+                }
+            }))
             .build()
             .expect("reqwest client");
         News {
@@ -473,13 +490,25 @@ impl News {
         if !r.status().is_success() {
             return Err(format!("http {}", r.status().as_u16()));
         }
-        let b = r.bytes().await.map_err(|_| "fetch".to_string())?;
-        if b.len() > 4 << 20 {
+        if r.content_length().is_some_and(|n| n > MAX_BODY as u64) {
             return Err("fetch".into());
+        }
+        // Read in chunks and stop at the cap, so a large body is never
+        // held whole.
+        let mut r = r;
+        let mut b = Vec::new();
+        while let Some(c) = r.chunk().await.map_err(|_| "fetch".to_string())? {
+            if b.len() + c.len() > MAX_BODY {
+                return Err("fetch".into());
+            }
+            b.extend_from_slice(&c);
         }
         Ok(String::from_utf8_lossy(&b).into_owned())
     }
 }
+
+/// At most 4 MiB per feed response.
+const MAX_BODY: usize = 4 << 20;
 
 pub fn now() -> String {
     chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
@@ -549,15 +578,18 @@ pub mod client {
             items: Vec<Item>,
         }
         let p: Page = serde_json::from_str(body)?;
+        // Served fields are plain text already; drop control characters
+        // again here, so no field can drive the terminal.
+        let clean = |s: &str| s.chars().filter(|c| !c.is_control()).collect::<String>();
         let mut out = String::new();
         for i in &p.items {
             out.push_str(&format!(
                 "{}  {:<16} {:<9} {}\n    {}\n",
-                &i.published[..10.min(i.published.len())],
-                i.source,
-                i.state,
-                i.title,
-                i.link
+                clean(&i.published[..10.min(i.published.len())]),
+                clean(&i.source),
+                clean(&i.state),
+                clean(&i.title),
+                clean(&i.link)
             ));
         }
         out.push_str(&format!("{} items\n", p.items.len()));

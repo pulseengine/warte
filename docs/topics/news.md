@@ -24,11 +24,13 @@ sources = [
 - `id` is `[a-z0-9-]`, 1 to 32 characters, unique. A broken `[news]` stops
   startup with the rule named.
 - warte polls at start and then every `interval_s`, reads at most 50 entries
-  per feed and at most 4 MiB per response.
+  per feed and at most 4 MiB per response. It follows at most 5 redirects,
+  and only to `https://`.
 
 ## Items
 
-Each entry with an `https://` link becomes one item:
+Each entry with an `https://` link that holds no whitespace or control
+character becomes one item:
 
 | Field | Meaning |
 |---|---|

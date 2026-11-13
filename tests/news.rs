@@ -434,3 +434,18 @@ async fn the_api_and_the_command_serve_the_items_and_take_marks() {
         "{text}"
     );
 }
+
+// rivet: verifies REQ-NEWS-001
+#[test]
+fn a_link_with_a_control_character_is_refused() {
+    use warte::news::link_ok;
+    assert!(link_ok("https://github.com/o/tool/releases/tag/v2.1.0"));
+    assert!(!link_ok("https://x/\u{1b}]8;;https://evil\u{7}"));
+    assert!(!link_ok("https://x/\u{9b}31m"));
+    assert!(!link_ok("https://x/a b"));
+    assert!(!link_ok("http://x/"));
+    assert!(!link_ok("https://"));
+    let feed = "<rss version=\"2.0\"><channel><item><title>t</title>\
+        <link>https://x/\u{1b}[2J</link></item></channel></rss>";
+    assert!(parse_feed(feed).map(|v| v.is_empty()).unwrap_or(true));
+}
