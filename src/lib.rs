@@ -41,6 +41,7 @@ pub mod probe;
 pub mod realtime;
 pub mod rivetext;
 pub mod server;
+pub mod sessions;
 pub mod sigil;
 pub mod skills;
 pub mod status;

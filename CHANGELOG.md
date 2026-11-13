@@ -4,6 +4,14 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.7.0 — 2026-11-13
+
+- **Agent session list, contract sessions v1** (REQ-SESS-001). One JSON file lists the agent sessions a machine runs: id, remote-control name, working directory, model, effort, permission mode, machine role and an enabled flag, every field required. `warte sessions check <file>` exits 1 naming the file and the field when a rule fails. This is the first part of the agent-fleet procedure warte publishes; a deployment's private configuration renders the file per machine and runs the check before deploying it.
+- **`warte nav check <file> [--self <id>]`** (REQ-NAV-002) gives the verdict startup would, with the same message, so a configuration can refuse a bad nav file before it can stop an app.
+- **nav v1 refuses `\` in URLs.** `/\evil.example` passed the rule "starts with `/`, not `//`", and browsers read `/\` as `//`, an off-site link. A file with a backslash URL now stops startup.
+- **Arrays in place of objects are refused** in both contracts; serde accepted `"home": ["t", "/"]` as a positional struct. The contracts now also state that `version` is the integer 1, duplicate keys are refused, `"desc": null` means no description and lengths count Unicode code points.
+- **A value of the wrong type now names its field** in both contracts (`apps[1].name: invalid type …`); serde's message alone did not.
+
 ## v1.6.25 — 2026-11-12
 
 - **Home link and app switcher, contract nav v1** (REQ-NAV-001). With `[nav] file = "…"` and `self = "warte"`, warte reads one JSON file that the operator writes for all apps on a host. The dashboard header then shows `← <home>` and every app in file order, with warte's own entry marked as current. The file is checked once at startup, and a broken rule stops startup with the field named. The rules (version, unknown keys, id, name, URL and description limits, 1 to 20 apps) are the contract in `warte docs nav`, so every app that renders nav v1 accepts and refuses the same files. Without `[nav]` the page is byte-identical to before.

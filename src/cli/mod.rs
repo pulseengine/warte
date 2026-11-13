@@ -118,6 +118,18 @@ pub enum Commands {
         action: ProbeCommands,
     },
 
+    /// The home link and app switcher file (contract nav v1)
+    Nav {
+        #[command(subcommand)]
+        action: NavCommands,
+    },
+
+    /// The agent session list (contract sessions v1)
+    Sessions {
+        #[command(subcommand)]
+        action: SessionsCommands,
+    },
+
     /// Run the ground station: CCSDS telemetry from the fleet agent in, hub API out
     ///
     /// Same flags and data-dir layout as the original hub, so it replaces it in place.
@@ -167,6 +179,29 @@ pub enum FleetCommands {
     Show {
         /// `spar instance --format json` output
         instance: std::path::PathBuf,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum NavCommands {
+    /// Check a nav v1 file; exit 1 naming the file and the field when a rule
+    /// fails
+    Check {
+        /// The nav v1 JSON file
+        file: std::path::PathBuf,
+        /// The app's own id, which must be in the file (as `[nav] self`)
+        #[arg(long = "self", value_name = "ID")]
+        self_id: Option<String>,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum SessionsCommands {
+    /// Check a sessions v1 file; exit 1 naming the file and the field when a
+    /// rule fails
+    Check {
+        /// The sessions v1 JSON file
+        file: std::path::PathBuf,
     },
 }
 

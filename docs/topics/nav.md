@@ -29,10 +29,18 @@ Written by the operator, mode 0644, no secrets. Example:
 | `apps` | array | 1 to 20 entries, in the order they render |
 | `id` | string | `[a-z0-9-]`, 1 to 32 characters, unique |
 | `name` | string | 1 to 40 characters after trimming (also `home.name`) |
-| `url` | string | `/…` (not `//`) or `https://…`; no whitespace, control characters, quotes, `<` or `>` (also `home.url`) |
+| `url` | string | `/…` (not `//`) or `https://…`; no whitespace, control characters, quotes, `<`, `>` or `\` (also `home.url`; browsers read `/\` as `//`) |
 | `desc` | string | optional, at most 120 characters, shown only as the link's title |
 
 - **Unknown keys** at any level are refused. A new field means version 2.
+- **Exact JSON shapes:** the file, `home` and each app are objects (an array
+  in their place is refused); `version` is the integer `1` (`1.0` and `"1"`
+  are refused); a key given twice is refused; `"desc": null` means no
+  description.
+- **Lengths count characters** as Unicode code points, after trimming for
+  names.
+- **A refused file names the field**, including a value of the wrong type
+  (`apps[1].name: invalid type …`).
 - **Relative URLs** (`/warte/`) work under every name the host has. Use an
   absolute `https://` URL only for another host.
 - **Read once at startup.** An app checks the file when it starts and refuses
@@ -54,6 +62,12 @@ The file contract does not fix how an app is told the path and its own id.
   variables `<APP>_NAV=<file>` and `<APP>_NAV_SELF=<id>`.
 
 `self` must be one of the ids, and a file set without `self` refuses startup.
+
+## The check
+
+`warte nav check <file> [--self <id>]` (since warte v1.7.0) applies the same
+rules and prints the same message as startup, and exits 1 when one fails, so
+a configuration can refuse a bad file before it reaches a running app.
 
 ## Rendering
 

@@ -54,7 +54,7 @@ fn url_ok(u: &str) -> bool {
     shape
         && !u
             .chars()
-            .any(|c| c.is_whitespace() || c.is_control() || "\"'<>".contains(c))
+            .any(|c| c.is_whitespace() || c.is_control() || "\"'<>\\".contains(c))
 }
 
 fn name_ok(s: &str) -> bool {
@@ -72,7 +72,7 @@ pub fn check(f: &NavFile, self_id: &str) -> Result<(), String> {
     }
     if !url_ok(&f.home.url) {
         return Err(
-            "home.url must be \"/…\" (not \"//\") or \"https://…\", without spaces, quotes, < or >"
+            "home.url must be \"/…\" (not \"//\") or \"https://…\", without spaces, quotes, <, > or \\"
                 .into(),
         );
     }
@@ -102,7 +102,7 @@ pub fn check(f: &NavFile, self_id: &str) -> Result<(), String> {
         }
         if !url_ok(&a.url) {
             return Err(format!(
-                "{at}.url must be \"/…\" (not \"//\") or \"https://…\", without spaces, quotes, < or >"
+                "{at}.url must be \"/…\" (not \"//\") or \"https://…\", without spaces, quotes, <, > or \\"
             ));
         }
         if a.desc
@@ -118,11 +118,37 @@ pub fn check(f: &NavFile, self_id: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Parse a file's text; a type error names the field it is in. Objects must
+/// be objects: serde alone also accepts a positional array for a struct.
+pub fn parse(text: &str) -> Result<NavFile, String> {
+    let v: serde_json::Value = serde_json::from_str(text).map_err(|e| e.to_string())?;
+    if !v.is_object() {
+        return Err("the file must be a JSON object".into());
+    }
+    if !v["home"].is_object() && v.get("home").is_some() {
+        return Err("home must be an object".into());
+    }
+    if let Some(apps) = v["apps"].as_array() {
+        if let Some(i) = apps.iter().position(|a| !a.is_object()) {
+            return Err(format!("apps[{i}] must be an object"));
+        }
+    }
+    let de = &mut serde_json::Deserializer::from_str(text);
+    serde_path_to_error::deserialize(de).map_err(|e| {
+        let at = e.path().to_string();
+        if at == "." {
+            e.inner().to_string()
+        } else {
+            format!("{at}: {}", e.inner())
+        }
+    })
+}
+
 /// Read, parse and check the file; `Err` names the file and the rule.
 pub fn load(cfg: &NavConfig) -> Result<NavFile, String> {
     let at = cfg.file.display();
     let text = std::fs::read_to_string(&cfg.file).map_err(|e| format!("[nav] {at}: {e}"))?;
-    let f: NavFile = serde_json::from_str(&text).map_err(|e| format!("[nav] {at}: {e}"))?;
+    let f = parse(&text).map_err(|e| format!("[nav] {at}: {e}"))?;
     check(&f, &cfg.self_id).map_err(|e| format!("[nav] {at}: {e}"))?;
     Ok(f)
 }
