@@ -649,3 +649,112 @@ async fn the_briefing_job_retries_a_refused_answer_once_with_the_reason() {
     let (ok, log) = run_job(&s, &[]).await;
     assert!(ok, "{log}");
 }
+
+// rivet: verifies REQ-BRIEF-006
+#[test]
+fn a_briefing_after_missed_days_catches_up_and_replaces_the_plain_ones() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = briefing::Store::open(dir.path().to_str().unwrap()).unwrap();
+    let day = |d: &str| Facts {
+        from: d.into(),
+        until: d.into(),
+        ..Default::default()
+    };
+    // 9 Nov written by a model; 10 and 11 Nov stayed plain
+    let mut sun = briefing::from_facts(day("2026-11-09"), 0);
+    sun.source = "model".into();
+    store.put(&sun).unwrap();
+    store
+        .put(&briefing::from_facts(day("2026-11-10"), 0))
+        .unwrap();
+    store
+        .put(&briefing::from_facts(day("2026-11-11"), 0))
+        .unwrap();
+
+    assert!(store.covers("2026-11-11"));
+    assert!(!store.covers("2026-11-12"));
+    // 12 Nov's briefing starts the day after the last model-written one
+    let (start, replaces) = store.catch_up_from("2026-11-12", "2026-11-12");
+    assert_eq!(start, "2026-11-10");
+    assert_eq!(replaces, vec!["2026-11-11", "2026-11-10"]);
+    let f = Facts {
+        from: start.clone(),
+        until: "2026-11-12".into(),
+        ..Default::default()
+    };
+    store.keep(f, replaces, 1).unwrap();
+    // one entry for 10..12 Nov; the plain 11 Nov is gone, the model's 9 Nov kept
+    assert_eq!(store.periods(), vec!["2026-11-10", "2026-11-09"]);
+    let b = store.latest().unwrap();
+    assert_eq!(
+        (b.facts.from.as_str(), b.facts.until.as_str()),
+        ("2026-11-10", "2026-11-12")
+    );
+    assert_eq!(b.replaces.len(), 2);
+    assert!(store.covers("2026-11-11") && store.covers("2026-11-12"));
+    assert_eq!(store.get("2026-11-09").unwrap().source, "model");
+
+    // a job that read the facts before the period grew is told to read again
+    let sub = |until: Option<&str>| {
+        let mut v = json!({"from": "2026-11-10", "model": "m", "line": "A quiet stretch: nothing new was finished.",
+            "bullets": ["Nothing was finished.", "Nothing went wrong.", "Nothing waits for you."]});
+        if let Some(u) = until {
+            v["until"] = json!(u);
+        }
+        serde_json::from_value::<briefing::Submission>(v).unwrap()
+    };
+    let err = store.submit(sub(Some("2026-11-10")), 2).unwrap_err();
+    assert!(err.contains("read the facts again"), "{err}");
+    assert_eq!(store.latest().unwrap().source, "template");
+    // with the right until, or none (an older job), the text is checked as before
+    store.submit(sub(Some("2026-11-12")), 2).unwrap();
+    assert_eq!(store.latest().unwrap().source, "model");
+}
+
+// rivet: verifies REQ-BRIEF-006
+#[test]
+fn a_catch_up_stops_at_seven_days_and_at_a_gap() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = briefing::Store::open(dir.path().to_str().unwrap()).unwrap();
+    // ten plain days in a row: 1..10 Nov
+    for d in 1..=10 {
+        let d = format!("2026-11-{d:02}");
+        store
+            .put(&briefing::from_facts(
+                Facts {
+                    from: d.clone(),
+                    until: d,
+                    ..Default::default()
+                },
+                0,
+            ))
+            .unwrap();
+    }
+    let (start, replaces) = store.catch_up_from("2026-11-11", "2026-11-11");
+    assert_eq!(start, "2026-11-05", "11 Nov and the six days before: seven");
+    assert_eq!(replaces.len(), 6);
+    // a missing day breaks the chain: only the briefings after it join
+    let dir = tempfile::tempdir().unwrap();
+    let store = briefing::Store::open(dir.path().to_str().unwrap()).unwrap();
+    for d in ["2026-11-07", "2026-11-09"] {
+        store
+            .put(&briefing::from_facts(
+                Facts {
+                    from: d.into(),
+                    until: d.into(),
+                    ..Default::default()
+                },
+                0,
+            ))
+            .unwrap();
+    }
+    assert_eq!(
+        store.catch_up_from("2026-11-10", "2026-11-10"),
+        ("2026-11-09".to_string(), vec!["2026-11-09".to_string()])
+    );
+    // a two-day period catches up two-day periods
+    assert_eq!(
+        store.catch_up_from("2026-11-12", "2026-11-13").0,
+        "2026-11-12"
+    );
+}

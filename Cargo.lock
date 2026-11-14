@@ -3160,7 +3160,7 @@ dependencies = [
 
 [[package]]
 name = "warte"
-version = "1.6.28"
+version = "1.6.29"
 dependencies = [
  "anyhow",
  "async-trait",

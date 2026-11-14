@@ -108,6 +108,18 @@ every repository, `#number`, version and count it names is in the facts.
 answer gets one more model call carrying the reason; after a second refusal
 the job fails and the plain version stays.
 
+**Catch-up after missed periods** (since warte v1.6.29, REQ-BRIEF-006). When
+no model text arrived for one or more periods, the next briefing covers them
+too: its facts start the day after the last model-written briefing, at most
+7 days back, and the plain briefings it covers are replaced by it (the view
+says how many). `GET /api/briefing/facts` returns that longer `from`..`until`
+and `replaces`, the first days of the plain briefings it replaced; nothing
+in the job has to change. A submission may send `until` from the facts: if
+the period has grown since, it is refused with 422 "read the facts again".
+A submission without `until` is checked against the current facts. Only
+plain briefings in an unbroken run join; a model-written briefing is never
+replaced.
+
 *Late when* the plain version is still up 6 hours after it was written.
 *Not set up* without `[briefing]`.
 

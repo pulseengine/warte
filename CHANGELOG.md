@@ -4,6 +4,9 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.29 — 2026-11-14
+
+- **Briefing catch-up after missed periods** (REQ-BRIEF-006). When no model text arrived for one or more periods, the next briefing covers them too: its facts start the day after the last model-written briefing, at most 7 days back, and it replaces the plain briefings it covers (the view says how many). `GET /api/briefing/facts` returns the longer period and `replaces`. A submission may send `until`; if the period has grown since the job read the facts, it is refused with "read the facts again". The operator kit's job sends it.
 - **CI runner routing fails closed** (REQ-CI-003). Build, Clippy and Rivet run self-hosted only for a push or for a pull request whose head repository is this repository; any other pull request, including one whose fork was deleted, runs GitHub-hosted. The earlier `head.repo.fork` test sent a pull request with no head repository to self-hosted. tests/ci_workflows.rs requires the new expression.
 
 ## v1.6.28 — 2026-11-14

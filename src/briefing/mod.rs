@@ -20,6 +20,8 @@ pub mod github;
 
 /// Days per briefing.
 pub const PERIOD_DAYS: i64 = 2;
+/// A catch-up briefing covers at most this many days (REQ-BRIEF-006).
+pub const MAX_CATCHUP_DAYS: i64 = 7;
 /// Words in the line and the three bullets together, at most.
 pub const MAX_WORDS: usize = 130;
 /// A pull request open longer than this waits for the owner.
@@ -155,6 +157,11 @@ pub struct Text {
 pub struct Submission {
     /// The period's first day, as in the facts.
     pub from: String,
+    /// The period's last day, as in the facts. Optional; when sent and the
+    /// period has since grown to catch up, the text is refused so the job
+    /// reads the facts again (REQ-BRIEF-006).
+    #[serde(default)]
+    pub until: Option<String>,
     pub line: String,
     pub bullets: Vec<String>,
     /// The model id that wrote it.
@@ -171,6 +178,10 @@ pub struct Briefing {
     /// Why the last model text for this period was refused.
     pub rejected: Option<String>,
     pub written_at: i64,
+    /// The first days of the plain briefings this catch-up briefing replaced
+    /// (REQ-BRIEF-006); empty for a briefing of one period.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub replaces: Vec<String>,
 }
 
 // ---------- periods ----------
@@ -592,6 +603,73 @@ impl Store {
         self.periods().first().and_then(|p| self.get(p))
     }
 
+    /// Whether a kept briefing already covers the day `until`.
+    pub fn covers(&self, until: &str) -> bool {
+        self.periods()
+            .iter()
+            .take(MAX_CATCHUP_DAYS as usize + 1)
+            .filter_map(|p| self.get(p))
+            .any(|b| b.facts.from.as_str() <= until && until <= b.facts.until.as_str())
+    }
+
+    /// Where the briefing of the period `from`..`until` starts, so it
+    /// catches up (REQ-BRIEF-006): the plain briefings directly before it,
+    /// back to the last one a model wrote, join it while the whole stays
+    /// within [`MAX_CATCHUP_DAYS`]. Returns the first day and the first days
+    /// of the plain briefings it replaces.
+    pub fn catch_up_from(&self, from: &str, until: &str) -> (String, Vec<String>) {
+        let days = |a: &str, b: &str| -> Option<i64> {
+            let p = |d: &str| chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").ok();
+            Some((p(b)? - p(a)?).num_days() + 1)
+        };
+        let day_before = |d: &str| {
+            chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d")
+                .ok()
+                .map(|d| {
+                    (d - chrono::Duration::days(1))
+                        .format("%Y-%m-%d")
+                        .to_string()
+                })
+        };
+        let mut start = from.to_string();
+        let mut replaced = Vec::new();
+        for p in self.periods().into_iter().filter(|p| p.as_str() < from) {
+            let Some(b) = self.get(&p) else { break };
+            if b.source != "template"
+                || Some(b.facts.until.clone()) != day_before(&start)
+                || days(&b.facts.from, until).is_none_or(|n| n > MAX_CATCHUP_DAYS)
+            {
+                break;
+            }
+            start = b.facts.from.clone();
+            replaced.push(start.clone());
+        }
+        (start, replaced)
+    }
+
+    /// Drop a plain briefing a catch-up briefing replaced.
+    pub fn remove_plain(&self, from: &str) {
+        if self.get(from).is_some_and(|b| b.source == "template") {
+            if let Some(p) = self.path(from) {
+                let _g = self.lock.lock().unwrap_or_else(|e| e.into_inner());
+                let _ = std::fs::remove_file(p);
+            }
+        }
+    }
+
+    /// Build-and-keep for one closed period: the facts span from where the
+    /// catch-up starts, and the plain briefings it replaces are dropped
+    /// after the new one is stored.
+    pub fn keep(&self, facts: Facts, replaces: Vec<String>, now: i64) -> Result<(), String> {
+        let mut b = from_facts(facts, now);
+        b.replaces = replaces;
+        self.put(&b)?;
+        for r in b.replaces.iter().filter(|r| **r != b.facts.from) {
+            self.remove_plain(r);
+        }
+        Ok(())
+    }
+
     /// A model's text for a period: stored when it fits the facts; otherwise
     /// the template stays and the refusal is recorded. `Err` says why.
     pub fn submit(&self, s: Submission, now: i64) -> Result<(), String> {
@@ -603,6 +681,12 @@ impl Store {
             line: s.line.trim().to_string(),
             bullets: s.bullets.iter().map(|x| x.trim().to_string()).collect(),
         };
+        if let Some(u) = s.until.as_deref().filter(|u| *u != b.facts.until) {
+            return Err(format!(
+                "the period is now {} to {}, not to {u}: read the facts again",
+                b.facts.from, b.facts.until
+            ));
+        }
         match check(&text, &b.facts) {
             Ok(()) => {
                 b.text = text;
@@ -630,6 +714,7 @@ pub fn from_facts(facts: Facts, now: i64) -> Briefing {
         model: None,
         rejected: None,
         written_at: now,
+        replaces: Vec::new(),
     }
 }
 
@@ -646,20 +731,21 @@ pub fn spawn(
         loop {
             let now = crate::hub::now();
             let (from, until) = last_period_of(now, cfg.period_days);
-            if store.get(&from).is_none() {
+            if !store.covers(&until) {
+                let (start, replaces) = store.catch_up_from(&from, &until);
                 match build(
                     &client,
                     &cfg,
                     hub.as_ref(),
                     costs.as_deref(),
-                    &from,
+                    &start,
                     &until,
                     now,
                 )
                 .await
                 {
                     Ok(f) => {
-                        if let Err(e) = store.put(&from_facts(f, now)) {
+                        if let Err(e) = store.keep(f, replaces, now) {
                             tracing::warn!(error = %e, "briefing not stored");
                         }
                     }

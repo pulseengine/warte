@@ -40,7 +40,7 @@ for try in 1 2; do
 	if jq -e '(.line | type == "string") and (.bullets | type == "array" and length == 3)' \
 		"$work/text.json" > /dev/null 2>&1; then
 		jq --arg model "$MODEL_ID" --slurpfile f "$work/facts.json" \
-			'{from: $f[0].from, model: $model, line: .line, bullets: .bullets}' \
+			'{from: $f[0].from, until: $f[0].until, model: $model, line: .line, bullets: .bullets}' \
 			"$work/text.json" > "$work/submit.json"
 		code=$(post)
 		case "$code" in
