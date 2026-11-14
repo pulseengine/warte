@@ -14,6 +14,7 @@ Commands:
   migrate   Migrate data from an existing system
   probe     What this machine is and runs: hardware, disks, agent CLIs, sessions
   fleet     The fleet model: read a spar instance of the Warte_Fleet types
+  news      News from the tools' public feeds, newest first (contract news v1)
   nav       The home link and app switcher file (contract nav v1)
   sessions  The agent session list (contract sessions v1)
   artifact  Manage artifacts
@@ -34,7 +35,7 @@ Options:
 - Unknown flags exit 2
 - Structured output via `--format json`
 - Subcommands: `serve`, `status`, `agents`, `schedule`, `watch`,
-  `access`, `migrate`, `probe`, `fleet`, `nav`, `sessions`, `hub`, `artifact`, `docs`
+  `access`, `migrate`, `probe`, `fleet`, `news`, `nav`, `sessions`, `hub`, `artifact`, `docs`
 
 ## Examples
 
@@ -281,6 +282,15 @@ when it finished its turn (shown as "idle" after 30 minutes), otherwise what
 it does ("editing", "running tests", ...). No prompt, command, file name or
 path leaves the machine. Vibe has no session-start or prompt event, so a
 Vibe session shows its tools and "done" only.
+
+## warte news
+
+What changed in the tools a deployment uses, from the public feeds in
+`[news]` (contract news v1, `warte docs news`):
+
+```bash
+warte news --since 2026-11-01 --grep runner --url https://host/warte
+```
 
 ## warte nav
 

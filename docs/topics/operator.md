@@ -139,4 +139,6 @@ These rights belong to agents and peers rather than the operator's jobs:
   reporting that it is alive, and storing its data;
 - `agents:any`: a token that writes as any agent;
 - `access:grant`, `access:revoke`: changing an agent's rights;
-- `sync:update`: another warte instance syncing.
+- `sync:update`: another warte instance syncing;
+- `news:write`: a reader marking news items (contract news v1); with `[auth]`
+  it also reads `/api/news`.

@@ -228,7 +228,7 @@ fn cli_prints_only_the_token_on_stdout() {
 // ── REQ-API-004: rights and agent binding on the mutating routes ─────────
 
 /// Every right a route can require, plus the agent-binding override.
-const ALL_RIGHTS: [&str; 11] = [
+const ALL_RIGHTS: [&str; 12] = [
     "agents:register",
     "agents:heartbeat",
     "agents:data",
@@ -239,11 +239,12 @@ const ALL_RIGHTS: [&str; 11] = [
     "skills:write",
     "briefing:write",
     "triage:write",
+    "news:write",
     "agents:any",
 ];
 
 /// (path, right) of every mutating route. `{id}` is filled with the agent.
-const ROUTES: [(&str, &str); 10] = [
+const ROUTES: [(&str, &str); 11] = [
     ("/api/agents/register", "agents:register"),
     ("/api/agents/{id}/heartbeat", "agents:heartbeat"),
     ("/api/agents/{id}/data", "agents:data"),
@@ -254,6 +255,7 @@ const ROUTES: [(&str, &str); 10] = [
     ("/api/skill-usage", "skills:write"),
     ("/api/briefing", "briefing:write"),
     ("/api/triage/done", "triage:write"),
+    ("/api/news/state", "news:write"),
 ];
 
 fn token_with(s: &Server, agent: &str, rights: &[&str]) -> String {
@@ -316,11 +318,12 @@ async fn every_route_accepts_a_token_with_its_right() {
             "{path} with only {right}: {got}"
         );
         // costs, the briefing and sync need a ground station, a [briefing]
-        // or a real record: only "not refused".
+        // a [news] or a real record: only "not refused".
         if !path.ends_with("/costs")
             && !path.ends_with("/skill-usage")
             && !path.ends_with("/briefing")
             && !path.ends_with("/triage/done")
+            && !path.ends_with("/news/state")
             && !path.ends_with("/update")
         {
             assert!(got < 300, "{path} with only {right}: {got}");

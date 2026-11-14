@@ -118,6 +118,31 @@ pub enum Commands {
         action: ProbeCommands,
     },
 
+    /// News from the tools' public feeds, newest first (contract news v1)
+    News {
+        /// Items published on or after this day (YYYY-MM-DD) or time (RFC 3339)
+        #[arg(long)]
+        since: Option<String>,
+        /// Only this source id
+        #[arg(long)]
+        source: Option<String>,
+        /// Only items whose title or excerpt contains this (case-insensitive)
+        #[arg(long)]
+        grep: Option<String>,
+        /// Only items in this state: found, decided, landed, dismissed
+        #[arg(long)]
+        state: Option<String>,
+        /// warte's base URL, e.g. https://host/warte (default: the configured bind)
+        #[arg(long, env = "WARTE_URL")]
+        url: Option<String>,
+        /// PEM CA certificate to trust for --url, in addition to the built-in roots
+        #[arg(long, env = "WARTE_CA_CERT")]
+        ca_cert: Option<std::path::PathBuf>,
+        /// Bearer token with news:write, needed when warte has [auth]
+        #[arg(long, env = "WARTE_TOKEN", hide_env_values = true)]
+        token: Option<String>,
+    },
+
     /// The home link and app switcher file (contract nav v1)
     Nav {
         #[command(subcommand)]

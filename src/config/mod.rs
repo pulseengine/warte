@@ -126,6 +126,9 @@ pub struct Config {
     /// The briefing, once per `period_days` (REQ-BRIEF-001, REQ-BRIEF-004).
     #[serde(default)]
     pub briefing: Option<crate::briefing::BriefingConfig>,
+    /// News from public feeds, contract news v1 (REQ-NEWS-001).
+    #[serde(default)]
+    pub news: Option<crate::news::NewsConfig>,
     /// The issue triage queue (REQ-TRIAGE-001).
     #[serde(default)]
     pub triage: Option<crate::triage::TriageConfig>,
@@ -367,6 +370,7 @@ impl Default for Config {
             auth: None,
             briefing: None,
             triage: None,
+            news: None,
             canaries: None,
             expiry: None,
         }

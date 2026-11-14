@@ -143,6 +143,32 @@ async fn main() -> anyhow::Result<()> {
                 }
             }
         },
+        Commands::News {
+            since,
+            source,
+            grep,
+            state,
+            url,
+            ca_cert,
+            token,
+        } => {
+            let base = match url {
+                Some(u) => u.trim_end_matches('/').to_string(),
+                None => format!("http://{}", Config::load_at(config_path.as_deref())?.bind),
+            };
+            let q = warte::news::Query {
+                since,
+                source,
+                grep,
+                state,
+            };
+            let body =
+                warte::news::client::fetch(&base, &q, ca_cert.as_deref(), token.as_deref()).await?;
+            match cli.format {
+                OutputFormat::Json => println!("{body}"),
+                OutputFormat::Text => print!("{}", warte::news::client::text(&body)?),
+            }
+        }
         Commands::Nav { action } => match action {
             warte::cli::NavCommands::Check { file, self_id } => {
                 // with --self, exactly the startup path; without, any listed id

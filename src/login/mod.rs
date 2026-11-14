@@ -621,6 +621,8 @@ pub const SIGNED_IN_OR_RIGHT: &[(&str, &str)] = &[
     ("/api/briefing", "briefing:write"),
     ("/api/briefing/facts", "briefing:write"),
     ("/api/triage", "triage:write"),
+    ("/api/news", "news:write"),
+    ("/api/news/sources", "news:write"),
 ];
 
 /// Read routes that stay open with `[auth]` (fleet status).

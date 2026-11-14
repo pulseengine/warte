@@ -37,6 +37,9 @@ pub fn build_routes() -> Router<AppState> {
         // issues people opened, for the run that replies (REQ-TRIAGE-001/002)
         .route("/triage", get(api_triage))
         .route("/triage/done", post(api_triage_done))
+        .route("/news", get(api_news))
+        .route("/news/sources", get(api_news_sources))
+        .route("/news/state", post(api_news_state))
         // a workstation job replaces its source's skill-usage report whole
         // (REQ-SKILLS-001); GET serves the latest per source.
         .route(
@@ -574,6 +577,66 @@ async fn api_triage_done(
             Json(serde_json::json!({ "done": true })),
         )
             .into_response(),
+        Err(why) => plain(StatusCode::UNPROCESSABLE_ENTITY, &why),
+    }
+}
+
+fn no_news() -> axum::response::Response {
+    plain(StatusCode::SERVICE_UNAVAILABLE, "no [news] configured")
+}
+
+/// News items, newest first: `?since=YYYY-MM-DD&source=&grep=&state=` (news v1).
+async fn api_news(
+    State(state): State<AppState>,
+    q: Result<axum::extract::Query<crate::news::Query>, axum::extract::rejection::QueryRejection>,
+) -> axum::response::Response {
+    let Some(n) = state.news.as_deref() else {
+        return no_news();
+    };
+    let Ok(axum::extract::Query(q)) = q else {
+        return plain(
+            StatusCode::BAD_REQUEST,
+            "the query takes since, source, grep and state only",
+        );
+    };
+    match crate::news::query(&n.pool, &q).await {
+        Ok(items) => Json(serde_json::json!({
+            "version": crate::news::VERSION,
+            "items": items,
+        }))
+        .into_response(),
+        Err(why) => plain(StatusCode::BAD_REQUEST, &why),
+    }
+}
+
+/// Each feed's last poll.
+async fn api_news_sources(State(state): State<AppState>) -> axum::response::Response {
+    let Some(n) = state.news.as_deref() else {
+        return no_news();
+    };
+    let st = n.status.lock().map(|s| s.clone()).unwrap_or_default();
+    Json(serde_json::json!({ "version": crate::news::VERSION, "sources": st })).into_response()
+}
+
+/// A reader marks an item found, decided, landed or dismissed.
+async fn api_news_state(
+    State(state): State<AppState>,
+    body: axum::body::Bytes,
+) -> axum::response::Response {
+    let Some(n) = state.news.as_deref() else {
+        return no_news();
+    };
+    let c: crate::news::StateChange = match serde_json::from_slice(&body) {
+        Ok(c) => c,
+        Err(e) => {
+            return plain(
+                StatusCode::BAD_REQUEST,
+                &format!("not a state change ({:?} error)", e.classify()),
+            )
+        }
+    };
+    match crate::news::set_state(&n.pool, &c, &crate::news::now()).await {
+        Ok(()) => Json(serde_json::json!({ "id": c.id, "state": c.state })).into_response(),
         Err(why) => plain(StatusCode::UNPROCESSABLE_ENTITY, &why),
     }
 }
