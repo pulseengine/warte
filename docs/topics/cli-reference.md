@@ -229,6 +229,14 @@ stay on the Machines view.
   `errors_count` from `/sys/fs/ext4/<dev>/` (no root needed). A count above
   zero is amber ("run fsck"); a count that rose since the last report is red.
   On an SD-card machine this is the early warning of a failing card.
+- **Raspberry Pi power** (REQ-PROBE-018), no root needed: the hwmon device
+  named `rpi_volt` (`in0_lcrit_alarm`), `vcgencmd get_throttled`, and the
+  number of "Undervoltage detected" kernel messages since boot. Under-voltage
+  or throttling now is red. Under-voltage since boot is amber, red at 10 or
+  more messages, and stays on the host card until the next boot, so an event
+  between two reports still shows. A weak supply can cut power and leave
+  files that were just written empty. History keeps `power.undervolt`,
+  `power.throttled` and `power.undervolt_events`.
 - **Kernel drift** compares machines of the same OS, architecture and kernel
   flavour only, so a Debian amd64 kernel is not "behind" a Raspberry Pi one.
 

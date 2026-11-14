@@ -263,7 +263,7 @@ pub fn history_panel_full(
         ("Network", &["net."]),
         ("Temperature", &["temp."]),
         ("Health", &["health."]),
-        ("Power", &["battery."]),
+        ("Power", &["power.", "battery."]),
         ("Hardware", &["gpu.", "usb."]),
         ("Runners", &["runners.", "runner."]),
         ("Queue", &["queue."]),
@@ -353,6 +353,19 @@ fn health_chips(x: &crate::probe::health::Health) -> String {
             r#"<span class="chip">{} update(s){sec}</span>"#,
             u.count
         ));
+    }
+    // REQ-PROBE-018: shown until reboot, so an event between two reports
+    // does not hide
+    if let Some(p) = &x.power {
+        let b = p.throttled.unwrap_or(0);
+        if b & 1 != 0 || p.undervolt_alarm == Some(true) {
+            c.push(r#"<span class="chip warn">under-voltage now</span>"#.into());
+        } else if b & (1 << 16) != 0 || p.undervolt_events.unwrap_or(0) > 0 {
+            c.push(r#"<span class="chip warn">under-voltage since boot</span>"#.into());
+        }
+        if b & 0b110 != 0 {
+            c.push(r#"<span class="chip warn">throttled</span>"#.into());
+        }
     }
     if let Some(b) = &x.battery {
         c.push(format!(

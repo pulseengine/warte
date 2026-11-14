@@ -118,9 +118,106 @@ pub struct Health {
     /// The smaller of this and the previous run's offset: what findings use.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub clock_offset_sustained_ms: Option<f64>,
+    /// Raspberry Pi supply voltage and throttling (REQ-PROBE-018).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub power: Option<Power>,
     /// What could not be read; published only as a count.
     #[serde(default)]
     pub errors: Vec<String>,
+}
+
+/// A Raspberry Pi's supply and throttling state, read without root
+/// (REQ-PROBE-018). Absent on machines that have neither signal.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
+pub struct Power {
+    /// `vcgencmd get_throttled`: bits 0-3 are under-voltage, ARM frequency
+    /// capped, throttled and soft temperature limit now; bits 16-19 the same
+    /// conditions since boot.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub throttled: Option<u32>,
+    /// hwmon `rpi_volt` `in0_lcrit_alarm`: under-voltage at this moment.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub undervolt_alarm: Option<bool>,
+    /// "Undervoltage detected" kernel messages since boot.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub undervolt_events: Option<u32>,
+}
+
+/// Kernel messages since boot at or over which past under-voltage is red.
+pub const UNDERVOLT_RED_EVENTS: u32 = 10;
+
+/// `throttled=0x50005` → 0x50005.
+pub fn parse_throttled(t: &str) -> Option<u32> {
+    let v = t.trim().strip_prefix("throttled=")?;
+    u32::from_str_radix(v.strip_prefix("0x").unwrap_or(v), 16).ok()
+}
+
+/// "Undervoltage detected" lines in a kernel log; None when the log is
+/// empty, which means it could not be read (a boot's log never is).
+pub fn count_undervolt(log: &str) -> Option<u32> {
+    if log.trim().is_empty() {
+        return None;
+    }
+    Some(
+        log.lines()
+            .filter(|l| l.contains("Undervoltage detected"))
+            .count() as u32,
+    )
+}
+
+/// Findings from a Pi's power state: what is wrong now, and what happened
+/// since boot, so an event between two reports still shows until reboot.
+pub fn power_findings(p: &Power) -> Vec<(&'static str, String)> {
+    let b = p.throttled.unwrap_or(0);
+    let bit = |n: u32| b & (1 << n) != 0;
+    let mut f = Vec::new();
+    let uv_now = bit(0) || p.undervolt_alarm == Some(true);
+    let mut now = Vec::new();
+    if uv_now {
+        now.push("under-voltage");
+    }
+    if bit(2) {
+        now.push("CPU throttled");
+    } else if bit(1) {
+        now.push("ARM frequency capped");
+    }
+    if bit(3) {
+        now.push("soft temperature limit");
+    }
+    if !now.is_empty() {
+        f.push((
+            if uv_now || bit(2) { "red" } else { "amber" },
+            format!("power: {} now", now.join(", ")),
+        ));
+    }
+    let events = p.undervolt_events.unwrap_or(0);
+    let throttled_since = if bit(18) {
+        Some("throttling")
+    } else if bit(17) {
+        Some("frequency capping")
+    } else {
+        None
+    };
+    if bit(16) || events > 0 {
+        let what = match throttled_since {
+            Some(t) => format!("under-voltage and {t}"),
+            None => "under-voltage".to_string(),
+        };
+        let n = if events > 0 {
+            format!(", {events} kernel message(s)")
+        } else {
+            String::new()
+        };
+        f.push((
+            if events >= UNDERVOLT_RED_EVENTS { "red" } else { "amber" },
+            format!(
+                "power: {what} since boot{n}: the power supply is too weak, and a power loss can leave files empty"
+            ),
+        ));
+    } else if let Some(t) = throttled_since.or(bit(19).then_some("soft temperature limit")) {
+        f.push(("amber", format!("power: {t} since boot")));
+    }
+    f
 }
 
 /// Counters and slow results carried between runs.
@@ -609,6 +706,10 @@ fn read(path: &str) -> Option<String> {
     std::fs::read_to_string(path).ok()
 }
 
+fn read_path(path: &std::path::Path) -> Option<String> {
+    std::fs::read_to_string(path).ok()
+}
+
 async fn run(cmd: &str, args: &[&str], secs: u64) -> Result<String, String> {
     super::inventory::run_for(cmd, args, Duration::from_secs(secs)).await
 }
@@ -847,6 +948,42 @@ pub async fn collect(state: Option<&std::path::Path>, now: i64) -> Health {
             };
         }
     }
+    // REQ-PROBE-018: Raspberry Pi supply, no root needed
+    if linux {
+        let alarm = std::fs::read_dir("/sys/class/hwmon")
+            .into_iter()
+            .flatten()
+            .flatten()
+            .find(|e| {
+                read_path(&e.path().join("name")).as_deref().map(str::trim) == Some("rpi_volt")
+            })
+            .and_then(|e| read_path(&e.path().join("in0_lcrit_alarm")))
+            .map(|t| t.trim() == "1");
+        let vcgencmd = std::path::Path::new("/usr/bin/vcgencmd").exists();
+        if alarm.is_some() || vcgencmd {
+            let throttled = if vcgencmd {
+                run("vcgencmd", &["get_throttled"], 5)
+                    .await
+                    .ok()
+                    .and_then(|t| parse_throttled(&t))
+            } else {
+                None
+            };
+            let events = run(
+                "journalctl",
+                &["-k", "-b", "-q", "--no-pager", "-o", "cat"],
+                10,
+            )
+            .await
+            .ok()
+            .and_then(|t| count_undervolt(&t));
+            h.power = Some(Power {
+                throttled,
+                undervolt_alarm: alarm,
+                undervolt_events: events,
+            });
+        }
+    }
     let every = if macos {
         UPDATES_EVERY_MACOS_S
     } else {
@@ -1028,6 +1165,9 @@ pub fn findings(h: &Health, now: i64) -> Vec<(&'static str, String)> {
             "amber",
             "memory exhausted: a process was killed (OOM) in the last hour".to_string(),
         ));
+    }
+    if let Some(p) = &h.power {
+        f.extend(power_findings(p));
     }
     for t in &h.temps {
         if let Some(c) = t.crit {

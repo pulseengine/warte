@@ -4,6 +4,10 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.28 — 2026-11-14
+
+- **Raspberry Pi under-voltage and throttling** (REQ-PROBE-018). The probe reads the `rpi_volt` hwmon alarm, `vcgencmd get_throttled` and the kernel's "Undervoltage detected" count since boot, all without root. Under-voltage or throttling now is red; under-voltage since boot is amber (red at 10 or more messages) and stays on the host card until reboot, so it cannot hide between two reports. The Power charts gain under-voltage, throttling and the message count. Older probes send no power field and are read as before.
+
 ## v1.6.27 — 2026-11-13
 
 - **News from the tools' public feeds, contract news v1** (REQ-NEWS-001). With `[news]` listing Atom or RSS feeds (a GitHub repository's `releases.atom` is one), warte polls them daily and keeps every entry: source, date, title, link, a plain-text excerpt and a content hash. `warte news --since 2026-11-01 [--source …] [--grep …]` and `GET /api/news` answer "what changed from then to now". A reader with the `news:write` right marks items found, decided, landed or dismissed through `POST /api/news/state`, and the mark survives edits to the upstream notes. Feed text is stored as plain text and served as data. `GET /api/news/sources` shows each feed's last poll as a result kind, never a raw error.
