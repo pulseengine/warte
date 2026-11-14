@@ -311,9 +311,11 @@ fn runners(text: &str) -> Vec<String> {
 }
 
 /// the self-hosted rust-cpu pool, with fork PRs routed to a GitHub-hosted runner by
-/// default. Routing only: a fork PR can edit the workflow, so isolation itself
+/// default. Fail-closed: a pull request runs self-hosted only when its head repo
+/// is this repo. The earlier `head.repo.fork && hosted || self-hosted` form sent
+/// a PR whose fork was deleted (head.repo null) to self-hosted. Routing only: a fork PR can edit the workflow, so isolation itself
 /// is the org's runner-group policy and fork-PR approval, not this expression.
-const SELF_HOSTED_CPU_FORK_GUARDED: &str = "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || fromJSON('[\"self-hosted\",\"linux\",\"x64\",\"rust-cpu\"]') }}";
+const SELF_HOSTED_CPU_SAME_REPO_ONLY: &str = "${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('[\"self-hosted\",\"linux\",\"x64\",\"rust-cpu\"]') || 'ubuntu-latest' }}";
 
 // rivet: verifies DD-CI-001
 // rivet: verifies REQ-CI-003
@@ -333,7 +335,7 @@ fn ci_jobs_run_self_hosted_with_forks_guarded() {
         match HOSTED.iter().find(|(j, _, _)| *j == job) {
             Some((_, want, why)) => assert_eq!(runner, *want, "ci.yml job {job} ({why})"),
             None => assert_eq!(
-                runner, SELF_HOSTED_CPU_FORK_GUARDED,
+                runner, SELF_HOSTED_CPU_SAME_REPO_ONLY,
                 "ci.yml job {job}: unexpected runner"
             ),
         }
