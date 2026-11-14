@@ -680,6 +680,7 @@ async fn api_briefing_facts(State(state): State<AppState>) -> axum::response::Re
             "from": b.facts.from,
             "until": b.facts.until,
             "source": b.source,
+            "replaces": b.replaces,
             "facts": b.facts,
             "rules": {
                 "bullets": 3,

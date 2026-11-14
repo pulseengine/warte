@@ -139,6 +139,16 @@ pub fn view(store: Option<&Store>, period: Option<&str>) -> String {
             )
         })
         .unwrap_or_default();
+    let caught_up = if b.replaces.is_empty() {
+        String::new()
+    } else {
+        format!(
+            r#"<div class="finding">One briefing for {} to {}: it replaces {} plain briefing(s) no model wrote.</div>"#,
+            esc(&pretty(&b.facts.from)),
+            esc(&pretty(&b.facts.until)),
+            b.replaces.len()
+        )
+    };
     let others: String = s
         .periods()
         .iter()
@@ -152,7 +162,7 @@ pub fn view(store: Option<&Store>, period: Option<&str>) -> String {
         })
         .collect();
     format!(
-        r#"<div class="overview briefing"><h2>Briefing <span class="pill">{} – {}</span></h2>{rejected}<section class="panel"><p class="brief-line">{}</p><ul class="brief-bullets">{bullets}</ul><details><summary>For the IT reader</summary>{}</details></section><section class="panel"><h3>Earlier briefings</h3><div class="periods">{others}</div></section></div>"#,
+        r#"<div class="overview briefing"><h2>Briefing <span class="pill">{} – {}</span></h2>{rejected}{caught_up}<section class="panel"><p class="brief-line">{}</p><ul class="brief-bullets">{bullets}</ul><details><summary>For the IT reader</summary>{}</details></section><section class="panel"><h3>Earlier briefings</h3><div class="periods">{others}</div></section></div>"#,
         esc(&pretty(&b.facts.from)),
         esc(&pretty(&b.facts.until)),
         esc(&b.text.line),

@@ -1623,3 +1623,20 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-11-14T07:50:05Z
+
+  - id: REQ-BRIEF-006
+    type: requirement
+    title: A briefing after missed periods catches up, at most seven days, and replaces the plain ones it covers
+    status: verified
+    release: v1.6.29
+    description: When the briefing of the last closed period is built and the periods directly before it hold only plain (template) briefings in an unbroken run, warte SHALL build the new briefing's facts from the first of those periods, back to the day after the last model-written briefing and at most 7 days in all, SHALL store it as one briefing listing the plain briefings it replaces, and SHALL then drop those plain briefings. A model-written briefing SHALL never be replaced. GET /api/briefing/facts SHALL return the longer period and the replaced days; a submission that sends an until other than the facts' until SHALL be refused, so a job that read the shorter period reads the facts again.
+    fields:
+      category: functional
+      priority: should
+    links:
+      - type: refines
+        target: REQ-BRIEF-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-14T16:19:20Z
