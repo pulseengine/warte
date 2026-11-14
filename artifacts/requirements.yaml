@@ -1606,3 +1606,20 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-11-13T18:55:37Z
+
+  - id: REQ-PROBE-018
+    type: requirement
+    title: Raspberry Pi under-voltage and throttling are reported, and stay visible until reboot
+    status: verified
+    release: v1.6.28
+    description: "On Linux the probe SHALL read, without root, a Raspberry Pi's supply state: the hwmon device named rpi_volt (matched by name, not index) in0_lcrit_alarm, vcgencmd get_throttled, and the count of 'Undervoltage detected' kernel messages since boot. warte SHALL show under-voltage or throttling now as red, under-voltage since boot (get_throttled bit 16 or a message count above zero) as amber and as red at 10 or more messages, on the host card and in the machine findings, and keep the since-boot state visible between events until the next boot. A log that cannot be read is unknown, never zero."
+    fields:
+      category: functional
+      priority: should
+    links:
+      - type: refines
+        target: REQ-PROBE-011
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-14T07:50:05Z

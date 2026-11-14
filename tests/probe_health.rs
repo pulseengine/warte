@@ -351,3 +351,83 @@ fn review_fixes_hold() {
     // NTP off on purpose is not "unsynchronised"
     assert_eq!(parse_timedatectl("NTP=no\nNTPSynchronized=no\n"), None);
 }
+
+// rivet: verifies REQ-PROBE-018
+#[test]
+fn pi_throttled_bits_and_kernel_messages_are_read() {
+    assert_eq!(parse_throttled("throttled=0x50000\n"), Some(0x50000));
+    assert_eq!(parse_throttled("throttled=0x0"), Some(0));
+    assert_eq!(parse_throttled("error=1"), None);
+    assert_eq!(parse_throttled("throttled=zz"), None);
+    let log = "usb 1-1: new device\nhwmon hwmon1: Undervoltage detected!\nx\nhwmon hwmon1: Undervoltage detected!\n";
+    assert_eq!(count_undervolt(log), Some(2));
+    assert_eq!(count_undervolt("eth0: link up\n"), Some(0));
+    // an empty log was not readable: unknown, never zero
+    assert_eq!(count_undervolt(""), None);
+}
+
+// rivet: verifies REQ-PROBE-018
+#[test]
+fn pi_power_findings_show_now_and_since_boot() {
+    let p = |throttled, alarm, events| Power {
+        throttled,
+        undervolt_alarm: alarm,
+        undervolt_events: events,
+    };
+    // healthy: nothing
+    assert!(power_findings(&p(Some(0), Some(false), Some(0))).is_empty());
+    // the field case: 0x50000, alarm clear between events, 30 messages
+    let f = power_findings(&p(Some(0x50000), Some(false), Some(30)));
+    assert_eq!(f.len(), 1, "{f:?}");
+    assert_eq!(f[0].0, "red");
+    assert!(f[0].1.contains("under-voltage and throttling since boot"));
+    assert!(f[0].1.contains("30 kernel message(s)"));
+    // a few messages: amber, still shown
+    let f = power_findings(&p(Some(0x10000), None, Some(2)));
+    assert_eq!(f, vec![("amber", f[0].1.clone())]);
+    // under-voltage now and throttled now: red, plus the since-boot line
+    let f = power_findings(&p(Some(0x50005), Some(true), Some(31)));
+    assert_eq!(f[0].0, "red");
+    assert_eq!(f[0].1, "power: under-voltage, CPU throttled now");
+    assert_eq!(f.len(), 2);
+    // the hwmon alarm alone counts as now, without vcgencmd
+    let f = power_findings(&p(None, Some(true), None));
+    assert_eq!(f, vec![("red", "power: under-voltage now".to_string())]);
+    // a soft temperature limit since boot only: amber, no supply wording
+    let f = power_findings(&p(Some(1 << 19), None, Some(0)));
+    assert_eq!(
+        f,
+        vec![(
+            "amber",
+            "power: soft temperature limit since boot".to_string()
+        )]
+    );
+    // frequency capped now without under-voltage: amber
+    let f = power_findings(&p(Some(0b10), None, Some(0)));
+    assert_eq!(
+        f[0],
+        ("amber", "power: ARM frequency capped now".to_string())
+    );
+}
+
+// rivet: verifies REQ-PROBE-018
+#[test]
+fn pi_power_reaches_the_machine_findings() {
+    let h = Health {
+        power: Some(Power {
+            throttled: Some(0x50000),
+            undervolt_alarm: Some(false),
+            undervolt_events: Some(30),
+        }),
+        ..Default::default()
+    };
+    let f = findings(&h, 0);
+    assert!(
+        f.iter()
+            .any(|(s, t)| *s == "red" && t.starts_with("power: under-voltage")),
+        "{f:?}"
+    );
+    // older probes send no power field: it parses and finds nothing
+    let old: Health = serde_json::from_str("{}").unwrap();
+    assert!(old.power.is_none());
+}

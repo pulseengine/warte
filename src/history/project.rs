@@ -121,6 +121,30 @@ pub fn from_health(h: &crate::probe::health::Health) -> Vec<(String, f64)> {
             "health.updates_security",
             h.updates.as_ref().and_then(|u| u.security).map(f64::from),
         ),
+        // REQ-PROBE-018: under-voltage and throttling now (0/1), and the
+        // kernel's under-voltage count since boot
+        (
+            "power.undervolt",
+            h.power.as_ref().map(|p| {
+                let now =
+                    p.throttled.is_some_and(|b| b & 1 != 0) || p.undervolt_alarm == Some(true);
+                f64::from(u8::from(now))
+            }),
+        ),
+        (
+            "power.throttled",
+            h.power
+                .as_ref()
+                .and_then(|p| p.throttled)
+                .map(|b| f64::from(u8::from(b & 0b110 != 0))),
+        ),
+        (
+            "power.undervolt_events",
+            h.power
+                .as_ref()
+                .and_then(|p| p.undervolt_events)
+                .map(f64::from),
+        ),
         ("battery.pct", h.battery.as_ref().map(|b| b.pct)),
         (
             "battery.cycles",
