@@ -37,7 +37,7 @@ artifacts:
     title: CI jobs run self-hosted; fork PRs and release jobs run on GitHub-hosted runners
     status: verified
     release: v1.3.1
-    description: "warte's CI jobs (build, test, clippy, rivet) SHALL run on the self-hosted rust-cpu pool [self-hosted, linux, x64, rust-cpu], with pull requests from forks routed to GitHub-hosted runners by default. Release jobs (gate, build, sign, publish) SHALL run on ephemeral GitHub-hosted runners and SHALL restore no caches. Tools a job relies on SHALL be installed job-scoped ($RUNNER_TEMP), never reused from a persistent $HOME, and third-party actions SHALL be pinned to a commit SHA. The fork routing is not a security boundary (a fork PR can edit the workflow): isolation of the self-hosted pool from untrusted code SHALL be enforced by the org runner-group policy and fork-PR approval."
+    description: "warte's CI jobs (build, test, clippy, rivet) SHALL run on the self-hosted rust-cpu pool [self-hosted, linux, x64, rust-cpu], with every pull request whose head repository is not this repository (a fork, or a deleted fork) routed to GitHub-hosted runners: the routing fails closed. Release jobs (gate, build, sign, publish) SHALL run on ephemeral GitHub-hosted runners and SHALL restore no caches. Tools a job relies on SHALL be installed job-scoped ($RUNNER_TEMP), never reused from a persistent $HOME, and third-party actions SHALL be pinned to a commit SHA. The fork routing is not a security boundary (a fork PR can edit the workflow): isolation of the self-hosted pool from untrusted code SHALL be enforced by the org runner-group policy and fork-PR approval."
     fields:
       category: non-functional
       priority: should

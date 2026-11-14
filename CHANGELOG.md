@@ -4,6 +4,8 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+- **CI runner routing fails closed** (REQ-CI-003). Build, Clippy and Rivet run self-hosted only for a push or for a pull request whose head repository is this repository; any other pull request, including one whose fork was deleted, runs GitHub-hosted. The earlier `head.repo.fork` test sent a pull request with no head repository to self-hosted. tests/ci_workflows.rs requires the new expression.
+
 ## v1.6.28 — 2026-11-14
 
 - **Raspberry Pi under-voltage and throttling** (REQ-PROBE-018). The probe reads the `rpi_volt` hwmon alarm, `vcgencmd get_throttled` and the kernel's "Undervoltage detected" count since boot, all without root. Under-voltage or throttling now is red; under-voltage since boot is amber (red at 10 or more messages) and stays on the host card until reboot, so it cannot hide between two reports. The Power charts gain under-voltage, throttling and the message count. Older probes send no power field and are read as before.
