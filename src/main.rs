@@ -60,7 +60,19 @@ async fn main() -> anyhow::Result<()> {
             }
         }
 
-        Commands::Agents { health } => {
+        Commands::Agents {
+            action:
+                Some(warte::cli::AgentsCommands::Rm {
+                    id,
+                    reason,
+                    with_data,
+                }),
+            ..
+        } => {
+            let code = warte::agent::rm_cli(config_path.as_deref(), &id, &reason, with_data).await;
+            std::process::exit(code);
+        }
+        Commands::Agents { health, .. } => {
             let config = Config::load_at(config_path.as_deref())?;
             let client = reqwest::Client::new();
             let url = format!("http://{}/api/agents", config.bind);

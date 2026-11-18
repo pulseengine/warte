@@ -42,11 +42,13 @@ pub enum Commands {
     /// Show factory health status
     Status,
 
-    /// List registered agents
+    /// List registered agents, or remove one (`warte agents rm`)
     Agents {
         /// Filter by health status
         #[arg(long)]
         health: Option<String>,
+        #[command(subcommand)]
+        action: Option<AgentsCommands>,
     },
 
     /// Show the weekly cron schedule
@@ -287,6 +289,24 @@ pub struct LifecycleArgs {
     /// Claude Code's directory, for the last session id [default: ~/.claude]
     #[arg(long)]
     pub claude_dir: Option<std::path::PathBuf>,
+}
+
+#[derive(Subcommand)]
+pub enum AgentsCommands {
+    /// Remove one agent from this host's database (run on the ground station
+    /// host; never over HTTP). Refused while it holds access policies, or
+    /// data rows unless --with-data. Logged with the reason next to the
+    /// database in agents-removed.jsonl.
+    Rm {
+        /// The agent id (the UUID `warte agents` lists)
+        id: String,
+        /// Why, 1 to 200 characters, kept in the log
+        #[arg(long)]
+        reason: String,
+        /// Remove its data rows too
+        #[arg(long)]
+        with_data: bool,
+    },
 }
 
 #[derive(Subcommand)]

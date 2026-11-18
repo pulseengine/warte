@@ -150,3 +150,68 @@ async fn a_temper_report_that_never_comes_is_an_outage_after_its_window() {
         .iter()
         .any(|d| d.key.starts_with("temper")));
 }
+
+// rivet: verifies REQ-TEMPER-003
+#[tokio::test]
+async fn a_restart_does_not_reset_the_wait_for_a_missing_temper_report() {
+    let (d, s) = state(true).await;
+    let first = s.temper.as_ref().unwrap().opened_at;
+    let hub = d.path().join("hub");
+    let kept: i64 = std::fs::read_to_string(hub.join(warte::temper::SINCE_FILE))
+        .unwrap()
+        .trim()
+        .parse()
+        .unwrap();
+    assert_eq!(kept, first);
+    // planted: warte first listened 14 h ago and restarted since
+    std::fs::write(
+        hub.join(warte::temper::SINCE_FILE),
+        (first - 14 * 3600).to_string(),
+    )
+    .unwrap();
+    let again = warte::temper::Store::open(hub.to_str().unwrap());
+    assert_eq!(
+        again.opened_at,
+        first - 14 * 3600,
+        "a restart keeps the first time"
+    );
+    drop(s);
+    let config_dir = d.path();
+    let config = warte::config::Config {
+        db_path: config_dir.join("state.db"),
+        ca_cert_path: config_dir.join("ca.pem"),
+        ca_key_path: config_dir.join("ca-key.pem"),
+        hub: Some(warte::config::HubConfig {
+            udp: "127.0.0.1:0".into(),
+            allow: vec![Ipv4Addr::LOCALHOST.into()],
+            data_dir: hub.to_str().unwrap().into(),
+            org: "pulseengine".into(),
+            probe_self: false,
+            costs_file: None,
+            skill_usage_file: None,
+        }),
+        temper: Some(warte::config::TemperFeedConfig {
+            host: "vps".into(),
+            stale_after_s: 13 * 3600,
+        }),
+        ..Default::default()
+    };
+    let db = warte::db::Database::connect(&config.db_path).await.unwrap();
+    let restarted = warte::server::build_state(config, db).unwrap();
+    let found = host_detected(&restarted, warte::hub::now());
+    assert!(
+        found.iter().any(|x| x.key == "temper-missing"),
+        "the outage shows right after a restart: {:?}",
+        found.iter().map(|x| &x.key).collect::<Vec<_>>()
+    );
+    // planted: a garbage or future time is not trusted, it starts the wait now
+    std::fs::write(hub.join(warte::temper::SINCE_FILE), "not a time").unwrap();
+    let now = warte::hub::now();
+    assert!(warte::temper::Store::open(hub.to_str().unwrap()).opened_at >= now);
+    std::fs::write(
+        hub.join(warte::temper::SINCE_FILE),
+        (now + 86_400).to_string(),
+    )
+    .unwrap();
+    assert!(warte::temper::Store::open(hub.to_str().unwrap()).opened_at <= now + 5);
+}
