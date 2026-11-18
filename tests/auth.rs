@@ -124,6 +124,11 @@ struct Server {
     base: String,
     agent: String,
     briefing_job: String,
+    /// "a1" with agents:read and the agent rights; "a2" the same; "ops"
+    /// with agents:read and agents:any.
+    reader: String,
+    reader2: String,
+    reader_any: String,
 }
 
 async fn serve(auth: Option<AuthConfig>) -> Server {
@@ -145,6 +150,20 @@ async fn serve(auth: Option<AuthConfig>) -> Server {
         .tokens
         .issue_token("b1", vec!["briefing:write".into()])
         .unwrap();
+    let read = |who: &str, extra: &[&str]| {
+        let mut r: Vec<String> = ["agents:register", "agents:data", "agents:read"]
+            .iter()
+            .chain(extra)
+            .map(|s| s.to_string())
+            .collect();
+        r.dedup();
+        state.tokens.issue_token(who, r).unwrap()
+    };
+    let (reader, reader2, reader_any) = (
+        read("a1", &[]),
+        read("a2", &[]),
+        read("ops", &["agents:any"]),
+    );
     let app = warte::server::build_router(state);
     let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base = format!("http://{}", l.local_addr().unwrap());
@@ -154,6 +173,9 @@ async fn serve(auth: Option<AuthConfig>) -> Server {
         base,
         agent,
         briefing_job,
+        reader,
+        reader2,
+        reader_any,
     }
 }
 
@@ -581,4 +603,77 @@ fn every_read_route_has_a_class() {
     // an unknown path fails closed
     assert_eq!(class_of("/api/something-new"), Class::SignedIn);
     assert_eq!(class_of("/api/history/machines/gale/series"), Class::Public);
+}
+
+async fn register(s: &Server, name: &str, bearer: &str) -> String {
+    let r: Value = client()
+        .post(format!("{}/api/agents/register", s.base))
+        .bearer_auth(bearer)
+        .json(&json!({"name": name, "identity_type": "notice", "public_key": ""}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    r["agent_id"].as_str().unwrap().to_string()
+}
+
+// rivet: verifies REQ-API-005
+#[tokio::test]
+async fn agents_read_opens_the_list_and_only_the_tokens_own_agent() {
+    let (_i, iss) = idp().await;
+    let s = serve(Some(cfg(&iss))).await;
+    let id1 = register(&s, "a1", &s.reader).await;
+    let id2 = register(&s, "a2", &s.reader2).await;
+    let own = [
+        "/api/agents".to_string(),
+        format!("/api/agents/{id1}"),
+        format!("/api/agents/{id1}/data?data_type=notice"),
+    ];
+    for p in &own {
+        assert_eq!(status(&s.base, p, Some(&s.reader), None).await, 200, "{p}");
+    }
+    // planted: another agent's row and data, an unknown id, a token without
+    // the right, and a route agents:read does not name
+    for p in [
+        format!("/api/agents/{id2}"),
+        format!("/api/agents/{id2}/data"),
+        "/api/agents/no-such-id/data".to_string(),
+        "/api/costs".to_string(),
+        "/api/access/list/a1".to_string(),
+    ] {
+        assert_eq!(status(&s.base, &p, Some(&s.reader), None).await, 403, "{p}");
+    }
+    for p in &own {
+        assert_eq!(status(&s.base, p, Some(&s.agent), None).await, 403, "{p}");
+    }
+    // agents:any widens it to every agent
+    for p in [
+        format!("/api/agents/{id2}"),
+        format!("/api/agents/{id2}/data"),
+    ] {
+        assert_eq!(
+            status(&s.base, &p, Some(&s.reader_any), None).await,
+            200,
+            "{p}"
+        );
+    }
+    // a percent-encoded id is decoded before the comparison, as the router does
+    let enc: String = id1.chars().map(|c| format!("%{:02X}", c as u32)).collect();
+    assert_eq!(
+        status(
+            &s.base,
+            &format!("/api/agents/{enc}"),
+            Some(&s.reader),
+            None
+        )
+        .await,
+        200
+    );
+    assert!(warte::auth::is_known_right("agents:read"));
+    assert!(
+        !warte::auth::AGENT_RIGHTS.contains(&"agents:read"),
+        "never a default"
+    );
 }

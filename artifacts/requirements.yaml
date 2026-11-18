@@ -392,6 +392,26 @@ artifacts:
       - type: satisfies
         target: SC-001
 
+  - id: REQ-API-005
+    type: requirement
+    title: An agent token with agents:read reads the agents list and its own agent's records
+    status: verified
+    release: v1.6.30
+    description: >
+      With [auth], a warte agent token holding the right agents:read SHALL be
+      let through on GET /api/agents, and on GET /api/agents/{id} and
+      GET /api/agents/{id}/data only when the name of the agents row {id}
+      equals the token's agent id, or the token also holds agents:any. Any
+      other id, an unknown id, a token without the right, or any other
+      signed-in route SHALL stay 403. agents:read SHALL be mintable with
+      --right and SHALL NOT be in the default rights. Source: a notice client
+      resolves its agent id from the list and reads back its own notices.
+    links:
+      - type: refines
+        target: REQ-API-004
+      - type: satisfies
+        target: SC-001
+
   # --- CLI ---
   - id: REQ-CLI-001
     type: requirement

@@ -149,7 +149,11 @@ These rights belong to agents and peers rather than the operator's jobs:
 
 - `agents:register`, `agents:heartbeat`, `agents:data`: an agent registering,
   reporting that it is alive, and storing its data;
-- `agents:any`: a token that writes as any agent;
+- `agents:read`: with `[auth]`, list the agents and read the token's own
+  agent's row and data (`GET /api/agents`, `/api/agents/{id}`,
+  `/api/agents/{id}/data`); never in a bare mint;
+- `agents:any`: a token that writes as any agent (and, with `agents:read`,
+  reads any agent);
 - `access:grant`, `access:revoke`: changing an agent's rights;
 - `sync:update`: another warte instance syncing;
 - `news:write`: a reader marking news items (contract news v1); with `[auth]`
