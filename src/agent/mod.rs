@@ -112,8 +112,25 @@ impl AgentRegistry {
     }
 
     /// Register a new agent. Returns the agent ID and optionally a certificate.
+    /// Register an agent by name (REQ-API-006). A name already registered
+    /// gets its newest row back (by name only: an unconfigured instance id
+    /// changes at every start), with a fresh certificate and
+    /// the request's repo, identity type and key: registering twice never
+    /// makes a second agent.
     pub async fn register(&self, req: RegisterRequest) -> anyhow::Result<RegisterResponse> {
-        let agent_id = Uuid::now_v7().to_string();
+        let existing: Option<(String, String)> = sqlx::query_as(
+            "SELECT id, access_rights FROM agents WHERE name = ? ORDER BY created_at DESC LIMIT 1",
+        )
+        .bind(&req.name)
+        .fetch_optional(&self.pool)
+        .await?;
+        let (agent_id, access_rights) = match &existing {
+            Some((id, rights)) => (
+                id.clone(),
+                serde_json::from_str::<Vec<String>>(rights).unwrap_or_default(),
+            ),
+            None => (Uuid::now_v7().to_string(), vec![]),
+        };
         let now = Utc::now();
         let cert_expires = now + Duration::hours(24);
 
@@ -124,6 +141,32 @@ impl AgentRegistry {
         } else {
             (None, Some(cert_expires))
         };
+
+        if existing.is_some() {
+            sqlx::query(
+                r#"
+                UPDATE agents
+                SET repo = ?, identity_type = ?, public_key = ?, cert_pem = ?,
+                    cert_expires_at = ?, updated_at = ?
+                WHERE id = ?
+                "#,
+            )
+            .bind(&req.repo)
+            .bind(&req.identity_type)
+            .bind(req.public_key.as_bytes())
+            .bind(cert_pem.as_ref().map(|s| s.as_bytes()))
+            .bind(cert_expires_at.map(|d| d.to_rfc3339()))
+            .bind(now.to_rfc3339())
+            .bind(&agent_id)
+            .execute(&self.pool)
+            .await?;
+            return Ok(RegisterResponse {
+                agent_id,
+                cert_pem,
+                cert_expires_at,
+                access_rights,
+            });
+        }
 
         sqlx::query(
             r#"
@@ -151,6 +194,57 @@ impl AgentRegistry {
             cert_expires_at,
             access_rights: vec![],
         })
+    }
+
+    /// Remove one agent row, run by the operator on the host (REQ-API-006,
+    /// `warte agents rm`). Refused for an unknown id, for an agent that holds
+    /// access policies (revoke them first), and for one with data rows unless
+    /// `with_data`, which removes those rows too. Returns the agent's name and
+    /// how many data rows went with it.
+    pub async fn remove(&self, agent_id: &str, with_data: bool) -> Result<(String, u64), String> {
+        let db = |e: sqlx::Error| format!("database error: {e}");
+        let name: Option<(String,)> = sqlx::query_as("SELECT name FROM agents WHERE id = ?")
+            .bind(agent_id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(db)?;
+        let Some((name,)) = name else {
+            return Err(format!("no agent {agent_id}"));
+        };
+        let (rows,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM agent_data WHERE agent_id = ?")
+            .bind(agent_id)
+            .fetch_one(&self.pool)
+            .await
+            .map_err(db)?;
+        let (policies,): (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM access_policies WHERE agent_id = ?")
+                .bind(agent_id)
+                .fetch_one(&self.pool)
+                .await
+                .map_err(db)?;
+        if policies > 0 {
+            return Err(format!(
+                "agent {agent_id} holds {policies} access polic(ies): revoke them first"
+            ));
+        }
+        if rows > 0 && !with_data {
+            return Err(format!(
+                "agent {agent_id} has {rows} data row(s): --with-data removes them too"
+            ));
+        }
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        sqlx::query("DELETE FROM agent_data WHERE agent_id = ?")
+            .bind(agent_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?;
+        sqlx::query("DELETE FROM agents WHERE id = ?")
+            .bind(agent_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?;
+        tx.commit().await.map_err(db)?;
+        Ok((name, rows as u64))
     }
 
     /// Record a heartbeat from an agent.
@@ -253,6 +347,61 @@ impl From<AgentRow> for Agent {
             updated_at: DateTime::parse_from_rfc3339(&row.updated_at)
                 .map(|d| d.with_timezone(&Utc))
                 .unwrap_or_else(|_| Utc::now()),
+        }
+    }
+}
+
+/// `warte agents rm`: on the host, against its own database, never over
+/// HTTP (REQ-API-006). Exit 0 removed, 1 refused or failed (the reason on
+/// stderr). The removal is logged with its reason in `agents-removed.jsonl`
+/// next to the database.
+pub async fn rm_cli(
+    config_path: Option<&std::path::Path>,
+    id: &str,
+    reason: &str,
+    with_data: bool,
+) -> i32 {
+    let reason = reason.trim();
+    if reason.is_empty() || reason.chars().count() > 200 || reason.chars().any(char::is_control) {
+        eprintln!("warte agents rm: --reason must be 1 to 200 characters, no control characters");
+        return 1;
+    }
+    let run = async {
+        let config = crate::config::Config::load_at(config_path).map_err(|e| e.to_string())?;
+        let db = crate::db::Database::connect(&config.db_path)
+            .await
+            .map_err(|e| e.to_string())?;
+        let reg = AgentRegistry::new(db.pool().clone(), config.instance_id());
+        let (name, rows) = reg.remove(id, with_data).await?;
+        let log = config
+            .db_path
+            .parent()
+            .unwrap_or(std::path::Path::new("."))
+            .join("agents-removed.jsonl");
+        let line = serde_json::json!({
+            "at": Utc::now().to_rfc3339(),
+            "id": id,
+            "name": name,
+            "data_rows": rows,
+            "reason": reason,
+        });
+        use std::io::Write;
+        std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&log)
+            .and_then(|mut f| writeln!(f, "{line}"))
+            .map_err(|e| format!("removed, but the log {} failed: {e}", log.display()))?;
+        Ok::<_, String>(format!("removed agent {id} ({name}), {rows} data row(s)"))
+    };
+    match run.await {
+        Ok(msg) => {
+            println!("{msg}");
+            0
+        }
+        Err(e) => {
+            eprintln!("warte agents rm: {e}");
+            1
         }
     }
 }

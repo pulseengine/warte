@@ -209,7 +209,9 @@ failed or stuck tasks, its review counts and its own GitHub API use. warte
 itself makes no GitHub calls for this.
 
 When `[temper]` is set and no report has arrived within `stale_after_s` of
-the ground station starting, or the last one is older than that, it is an
+the ground station first listening for one (kept in `temper-since` in the hub
+data directory since v1.6.33, so a restart does not reset it), or the last
+one is older than that, it is an
 outage (REQ-TEMPER-003): a red finding in Outages, notified by the outage
 alerts. temper sweeps every 12 h, so `stale_after_s = 46800` (13 h) catches a
 stopped temper within an hour of its missed sweep.

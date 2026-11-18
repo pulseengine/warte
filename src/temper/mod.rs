@@ -227,12 +227,16 @@ pub struct Stored {
     pub report: report::Report,
 }
 
+/// The file that keeps when warte first listened for temper's report.
+pub const SINCE_FILE: &str = "temper-since";
+
 pub struct Store {
     latest: std::sync::Mutex<Option<Stored>>,
     path: std::path::PathBuf,
-    /// When this ground station started listening for temper's report: a
-    /// report missing for longer than the staleness window is an outage
-    /// (REQ-TEMPER-003).
+    /// When this ground station first listened for temper's report, kept in
+    /// `temper-since` so a restart does not reset it: a report missing for
+    /// longer than the staleness window is an outage (REQ-TEMPER-003). A
+    /// warte redeployed more often than the window used to never notice.
     pub opened_at: i64,
 }
 
@@ -242,10 +246,24 @@ impl Store {
         let latest = std::fs::read(&path)
             .ok()
             .and_then(|b| serde_json::from_slice(&b).ok());
+        let since = std::path::Path::new(data_dir).join(SINCE_FILE);
+        let now = chrono::Utc::now().timestamp();
+        let opened_at = match std::fs::read_to_string(&since)
+            .ok()
+            .and_then(|t| t.trim().parse::<i64>().ok())
+            .filter(|t| *t > 0 && *t <= now)
+        {
+            Some(t) => t,
+            None => {
+                // first start, or an unreadable file: from now, kept for the next
+                let _ = std::fs::write(&since, now.to_string());
+                now
+            }
+        };
         Store {
             latest: std::sync::Mutex::new(latest),
             path,
-            opened_at: chrono::Utc::now().timestamp(),
+            opened_at,
         }
     }
 

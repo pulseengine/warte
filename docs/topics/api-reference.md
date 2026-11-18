@@ -75,12 +75,18 @@ Returns: `{ status, instance_id, version, uptime_secs, timestamp }`
 
 ```
 GET  /api/agents                    # list all agents
-POST /api/agents/register           # register a new agent
+POST /api/agents/register           # register an agent, or get its id again
 GET  /api/agents/{id}               # get agent details
 POST /api/agents/{id}/heartbeat     # record heartbeat
 POST /api/agents/{id}/data          # capture agent data
 GET  /api/agents/{id}/data          # query agent data
 ```
+
+Register is idempotent per name (since v1.6.33, REQ-API-006): a name this
+warte already has returns that agent's `agent_id` (the newest, if older
+releases left several), with a fresh certificate and the request's `repo`,
+`identity_type` and `public_key`. A retry or a rerun never makes a second
+agent.
 
 ## Access control
 

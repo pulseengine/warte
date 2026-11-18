@@ -412,6 +412,18 @@ artifacts:
       - type: satisfies
         target: SC-001
 
+  - id: REQ-API-006
+    type: requirement
+    title: Registering a name again returns the same agent instead of a second one
+    status: verified
+    release: v1.6.33
+    description: "On 2026-11-18 three register calls with one token made three agents with the same name; a client that resolves its id by name then depends on which row it sees first. POST /api/agents/register SHALL, when an agent with the requested name exists, return that agent's id (the newest row, if several exist), re-issue its certificate, update repo, identity_type and public_key, and insert no row. A new name SHALL still get a new agent. The token binding of REQ-API-004 is unchanged."
+    links:
+      - type: refines
+        target: REQ-API-004
+      - type: satisfies
+        target: SC-001
+
   # --- CLI ---
   - id: REQ-CLI-001
     type: requirement

@@ -559,3 +559,32 @@ async fn a_default_token_writes_to_the_uuid_its_own_registration_got() {
     assert!(post_as(&s, &path, "", Some(&any)).await < 300);
     assert_eq!(post_as(&s, none, "", Some(&any)).await, 404);
 }
+
+// rivet: verifies REQ-API-006
+#[tokio::test]
+async fn registering_a_name_again_returns_the_same_agent_and_makes_no_second_row() {
+    let s = start(tempfile::tempdir().unwrap()).await;
+    let t = mint_agent_token(&config_in(s.dir.path()), "notice-repo", 24).unwrap();
+    // planted: the same client registering three times (a retry, a rerun)
+    let a = register_id(&s, "notice-repo", &t).await;
+    let b = register_id(&s, "notice-repo", &t).await;
+    let c = register_id(&s, "notice-repo", &t).await;
+    assert_eq!(a, b, "one agent per name");
+    assert_eq!(b, c, "one agent per name");
+    let list: Vec<serde_json::Value> = reqwest::Client::new()
+        .get(format!("{}/api/agents", s.base))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let named = list.iter().filter(|x| x["name"] == "notice-repo").count();
+    assert_eq!(named, 1, "{list:?}");
+    // writing to it still works after a re-registration
+    let st = post_as(&s, "/api/agents/{id}/data", &a, Some(&t)).await;
+    assert!((200..300).contains(&st), "{st}");
+    // another name is another agent
+    let other = token_with(&s, "other-repo", &["agents:register"]);
+    assert_ne!(register_id(&s, "other-repo", &other).await, a);
+}

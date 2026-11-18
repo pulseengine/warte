@@ -4,6 +4,12 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.33 — 2026-11-18
+
+- **Registering an agent twice returns the same agent** (REQ-API-006). `POST /api/agents/register` with a name this warte already has returns that agent's id, re-issues its certificate and updates its repo, identity type and key, instead of adding a second agent with the same name. Agents duplicated by older releases stay; register returns the newest of them, which is also the first one `GET /api/agents` lists.
+- **`warte agents rm <id> --reason …`** removes such a duplicate on the host, against its own database and never over HTTP. It refuses an unknown id, an agent holding access policies, and one with data rows unless `--with-data`; each removal is logged with its reason in `agents-removed.jsonl` next to the database.
+- **A missing temper report is noticed across restarts** (REQ-TEMPER-003). warte timed "no temper report since warte started" from its own start, so a ground station redeployed more often than `stale_after_s` never raised it. The first time it listened is now kept in `temper-since` in the hub data directory.
+
 ## v1.6.32 — 2026-11-18
 
 - **Disk holders carry a cleanup verdict, contract disk-hygiene v1** (REQ-PRESSURE-003). `warte probe pressure` gives every scratchpad, `target/` and worktree a `verdict`: `in-use` when a live session or any process has its working directory inside it, `dirty` for a worktree with uncommitted changes or commits on no remote, `unknown` when git fails or takes over 20 s, else `idle`, with `why`. Before, a worktree a session used from its main checkout showed `live: false`, which a cleanup could read as unused. docs/topics/disk-hygiene.md states what a cleanup may remove (`idle` only), the thresholds and the kill criteria. warte still deletes nothing.
