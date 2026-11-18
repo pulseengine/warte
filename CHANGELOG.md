@@ -4,6 +4,10 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.32 — 2026-11-18
+
+- **Disk holders carry a cleanup verdict, contract disk-hygiene v1** (REQ-PRESSURE-003). `warte probe pressure` gives every scratchpad, `target/` and worktree a `verdict`: `in-use` when a live session or any process has its working directory inside it, `dirty` for a worktree with uncommitted changes or commits on no remote, `unknown` when git fails or takes over 20 s, else `idle`, with `why`. Before, a worktree a session used from its main checkout showed `live: false`, which a cleanup could read as unused. docs/topics/disk-hygiene.md states what a cleanup may remove (`idle` only), the thresholds and the kill criteria. warte still deletes nothing.
+
 ## v1.6.31 — 2026-11-18
 
 - **Agent session lifecycle, contract lifecycle v1** (REQ-SESS-002). `warte sessions status|start|pause|resume|rm --config sessions.json` starts and keeps the sessions a sessions v1 file lists. `start` starts each missing session (enabled, not paused, not running) as a detached zellij session running `claude --remote-control <name>` with the listed model, effort and permission mode, resuming the newest session id for its directory; `--dry-run` prints the argv. warte never kills a process: there is no stop command, and `rm` is refused while the session runs and never deletes a transcript. Every action takes a `--reason`, kept in a local event log. It reads no hostnames.

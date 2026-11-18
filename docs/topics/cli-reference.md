@@ -114,7 +114,12 @@ each writable volume's free space and verdict (`ok`, `low` under 20 GB free,
 
 Each holder has its volume, GB, path, the live agent sessions working there
 (`agents`; `live`, and `pid` when there is exactly one) and `complete` (false
-when sizing ran out of time, so `gb` is a floor). It reads what the probe
+when sizing ran out of time, so `gb` is a floor), and since v1.6.32 a
+`verdict` with `why` (REQ-PRESSURE-003, contract disk-hygiene v1): `in-use`
+when a live session or any process works there, `dirty` for a worktree with
+uncommitted changes or commits on no remote, `unknown` when git could not
+tell, else `idle`. Only `idle` may be removed; `live` alone is no cleanup
+verdict (`warte docs disk-hygiene`). It reads what the probe
 stored: `probe send` sizes holders only while a volume is low, at most every
 10 minutes, within 60 seconds, on the low volumes only. `--measure` sizes them
 now, on every volume. Sizing follows no symlink and stays on the volume.

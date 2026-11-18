@@ -972,6 +972,23 @@ artifacts:
       model: claude-opus-5-5
       timestamp: 2026-11-08T09:53:58Z
 
+  - id: REQ-PRESSURE-003
+    type: requirement
+    title: Each disk holder carries a cleanup verdict, and only idle may be removed (contract disk-hygiene v1)
+    status: verified
+    release: v1.6.32
+    description: "On 2026-11-18 warte probe pressure listed two worktrees as live:false while sessions worked in them from their main checkouts, one with a test run going and unpushed commits; a cleanup trusting live:false would have deleted live work. Each holder SHALL carry a verdict: in-use when a live session works there or any process's working directory is inside it; for a worktree, dirty when git reports uncommitted changes or commits on no remote; unknown when git fails or takes longer than 20 s, and for holders stored without a verdict; otherwise idle. A path that only shares a prefix SHALL NOT count as inside. docs/topics/disk-hygiene.md SHALL state the contract (thresholds, what a cleanup may remove: idle only, kill criteria), and warte SHALL delete nothing."
+    fields:
+      category: functional
+      priority: must
+    links:
+      - type: refines
+        target: REQ-PRESSURE-002
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-18T14:30:00Z
+
   - id: REQ-RUNNERS-001
     type: requirement
     title: GitHub-hosted jobs are split into pools by runs-on label, each with a kind and an OS

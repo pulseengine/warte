@@ -126,6 +126,27 @@ pub enum Kind {
     Worktree,
 }
 
+/// What a cleanup may do with a holder (contract disk-hygiene v1,
+/// REQ-PRESSURE-003). Only [`Use::Idle`] may be removed.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[serde(rename_all = "kebab-case")]
+pub enum Use {
+    /// A process's working directory is in it, or a live session works there.
+    InUse,
+    /// A worktree with work that exists nowhere else: uncommitted changes or
+    /// commits on no remote.
+    Dirty,
+    /// Nothing runs in it and nothing in it is unsaved.
+    Idle,
+    /// It could not be checked (git failed or took too long), or it was
+    /// stored by an older probe. Never read as idle.
+    #[default]
+    Unknown,
+}
+
+/// Longest a git check of one worktree may take before it is `unknown`.
+pub const GIT_CHECK: Duration = Duration::from_secs(20);
+
 /// A live agent session in a holder's directory.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Agent {
@@ -151,7 +172,14 @@ pub struct Holder {
     /// scratchpad whose session ended, for example).
     pub agents: Vec<Agent>,
     /// A live agent session works in that directory (`agents` not empty).
+    /// Not a cleanup verdict: read `verdict`.
     pub live: bool,
+    /// What a cleanup may do with it; only `idle` may be removed.
+    #[serde(default)]
+    pub verdict: Use,
+    /// Why it is not idle, when it is not.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub why: Option<String>,
     /// The session's pid when exactly one live session works there.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pid: Option<u32>,
@@ -315,6 +343,119 @@ pub fn live_sessions() -> Vec<Live> {
             })
         })
         .collect()
+}
+
+/// Every process's working directory (local only), for [`judge`]: a
+/// session in the main checkout that runs a build in a sibling worktree
+/// leaves its build process's cwd there.
+pub fn process_cwds() -> Vec<PathBuf> {
+    use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
+    let mut sys = System::new();
+    sys.refresh_processes_specifics(
+        ProcessesToUpdate::All,
+        true,
+        ProcessRefreshKind::nothing().with_cwd(UpdateKind::Always),
+    );
+    let mut v: Vec<PathBuf> = sys
+        .processes()
+        .values()
+        .filter_map(|p| p.cwd().map(Path::to_path_buf))
+        .filter(|c| c.as_os_str().len() > 1)
+        .collect();
+    v.sort();
+    v.dedup();
+    v
+}
+
+/// A worktree's unsaved work, from git: `Ok(None)` when there is none,
+/// `Ok(Some(why))` when there is, `Err(why)` when git could not tell.
+pub type GitCheck = Result<Option<String>, String>;
+
+/// Run git in `dir` within `limit`; its stdout, or why not.
+fn git_out(dir: &Path, args: &[&str], limit: Duration) -> Result<String, String> {
+    use std::io::Read;
+    let mut child = std::process::Command::new("git")
+        .arg("-C")
+        .arg(dir)
+        .args(args)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .map_err(|_| "git could not run".to_string())?;
+    let deadline = Instant::now() + limit;
+    loop {
+        match child.try_wait() {
+            Ok(Some(st)) if st.success() => {
+                let mut out = String::new();
+                if let Some(mut o) = child.stdout.take() {
+                    let _ = o.read_to_string(&mut out);
+                }
+                return Ok(out);
+            }
+            Ok(Some(_)) => return Err(format!("git {} failed", args[0])),
+            Ok(None) if Instant::now() < deadline => std::thread::sleep(Duration::from_millis(20)),
+            _ => {
+                // our own child, by its handle
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(format!("git {} took too long", args[0]));
+            }
+        }
+    }
+}
+
+/// Uncommitted changes, or commits no remote has, in the worktree at `dir`.
+/// A repository without a remote has all its commits on no remote.
+pub fn git_check(dir: &Path, limit: Duration) -> GitCheck {
+    let status = git_out(dir, &["status", "--porcelain"], limit)?;
+    if !status.trim().is_empty() {
+        let n = status.lines().count();
+        return Ok(Some(format!("{n} uncommitted change(s)")));
+    }
+    let ahead = git_out(
+        dir,
+        &["rev-list", "--count", "HEAD", "--not", "--remotes"],
+        limit,
+    )?;
+    match ahead.trim().parse::<u64>() {
+        Ok(0) => Ok(None),
+        Ok(n) => Ok(Some(format!("{n} commit(s) on no remote"))),
+        Err(_) => Err("git rev-list gave no count".into()),
+    }
+}
+
+/// The cleanup verdict of one holder (REQ-PRESSURE-003). In use first: a
+/// live session there, or any process whose working directory is inside it.
+/// A worktree is then dirty, idle or unknown by `git`; a `target/` or a
+/// scratchpad nobody uses is idle.
+pub fn judge(
+    kind: Kind,
+    path: &Path,
+    agents: &[Agent],
+    cwds: &[PathBuf],
+    git: impl Fn(&Path) -> GitCheck,
+) -> (Use, Option<String>) {
+    if !agents.is_empty() {
+        return (Use::InUse, Some("a live session works there".into()));
+    }
+    let real = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let inside = |c: &PathBuf| {
+        c.starts_with(path)
+            || c.starts_with(&real)
+            || std::fs::canonicalize(c).is_ok_and(|c| c.starts_with(&real))
+    };
+    if cwds.iter().any(inside) {
+        return (Use::InUse, Some("a process works there".into()));
+    }
+    if kind != Kind::Worktree {
+        return (Use::Idle, None);
+    }
+    match git(path) {
+        Ok(None) => (Use::Idle, None),
+        Ok(Some(why)) => (Use::Dirty, Some(why)),
+        Err(why) => (Use::Unknown, Some(why)),
+    }
 }
 
 /// Where Claude Code keeps per-session directories: `<root>/claude-<uid>/`.
@@ -510,6 +651,7 @@ pub fn candidates(live: &[Live], roots: &[PathBuf]) -> Vec<Candidate> {
 /// what is on a low volume).
 pub fn measure(
     cands: Vec<Candidate>,
+    cwds: &[PathBuf],
     mounts: &[String],
     wanted: &[String],
     budget: Duration,
@@ -525,7 +667,12 @@ pub fn measure(
             } else {
                 size_bytes(&c.path, deadline)
             };
+            let (verdict, why) = judge(c.kind, &c.path, &c.agents, cwds, |p| {
+                git_check(p, GIT_CHECK)
+            });
             Some(Holder {
+                verdict,
+                why,
                 kind: c.kind,
                 mount,
                 gb: round1(bytes as f64 / 1e9),
@@ -595,6 +742,7 @@ pub fn attach(report: &mut super::Report, state_dir: &Path, t: &Thresholds, now:
         let mounts: Vec<String> = report.disks.iter().map(|d| d.mount.clone()).collect();
         let s = measure(
             candidates(&live_sessions(), &scratch_roots()),
+            &process_cwds(),
             &mounts,
             &low_mounts,
             BUDGET,
@@ -673,6 +821,7 @@ pub fn local(state_dir: &Path, measure_now: bool, t: &Thresholds, now: i64) -> L
         // asked for explicitly: every volume
         let s = measure(
             candidates(&live_sessions(), &scratch_roots()),
+            &process_cwds(),
             &mounts,
             &mounts,
             BUDGET,
@@ -737,14 +886,24 @@ pub fn text(l: &Local) -> String {
         );
     }
     for h in &l.holders {
-        let who = if h.agents.is_empty() {
-            "no live session".to_string()
+        let verdict = serde_json::to_value(h.verdict)
+            .ok()
+            .and_then(|x| x.as_str().map(String::from))
+            .unwrap_or_default();
+        let mut who: Vec<String> = h
+            .agents
+            .iter()
+            .map(|a| format!("{} {}", a.agent, a.pid))
+            .collect();
+        if let Some(w) = &h.why {
+            if h.agents.is_empty() {
+                who.push(w.clone());
+            }
+        }
+        let who = if who.is_empty() {
+            verdict
         } else {
-            h.agents
-                .iter()
-                .map(|a| format!("{} {}", a.agent, a.pid))
-                .collect::<Vec<_>>()
-                .join(", ")
+            format!("{verdict}: {}", who.join(", "))
         };
         let kind = serde_json::to_value(h.kind)
             .ok()

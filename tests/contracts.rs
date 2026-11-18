@@ -11,6 +11,7 @@ const NAV: &str = include_str!("../docs/topics/nav.md");
 const NEWS: &str = include_str!("../docs/topics/news.md");
 const SESSIONS: &str = include_str!("../docs/topics/sessions.md");
 const LIFECYCLE: &str = include_str!("../docs/topics/lifecycle.md");
+const DISK: &str = include_str!("../docs/topics/disk-hygiene.md");
 
 /// Field names in the first column of a doc table: "| `a`, `b` | ...".
 fn table_fields(doc: &str, after: &str) -> Vec<String> {
@@ -41,6 +42,7 @@ fn every_contract_states_its_version() {
         ("nav", NAV),
         ("sessions", SESSIONS),
         ("lifecycle", LIFECYCLE),
+        ("disk-hygiene", DISK),
         ("news", NEWS),
     ] {
         assert!(
@@ -109,4 +111,19 @@ fn the_job_state_fields_are_the_documented_ones() {
     doc.sort();
     got.sort();
     assert_eq!(got, doc);
+}
+
+// rivet: verifies REQ-PRESSURE-003
+#[test]
+fn disk_hygiene_names_every_holder_verdict_the_probe_writes() {
+    use warte::probe::pressure::Use;
+    for u in [Use::InUse, Use::Dirty, Use::Idle, Use::Unknown] {
+        let name = serde_json::to_value(u).unwrap();
+        let name = name.as_str().unwrap();
+        assert!(
+            DISK.contains(&format!("| `{name}` |")),
+            "{name} not in the contract table"
+        );
+    }
+    assert!(DISK.contains("A cleanup reads `verdict`, never\n  `live`"));
 }

@@ -4,8 +4,8 @@ use std::net::Ipv4Addr;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 use warte::probe::pressure::{
-    candidates, held, is_session_id, measure, size_bytes, slug, worst, Kind, Live, Thresholds,
-    Verdict,
+    candidates, git_check, held, is_session_id, judge, measure, process_cwds, size_bytes, slug,
+    worst, Agent, Kind, Live, Thresholds, Use, Verdict,
 };
 use warte::probe::{Cpu, Disk, Memory, Os, Report};
 
@@ -131,6 +131,7 @@ fn scratchpads_map_to_their_session_and_checkouts_give_target_and_worktrees() {
     let here = warte::probe::pressure::mount_of(&tmp, &mounts).unwrap();
     let s = measure(
         c.clone(),
+        &[],
         &mounts,
         std::slice::from_ref(&here),
         Duration::from_secs(30),
@@ -154,6 +155,7 @@ fn scratchpads_map_to_their_session_and_checkouts_give_target_and_worktrees() {
     assert_eq!(gone.pid, None);
     let none = measure(
         c,
+        &[],
         &mounts,
         &["/elsewhere".into()],
         Duration::from_secs(30),
@@ -365,4 +367,145 @@ async fn the_thresholds_come_from_the_config() {
     let (_, v) = get(format!("{base}/api/pressure?host=roomy")).await;
     assert_eq!(v["verdict"], "low", "{v}");
     assert!(v["reason"].as_str().unwrap().contains("30"), "{v}");
+}
+
+/// A checkout with a remote it has pushed to, and a clean worktree of it.
+fn pushed_repo_with_worktree(tmp: &Path) -> (PathBuf, PathBuf) {
+    let remote = tmp.join("remote.git");
+    std::fs::create_dir_all(&remote).unwrap();
+    git(&remote, &["init", "-q", "--bare"]);
+    let repo = tmp.join("src/repo-b");
+    std::fs::create_dir_all(&repo).unwrap();
+    git(&repo, &["init", "-q", "-b", "main"]);
+    git(&repo, &["commit", "-q", "--allow-empty", "-m", "x"]);
+    git(
+        &repo,
+        &["remote", "add", "origin", remote.to_str().unwrap()],
+    );
+    git(&repo, &["push", "-q", "origin", "main"]);
+    let wt = tmp.join("src/repo-b-wt");
+    git(
+        &repo,
+        &["worktree", "add", "-q", wt.to_str().unwrap(), "-b", "w"],
+    );
+    (repo, wt)
+}
+
+// rivet: verifies REQ-PRESSURE-003
+#[test]
+fn a_worktree_is_idle_only_when_nothing_runs_there_and_nothing_is_unsaved() {
+    let tmp = tempfile::tempdir().unwrap();
+    let tmp = std::fs::canonicalize(tmp.path()).unwrap();
+    let (repo, wt) = pushed_repo_with_worktree(&tmp);
+    let g = |p: &Path| git_check(p, Duration::from_secs(20));
+    let none: Vec<PathBuf> = vec![];
+    assert_eq!(judge(Kind::Worktree, &wt, &[], &none, g), (Use::Idle, None));
+
+    // planted: the session works in the main checkout and runs something in
+    // the worktree (the case live:false missed)
+    let sub = wt.join("crates");
+    std::fs::create_dir_all(&sub).unwrap();
+    let (v, why) = judge(Kind::Worktree, &wt, &[], std::slice::from_ref(&sub), g);
+    assert_eq!(v, Use::InUse);
+    assert_eq!(why.as_deref(), Some("a process works there"));
+    // the same with a real process, found through the process table
+    let mut child = std::process::Command::new("sleep")
+        .arg("30")
+        .current_dir(&sub)
+        .spawn()
+        .unwrap();
+    std::thread::sleep(Duration::from_millis(300));
+    let cwds = process_cwds();
+    assert_eq!(
+        judge(Kind::Worktree, &wt, &[], &cwds, g).0,
+        Use::InUse,
+        "{cwds:?}"
+    );
+    child.kill().unwrap();
+    child.wait().unwrap();
+    // a sibling directory sharing the prefix is not inside
+    let sibling = tmp.join("src/repo-b-wt2");
+    std::fs::create_dir_all(&sibling).unwrap();
+    assert_eq!(judge(Kind::Worktree, &wt, &[], &[sibling], g).0, Use::Idle);
+    // a live session there
+    let a = [Agent {
+        agent: "claude".into(),
+        pid: 9,
+    }];
+    assert_eq!(judge(Kind::Worktree, &wt, &a, &none, g).0, Use::InUse);
+
+    // planted: an uncommitted file
+    std::fs::write(wt.join("notes.txt"), "x").unwrap();
+    let (v, why) = judge(Kind::Worktree, &wt, &[], &none, g);
+    assert_eq!(v, Use::Dirty);
+    assert_eq!(why.as_deref(), Some("1 uncommitted change(s)"));
+    // planted: a commit no remote has
+    git(&wt, &["add", "notes.txt"]);
+    git(&wt, &["commit", "-q", "-m", "unpushed"]);
+    let (v, why) = judge(Kind::Worktree, &wt, &[], &none, g);
+    assert_eq!(v, Use::Dirty);
+    assert_eq!(why.as_deref(), Some("1 commit(s) on no remote"));
+
+    // planted: git cannot tell (not a repository, too slow, a failing check)
+    let plain = tmp.join("not-a-repo");
+    std::fs::create_dir_all(&plain).unwrap();
+    assert_eq!(judge(Kind::Worktree, &plain, &[], &none, g).0, Use::Unknown);
+    let slow = |p: &Path| git_check(p, Duration::ZERO);
+    let (v, why) = judge(Kind::Worktree, &repo, &[], &none, slow);
+    assert_eq!(v, Use::Unknown);
+    assert!(why.unwrap().contains("took too long"));
+    let failing = |_: &Path| Err("git status failed".to_string());
+    assert_eq!(
+        judge(Kind::Worktree, &wt, &[], &none, failing).0,
+        Use::Unknown
+    );
+
+    // target/ and scratchpads have no unsaved work: idle unless used
+    let t = repo.join("target");
+    std::fs::create_dir_all(&t).unwrap();
+    assert_eq!(judge(Kind::Target, &t, &[], &none, failing).0, Use::Idle);
+    assert_eq!(
+        judge(Kind::Target, &t, &[], &[t.join("debug")], failing).0,
+        Use::InUse
+    );
+
+    // what an older probe stored has no verdict: unknown, never idle
+    let old = r#"{"kind":"worktree","mount":"/","gb":1.0,"path":"/w","agents":[],"live":false,"complete":true}"#;
+    let h: warte::probe::pressure::Holder = serde_json::from_str(old).unwrap();
+    assert_eq!(h.verdict, Use::Unknown);
+}
+
+// rivet: verifies REQ-PRESSURE-003
+#[test]
+fn measure_marks_a_worktree_in_use_by_a_process_though_no_session_is_live_there() {
+    let tmp = tempfile::tempdir().unwrap();
+    let tmp = std::fs::canonicalize(tmp.path()).unwrap();
+    let (repo, wt) = pushed_repo_with_worktree(&tmp);
+    // the session's cwd is the main checkout only
+    let live = vec![Live {
+        agent: "claude".into(),
+        pid: 41,
+        cwd: repo.clone(),
+    }];
+    let c = candidates(&live, &[]);
+    let w = c
+        .iter()
+        .find(|x| x.kind == Kind::Worktree)
+        .expect("worktree listed");
+    assert!(w.agents.is_empty());
+    let mounts = vec!["/".to_string(), tmp.to_string_lossy().into_owned()];
+    let here = warte::probe::pressure::mount_of(&tmp, &mounts).unwrap();
+    let s = measure(
+        c,
+        &[wt.join("src")],
+        &mounts,
+        std::slice::from_ref(&here),
+        Duration::from_secs(30),
+        7,
+    );
+    let h = s.holders.iter().find(|h| h.kind == Kind::Worktree).unwrap();
+    assert!(!h.live, "no session is live there");
+    assert_eq!(h.verdict, Use::InUse, "but a process is, so it is not idle");
+    let text = serde_json::to_string(&h).unwrap();
+    assert!(text.contains("\"verdict\":\"in-use\""), "{text}");
 }

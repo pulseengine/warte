@@ -92,6 +92,11 @@ const TOPICS: &[Topic] = &[
         content: include_str!("../../docs/topics/lifecycle.md"),
     },
     Topic {
+        name: "disk-hygiene",
+        title: "Contract: disk-hygiene v1, what a cleanup may remove",
+        content: include_str!("../../docs/topics/disk-hygiene.md"),
+    },
+    Topic {
         name: "costs-schema",
         title: "Costs report schema (1 and 2)",
         content: include_str!("../../docs/topics/costs-schema.md"),
