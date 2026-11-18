@@ -315,7 +315,7 @@ fn runners(text: &str) -> Vec<String> {
 /// is this repo. The earlier `head.repo.fork && hosted || self-hosted` form sent
 /// a PR whose fork was deleted (head.repo null) to self-hosted. Routing only: a fork PR can edit the workflow, so isolation itself
 /// is the org's runner-group policy and fork-PR approval, not this expression.
-const SELF_HOSTED_CPU_SAME_REPO_ONLY: &str = "${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('[\"self-hosted\",\"linux\",\"x64\",\"rust-cpu\"]') || 'ubuntu-latest' }}";
+const SELF_HOSTED_CPU_SAME_REPO_ONLY: &str = "${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('[\"self-hosted\",\"linux\",\"x64\",\"rust-cpu\"]') || 'ubuntu-24.04' }}";
 
 // rivet: verifies DD-CI-001
 // rivet: verifies REQ-CI-003
@@ -453,4 +453,35 @@ fn release_asserts_binary_version_equals_tag() {
         text.contains("/release/warte\" --version") && text.contains("\"warte ${TAG#v}\""),
         "release.yml must check that the built `warte --version` reports the tag"
     );
+}
+
+/// Runner labels that move to a new image without a change here.
+fn floating_ubuntu_labels(text: &str) -> Vec<String> {
+    text.lines()
+        .filter(|l| !l.trim_start().starts_with('#'))
+        .filter(|l| l.contains("ubuntu-latest"))
+        .map(|l| l.trim().to_string())
+        .collect()
+}
+
+// rivet: verifies REQ-CI-006
+#[test]
+fn hosted_ubuntu_jobs_are_pinned_never_ubuntu_latest() {
+    // planted: a job line and the fork-guard fallback, both caught
+    let planted = "    runs-on: ubuntu-latest\n    runs-on: ${{ x && 'a' || 'ubuntu-latest' }}\n    # ubuntu-latest in a comment is fine\n";
+    assert_eq!(floating_ubuntu_labels(planted).len(), 2);
+    let all = workflows();
+    assert!(all.len() >= 2, "found too few workflows: {}", all.len());
+    for (name, text) in &all {
+        let bad = floating_ubuntu_labels(text);
+        assert!(
+            bad.is_empty(),
+            "{name}: pin ubuntu-24.04, not ubuntu-latest: {bad:?}"
+        );
+        let pinned = text.matches("ubuntu-24.04").count();
+        assert!(
+            pinned > 0,
+            "{name}: no pinned ubuntu runner, so the check compared nothing"
+        );
+    }
 }
