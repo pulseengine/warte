@@ -87,6 +87,11 @@ const TOPICS: &[Topic] = &[
         content: include_str!("../../docs/topics/sessions.md"),
     },
     Topic {
+        name: "lifecycle",
+        title: "Contract: lifecycle v1, starting and keeping agent sessions",
+        content: include_str!("../../docs/topics/lifecycle.md"),
+    },
+    Topic {
         name: "costs-schema",
         title: "Costs report schema (1 and 2)",
         content: include_str!("../../docs/topics/costs-schema.md"),

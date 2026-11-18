@@ -5,6 +5,8 @@
 
 use serde::{Deserialize, Serialize};
 
+pub mod lifecycle;
+
 /// One agent session.
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(deny_unknown_fields)]

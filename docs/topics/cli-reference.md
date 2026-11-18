@@ -320,6 +320,17 @@ sessions v1 (`warte docs sessions`). Check a file before deploying it:
 warte sessions check sessions.json   # exit 1 naming the file and the field
 ```
 
+Start and keep the listed sessions, contract lifecycle v1
+(`warte docs lifecycle`). warte never kills a process:
+
+```bash
+warte sessions status --config sessions.json
+warte sessions start  --config sessions.json --reason login [--id ID] [--dry-run]
+warte sessions pause  --config sessions.json ID --reason "…"
+warte sessions resume --config sessions.json ID --reason "…"
+warte sessions rm     --config sessions.json ID --reason "…"   # refused while it runs
+```
+
 ## warte fleet
 
 The fleet a deployment intends (machines, where they live, which bench
