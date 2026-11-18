@@ -4,6 +4,10 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.30 — 2026-11-18
+
+- **Agent tokens can read their own records** (REQ-API-005). A new mintable right, `agents:read`, lets a warte agent token through the login gate on `GET /api/agents` and on `GET /api/agents/{id}` and `/data` for its own agent; another agent's id stays `403` unless the token also holds `agents:any`. It is not in a bare mint: `warte token mint <agent> --right agents:read` adds it. A notice client resolves its id from the list and reads back what it posted.
+
 ## v1.6.29 — 2026-11-14
 
 - **Briefing catch-up after missed periods** (REQ-BRIEF-006). When no model text arrived for one or more periods, the next briefing covers them too: its facts start the day after the last model-written briefing, at most 7 days back, and it replaces the plain briefings it covers (the view says how many). `GET /api/briefing/facts` returns the longer period and `replaces`. A submission may send `until`; if the period has grown since the job read the facts, it is refused with "read the facts again". The operator kit's job sends it.

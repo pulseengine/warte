@@ -156,6 +156,18 @@ pub const AGENT_RIGHTS: [&str; 3] = ["agents:register", "agents:data", "agents:h
 /// any agent id, not only its own. The right to the route is still required.
 pub const RIGHT_ANY_AGENT: &str = "agents:any";
 
+/// The read right for an agent's own records (REQ-API-005): with `[auth]`,
+/// a token holding it may list the agents and read its own agent's row and
+/// data. Never a default right; `agents:any` widens it to every agent.
+pub const RIGHT_AGENTS_READ: &str = "agents:read";
+
+/// The read routes `agents:read` opens, and whose id each names.
+pub const AGENT_READ_ROUTES: [(&str, Binding); 3] = [
+    ("/api/agents", Binding::None),
+    ("/api/agents/{id}", Binding::PathId),
+    ("/api/agents/{id}/data", Binding::PathId),
+];
+
 /// Whose id a route's request names, which must be the token's agent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Binding {
@@ -255,14 +267,81 @@ pub const MUTATING_ROUTES: [RouteRule; 11] = [
 
 /// Is `right` one a token can carry: a route's right or `agents:any`?
 pub fn is_known_right(right: &str) -> bool {
-    right == RIGHT_ANY_AGENT || MUTATING_ROUTES.iter().any(|r| r.right == right)
+    right == RIGHT_ANY_AGENT
+        || right == RIGHT_AGENTS_READ
+        || MUTATING_ROUTES.iter().any(|r| r.right == right)
 }
 
 /// Every right a token can carry, for messages and docs.
 pub fn known_rights() -> Vec<&'static str> {
     let mut v: Vec<&str> = MUTATING_ROUTES.iter().map(|r| r.right).collect();
+    v.push(RIGHT_AGENTS_READ);
     v.push(RIGHT_ANY_AGENT);
     v
+}
+
+/// The `{id}` of `path` if it matches `pattern` (percent-decoded), `Some(None)`
+/// for a match without one, `None` for no match.
+fn match_path(pattern: &str, path: &str) -> Option<Option<String>> {
+    let want: Vec<&str> = pattern.split('/').collect();
+    let got: Vec<&str> = path.split('/').collect();
+    if want.len() != got.len() {
+        return None;
+    }
+    let mut id = None;
+    for (w, g) in want.iter().zip(&got) {
+        if *w == "{id}" {
+            id = Some(pct_decode(g).filter(|d| !d.is_empty())?);
+        } else if w != g {
+            return None;
+        }
+    }
+    Some(id)
+}
+
+/// May this GET, with `[auth]` on, pass on a warte agent token's
+/// `agents:read` (REQ-API-005)? Only the token's own agent's row and data,
+/// unless it also holds `agents:any`; an unknown id is refused.
+fn agent_read_ok<'a>(
+    state: &'a crate::server::AppState,
+    req: &Request,
+) -> impl std::future::Future<Output = bool> + Send + 'a {
+    // owned before the await: a request body is not Sync
+    let token = req
+        .headers()
+        .get(AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .filter(|t| t.starts_with("warte1."))
+        .map(String::from);
+    let path = req.uri().path().to_string();
+    async move {
+        match token {
+            Some(t) => agent_read_allowed(state, &t, &path).await,
+            None => false,
+        }
+    }
+}
+
+async fn agent_read_allowed(state: &crate::server::AppState, token: &str, path: &str) -> bool {
+    let Some((binding, id)) = AGENT_READ_ROUTES
+        .iter()
+        .find_map(|(p, b)| match_path(p, path).map(|id| (*b, id)))
+    else {
+        return false;
+    };
+    let Ok(p) = state.tokens.verify_token(token) else {
+        return false;
+    };
+    let has = |r: &str| p.rights.iter().any(|x| x == r);
+    if !has(RIGHT_AGENTS_READ) {
+        return false;
+    }
+    if binding == Binding::None || has(RIGHT_ANY_AGENT) {
+        return true;
+    }
+    let Some(id) = id else { return false };
+    matches!(state.agents.get(&id).await, Ok(Some(a)) if a.name == p.agent_id)
 }
 
 /// The rule for a request, and the `{id}` segment (percent-decoded) if the
@@ -448,6 +527,9 @@ pub async fn auth_middleware(
     {
         // with [auth], reads of personal data need a login (REQ-AUTH-001)
         if let Some(l) = state.login.as_deref() {
+            if agent_read_ok(&state, &req).await {
+                return Ok(next.run(req).await);
+            }
             if let Some(r) = crate::login::gate(l, &state.tokens, &mut req).await {
                 return Ok(r);
             }

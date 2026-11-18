@@ -45,6 +45,14 @@ warte token mint <agent-id> [--valid-hours 720] [--any-agent] [--right <r>]...
   unknown `{id}` is refused. Otherwise `403`. `--any-agent` adds `agents:any`, which lifts the binding
   for a token that also holds the route's right, e.g. one workstation token
   that posts notices for many repositories. It is not a right to any route.
+- Reads (since warte v1.6.30, REQ-API-005): with `[auth]`, the agents'
+  records need a login, or a warte token holding `agents:read`. That right
+  opens `GET /api/agents` (the list) and `GET /api/agents/{id}` and
+  `GET /api/agents/{id}/data` for the token's own agent only, bound as the
+  write routes are; another agent's or an unknown `{id}` is `403`, unless the
+  token also holds `agents:any`. A bare mint does not carry it: add
+  `--right agents:read`, e.g. for a notice client that reads back what it
+  posted. Without `[auth]` these reads are open, as before.
 - `--valid-hours` is 1 to 8760; the default is 24.
 - The signing seed is a file, `token-seed` next to the CA key
   (`<state-dir>/token-seed`) unless `token_seed_path` in `warte.toml` or
