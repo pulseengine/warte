@@ -228,6 +228,65 @@ pub enum SessionsCommands {
         /// The sessions v1 JSON file
         file: std::path::PathBuf,
     },
+    /// Each session's state: running, missing, paused or disabled (contract lifecycle v1)
+    Status {
+        #[command(flatten)]
+        at: LifecycleArgs,
+    },
+    /// Start the missing sessions, or the one --id names, each in a detached
+    /// zellij session; never stops or restarts a running one
+    Start {
+        #[command(flatten)]
+        at: LifecycleArgs,
+        /// Only this session id
+        #[arg(long)]
+        id: Option<String>,
+        /// Why, kept in the event log (e.g. "login", "crashed at 09:10")
+        #[arg(long)]
+        reason: String,
+        /// Print each start's argv and working directory as JSON lines; start nothing
+        #[arg(long)]
+        dry_run: bool,
+    },
+    /// Keep a session from being started until it is resumed
+    Pause {
+        #[command(flatten)]
+        at: LifecycleArgs,
+        id: String,
+        #[arg(long)]
+        reason: String,
+    },
+    /// Let a paused session be started again
+    Resume {
+        #[command(flatten)]
+        at: LifecycleArgs,
+        id: String,
+        #[arg(long)]
+        reason: String,
+    },
+    /// Forget warte's state for a session; refused while it runs; never
+    /// touches its transcripts
+    Rm {
+        #[command(flatten)]
+        at: LifecycleArgs,
+        id: String,
+        #[arg(long)]
+        reason: String,
+    },
+}
+
+/// Where the lifecycle commands read and keep things.
+#[derive(clap::Args, Debug, Clone)]
+pub struct LifecycleArgs {
+    /// The sessions v1 file; checked before anything else
+    #[arg(long)]
+    pub config: std::path::PathBuf,
+    /// warte's lifecycle state on this machine [default: ~/.local/state/warte/sessions]
+    #[arg(long)]
+    pub state: Option<std::path::PathBuf>,
+    /// Claude Code's directory, for the last session id [default: ~/.claude]
+    #[arg(long)]
+    pub claude_dir: Option<std::path::PathBuf>,
 }
 
 #[derive(Subcommand)]

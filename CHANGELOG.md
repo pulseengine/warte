@@ -4,6 +4,11 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.31 — 2026-11-18
+
+- **Agent session lifecycle, contract lifecycle v1** (REQ-SESS-002). `warte sessions status|start|pause|resume|rm --config sessions.json` starts and keeps the sessions a sessions v1 file lists. `start` starts each missing session (enabled, not paused, not running) as a detached zellij session running `claude --remote-control <name>` with the listed model, effort and permission mode, resuming the newest session id for its directory; `--dry-run` prints the argv. warte never kills a process: there is no stop command, and `rm` is refused while the session runs and never deletes a transcript. Every action takes a `--reason`, kept in a local event log. It reads no hostnames.
+- **CI on a pinned Ubuntu image** (REQ-CI-006). Every GitHub-hosted Ubuntu job, including the fork guard's hosted fallback and the release jobs, runs on `ubuntu-24.04` instead of `ubuntu-latest`, which GitHub is moving to Ubuntu 26.04. tests/ci_workflows.rs fails on any `ubuntu-latest` outside a comment.
+
 ## v1.6.30 — 2026-11-18
 
 - **Agent tokens can read their own records** (REQ-API-005). A new mintable right, `agents:read`, lets a warte agent token through the login gate on `GET /api/agents` and on `GET /api/agents/{id}` and `/data` for its own agent; another agent's id stays `403` unless the token also holds `agents:any`. It is not in a bare mint: `warte token mint <agent> --right agents:read` adds it. A notice client resolves its id from the list and reads back what it posted.

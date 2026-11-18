@@ -26,7 +26,7 @@ env:
 jobs:
   release-gate:
     name: V-model traceability gate
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
@@ -60,7 +60,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - runner: ubuntu-latest
+          - runner: ubuntu-24.04
             target: x86_64-unknown-linux-gnu
             asset: linux-amd64
           # the probes on the Raspberry Pis (and the ground station)
@@ -120,7 +120,7 @@ jobs:
   operator-kit:
     name: Package the operator kit
     needs: release-gate
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
@@ -144,7 +144,7 @@ jobs:
   checksums:
     name: Generate SHA256SUMS.txt
     needs: [build, sbom, operator-kit]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
@@ -168,7 +168,7 @@ jobs:
   sbom:
     name: Generate SBOM
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
@@ -196,7 +196,7 @@ jobs:
   sign:
     name: Sign with cosign
     needs: [build, checksums]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       id-token: write
       packages: write
@@ -224,7 +224,7 @@ jobs:
   attest:
     name: Attest build provenance
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       id-token: write
       attestations: write
@@ -242,7 +242,7 @@ jobs:
   release:
     name: Create GitHub release
     needs: [build, checksums, sbom, sign, attest, operator-kit]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:

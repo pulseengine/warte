@@ -142,6 +142,14 @@ async fn main() -> anyhow::Result<()> {
                     ),
                 }
             }
+            other => {
+                let code = warte::sessions::lifecycle::run_cli(
+                    other,
+                    matches!(cli.format, OutputFormat::Json),
+                )
+                .map_err(anyhow::Error::msg)?;
+                std::process::exit(code);
+            }
         },
         Commands::News {
             since,
