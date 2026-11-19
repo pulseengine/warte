@@ -704,8 +704,18 @@ fn health_and_outages_come_from_the_snapshot_not_from_decoration() {
     s.errors = vec!["<script>x</script> failed".into()];
     let (_d, hub) = hub_with(&s);
     let h = fleet::health_view(Some(&hub));
-    assert!(h.contains("40.0 / 30.0 / 20.0 on 32"), "{h}");
-    assert!(h.contains("96% of 1000 GB"), "{h}");
+    // the CI host's numbers live on its Machines card now, not on Health
+    assert!(
+        !h.contains("40.0 / 30.0 / 20.0") && !h.contains("96% of 1000 GB"),
+        "{h}"
+    );
+    let m = warte::dashboard::machines::view(None, Some(&hub));
+    assert!(
+        m.contains("96% of 1000 GB") && m.contains("cpu pressure"),
+        "{m}"
+    );
+    // the internals are folded, and their summary says why to open them
+    assert!(h.contains(r#"<details class="panel internals"><summary>Ground station internals · 1 collection error(s)"#), "{h}");
     assert!(h.contains("&lt;script&gt;x&lt;/script&gt; failed") && !h.contains("<script>x"));
     let o = fleet::incidents(Some(&hub));
     assert!(o.contains("Offline runners: runner2."), "{o}");

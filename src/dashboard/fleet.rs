@@ -330,74 +330,14 @@ pub fn bottlenecks(hub: Option<&Hub>) -> String {
 
 /// Health: the CI host's machine, the telemetry link per stream, and what
 /// the agent could not collect.
+/// The ground station's own state on the Health page (REQ-OPS-003): the
+/// timers in view, the telemetry link and the collection errors folded under
+/// "Ground station internals". The CI host's load, memory, swap, pressure and
+/// disks are on its Machines card, not here.
 pub fn health_view(hub: Option<&Hub>) -> String {
     let Some((hub, (s, at))) = hub.and_then(|h| h.snapshot().map(|v| (h, v))) else {
         return format!(r#"<section class="panel">{}</section>"#, unavailable(hub));
     };
-    let m = &s.machine;
-    let pct = |a: f64, b: f64| if b > 0.0 { a * 100.0 / b } else { 0.0 };
-    let line = |label: &str, value: String, p: f64, hot: bool| {
-        format!(
-            r#"<div class="hbar"><span class="name">{label}</span>{}<span class="n">{value}</span></div>"#,
-            meter(p, hot)
-        )
-    };
-    let mut host = String::new();
-    if m.ncpu > 0 {
-        host += &line(
-            "load",
-            format!(
-                "{:.1} / {:.1} / {:.1} on {}",
-                m.load[0], m.load[1], m.load[2], m.ncpu
-            ),
-            pct(m.load[0], m.ncpu as f64),
-            m.load[0] > m.ncpu as f64,
-        );
-        let used = m.mem_total_mb.saturating_sub(m.mem_avail_mb);
-        host += &line(
-            "memory",
-            format!(
-                "{:.0} of {:.0} GB used",
-                used as f64 / 1024.0,
-                m.mem_total_mb as f64 / 1024.0
-            ),
-            pct(used as f64, m.mem_total_mb as f64),
-            pct(used as f64, m.mem_total_mb as f64) >= 90.0,
-        );
-        host += &line(
-            "swap",
-            format!(
-                "{:.1} of {:.0} GB",
-                m.swap_used_mb as f64 / 1024.0,
-                m.swap_total_mb as f64 / 1024.0
-            ),
-            pct(m.swap_used_mb as f64, m.swap_total_mb as f64),
-            m.swap_used_mb > 0 && pct(m.swap_used_mb as f64, m.swap_total_mb as f64) >= 50.0,
-        );
-        for (name, p) in [
-            ("cpu pressure", m.psi.cpu),
-            ("mem pressure", m.psi.memory),
-            ("io pressure", m.psi.io),
-        ] {
-            host += &line(
-                name,
-                format!(
-                    "{:.1}% (10 s {:.1}%, 5 min {:.1}%)",
-                    p.avg60, p.avg10, p.avg300
-                ),
-                p.avg60,
-                p.avg60 >= 10.0,
-            );
-        }
-    }
-    for d in &m.disks {
-        host += &line(
-            &esc(&d.mount),
-            format!("{:.0}% of {:.0} GB", d.used_pct, d.size_gb),
-            d.used_pct,
-            d.used_pct >= 85.0,
-        );
-    }
     let t = now();
     let link: String = hub
         .link()
@@ -416,6 +356,10 @@ pub fn health_view(hub: Option<&Hub>) -> String {
             )
         })
         .collect();
+    let lossy = hub
+        .link()
+        .iter()
+        .any(|l| l.lost as f64 * 100.0 / (l.received + l.lost).max(1) as f64 >= 1.0);
     let link = if link.is_empty() {
         r#"<tr><td colspan="7" class="dim">No packets since warte started.</td></tr>"#.to_string()
     } else {
@@ -429,11 +373,18 @@ pub fn health_view(hub: Option<&Hub>) -> String {
             .map(|e| format!(r#"<div class="err">{}</div>"#, esc(e)))
             .collect()
     };
+    // what the summary says decides whether a reader needs to open it
+    let state = match (lossy, s.errors.len()) {
+        (false, 0) => "link healthy, nothing missing".to_string(),
+        (true, 0) => "packets lost on the link".to_string(),
+        (false, n) => format!("{n} collection error(s)"),
+        (true, n) => format!("packets lost, {n} collection error(s)"),
+    };
     format!(
-        r#"<div class="split"><section class="panel"><h3>CI host · {}</h3><div class="hbars">{host}</div><div class="note">fleet agent {} · pressure is the share of time tasks stalled (PSI avg60).</div></section><section class="panel"><h3>Telemetry link · CCSDS</h3><div class="scroll"><table class="data-table"><thead><tr><th>APID</th><th>Stream</th><th class="n">Received</th><th class="n">Lost</th><th class="n">Loss</th><th class="n">Restarts</th><th class="n">Last</th></tr></thead><tbody>{link}</tbody></table></div><div class="note">Counted since warte last started. A lost packet is a gap in the stream's sequence count.</div><h3 style="margin-top:1rem">Collection errors</h3>{errors}</section></div>{}{}"#,
-        esc(&s.host),
-        esc(&s.agent_version),
+        r#"{}<details class="panel internals"><summary>Ground station internals · {} · fleet agent {}</summary><h3>Telemetry link · CCSDS</h3><div class="scroll"><table class="data-table"><thead><tr><th>APID</th><th>Stream</th><th class="n">Received</th><th class="n">Lost</th><th class="n">Loss</th><th class="n">Restarts</th><th class="n">Last</th></tr></thead><tbody>{link}</tbody></table></div><div class="note">Counted since warte last started. A lost packet is a gap in the stream's sequence count.</div><h3 style="margin-top:1rem">Collection errors</h3>{errors}</details>{}"#,
         super::cihistory::timers(&s.automation),
+        esc(&state),
+        esc(&s.agent_version),
         freshness(at)
     )
 }

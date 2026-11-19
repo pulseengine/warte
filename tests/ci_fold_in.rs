@@ -137,6 +137,7 @@ async fn without_a_ground_station_they_say_so() {
 }
 
 // rivet: verifies REQ-SMITHY-006
+// rivet: verifies REQ-OPS-005
 #[tokio::test]
 async fn the_dashboard_shows_trends_belt_and_timers() {
     let (_d, base) = serve(true).await;
@@ -166,6 +167,24 @@ async fn the_dashboard_shows_trends_belt_and_timers() {
 
     let (_, health) = get(format!("{base}/api/dashboard/health-partial")).await;
     assert!(health.contains("Timers on the CI host"), "{health}");
+    // the owner's order (2026-11-19): duties first, the internals folded last
+    let at = |s: &str| {
+        health
+            .find(s)
+            .unwrap_or_else(|| panic!("{s} missing: {health}"))
+    };
+    assert!(
+        at("Operator duties") < at("Timers on the CI host"),
+        "{health}"
+    );
+    assert!(
+        at("Timers on the CI host") < at("Ground station internals"),
+        "{health}"
+    );
+    assert!(
+        !health.contains("CI host · "),
+        "the CI host panel is on Machines: {health}"
+    );
     assert!(
         health.contains("runner-&lt;watchdog&gt;.timer"),
         "escaped: {health}"

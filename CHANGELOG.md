@@ -4,6 +4,10 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.35 — 2026-11-19
+
+- **Health opens with the operator duties** (REQ-OPS-005). The duties come first, then the agent and CI counts and the timers. The telemetry link and the collection errors are folded under "Ground station internals", whose summary says whether anything needs a look. The CI host's panel is gone from Health: its swap and pressure lines moved to its card on Machines, which already showed load, memory and disks.
+
 ## v1.6.34 — 2026-11-19
 
 - **The briefing shows what is red now and strikes through what was done** (REQ-BRIEF-007). Above the bullets, a red block lists each workflow whose latest finished run failed on a repository's default branch or as a scheduled run, linked to the run; a later green run clears it. The IT section lists the period's merged pull requests and closed issues with titles, struck through. Ledger job records carry the run's branch as optional `br`; records from older agents are counted as a gap, never guessed red.

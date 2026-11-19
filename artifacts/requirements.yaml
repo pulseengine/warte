@@ -1436,6 +1436,23 @@ artifacts:
       model: claude-opus-5-5
       timestamp: 2026-11-11T18:50:14Z
 
+  - id: REQ-OPS-005
+    type: requirement
+    title: The Health page shows the operator duties first and folds the ground station's internals
+    status: verified
+    release: v1.6.35
+    description: "The Health view SHALL open with the operator duties, then the agent and CI counts and the timers, and SHALL fold the telemetry link and the collection errors under a closed 'Ground station internals' section whose summary states whether packets were lost and how many collection errors there are. The CI host's load, memory, swap, pressure and disks SHALL be shown on its Machines card and not on Health. Every string SHALL be escaped."
+    fields:
+      category: functional
+      priority: should
+    links:
+      - type: refines
+        target: REQ-OPS-003
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-19T12:45:00Z
+
   - id: REQ-OPS-003
     type: requirement
     title: warte shows which operator duties are met, late or never set up
