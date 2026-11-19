@@ -36,6 +36,7 @@ pub mod login;
 pub mod migrate;
 pub mod nav;
 pub mod news;
+pub mod northstar;
 pub mod operator;
 pub mod platform;
 pub mod probe;

@@ -601,3 +601,8 @@ details.internals > summary {
 }
 details.internals[open] > summary { color: var(--text); margin-bottom: .75rem; }
 details.internals > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* REQ-NS-001: the North Star in one line on the Overview */
+.north-star-line { margin: .5rem 0; font: .82rem var(--mono); color: var(--text); font-variant-numeric: tabular-nums; }
+.north-star-line .label { color: var(--accent); letter-spacing: .12em; text-transform: uppercase; font-size: .7rem; margin-right: .5rem; }
+.north-star-line a { margin-left: .5rem; }

@@ -31,7 +31,8 @@ per bet. The plan below is the revision.
 
 What the checker changed:
 - **Dropped a separate Direction view.** pulseengine.eu's `/north-star` page
-  already renders the file; warte keeps the history and the glance line.
+  is meant to render the file (not live yet on 2026-11-20); warte keeps the
+  history and one line, linking to the published file meanwhile.
 - **O4 is never pooled.** Agent and maintainer pick-ups are reported apart; the
   O4 figure uses people other than the maintainer only, with n always shown.
 - **The operator work moved out.** Decisions in the app, the attention
@@ -53,9 +54,10 @@ pulseengine.eu.
 
 ### 1. Indicator history and the North Star line in the night glance (REQ-NS-001)
 - **Moves:** no indicator; makes O1..O5 visible where the owner already looks.
-- **Ships:** every published observation kept; `GET /api/north-star`; one glance
-  line with value, change, age and each guard's value ("guard unmeasured" when
-  absent); a link to `/north-star`.
+- **Ships:** every published observation kept; `GET /api/north-star` (public); one
+  line with value and age per objective on the Overview, later in the night
+  glance; change, guard value and blind spot in the API. Started 2026-11-20 on
+  the owner's go (plans go straight to work).
 - **Acceptance:** a five-objective fixture with two files gives five rows, three
   `unmeasured` and none 0; a removed file turns `unmeasured` within one poll;
   live, a new `O2.json` shows within 24 hours.

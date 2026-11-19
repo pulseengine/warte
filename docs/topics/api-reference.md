@@ -281,6 +281,38 @@ unauthenticated. Who holds the space is shown on the machine itself by
 pressure` prints it. Without `host` the answer is `400` with the known hosts,
 for an unknown host `404`.
 
+## North Star (REQ-NS-001)
+
+```
+GET /api/north-star
+```
+
+The North Star's objectives with their published indicators, since v1.6.36.
+Public, like the North Star itself. With `[north_star]` set, warte reads
+pulseengine.eu's `data/north-star.toml` and `data/north-star/<id>.json` over
+https every 6 hours and keeps every distinct observation (`north-star.jsonl`
+next to the database). warte renders and does not compute.
+
+Answer: `{rows, line, stale_after_days, last_poll}`. Each row has `id`,
+`title`, `guard`, `state` and, when measured, `latest` and `previous`
+observations (`measured_at`, `value`, `of`, `verifier`, `blind_spot`,
+`guard_value`, `schema_version`; 0 until the publisher sends one) and
+`age_days`.
+
+- `unmeasured`: no published file, or the file was gone at the last poll (its
+  history is kept). Never 0.
+- `stale`: the latest observation is older than `stale_after_days` (45).
+- `line` is the one-line summary the Overview shows, e.g.
+  `O2 1/2 (2 d) · O4 1/839 (1 d) · 3 unmeasured`.
+- `404` without `[north_star]`.
+
+```toml
+[north_star]
+# base_url = "https://raw.githubusercontent.com/pulseengine/pulseengine.eu/main/data"
+# interval_s = 21600
+# stale_after_days = 45
+```
+
 ## Machine history (REQ-MHIST-002)
 
 Every machine's numbers over time, kept by warte itself (`history.redb` next to

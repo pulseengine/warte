@@ -660,6 +660,7 @@ pub const PUBLIC: &[&str] = &[
     "/api/openapi.json",
     "/api/airport",
     "/api/compliance",
+    "/api/north-star",
     "/api/dashboard/overview",
     "/api/dashboard/overview-partial",
     "/api/dashboard/airport-partial",

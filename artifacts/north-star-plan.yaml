@@ -5,10 +5,10 @@
 artifacts:
   - id: REQ-NS-001
     type: requirement
-    title: "[O1..O5 visibility] Keep every published indicator observation and show value, change, age and guard in the night glance"
-    status: draft
-    release: v1.8.0
-    description: "warte SHALL poll pulseengine.eu's public data/north-star/*.json, keep every distinct measured_at observation append-only, and show per objective the value and denominator, the change against the previous observation, the age, the guard's value (or 'guard unmeasured'), and the published blind spot, on GET /api/north-star and as one line in the night glance (#179). An objective without a file SHALL be 'unmeasured', never 0. warte renders and does not compute. No separate Direction view: pulseengine.eu's /north-star page is the full view; warte links to it. Moves no indicator; visibility only."
+    title: "[O1..O5 visibility] Keep every published indicator observation and show value, change, age and guard on the Overview, later in the night glance"
+    status: verified
+    release: v1.6.36
+    description: "warte SHALL poll pulseengine.eu's public data/north-star/*.json, keep every distinct measured_at observation append-only, and show per objective the value and denominator, the change against the previous observation, the age, the guard's value (or 'guard unmeasured'), and the published blind spot, on GET /api/north-star (public) and as one line on the Overview, later in the night glance (#179). An objective without a file SHALL be 'unmeasured', never 0; an observation older than stale_after_days (45 by default) SHALL show as 'stale'. warte renders and does not compute. No separate Direction view: the line links to the published North Star; pulseengine.eu's own /north-star page is the full view once it is live. Moves no indicator; visibility only."
     fields:
       category: functional
       priority: should
