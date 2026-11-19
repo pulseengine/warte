@@ -1690,6 +1690,23 @@ artifacts:
       model: claude-opus-5-5
       timestamp: 2026-11-14T07:50:05Z
 
+  - id: REQ-BRIEF-007
+    type: requirement
+    title: The briefing shows what is red now (main and scheduled runs) and strikes through what was done
+    status: verified
+    release: v1.6.34
+    description: "The briefing SHALL list, above its bullets and only when non-empty, every workflow of a public repository whose latest finished run in the period had a failed or timed-out job, either a push run on the repository's default branch or a run triggered by schedule, with a link to that run; a later green run of the same workflow SHALL clear it. Ledger job records SHALL carry the run's head branch as an optional field br; a push job without one SHALL be counted in the facts' gaps and never shown red. The IT section SHALL list the period's merged pull requests and closed issues with their titles struck through and linked, and SHALL NOT strike through open pull requests. Every string SHALL be escaped."
+    fields:
+      category: functional
+      priority: should
+    links:
+      - type: refines
+        target: REQ-BRIEF-003
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-19T07:30:00Z
+
   - id: REQ-BRIEF-006
     type: requirement
     title: A briefing after missed periods catches up, at most seven days, and replaces the plain ones it covers

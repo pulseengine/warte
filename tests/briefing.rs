@@ -116,6 +116,7 @@ fn rec(id: u64, run: u64, repo: &str, d: &str, r: &str) -> warte::hub::model::Jo
         e: Some(t + 100),
         r: r.into(),
         sig: None,
+        br: Some("main".into()),
     }
 }
 
@@ -241,8 +242,9 @@ async fn a_text_may_name_only_what_the_facts_hold() {
     for (what, bad, want) in [
         (
             "an invented number",
-            text("They finished 17 changes.", ["a", "b", "c"]),
-            "17",
+            // above 31 and no year: never one of the period's dates
+            text("They finished 47 changes.", ["a", "b", "c"]),
+            "47",
         ),
         ("an invented PR", text("Fixed #99.", ["a", "b", "c"]), "99"),
         (
@@ -757,4 +759,152 @@ fn a_catch_up_stops_at_seven_days_and_at_a_gap() {
         store.catch_up_from("2026-11-12", "2026-11-13").0,
         "2026-11-12"
     );
+}
+
+fn job(
+    run: u64,
+    repo: &str,
+    wf: &str,
+    ev: &str,
+    br: Option<&str>,
+    r: &str,
+) -> warte::hub::model::JobRecord {
+    let mut j = rec(run * 10, run, repo, "2026-11-18", r);
+    j.wf = wf.into();
+    j.ev = ev.into();
+    j.br = br.map(String::from);
+    j.e = Some(1_795_000_000 + run as i64);
+    j
+}
+
+// rivet: verifies REQ-BRIEF-007
+#[test]
+fn red_now_is_the_latest_run_on_the_default_branch_or_of_a_schedule() {
+    let public: std::collections::BTreeSet<String> = ["alpha", "beta", "gamma", "delta"]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+    let defaults: std::collections::BTreeMap<String, String> = [
+        ("alpha", "main"),
+        ("beta", "main"),
+        ("gamma", "trunk"),
+        ("delta", "main"),
+    ]
+    .iter()
+    .map(|(a, b)| (a.to_string(), b.to_string()))
+    .collect();
+    let recs = vec![
+        // alpha: main failed, then green: not red
+        job(1, "alpha", "CI", "push", Some("main"), "failure"),
+        job(2, "alpha", "CI", "push", Some("main"), "success"),
+        // beta: main green, then failed: red; one job of the run passed
+        job(3, "beta", "CI", "push", Some("main"), "success"),
+        job(4, "beta", "CI", "push", Some("main"), "failure"),
+        job(4, "beta", "CI", "push", Some("main"), "success"),
+        // planted: a failure on another branch, and on a default branch not called main
+        job(5, "alpha", "CI", "push", Some("feature"), "failure"),
+        job(6, "gamma", "CI", "push", Some("trunk"), "timed_out"),
+        // scheduled: delta's nightly failed and stays red; alpha's failed, then green
+        job(7, "delta", "Nightly", "schedule", None, "failure"),
+        job(8, "alpha", "Nightly", "schedule", None, "failure"),
+        job(9, "alpha", "Nightly", "schedule", None, "success"),
+        // a pull request failure is not a red main
+        job(10, "delta", "CI", "pull_request", Some("main"), "failure"),
+        // planted: no branch (an older agent), and a repository that is not public
+        job(11, "delta", "CI", "push", None, "failure"),
+        job(12, "private-one", "CI", "push", Some("main"), "failure"),
+    ];
+    let (red, unplaced) = briefing::red_runs(&recs, &public, &defaults);
+    let got: Vec<(String, String, String, u64)> = red
+        .iter()
+        .map(|r| (r.kind.clone(), r.repo.clone(), r.workflow.clone(), r.run))
+        .collect();
+    assert_eq!(
+        got,
+        vec![
+            ("main".into(), "beta".into(), "CI".into(), 4),
+            ("main".into(), "gamma".into(), "CI".into(), 6),
+            ("schedule".into(), "delta".into(), "Nightly".into(), 7),
+        ]
+    );
+    assert_eq!(
+        unplaced, 1,
+        "a push job without a branch is counted, never red"
+    );
+}
+
+// rivet: verifies REQ-BRIEF-007
+#[test]
+fn the_view_strikes_through_done_items_and_lists_red_now_first() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = briefing::Store::open(dir.path().to_str().unwrap()).unwrap();
+    let (from, until) = briefing::last_period(now());
+    let mut f = Facts {
+        org: "example-org".into(),
+        from,
+        until,
+        known_repos: vec!["alpha".into(), "beta".into()],
+        ..Default::default()
+    };
+    f.repos.push(briefing::RepoFacts {
+        repo: "alpha".into(),
+        merged: vec![briefing::Item {
+            number: 12,
+            title: "Fix <b>bold</b> parser".into(),
+        }],
+        closed_issues: vec![briefing::Item {
+            number: 9,
+            title: "Crash on start".into(),
+        }],
+        ..Default::default()
+    });
+    f.open_prs.push(briefing::OpenPr {
+        repo: "beta".into(),
+        number: 3,
+        title: "Still open".into(),
+        days_open: 4,
+    });
+    f.red.push(briefing::RedRun {
+        repo: "beta".into(),
+        workflow: "Nightly".into(),
+        kind: "schedule".into(),
+        run: 77,
+        at: 1_795_000_000,
+    });
+    store.keep(f, vec![], 1).unwrap();
+    let html = warte::dashboard::briefing::view(Some(&store), None);
+    assert!(html.contains("<b>Red now</b>"), "{html}");
+    assert!(html.contains("actions/runs/77"), "{html}");
+    assert!(
+        html.find("Red now").unwrap() < html.find("brief-line").unwrap(),
+        "red first"
+    );
+    assert!(html.contains(r#"<s>alpha <a href="https://github.com/example-org/alpha/pull/12">#12</a> Fix &lt;b&gt;bold&lt;/b&gt; parser</s>"#), "{html}");
+    assert!(
+        html.contains("/issues/9\">#9</a> Crash on start</s>"),
+        "{html}"
+    );
+    // an open pull request is not struck through
+    let open = html.find("Still open").unwrap();
+    assert!(
+        !html[..open].ends_with("<s>") && !html[open..open + 30].contains("</s>"),
+        "{html}"
+    );
+    // nothing red: no block
+    let dir2 = tempfile::tempdir().unwrap();
+    let quiet = briefing::Store::open(dir2.path().to_str().unwrap()).unwrap();
+    let (from, until) = briefing::last_period(now());
+    quiet
+        .keep(
+            Facts {
+                org: "example-org".into(),
+                from,
+                until,
+                ..Default::default()
+            },
+            vec![],
+            1,
+        )
+        .unwrap();
+    assert!(!warte::dashboard::briefing::view(Some(&quiet), None).contains("Red now"));
 }

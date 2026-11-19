@@ -428,6 +428,8 @@ p.empty {
 .finding { font: .72rem var(--mono); padding: .25rem .5rem; border-radius: 4px; }
 .finding.amber { color: var(--amber); background: rgba(255, 184, 77, .08); }
 .finding.red { color: var(--err); background: rgba(255, 77, 106, .1); }
+.done-list { list-style: none; padding-left: 0; }
+.done-list s { color: var(--dim, #8a8f98); }
 
 .machine.modelled { background: transparent; border: 2px dashed var(--border); border-top: 2px dashed var(--border); opacity: .85; }
 

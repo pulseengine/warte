@@ -463,6 +463,10 @@ pub struct JobRecord {
     /// (REQ-CI-005); absent from older agents and for jobs that passed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sig: Option<String>,
+    /// The run's head branch (since v1.6.34, REQ-BRIEF-007); absent from
+    /// older agents, which the briefing counts as a gap, never as red.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub br: Option<String>,
 }
 
 /// What the agent holds for one UTC day: lets the hub tell a complete day from

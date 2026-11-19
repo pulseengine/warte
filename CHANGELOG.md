@@ -4,6 +4,10 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.34 — 2026-11-19
+
+- **The briefing shows what is red now and strikes through what was done** (REQ-BRIEF-007). Above the bullets, a red block lists each workflow whose latest finished run failed on a repository's default branch or as a scheduled run, linked to the run; a later green run clears it. The IT section lists the period's merged pull requests and closed issues with titles, struck through. Ledger job records carry the run's branch as optional `br`; records from older agents are counted as a gap, never guessed red.
+
 ## v1.6.33 — 2026-11-18
 
 - **Registering an agent twice returns the same agent** (REQ-API-006). `POST /api/agents/register` with a name this warte already has returns that agent's id, re-issues its certificate and updates its repo, identity type and key, instead of adding a second agent with the same name. Agents duplicated by older releases stay; register returns the newest of them, which is also the first one `GET /api/agents` lists.

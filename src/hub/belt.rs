@@ -686,6 +686,7 @@ mod tests {
             e: Some(e),
             r: "success".into(),
             sig: None,
+            br: None,
         }
     }
 

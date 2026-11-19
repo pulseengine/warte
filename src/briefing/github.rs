@@ -134,6 +134,9 @@ pub async fn facts(
             if let Some(name) = r["name"].as_str() {
                 let pushed = r["pushed_at"].as_str().and_then(rfc3339_utc).unwrap_or(0);
                 repos.push((name.to_string(), pushed));
+                if let Some(b) = r["default_branch"].as_str().filter(|b| !b.is_empty()) {
+                    f.default_branches.insert(name.to_string(), b.to_string());
+                }
             }
         }
         if n < 100 {
