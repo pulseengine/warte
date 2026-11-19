@@ -63,6 +63,7 @@ fn the_ledger_record_fields_are_the_documented_ones() {
         s: Some(1),
         e: Some(2),
         sig: Some("resolver:example.org".into()),
+        br: Some("main".into()),
         ..Default::default()
     };
     let mut got: Vec<String> = serde_json::to_value(&full)

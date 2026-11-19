@@ -39,12 +39,13 @@ A ledger record (APID `0x230`) is one finished job:
 | `c`, `s`, `e` | i64, i64?, i64? | created, started, completed (unix seconds) |
 | `r` | string | conclusion (16) |
 | `sig` | string? | since v1.6.21, optional: a failed job's error signature `kind:host`, `kind` one of `resolver`, `timeout`, `refused`, `server_error` (270). Never log text; anything else is ignored |
+| `br` | string? | since v1.6.34, optional: the run's head branch (100). Absent from older agents |
 
 A day manifest (APID `0x231`) is `{day, n, x, closed}`: the count of the day's
 records, the XOR of their ids, and whether the agent will look at the day again.
 A day counts as complete only when the hub's records match both.
 
-Changes: v1.6.21 added `sig`.
+Changes: v1.6.21 added `sig`; v1.6.34 added `br`.
 
 ## Data path
 

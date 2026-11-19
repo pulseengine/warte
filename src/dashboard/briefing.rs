@@ -15,6 +15,68 @@ fn pretty(day: &str) -> String {
         .unwrap_or_else(|_| day.to_string())
 }
 
+/// Workflows red now (REQ-BRIEF-007), above the bullets; empty when none.
+fn red_section(b: &Briefing) -> String {
+    let f = &b.facts;
+    if f.red.is_empty() {
+        return String::new();
+    }
+    let li: String = f
+        .red
+        .iter()
+        .map(|r| {
+            let branch = f
+                .default_branches
+                .get(&r.repo)
+                .map(String::as_str)
+                .unwrap_or("main");
+            let what = if r.kind == "schedule" {
+                "scheduled run".to_string()
+            } else {
+                esc(branch)
+            };
+            let since = chrono::DateTime::from_timestamp(r.at, 0)
+                .map(|t| t.format("%-d %b %H:%M UTC").to_string())
+                .unwrap_or_default();
+            format!(
+                r#"<li><b>{}</b> · {what} · {} · <a href="https://github.com/{}/{}/actions/runs/{}">failed {}</a></li>"#,
+                esc(&r.repo),
+                esc(&r.workflow),
+                esc(&f.org),
+                esc(&r.repo),
+                r.run,
+                esc(&since)
+            )
+        })
+        .collect();
+    format!(r#"<div class="finding red"><b>Red now</b><ul>{li}</ul></div>"#)
+}
+
+/// Merged pull requests and closed issues of the period, struck through:
+/// done (REQ-BRIEF-007).
+fn done_section(b: &Briefing) -> String {
+    let f = &b.facts;
+    let mut li = String::new();
+    for r in &f.repos {
+        for (kind, items) in [("pull", &r.merged), ("issues", &r.closed_issues)] {
+            for i in items {
+                li += &format!(
+                    r#"<li class="done"><s>{} <a href="https://github.com/{}/{}/{kind}/{n}">#{n}</a> {}</s></li>"#,
+                    esc(&r.repo),
+                    esc(&f.org),
+                    esc(&r.repo),
+                    esc(&i.title),
+                    n = i.number
+                );
+            }
+        }
+    }
+    if li.is_empty() {
+        return String::new();
+    }
+    format!(r#"<h4>Done in this period</h4><ul class="done-list">{li}</ul>"#)
+}
+
 fn it_section(b: &Briefing) -> String {
     let f = &b.facts;
     let link = |repo: &str, kind: &str, n: u64| {
@@ -68,6 +130,7 @@ fn it_section(b: &Briefing) -> String {
             .collect();
         out += &format!("<h4>Open for more than a day</h4><ul>{li}</ul>");
     }
+    out += &done_section(b);
     if let Some(tc) = &f.tokens {
         let ch = if tc.prev_week_usd > 0.0 {
             format!(" ({:+.0}%)", (tc.week_usd / tc.prev_week_usd - 1.0) * 100.0)
@@ -162,9 +225,10 @@ pub fn view(store: Option<&Store>, period: Option<&str>) -> String {
         })
         .collect();
     format!(
-        r#"<div class="overview briefing"><h2>Briefing <span class="pill">{} – {}</span></h2>{rejected}{caught_up}<section class="panel"><p class="brief-line">{}</p><ul class="brief-bullets">{bullets}</ul><details><summary>For the IT reader</summary>{}</details></section><section class="panel"><h3>Earlier briefings</h3><div class="periods">{others}</div></section></div>"#,
+        r#"<div class="overview briefing"><h2>Briefing <span class="pill">{} – {}</span></h2>{rejected}{caught_up}{}<section class="panel"><p class="brief-line">{}</p><ul class="brief-bullets">{bullets}</ul><details><summary>For the IT reader</summary>{}</details></section><section class="panel"><h3>Earlier briefings</h3><div class="periods">{others}</div></section></div>"#,
         esc(&pretty(&b.facts.from)),
         esc(&pretty(&b.facts.until)),
+        red_section(&b),
         esc(&b.text.line),
         it_section(&b)
     )

@@ -211,6 +211,15 @@ text = "effort medium for sessions and subagents"
   (`warte token mint briefing-job --right briefing:write`). Its text is kept only when every
   repository, `#number`, version and count it names is in the facts; otherwise
   the plain version stays and the Briefing view says why.
+- **Red now** (since v1.6.34, REQ-BRIEF-007): above the bullets, only when
+  something is red. A workflow whose latest finished run in the period
+  failed, on the repository's default branch (push runs) or triggered by
+  `schedule`, with a link to the run. A later green run clears it. Job records
+  from agents older than v1.6.34 carry no branch: they are counted under
+  "Not everything could be read", never shown red.
+- **Done in this period** (since v1.6.34): in the IT section, every merged
+  pull request and closed issue with its title, struck through and linked;
+  open pull requests are not struck through.
 - Every briefing is kept with its facts in `<data_dir>/briefings/`.
 
 ## Issue triage

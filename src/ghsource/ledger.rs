@@ -120,6 +120,10 @@ pub fn record(
         e: t("completed_at"),
         r: s(&job["conclusion"]),
         sig: None,
+        br: run["head_branch"]
+            .as_str()
+            .filter(|b| !b.is_empty())
+            .map(|b| b.chars().take(100).collect()),
     })
 }
 

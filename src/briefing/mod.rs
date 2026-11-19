@@ -141,6 +141,26 @@ pub struct Facts {
     pub markers: Vec<Marker>,
     /// What could not be read; the facts are a lower bound then.
     pub gaps: Vec<String>,
+    /// Each public repository's default branch, from the same listing.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub default_branches: BTreeMap<String, String>,
+    /// Workflows whose latest finished run failed: on the default branch, or
+    /// triggered by `schedule` (REQ-BRIEF-007). A later green run clears one.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub red: Vec<RedRun>,
+}
+
+/// One workflow that is red now (REQ-BRIEF-007).
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct RedRun {
+    pub repo: String,
+    pub workflow: String,
+    /// `main` (the default branch, whatever it is called) or `schedule`.
+    pub kind: String,
+    /// The failed run's id, for its link.
+    pub run: u64,
+    /// When that run's last job finished (unix seconds).
+    pub at: i64,
 }
 
 /// The two plain layers.
@@ -235,6 +255,64 @@ pub fn ci_facts(
             (k, (v.len() as u32, f))
         })
         .collect()
+}
+
+/// Repository, workflow and kind (`main` or `schedule`).
+type WorkflowKey = (String, String, &'static str);
+
+/// Workflows red now (REQ-BRIEF-007): per repository, workflow and kind, the
+/// latest finished run (newest run id) decides; it is red when any of its
+/// jobs failed or timed out. `main` counts push runs on the repository's
+/// default branch, `schedule` runs triggered by `schedule`. Records without a
+/// branch cannot be placed: their count is returned, never guessed as red.
+pub fn red_runs(
+    recs: &[crate::hub::model::JobRecord],
+    public: &BTreeSet<String>,
+    default_branches: &BTreeMap<String, String>,
+) -> (Vec<RedRun>, u32) {
+    // (repo, workflow, kind) -> run -> (failed, last finish)
+    let mut runs: BTreeMap<WorkflowKey, BTreeMap<u64, (bool, i64)>> = BTreeMap::new();
+    let mut unplaced = 0u32;
+    for r in recs.iter().filter(|r| public.contains(&r.repo)) {
+        let kind = if r.ev == "schedule" {
+            "schedule"
+        } else if r.ev == "push" {
+            match (&r.br, default_branches.get(&r.repo)) {
+                (Some(b), Some(d)) if b == d => "main",
+                (Some(_), _) => continue,
+                (None, _) => {
+                    unplaced += 1;
+                    continue;
+                }
+            }
+        } else {
+            continue;
+        };
+        let e = runs
+            .entry((r.repo.clone(), r.wf.clone(), kind))
+            .or_default()
+            .entry(r.run)
+            .or_insert((false, 0));
+        e.0 |= r.r == "failure" || r.r == "timed_out";
+        e.1 = e.1.max(r.e.unwrap_or(r.c));
+    }
+    let mut red: Vec<RedRun> = runs
+        .into_iter()
+        .filter_map(|((repo, workflow, kind), by_run)| {
+            let (run, (failed, at)) = by_run.into_iter().next_back()?;
+            failed.then(|| RedRun {
+                repo,
+                workflow,
+                kind: kind.into(),
+                run,
+                at,
+            })
+        })
+        .collect();
+    red.sort_by(|a, b| {
+        (a.kind.as_str(), &a.repo, &a.workflow).cmp(&(b.kind.as_str(), &b.repo, &b.workflow))
+    });
+    (red, unplaced)
 }
 
 /// Notional $ of the 7 days ending `until` and the 7 before.
@@ -349,6 +427,7 @@ impl Facts {
             n.insert(p.number);
             n.insert(p.days_open as u64);
         }
+        n.insert(self.red.len() as u64);
         // the period's dates: a text may say "2026", "11 November", "11-09"
         let day = |s: &str| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok();
         if let (Some(a), Some(b)) = (day(&self.from), day(&self.until)) {
@@ -367,6 +446,7 @@ impl Facts {
             .iter()
             .map(|r| r.repo.to_lowercase())
             .chain(self.open_prs.iter().map(|p| p.repo.to_lowercase()))
+            .chain(self.red.iter().map(|r| r.repo.to_lowercase()))
             .collect()
     }
 
@@ -790,6 +870,13 @@ pub async fn build(
             };
             r.ci_runs = runs;
             r.ci_failed_jobs = failed;
+        }
+        let (red, unplaced) = red_runs(&recs, &public, &f.default_branches);
+        f.red = red;
+        if unplaced > 0 {
+            f.gaps.push(format!(
+                "{unplaced} push job(s) carry no branch (an older agent): a red main among them is not shown"
+            ));
         }
     }
     f.tokens = costs

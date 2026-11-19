@@ -87,6 +87,7 @@ fn rec(repo: &str, e: i64, r: &str, s: Option<&str>) -> JobRecord {
         e: Some(e),
         r: r.into(),
         sig: s.map(String::from),
+        br: None,
     }
 }
 
