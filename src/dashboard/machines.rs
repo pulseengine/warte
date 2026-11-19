@@ -559,7 +559,7 @@ fn ci_line(hub: &crate::hub::Hub) -> Option<(String, String)> {
     Some((
         s.host.clone(),
         format!(
-            " · CI host, {busy}/{} runners busy (fleet agent {}, CCSDS; details under Health)",
+            " · CI host, {busy}/{} runners busy (fleet agent {}, CCSDS; the telemetry link is under Health)",
             s.runners.len(),
             esc(&s.agent_version)
         ),
@@ -701,6 +701,27 @@ fn ci_card(
             used as f64 * 100.0 / m.mem_total_mb.max(1) as f64,
             false,
         );
+        if m.swap_total_mb > 0 {
+            let p = m.swap_used_mb as f64 * 100.0 / m.swap_total_mb as f64;
+            body += &meter(
+                "swap",
+                format!(
+                    "{:.1} of {:.0} GB",
+                    m.swap_used_mb as f64 / 1024.0,
+                    m.swap_total_mb as f64 / 1024.0
+                ),
+                p,
+                p >= 50.0,
+            );
+        }
+        // the share of time tasks stalled (PSI avg60), moved here from Health
+        for (name, p) in [
+            ("cpu pressure", m.psi.cpu),
+            ("mem pressure", m.psi.memory),
+            ("io pressure", m.psi.io),
+        ] {
+            body += &meter(name, format!("{:.1}%", p.avg60), p.avg60, p.avg60 >= 10.0);
+        }
     }
     for d in &m.disks {
         body += &meter(
@@ -726,7 +747,7 @@ fn ci_card(
         })
         .unwrap_or_default();
     Some(format!(
-        r#"<div class="machine"><div class="mhead"><span class="mname">{}</span><span class="pill">live · {} ago</span></div><div class="mos">CI host · {busy}/{} runners busy</div><div class="hbars">{body}</div>{trend}<div class="mvia">via fleet agent {} (CCSDS); details under Health</div></div>"#,
+        r#"<div class="machine"><div class="mhead"><span class="mname">{}</span><span class="pill">live · {} ago</span></div><div class="mos">CI host · {busy}/{} runners busy</div><div class="hbars">{body}</div>{trend}<div class="mvia">via fleet agent {} (CCSDS); the telemetry link is under Health, Ground station internals</div></div>"#,
         esc(&s.host),
         dur(now - at),
         s.runners.len(),

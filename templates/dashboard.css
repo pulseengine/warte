@@ -593,3 +593,11 @@ body.idle-on #idle-caption { opacity: 1; transform: translate(-50%, 0); }
 .shared li.bad { color: var(--err); }
 .expiring .dim { color: var(--dim); }
 .expiring tr.badrow td { color: var(--err); }
+
+/* Health: the ground station's internals, folded until needed */
+details.internals > summary {
+  cursor: pointer; color: var(--dim); font: .72rem var(--mono);
+  letter-spacing: .1em; text-transform: uppercase;
+}
+details.internals[open] > summary { color: var(--text); margin-bottom: .75rem; }
+details.internals > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
