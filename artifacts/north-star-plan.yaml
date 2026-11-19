@@ -1,0 +1,60 @@
+# Next release scope against the North Star (pulseengine.eu
+# data/north-star.toml). Drafts only: nothing here is approved or built.
+# Plan and checker findings: docs/plans/2026-11-19-north-star-release.md.
+# Until rivet has a `serves:` link, each item names its objective in the title.
+artifacts:
+  - id: REQ-NS-001
+    type: requirement
+    title: "[O1..O5 visibility] Keep every published indicator observation and show value, change, age and guard in the night glance"
+    status: draft
+    release: v1.8.0
+    description: "warte SHALL poll pulseengine.eu's public data/north-star/*.json, keep every distinct measured_at observation append-only, and show per objective the value and denominator, the change against the previous observation, the age, the guard's value (or 'guard unmeasured'), and the published blind spot, on GET /api/north-star and as one line in the night glance (#179). An objective without a file SHALL be 'unmeasured', never 0. warte renders and does not compute. No separate Direction view: pulseengine.eu's /north-star page is the full view; warte links to it. Moves no indicator; visibility only."
+    fields:
+      category: functional
+      priority: should
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-19T21:00:00Z
+
+  - id: REQ-NS-002
+    type: requirement
+    title: "[O4] Measure time from ready to first pick-up, per kind of picker, never pooled"
+    status: draft
+    release: v1.8.0
+    description: "warte SHALL publish, for open issues in public repositories carrying the ready label, the observed events ready_at, first_pickup_at and pickup_by_kind (person other than the maintainer, agent, maintainer) on GET /api/ready, using its agent registry and sessions to tell agents apart. warte publishes events only; pulseengine.eu's O4 script computes the median per kind, and the O4 figure uses person pick-ups only, reporting n even below 5. Makes the second half of O4's indicator measurable; does not raise merged pull requests by others."
+    fields:
+      category: functional
+      priority: should
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-19T21:00:00Z
+
+  - id: REQ-NS-003
+    type: requirement
+    title: "[O3, O5 inputs] Publish which checks are required and the O5 guard observations, never a denominator"
+    status: draft
+    release: v1.8.0
+    description: "warte SHALL publish, per public repository, which checks are required on the default branch, whether each ran in the window, on which runner kind, and whether it has failed at least once; and for O5's guard, whether a gate sits behind a *_GAP switch and whether the equivalence test ran. It SHALL NOT claim to supply O3's or O5's denominator; any indicator built from it marks an absent numerator 'unmeasured', never 0. Cut first if the release runs short."
+    fields:
+      category: functional
+      priority: could
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-19T21:00:00Z
+
+  - id: REQ-NS-004
+    type: requirement
+    title: "[O2, held for an owner decision] warte's release carries the evidence bundle with one negative control per evidence piece"
+    status: draft
+    release: v1.8.0
+    description: "Held: whether warte is a consumer repository in O2's denominator is decided by the owner first, independent of whether warte would pass. If yes, warte's release SHALL carry the full bundle (trace, MC/DC, attestation) that the one verify command checks, and CI SHALL fail when any one of the three pieces is removed (three controls). If no, this item is withdrawn and warte's signing work is tracked outside the North Star."
+    fields:
+      category: functional
+      priority: could
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-19T21:00:00Z
