@@ -4,6 +4,10 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.37 — 2026-11-20
+
+- **Per-agent GitHub tokens** (REQ-GHTOKEN-001..004, #189). With `[github_app]`, an agent exchanges its warte token (new right `github:token`, bound to its own name) at `POST /api/agents/{name}/github-token` for a GitHub App installation token that lasts one hour and reaches only the repositories the operator assigned on the host with `warte agents repos`. Permissions are contents, pull requests and issues write plus actions and metadata read; `actions: write` is granted per agent. Requests may only narrow. Tokens are never written anywhere, are revoked within a minute when the agent is removed or its scope narrowed, and are rate-limited (12 per agent, 300 in all per hour; a live token is reused). `github-tokens.jsonl` audits every issuance without the token. On the agent, `warte agent github-token` and the git credential helper `warte agent git-credential` get a token without a file. Without `[github_app]` nothing changes. Guide: `warte docs github-tokens`.
+
 ## v1.6.36 — 2026-11-20
 
 - **The North Star on the Overview** (REQ-NS-001, the first bet of the North Star release plan in docs/plans/2026-11-19-north-star-release.md). With `[north_star]`, warte reads pulseengine.eu's published North Star and indicator files every 6 hours, keeps every observation, and shows one line on the Overview (for example `O2 1/2 (2 d) · O4 1/839 (1 d) · 3 unmeasured`) and the detail at `GET /api/north-star`: value, previous value, age, guard and blind spot. An objective without a published file is unmeasured, never 0; a removed file turns it unmeasured at the next poll; data older than 45 days is stale. warte renders and does not compute.

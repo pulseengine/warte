@@ -18,6 +18,7 @@ pub fn build_routes() -> Router<AppState> {
     let mutating_routes = Router::new()
         .route("/agents/register", post(register_agent))
         .route("/agents/{id}/heartbeat", post(agent_heartbeat))
+        .route("/agents/{id}/github-token", post(api_github_token))
         .route("/agents/{id}/data", post(capture_data))
         .route("/access/grant", post(grant_access))
         .route("/access/revoke", post(revoke_access))
@@ -587,6 +588,50 @@ fn no_news() -> axum::response::Response {
 }
 
 /// News items, newest first: `?since=YYYY-MM-DD&source=&grep=&state=` (news v1).
+/// Exchange the agent's warte token for a GitHub App installation token
+/// (REQ-GHTOKEN-001). The middleware has checked the right and that `{id}` is
+/// the token's own agent; the broker checks the operator-set scope.
+async fn api_github_token(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    body: axum::body::Bytes,
+) -> axum::response::Response {
+    let Some(b) = state.github_tokens.as_deref() else {
+        return plain(
+            StatusCode::NOT_FOUND,
+            "no [github_app] configured on this warte",
+        );
+    };
+    let req: crate::ghtoken::TokenRequest = if body.iter().all(u8::is_ascii_whitespace) {
+        Default::default()
+    } else {
+        match serde_json::from_slice(&body) {
+            Ok(r) => r,
+            Err(_) => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(serde_json::json!({"error": "the body is not a token request"})),
+                )
+                    .into_response()
+            }
+        }
+    };
+    match b.mint(&id, req, chrono::Utc::now().timestamp()).await {
+        Ok(t) => (
+            StatusCode::OK,
+            [(axum::http::header::CACHE_CONTROL, "no-store")],
+            Json(t),
+        )
+            .into_response(),
+        Err(r) => (
+            StatusCode::from_u16(r.status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
+            [(axum::http::header::CACHE_CONTROL, "no-store")],
+            Json(serde_json::json!({"error": r.why})),
+        )
+            .into_response(),
+    }
+}
+
 /// The North Star's objectives with their published indicators (REQ-NS-001).
 /// Public: the North Star and its indicator files are public.
 async fn api_north_star(State(state): State<AppState>) -> axum::response::Response {

@@ -110,6 +110,14 @@ pub fn current_contract() -> AgentContract {
                 required_right: right_for("/api/agents/{id}/heartbeat"),
             },
             ContractOperation {
+                name: "github_token".to_string(),
+                direction: OperationDirection::AgentToTower,
+                request_type: "GithubTokenRequest".to_string(),
+                response_type: "GithubToken".to_string(),
+                auth_required: true,
+                required_right: right_for("/api/agents/{id}/github-token"),
+            },
+            ContractOperation {
                 name: "download_artifact".to_string(),
                 direction: OperationDirection::AgentToTower,
                 request_type: "ArtifactDownloadRequest".to_string(),
@@ -320,7 +328,7 @@ mod tests {
     fn test_agent_contract() {
         let contract = current_contract();
         assert_eq!(contract.version, "0.1.0");
-        assert_eq!(contract.operations.len(), 13);
+        assert_eq!(contract.operations.len(), 14);
         assert_eq!(contract.data_types.len(), 4);
 
         // Every operation requires auth; every mutating route's right is listed.

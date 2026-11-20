@@ -132,6 +132,9 @@ pub struct Config {
     /// The North Star's published indicators (REQ-NS-001).
     #[serde(default)]
     pub north_star: Option<crate::northstar::NorthStarConfig>,
+    /// Per-agent GitHub tokens from a GitHub App (REQ-GHTOKEN-001).
+    #[serde(default)]
+    pub github_app: Option<crate::ghtoken::GithubAppConfig>,
     /// The issue triage queue (REQ-TRIAGE-001).
     #[serde(default)]
     pub triage: Option<crate::triage::TriageConfig>,
@@ -375,6 +378,7 @@ impl Default for Config {
             triage: None,
             news: None,
             north_star: None,
+            github_app: None,
             canaries: None,
             expiry: None,
         }
