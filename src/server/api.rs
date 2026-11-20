@@ -38,6 +38,7 @@ pub fn build_routes() -> Router<AppState> {
         .route("/triage", get(api_triage))
         .route("/triage/done", post(api_triage_done))
         .route("/news", get(api_news))
+        .route("/north-star", get(api_north_star))
         .route("/news/sources", get(api_news_sources))
         .route("/news/state", post(api_news_state))
         // a workstation job replaces its source's skill-usage report whole
@@ -586,6 +587,27 @@ fn no_news() -> axum::response::Response {
 }
 
 /// News items, newest first: `?since=YYYY-MM-DD&source=&grep=&state=` (news v1).
+/// The North Star's objectives with their published indicators (REQ-NS-001).
+/// Public: the North Star and its indicator files are public.
+async fn api_north_star(State(state): State<AppState>) -> axum::response::Response {
+    let Some(n) = state.north_star.as_deref() else {
+        return plain(
+            StatusCode::NOT_FOUND,
+            "no [north_star] configured on this warte",
+        );
+    };
+    let now = crate::hub::now();
+    let rows = n.rows(now);
+    let last = n.last_poll.lock().map(|g| g.clone()).unwrap_or(None);
+    Json(serde_json::json!({
+        "rows": rows,
+        "line": crate::northstar::glance_line(&rows),
+        "stale_after_days": n.config.stale_after_days,
+        "last_poll": last.map(|(at, result)| serde_json::json!({"at": at, "result": result})),
+    }))
+    .into_response()
+}
+
 async fn api_news(
     State(state): State<AppState>,
     q: Result<axum::extract::Query<crate::news::Query>, axum::extract::rejection::QueryRejection>,

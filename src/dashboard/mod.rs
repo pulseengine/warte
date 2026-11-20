@@ -78,6 +78,22 @@ pub async fn overview_partial(State(state): State<crate::server::AppState>) -> R
     fleet_found.extend(fleet::host_detected(&state, crate::hub::now()));
     let gh = state.status.get_status().await.map_err(|e| e.to_string());
     let strip = fleet::outages_summary(&fleet_found, gh.as_ref().map_err(Clone::clone));
+    // REQ-NS-001: the North Star in one line, as published
+    let strip = match &state.north_star {
+        Some(n) => {
+            let line = crate::northstar::glance_line(&n.rows(crate::hub::now()));
+            if line.is_empty() {
+                strip
+            } else {
+                strip
+                    + &format!(
+                        r#"<div class="north-star-line"><span class="label">North Star</span> {} <a href="https://github.com/pulseengine/pulseengine.eu/blob/main/data/north-star.toml" class="dim">the North Star ↗</a></div>"#,
+                        fleet::esc(&line)
+                    )
+            }
+        }
+        None => strip,
+    };
     // REQ-PREDICT-001: what is forecast to reach its limit
     let coming = state
         .machines

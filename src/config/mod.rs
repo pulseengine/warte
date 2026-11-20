@@ -129,6 +129,9 @@ pub struct Config {
     /// News from public feeds, contract news v1 (REQ-NEWS-001).
     #[serde(default)]
     pub news: Option<crate::news::NewsConfig>,
+    /// The North Star's published indicators (REQ-NS-001).
+    #[serde(default)]
+    pub north_star: Option<crate::northstar::NorthStarConfig>,
     /// The issue triage queue (REQ-TRIAGE-001).
     #[serde(default)]
     pub triage: Option<crate::triage::TriageConfig>,
@@ -371,6 +374,7 @@ impl Default for Config {
             briefing: None,
             triage: None,
             news: None,
+            north_star: None,
             canaries: None,
             expiry: None,
         }

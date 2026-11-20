@@ -4,6 +4,10 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.36 — 2026-11-20
+
+- **The North Star on the Overview** (REQ-NS-001, the first bet of the North Star release plan in docs/plans/2026-11-19-north-star-release.md). With `[north_star]`, warte reads pulseengine.eu's published North Star and indicator files every 6 hours, keeps every observation, and shows one line on the Overview (for example `O2 1/2 (2 d) · O4 1/839 (1 d) · 3 unmeasured`) and the detail at `GET /api/north-star`: value, previous value, age, guard and blind spot. An objective without a published file is unmeasured, never 0; a removed file turns it unmeasured at the next poll; data older than 45 days is stale. warte renders and does not compute.
+
 ## v1.6.35 — 2026-11-19
 
 - **Health opens with the operator duties** (REQ-OPS-005). The duties come first, then the agent and CI counts and the timers. The telemetry link and the collection errors are folded under "Ground station internals", whose summary says whether anything needs a look. The CI host's panel is gone from Health: its swap and pressure lines moved to its card on Machines, which already showed load, memory and disks.

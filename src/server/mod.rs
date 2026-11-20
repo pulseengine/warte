@@ -50,6 +50,8 @@ pub struct AppState {
     /// Issues people opened, waiting for a first reply (REQ-TRIAGE-001).
     pub triage: Option<Arc<crate::triage::Triage>>,
     pub news: Option<Arc<crate::news::News>>,
+    /// The North Star's published indicators (REQ-NS-001).
+    pub north_star: Option<Arc<crate::northstar::NorthStar>>,
     /// The latest dependency-canary round (REQ-PREDICT-003).
     pub canaries: Option<Arc<crate::canary::Canaries>>,
     /// What runs out and when (REQ-PREDICT-004).
@@ -241,6 +243,22 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
         None => None,
     };
 
+    let north_star = match &config.north_star {
+        Some(n) => {
+            n.check().map_err(anyhow::Error::msg)?;
+            let dir = config
+                .db_path
+                .parent()
+                .filter(|p| !p.as_os_str().is_empty())
+                .unwrap_or(std::path::Path::new("."))
+                .to_path_buf();
+            let s = Arc::new(crate::northstar::NorthStar::new(n.clone(), &dir));
+            crate::northstar::spawn(s.clone());
+            Some(s)
+        }
+        None => None,
+    };
+
     let news = match &config.news {
         Some(n) => {
             n.check().map_err(anyhow::Error::msg)?;
@@ -342,6 +360,7 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
         briefing,
         triage,
         news,
+        north_star,
         canaries,
         expiry,
         ci_health: Default::default(),
