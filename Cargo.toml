@@ -1,6 +1,6 @@
 [package]
 name = "warte"
-version = "1.6.37"
+version = "1.6.38"
 edition = "2021"
 description = "Warte — the PulseEngine control tower. A CI dashboard with an ask feature and an API."
 license = "Apache-2.0"
@@ -62,7 +62,7 @@ thiserror = "2"
 anyhow = "1"
 
 # HTTP client (for GitHub API, sync)
-reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+reqwest = { version = "0.12", features = ["json", "rustls-tls-native-roots"], default-features = false }
 
 # CRDT / sync
 crdts = "7"

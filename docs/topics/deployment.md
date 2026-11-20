@@ -19,6 +19,9 @@ infrastructure repository, not here.
 - SQLite local state
 - WireGuard VPN to edge proxy
 - No direct internet exposure
+- The system CA bundle (`ca-certificates` on Debian and Ubuntu): warte checks
+  public servers against the operating system's trust store and carries no
+  root list of its own
 
 ## Configuration
 
@@ -117,10 +120,11 @@ The base is set, never guessed from a web URL. The same settings as a
   out until the reset, and the limit is shown in Outages as its own finding; a refused token (401,
   or 403 that is not a rate limit) is shown in Health and Outages and
   retried at the normal interval, so fixing the token needs no restart.
-- **TLS-intercepting proxy:** warte uses rustls with bundled Mozilla roots
-  and does not read the system store. Point `WARTE_CA_BUNDLE` (or
-  `ca_bundle`) at the proxy's PEM CA; it is trusted in addition to the
-  bundled roots. A file without a certificate stops startup.
+- **TLS-intercepting proxy:** warte checks servers against the operating
+  system's trust store (the keychain on macOS, the CA bundle on Linux), so a
+  proxy CA installed there is trusted already. Otherwise point
+  `WARTE_CA_BUNDLE` (or `ca_bundle`) at the proxy's PEM CA; it is trusted in
+  addition to the system roots. A file without a certificate stops startup.
 - **Outages and alerts:** the same findings and notices as with a fleet agent, from
   what GitHub shows: GitHub-hosted jobs queued 15 min or more per runner
   type, queued runs overdue for their pool, self-hosted runners offline (with
@@ -362,7 +366,8 @@ At a site whose browsers must not call out, set `weather = false`.
 
 The API base of a data-residency tenant is `https://api.<tenant>.ghe.com`
 (no `/api/v3`). Where a TLS-intercepting proxy re-signs traffic, give warte
-the proxy's CA as PEM; it is trusted in addition to the bundled roots:
+the proxy's CA as PEM (unless it is in the system trust store already); it is
+trusted in addition to the system roots:
 
 ```toml
 # warte.toml

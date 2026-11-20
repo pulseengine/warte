@@ -4,6 +4,10 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.38 — 2026-11-20
+
+- **Public servers are checked against the operating system's trust store** (REQ-TLS-001). warte no longer carries its own root list (webpki-roots); it reads the system keychain on macOS and the system CA bundle on Linux when it builds a client, so a CA distrust arrives with the host's package updates instead of a warte release. A host needs its CA bundle (`ca-certificates` on Debian and Ubuntu). A CA configured with `ca_bundle`, `WARTE_CA_BUNDLE`, `--ca-cert` or `WARTE_CA_CERT` is still trusted in addition, and a proxy CA already in the system store needs no setting.
+
 ## v1.6.37 — 2026-11-20
 
 - **Per-agent GitHub tokens** (REQ-GHTOKEN-001..004, #189). With `[github_app]`, an agent exchanges its warte token (new right `github:token`, bound to its own name) at `POST /api/agents/{name}/github-token` for a GitHub App installation token that lasts one hour and reaches only the repositories the operator assigned on the host with `warte agents repos`. Permissions are contents, pull requests and issues write plus actions and metadata read; `actions: write` is granted per agent. Requests may only narrow. Tokens are never written anywhere, are revoked within a minute when the agent is removed or its scope narrowed, and are rate-limited (12 per agent, 300 in all per hour; a live token is reused). `github-tokens.jsonl` audits every issuance without the token. On the agent, `warte agent github-token` and the git credential helper `warte agent git-credential` get a token without a file. Without `[github_app]` nothing changes. Guide: `warte docs github-tokens`.
