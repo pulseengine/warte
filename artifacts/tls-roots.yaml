@@ -1,0 +1,47 @@
+# Trust roots. Owner decision 2026-11-20: warte checks public servers against
+# the operating system's trust store instead of a bundled root list, so a CA
+# distrust no longer needs a warte release.
+artifacts:
+  - id: REQ-TLS-001
+    type: requirement
+    title: Public TLS servers are checked against the operating system's trust store, and a configured private CA is still trusted
+    status: verified
+    release: v1.6.38
+    description: "warte's HTTPS clients SHALL verify servers against the roots of the operating system's trust store (the system keychain on macOS, the system CA bundle on Linux) and SHALL NOT link a bundled root list. A CA configured with ca_bundle, WARTE_CA_BUNDLE, --ca-cert or WARTE_CA_CERT SHALL be trusted in addition to the system roots. A server whose CA is in neither SHALL be refused. There SHALL be no switch to skip certificate checks."
+    fields:
+      category: functional
+      priority: must
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-20T18:40:00Z
+
+  - id: DD-TLS-001
+    type: design-decision
+    title: reqwest 0.12 with rustls-tls-native-roots replaces the bundled webpki-roots
+    status: verified
+    release: v1.6.38
+    description: "reqwest's rustls-tls feature is replaced by rustls-tls-native-roots, which loads the system roots through rustls-native-certs when a client is built and keeps the ring provider. webpki-roots leaves the dependency tree. The existing add_root_certificate calls for a configured private CA are unchanged and add to the system roots."
+    fields:
+      rationale: "Owner decision 2026-11-20. With bundled roots every CA distrust (for example the patched eMudhra roots in webpki-roots 1.0.11) needs a warte release and a redeploy; the system store is updated by the host's own package updates. native-roots on reqwest 0.12 is the smallest change: reqwest 0.13 with rustls-platform-verifier would change the client API at 17 call sites for the same root source on Linux. Consequence: a host without a system CA bundle (ca-certificates) cannot reach public HTTPS servers."
+    links:
+      - type: satisfies
+        target: REQ-TLS-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-20T18:40:00Z
+
+  - id: TEST-TLS-001
+    type: verification
+    title: tests/os_trust_store.rs refuses a local HTTPS server whose CA is in no trust store and accepts it once the CA is configured
+    status: verified
+    release: v1.6.38
+    description: "A local HTTPS server on 127.0.0.1 with a leaf from a throwaway CA. warte's agent client (ghtoken::fetch) refuses it with no CA configured and with an unrelated CA configured, and gets the answer once that CA's PEM is configured; the same PEM loads through the GitHub source's ca_bundle loader. Cargo.lock holds no webpki-roots and does hold rustls-native-certs. Negative control: making the client accept invalid certificates fails the refusal test."
+    links:
+      - type: verifies
+        target: REQ-TLS-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-20T18:40:00Z
