@@ -3,8 +3,7 @@
 Work in progress, 2026-11-19; bets started 2026-11-20 on the owner's go. The
 scope is in rivet (`artifacts/north-star-plan.yaml`): REQ-NS-001 shipped in
 v1.6.36, REQ-NS-002 and REQ-NS-003 are `draft` for v1.8.0, and DD-NS-001
-records the render-only decision. Bet 4 is an open owner question, not yet a
-requirement.
+records the render-only decision. Bet 4 is withdrawn (owner, 2026-11-20).
 
 The yardstick is pulseengine.eu's `data/north-star.toml`: a safety-critical
 product team can take a WebAssembly component from architecture model to signed
@@ -92,12 +91,11 @@ pulseengine.eu.
   repositories (then a script in pulseengine.eu owns it).
 - **Cut first** if the release runs short.
 
-### 4. warte's own evidence bundle, O2: held for the owner (no requirement until decided)
-- **Question:** is warte a consumer repository in O2's denominator? warte is
-  factory infrastructure, not a product a team ships to a microcontroller.
-- **If yes:** the full bundle (trace, MC/DC, attestation), one negative control
-  per piece. O2 may fall from 1/2 to 1/3 until warte passes.
-- **If no:** the item is withdrawn; release signing continues outside the North
+### 4. warte's own evidence bundle, O2: withdrawn
+- **Owner decision 2026-11-20** (factory-notice 20261119T221305-f2df2e, decided
+  before anyone checked whether warte would pass): warte is factory
+  infrastructure and not a consumer repository in O2's denominator. No
+  requirement is created; warte's release signing continues outside the North
   Star.
 
 ## Not in this release

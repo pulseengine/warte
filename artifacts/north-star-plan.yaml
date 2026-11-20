@@ -1,6 +1,6 @@
 # Next release scope against the North Star (pulseengine.eu
 # data/north-star.toml). REQ-NS-001 shipped (v1.6.36); the rest are drafts.
-# REQ-NS-004 (warte in O2) waits for the owner and is not an artifact yet.
+# REQ-NS-004 (warte in O2) was withdrawn by the owner on 2026-11-20.
 # Plan and checker findings: docs/plans/2026-11-19-north-star-release.md.
 # Until rivet has a `serves:` link, each item names its objective in the title.
 artifacts:
