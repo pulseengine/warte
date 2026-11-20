@@ -72,6 +72,17 @@ async fn main() -> anyhow::Result<()> {
             let code = warte::agent::rm_cli(config_path.as_deref(), &id, &reason, with_data).await;
             std::process::exit(code);
         }
+        Commands::Agents {
+            action: Some(warte::cli::AgentsCommands::Repos { action }),
+            ..
+        } => {
+            let code = warte::ghtoken::cli::repos(config_path.as_deref(), action).await;
+            std::process::exit(code);
+        }
+        Commands::Agent { action } => {
+            let code = warte::ghtoken::cli::client(action).await;
+            std::process::exit(code);
+        }
         Commands::Agents { health, .. } => {
             let config = Config::load_at(config_path.as_deref())?;
             let client = reqwest::Client::new();

@@ -313,6 +313,15 @@ observations (`measured_at`, `value`, `of`, `verifier`, `blind_spot`,
 # stale_after_days = 45
 ```
 
+## GitHub tokens (REQ-GHTOKEN-001)
+
+`POST /api/agents/{name}/github-token` exchanges an agent's warte token
+(right `github:token`, bound to its own name; `agents:any` does not lift it)
+for a one-hour GitHub App installation token limited to the repositories the
+operator assigned with `warte agents repos`. The body may only narrow. The
+answer carries `Cache-Control: no-store`; 404 without `[github_app]`. See
+`warte docs github-tokens`.
+
 ## Machine history (REQ-MHIST-002)
 
 Every machine's numbers over time, kept by warte itself (`history.redb` next to

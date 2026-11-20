@@ -1,0 +1,144 @@
+# Per-agent GitHub tokens (#189). Owner decision 2026-11-20: warte brokers
+# 1 h GitHub App installation tokens scoped to operator-assigned repositories;
+# actions write is opt-in per agent.
+artifacts:
+  - id: REQ-GHTOKEN-001
+    type: requirement
+    title: An agent exchanges its own warte token for a GitHub App installation token; no token mints for another agent
+    status: verified
+    release: v1.6.37
+    description: "POST /api/agents/{id}/github-token SHALL require a warte token carrying the right github:token, which is never a default right, and whose agent name equals {id} exactly; agents:any SHALL NOT lift this binding. warte SHALL sign a GitHub App JWT (RS256, valid at most ten minutes) with the App's private key and return GitHub's installation token, its expiry, repositories and permissions with Cache-Control: no-store. Without [github_app] the route SHALL answer 404. The App key SHALL be refused if group or others can read it, and no error SHALL quote its contents. The API base SHALL be https, plain http only on loopback."
+    fields:
+      category: functional
+      priority: must
+      upstream-ref: https://github.com/pulseengine/warte/issues/189
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-20T13:30:00Z
+
+  - id: REQ-GHTOKEN-002
+    type: requirement
+    title: The repositories and the actions-write grant come from the operator on the host, never from the agent
+    status: verified
+    release: v1.6.37
+    description: "Which repositories an agent's tokens reach (1 to 10, owner/name, under the App's account) and whether it may have actions write SHALL be set only by `warte agents repos` on the host, against the database; no HTTP route and not register SHALL set or widen them. An agent with none assigned, or whose name has no agents row, SHALL be refused. A request SHALL only narrow: a repository not assigned, or a permission above the configured set, is refused. The configured set SHALL never exceed contents, pull_requests and issues write and actions and metadata read; actions write SHALL only come from a per-agent grant."
+    fields:
+      category: constraint
+      priority: must
+    links:
+      - type: refines
+        target: REQ-GHTOKEN-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-20T13:30:00Z
+
+  - id: REQ-GHTOKEN-003
+    type: requirement
+    title: Issued tokens are never at rest, are revoked when the agent or its scope goes, and every issuance is audited without the token
+    status: verified
+    release: v1.6.37
+    description: "warte SHALL keep issued GitHub tokens in memory only, never in the database, a file or a log. Every minute it SHALL revoke (DELETE /installation/token) live tokens whose agent row is gone or whose repositories or actions grant the operator narrowed. A live token for the same scope with more than 15 minutes left SHALL be returned again; beyond that each agent SHALL get at most per_agent_per_hour (default 12) and all agents global_per_hour (default 300) new tokens per hour, refused with 429. A token GitHub returns with more than was asked SHALL be revoked and refused. github-tokens.jsonl SHALL record time, agent, outcome (issued, reused, refused, revoked), repositories, permissions, expiry and reason, never the token or a hash of it."
+    fields:
+      category: constraint
+      priority: must
+    links:
+      - type: refines
+        target: REQ-GHTOKEN-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-20T13:30:00Z
+
+  - id: REQ-GHTOKEN-004
+    type: requirement
+    title: The agent's client gets a token for gh and git without writing it to a file
+    status: verified
+    release: v1.6.37
+    description: "`warte agent github-token` SHALL print a token on stdout (or the whole answer with --json), and `warte agent git-credential get` SHALL answer git's credential-helper protocol for https://github.com only, staying silent for other hosts; store and erase SHALL do nothing. Both SHALL read the agent's warte token from --token or the first line of --token-file and SHALL write no file."
+    fields:
+      category: functional
+      priority: should
+    links:
+      - type: refines
+        target: REQ-GHTOKEN-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-20T13:30:00Z
+
+  - id: DD-GHTOKEN-001
+    type: design-decision
+    title: warte brokers GitHub App installation tokens in the pattern of octo-sts, scope set by the operator, nothing at rest
+    status: verified
+    release: v1.6.37
+    description: "warte is the identity provider: an agent proves itself with its existing ed25519 warte token and gets a GitHub App installation token minted for exactly its assigned repositories with fixed permissions. The scope table is keyed by the agent name a warte token names and written only by the host CLI. Tokens live in memory so a sweep can revoke them; a restart forgets them and they expire within an hour."
+    fields:
+      rationale: "Owner decision 2026-11-20 (#189). Agents should not carry long-lived broad credentials; a one-hour token limited to the agent's own repositories bounds what a compromised agent can touch. The App key stays on one host. Keying scope by name matches how warte tokens name agents and survives idempotent re-registration; writing it only from the host keeps an agent from widening its own scope. In-memory tracking is what makes revocation on removal possible without storing the token. Rejected: self-registered repo scope (an agent could re-register into any repo), caching tokens on disk (a second copy of a credential), actions write by default (the owner chose opt-in), a separate broker service (the owner chose warte)."
+    links:
+      - type: satisfies
+        target: REQ-GHTOKEN-001
+      - type: satisfies
+        target: REQ-GHTOKEN-002
+      - type: satisfies
+        target: REQ-GHTOKEN-003
+      - type: satisfies
+        target: REQ-GHTOKEN-004
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-20T13:30:00Z
+
+  - id: TEST-GHTOKEN-001
+    type: verification
+    title: tests/github_token.rs runs the exchange through the real router against a mock GitHub that verifies the App JWT
+    status: verified
+    release: v1.6.37
+    description: "Nine tests against a local mock of GitHub's App API that checks the JWT signature with the public key, its issuer and its ten-minute window: a token reaches only assigned repositories and requests only narrow (unassigned repo, actions write, administration, unknown field refused); agents:any, a missing right and a removed agent mint nothing and GitHub is never asked; reuse and the hourly limit; no file in the data directory, the database included, holds the token and the audit has issued and refused only; narrowing the scope or deleting the agent row revokes the live token on the next sweep; actions write needs the per-agent grant and its withdrawal revokes; an over-grant from GitHub is revoked and refused; plain http off loopback, an unknown permission, a world-readable key and a junk key are refused without quoting it, PKCS#8 accepted, and the route is 404 without [github_app]; the client fetches a token and the git helper answers for https github.com only. Negative control: letting agents:any lift the binding fails the binding test."
+    links:
+      - type: verifies
+        target: REQ-GHTOKEN-001
+      - type: verifies
+        target: REQ-GHTOKEN-002
+      - type: verifies
+        target: REQ-GHTOKEN-003
+      - type: verifies
+        target: REQ-GHTOKEN-004
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-20T13:30:00Z
+
+  - id: SH-012
+    type: sec-hazard
+    title: A warte agent token can be turned into GitHub write access
+    status: draft
+    description: "System state: with [github_app], a warte agent token carrying github:token can be exchanged for a GitHub token that writes contents, pull requests and issues in the agent's repositories. A stolen agent token, an agent able to read another agent's token file, or a scope set wider than intended gives an attacker GitHub write access for as long as the warte token is valid, one hour at a time."
+    fields:
+      cia-impact:
+        - integrity
+        - confidentiality
+      severity: high
+    links:
+      - type: leads-to-sec-loss
+        target: SL-006
+      - type: leads-to-sec-loss
+        target: SL-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-20T13:30:00Z
+
+  - id: SC-SEC-014
+    type: sec-constraint
+    title: A GitHub token reaches only the operator-assigned repositories of the agent that asked, for at most an hour, and is revoked when the agent or its scope goes
+    status: draft
+    description: "The exchange is bound to the token's own agent with no agents:any override; the scope is set only on the host; the permissions are fixed and never include administration, workflows or secrets; actions write is a per-agent grant; tokens are never at rest and are revoked within a minute of removal or narrowing; issuance is rate-limited and audited. Outside warte: agents must not be able to read each other's warte token files (operator sandboxing), which this constraint depends on."
+    links:
+      - type: prevents-sec-hazard
+        target: SH-012
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-20T13:30:00Z

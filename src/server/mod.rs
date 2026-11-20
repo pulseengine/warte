@@ -52,6 +52,8 @@ pub struct AppState {
     pub news: Option<Arc<crate::news::News>>,
     /// The North Star's published indicators (REQ-NS-001).
     pub north_star: Option<Arc<crate::northstar::NorthStar>>,
+    /// Per-agent GitHub tokens (REQ-GHTOKEN-001); None without `[github_app]`.
+    pub github_tokens: Option<Arc<crate::ghtoken::Broker>>,
     /// The latest dependency-canary round (REQ-PREDICT-003).
     pub canaries: Option<Arc<crate::canary::Canaries>>,
     /// What runs out and when (REQ-PREDICT-004).
@@ -259,6 +261,24 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
         None => None,
     };
 
+    let github_tokens = match &config.github_app {
+        Some(g) => {
+            let dir = config
+                .db_path
+                .parent()
+                .filter(|p| !p.as_os_str().is_empty())
+                .unwrap_or(std::path::Path::new("."))
+                .to_path_buf();
+            let store = crate::ghtoken::Store::new(db.pool().clone());
+            let b = Arc::new(
+                crate::ghtoken::Broker::new(g.clone(), store, &dir).map_err(anyhow::Error::msg)?,
+            );
+            crate::ghtoken::spawn(b.clone());
+            Some(b)
+        }
+        None => None,
+    };
+
     let news = match &config.news {
         Some(n) => {
             n.check().map_err(anyhow::Error::msg)?;
@@ -361,6 +381,7 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
         triage,
         news,
         north_star,
+        github_tokens,
         canaries,
         expiry,
         ci_health: Default::default(),

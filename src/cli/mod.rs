@@ -51,6 +51,12 @@ pub enum Commands {
         action: Option<AgentsCommands>,
     },
 
+    /// This agent's client commands: GitHub tokens (REQ-GHTOKEN-004)
+    Agent {
+        #[command(subcommand)]
+        action: AgentClientCommands,
+    },
+
     /// Show the weekly cron schedule
     Schedule,
 
@@ -307,6 +313,75 @@ pub enum AgentsCommands {
         #[arg(long)]
         with_data: bool,
     },
+    /// Which repositories each agent's GitHub tokens reach (run on the
+    /// ground station host; agents can never set this). REQ-GHTOKEN-002.
+    Repos {
+        #[command(subcommand)]
+        action: ReposCommands,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum ReposCommands {
+    /// Every agent with repositories assigned
+    List,
+    /// One agent's repositories and grants
+    Show {
+        /// The agent name its warte token names
+        name: String,
+    },
+    /// Replace an agent's repositories (1 to 10, owner/name)
+    Set {
+        name: String,
+        #[arg(required = true)]
+        repos: Vec<String>,
+    },
+    /// Remove an agent's repositories; its live tokens are revoked within a minute
+    Clear { name: String },
+    /// Grant a permission beyond the configured set (only actions:write)
+    Grant { name: String, permission: String },
+    /// Take a granted permission back
+    Revoke { name: String, permission: String },
+}
+
+#[derive(Subcommand)]
+pub enum AgentClientCommands {
+    /// Print a GitHub token for this agent on stdout (for GH_TOKEN=$(...))
+    GithubToken {
+        #[command(flatten)]
+        conn: AgentConn,
+        /// Only these of the agent's repositories (owner/name; repeatable)
+        #[arg(long = "repo")]
+        repos: Vec<String>,
+        /// Print the whole answer as JSON (token, expiry, repositories, permissions)
+        #[arg(long)]
+        json: bool,
+    },
+    /// git credential helper (`get` answers for https://github.com; `store`
+    /// and `erase` do nothing). Configure: git config credential.https://github.com.helper '!warte agent git-credential'
+    GitCredential {
+        /// get, store or erase (git passes it)
+        operation: String,
+        #[command(flatten)]
+        conn: AgentConn,
+    },
+}
+
+/// How the client reaches warte and proves which agent it is.
+#[derive(clap::Args)]
+pub struct AgentConn {
+    /// warte's base URL, e.g. https://host/warte
+    #[arg(long, env = "WARTE_URL")]
+    pub url: String,
+    /// PEM CA certificate to trust for --url, in addition to the built-in roots
+    #[arg(long, env = "WARTE_CA_CERT")]
+    pub ca_cert: Option<std::path::PathBuf>,
+    /// The agent's warte token
+    #[arg(long, env = "WARTE_TOKEN", hide_env_values = true)]
+    pub token: Option<String>,
+    /// A file whose first line is the agent's warte token
+    #[arg(long, env = "WARTE_TOKEN_FILE")]
+    pub token_file: Option<std::path::PathBuf>,
 }
 
 #[derive(Subcommand)]

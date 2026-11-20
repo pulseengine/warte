@@ -154,6 +154,9 @@ These rights belong to agents and peers rather than the operator's jobs:
   `/api/agents/{id}/data`); never in a bare mint;
 - `agents:any`: a token that writes as any agent (and, with `agents:read`,
   reads any agent);
+- `github:token`: an agent exchanging its own token for a one-hour GitHub
+  token for its assigned repositories (`warte docs github-tokens`);
+  `agents:any` does not extend it to other agents;
 - `access:grant`, `access:revoke`: changing an agent's rights;
 - `sync:update`: another warte instance syncing;
 - `news:write`: a reader marking news items (contract news v1); with `[auth]`

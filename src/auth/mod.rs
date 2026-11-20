@@ -179,6 +179,10 @@ pub enum Binding {
     /// The `name` in the JSON body: register mints its own agent ids, so the
     /// identity a caller asks for is the name it registers.
     BodyName,
+    /// The `{id}` segment is the token's own agent name, compared exactly.
+    /// `agents:any` never lifts it: no token mints a credential for another
+    /// agent (REQ-GHTOKEN-001).
+    TokenAgent,
 }
 
 /// One mutating route and what a token needs to call it.
@@ -196,7 +200,7 @@ pub struct RouteRule {
 /// valid token, so a route added without a row is closed, not open; the
 /// test `every_mutating_route_in_the_router_has_a_right` also fails.
 /// The probe routes (`PROBE_OPEN_PATHS`) authenticate themselves and are not here.
-pub const MUTATING_ROUTES: [RouteRule; 11] = [
+pub const MUTATING_ROUTES: [RouteRule; 12] = [
     RouteRule {
         method: "POST",
         pattern: "/api/agents/register",
@@ -263,7 +267,18 @@ pub const MUTATING_ROUTES: [RouteRule; 11] = [
         right: "skills:write",
         binding: Binding::None,
     },
+    RouteRule {
+        method: "POST",
+        pattern: "/api/agents/{id}/github-token",
+        right: RIGHT_GITHUB_TOKEN,
+        binding: Binding::TokenAgent,
+    },
 ];
+
+/// The right to exchange an agent token for a GitHub App installation token
+/// scoped to the agent's operator-assigned repositories (REQ-GHTOKEN-001).
+/// Never a default right.
+pub const RIGHT_GITHUB_TOKEN: &str = "github:token";
 
 /// Is `right` one a token can carry: a route's right or `agents:any`?
 pub fn is_known_right(right: &str) -> bool {
@@ -408,6 +423,7 @@ fn authorize(
         Binding::None => return true,
         Binding::PathId => row_name,
         Binding::BodyName => body_name,
+        Binding::TokenAgent => return row_name == Some(info.agent_id.as_str()),
     };
     has(RIGHT_ANY_AGENT) || named == Some(info.agent_id.as_str())
 }
@@ -593,6 +609,9 @@ pub async fn auth_middleware(
     // names the agent by the name it registered under. Resolve one to the
     // other, and skip the lookup for a token the binding does not apply to.
     let mut row_name = None;
+    if rule.binding == Binding::TokenAgent {
+        row_name = path_id.clone();
+    }
     if rule.binding == Binding::PathId && !info.rights.iter().any(|r| r == RIGHT_ANY_AGENT) {
         if let Some(id) = path_id.as_deref() {
             row_name = state

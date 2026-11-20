@@ -28,6 +28,7 @@ pub mod expiry;
 pub mod fleet;
 pub mod forecast;
 pub mod ghsource;
+pub mod ghtoken;
 pub mod history;
 pub mod hub;
 pub mod incidents;

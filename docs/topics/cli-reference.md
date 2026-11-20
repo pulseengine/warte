@@ -298,6 +298,19 @@ it does ("editing", "running tests", ...). No prompt, command, file name or
 path leaves the machine. Vibe has no session-start or prompt event, so a
 Vibe session shows its tools and "done" only.
 
+## warte agent
+
+On an agent's machine (REQ-GHTOKEN-004): `warte agent github-token` prints a
+GitHub token for this agent (`--repo` narrows, `--json` prints the whole
+answer); `warte agent git-credential get` is a git credential helper for
+https://github.com. Both read `--url`/`WARTE_URL` and the agent's warte token
+from `--token`/`WARTE_TOKEN` or `--token-file`/`WARTE_TOKEN_FILE`, and write no
+file.
+
+On the host, `warte agents repos list|show|set|clear|grant|revoke` sets which
+repositories each agent's tokens reach (REQ-GHTOKEN-002). See
+`warte docs github-tokens`.
+
 ## warte news
 
 What changed in the tools a deployment uses, from the public feeds in
