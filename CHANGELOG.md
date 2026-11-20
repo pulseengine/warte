@@ -4,6 +4,8 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+- **sqlx 0.8 to 0.9** (RUSTSEC-2026-0459). The bundled SQLite moves to libsqlite3-sys 0.40, past the fix for uninitialized page-cache memory with a database and -wal of different page sizes. sqlx 0.9 also drops rsa from Cargo.lock (RUSTSEC-2023-0071). No code changes; migrations and queries are unchanged.
+
 ## v1.6.38 — 2026-11-20
 
 - **Public servers are checked against the operating system's trust store** (REQ-TLS-001). warte no longer carries its own root list (webpki-roots); it reads the system keychain on macOS and the system CA bundle on Linux when it builds a client, so a CA distrust arrives with the host's package updates instead of a warte release. A host needs its CA bundle (`ca-certificates` on Debian and Ubuntu). A CA configured with `ca_bundle`, `WARTE_CA_BUNDLE`, `--ca-cert` or `WARTE_CA_CERT` is still trusted in addition, and a proxy CA already in the system store needs no setting.
