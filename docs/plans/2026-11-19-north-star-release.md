@@ -1,8 +1,10 @@
 # Next release against the North Star (draft)
 
-Work in progress, 2026-11-19. Nothing here is approved, built or tagged. The
-scope is drafted in rivet as `release: v1.8.0` (`artifacts/north-star-plan.yaml`,
-REQ-NS-001..004, all `draft`).
+Work in progress, 2026-11-19; bets started 2026-11-20 on the owner's go. The
+scope is in rivet (`artifacts/north-star-plan.yaml`): REQ-NS-001 shipped in
+v1.6.36, REQ-NS-002 and REQ-NS-003 are `draft` for v1.8.0, and DD-NS-001
+records the render-only decision. Bet 4 is an open owner question, not yet a
+requirement.
 
 The yardstick is pulseengine.eu's `data/north-star.toml`: a safety-critical
 product team can take a WebAssembly component from architecture model to signed
@@ -90,7 +92,7 @@ pulseengine.eu.
   repositories (then a script in pulseengine.eu owns it).
 - **Cut first** if the release runs short.
 
-### 4. warte's own evidence bundle (REQ-NS-004), O2: held for the owner
+### 4. warte's own evidence bundle, O2: held for the owner (no requirement until decided)
 - **Question:** is warte a consumer repository in O2's denominator? warte is
   factory infrastructure, not a product a team ships to a microcontroller.
 - **If yes:** the full bundle (trace, MC/DC, attestation), one negative control
