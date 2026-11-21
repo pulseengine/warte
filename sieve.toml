@@ -1,0 +1,28 @@
+# sieve: which of warte's CI jobs a pull request touches. Shadow mode: no job
+# reads the verdict yet; it is recorded to count the skips sieve would make.
+schema = "sieve.config.v1"
+
+# The binary, its tests and everything it embeds (templates, docs, migrations).
+[class.rust]
+cargo = ["Cargo.toml"]
+hand = ["templates/", "docs/", "migrations/", "deploy/"]
+
+# rivet validate and coverage: the artifacts and the source markers.
+[class.rivet]
+cargo = ["Cargo.toml"]
+hand = ["artifacts/", "rivet.yaml", "architecture/"]
+
+# The browser tests drive the release binary.
+[class.e2e]
+cargo = ["Cargo.toml"]
+hand = ["tests/playwright/", "templates/"]
+
+[workflows]
+required_contexts = ".github/required-contexts.txt"
+
+[workflows.job_outputs]     # HAND-MAINTAINED: job -> the classes it reads
+build = ["rust"]
+clippy = ["rust"]
+rivet = ["rivet"]
+audit = ["rust", "e2e"]
+playwright = ["e2e"]

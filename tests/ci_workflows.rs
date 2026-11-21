@@ -316,6 +316,8 @@ fn runners(text: &str) -> Vec<String> {
 /// a PR whose fork was deleted (head.repo null) to self-hosted. Routing only: a fork PR can edit the workflow, so isolation itself
 /// is the org's runner-group policy and fork-PR approval, not this expression.
 const SELF_HOSTED_CPU_SAME_REPO_ONLY: &str = "${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('[\"self-hosted\",\"linux\",\"x64\",\"rust-cpu\"]') || 'ubuntu-24.04' }}";
+/// The light pool, for the classifier: same fail-closed form, label `light`.
+const SELF_HOSTED_LIGHT_SAME_REPO_ONLY: &str = "${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('[\"self-hosted\",\"linux\",\"x64\",\"light\"]') || 'ubuntu-24.04' }}";
 
 // rivet: verifies DD-CI-001
 // rivet: verifies REQ-CI-003
@@ -330,10 +332,20 @@ fn ci_jobs_run_self_hosted_with_forks_guarded() {
     let wf = workflow("ci.yml");
     let mut checked = 0;
     for (job, def) in jobs(&wf) {
+        // a reusable-workflow call has no runs-on: jig pins its own fork guard
+        // and plant guard checks it (trusted_workflows)
+        if def["uses"].is_string() {
+            assert!(def["runs-on"].is_null(), "ci.yml job {job}");
+            continue;
+        }
         checked += 1;
         let runner = def["runs-on"].as_str().unwrap_or_default();
         match HOSTED.iter().find(|(j, _, _)| *j == job) {
             Some((_, want, why)) => assert_eq!(runner, *want, "ci.yml job {job} ({why})"),
+            None if job == "classify" => assert_eq!(
+                runner, SELF_HOSTED_LIGHT_SAME_REPO_ONLY,
+                "ci.yml job classify: the light pool, fail-closed"
+            ),
             None => assert_eq!(
                 runner, SELF_HOSTED_CPU_SAME_REPO_ONLY,
                 "ci.yml job {job}: unexpected runner"
@@ -674,5 +686,100 @@ fn every_rust_toolchain_is_one_pinned_version_across_workflows() {
         versions.len(),
         1,
         "CI and release build with different Rust: {versions:?}"
+    );
+}
+
+// rivet: verifies REQ-CI-008
+#[test]
+fn the_jig_shadow_pilot_has_the_caller_shape_and_changes_no_required_context() {
+    let wf = workflow("ci.yml");
+    let all = jobs(&wf);
+    let job = |id: &str| {
+        all.iter()
+            .find(|(j, _)| j == id)
+            .unwrap_or_else(|| panic!("ci.yml has no job {id}"))
+            .1
+            .clone()
+    };
+    // both jig calls pin one full SHA
+    let sha = |id: &str, file: &str| {
+        let u = job(id)["uses"].as_str().unwrap_or_default().to_string();
+        let (path, sha) = u.split_once('@').unwrap_or_else(|| panic!("{id}: {u}"));
+        assert_eq!(
+            path,
+            format!("pulseengine/jig/.github/workflows/{file}"),
+            "{id}"
+        );
+        assert!(
+            sha.len() == 40
+                && sha
+                    .chars()
+                    .all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c)),
+            "{id}: {sha} is not a full SHA"
+        );
+        sha.to_string()
+    };
+    assert_eq!(
+        sha("baseline", "baseline.yml"),
+        sha("required", "required.yml")
+    );
+    // shadow mode: enforce-skips is never set, and no job reads the classifier yet
+    assert!(job("baseline")["with"]["enforce-skips"].is_null());
+    for (id, def) in &all {
+        if id != "required" {
+            assert!(def["if"].is_null(), "{id}: shadow mode gates nothing");
+        }
+    }
+    // required waits for every other job, always
+    let req = job("required");
+    assert_eq!(req["if"].as_str(), Some("always()"));
+    let needs: BTreeSet<&str> = req["needs"]
+        .as_sequence()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_str().unwrap())
+        .collect();
+    let others: BTreeSet<&str> = all
+        .iter()
+        .map(|(j, _)| j.as_str())
+        .filter(|j| *j != "required")
+        .collect();
+    assert_eq!(needs, others);
+    // every pull request and the merge queue, no filter
+    assert!(wf["on"]["pull_request"].is_null() && wf["on"].get("pull_request").is_some());
+    assert!(wf["on"].get("merge_group").is_some());
+    // the controls ci.yml runs exist in the manifest
+    let manifest =
+        fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("ci-controls.toml")).unwrap();
+    let only = job("baseline")["with"]["controls-only"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(only.split_whitespace().count() >= 4, "{only}");
+    for id in only.split_whitespace() {
+        assert!(
+            manifest.contains(&format!("id = \"{id}\"")),
+            "{id} not in ci-controls.toml"
+        );
+    }
+    // sieve is fetched by version and sha256
+    let env = &job("classify")["env"];
+    assert!(env["SIEVE_VERSION"]
+        .as_str()
+        .is_some_and(|v| v.starts_with('v')));
+    assert_eq!(env["SIEVE_SHA256"].as_str().map(str::len), Some(64));
+    // the required contexts are still warte's own four
+    let ctx = fs::read_to_string(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join(".github/required-contexts.txt"),
+    )
+    .unwrap();
+    assert_eq!(
+        ctx.lines().collect::<Vec<_>>(),
+        [
+            "Build",
+            "Clippy",
+            "Rivet traceability check",
+            "Playwright E2E"
+        ]
     );
 }

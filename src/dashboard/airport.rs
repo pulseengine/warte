@@ -265,6 +265,9 @@ pub fn build(
 mod tests {
     use super::*;
 
+    // one line: sieve reads a literal include path only when it is on the same line
+    const EXAMPLE_FLEET: &str = include_str!("../../tests/fixtures/example_fleet.instance.json");
+
     fn seen(host: &str, sessions: usize) -> crate::probe::Seen {
         let mut r: crate::probe::Report = serde_json::from_value(serde_json::json!({
             "probe_version": "t", "host": host, "taken_at": 1, "uptime_s": 1,
@@ -308,10 +311,7 @@ mod tests {
     // rivet: partially-verifies REQ-DASH-015
     #[test]
     fn piers_come_from_the_model_and_silent_machines_stay_dashed() {
-        let f = crate::fleet::from_spar(include_str!(
-            "../../tests/fixtures/example_fleet.instance.json"
-        ))
-        .unwrap();
+        let f = crate::fleet::from_spar(EXAMPLE_FLEET).unwrap();
         let a = build(Some(&f), &[seen("laptop", 3)], None, &[], 1_000);
         let p = |n: &str| a.piers.iter().find(|p| p.name == n).unwrap().clone();
         assert_eq!(a.piers.len(), f.machines.len());

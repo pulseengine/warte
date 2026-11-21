@@ -1,0 +1,7 @@
+{"baseline": {"result": "success", "outputs": {}},
+ "classify": {"result": "success", "outputs": {"run_all": "false", "rust": "true", "rivet": "true", "e2e": "true"}},
+ "build": {"result": "success", "outputs": {}},
+ "clippy": {"result": "success", "outputs": {}},
+ "rivet": {"result": "success", "outputs": {}},
+ "audit": {"result": "success", "outputs": {}},
+ "playwright": {"result": "success", "outputs": {}}}

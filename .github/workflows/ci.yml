@@ -5,8 +5,10 @@ on:
     # release/** too: a release commit gets CI on its exact SHA (a PR from a
     # release branch cut from an older tag conflicts with main and never runs)
     branches: [main, 'release/**']
+  # every pull request, whatever its base, and the merge queue: no paths or
+  # branch filter on a workflow hosting a required context (jig, sieve)
   pull_request:
-    branches: [main]
+  merge_group:
 
 defaults:
   run:
@@ -222,3 +224,60 @@ jobs:
           name: playwright-report
           path: tests/playwright/test-results/
           if-no-files-found: ignore
+
+  # jig, the shared CI baseline, in shadow mode (phase 1): guard, pins,
+  # supply and planted controls run beside warte's own jobs. Nothing here is
+  # a required context yet; Build, Clippy, Rivet traceability check and
+  # Playwright E2E stay required until the owner adds `required / verdict`.
+  # Both jig calls pin the same full SHA (jig v0.1.0 with plant v0.4.0).
+  baseline:
+    uses: pulseengine/jig/.github/workflows/baseline.yml@3e575e0f0ae507b817ff0a89b93ed1d5442df769
+    with:
+      audit: cargo-audit
+      guard-config: plant-guard.toml
+      controls-only: "lock-stale toolchain-floating guard-unguarded verdict-sees-failure"
+
+  # sieve's path classifier, as warte's own job. Shadow mode: no job reads its
+  # outputs yet, so everything still runs; the verdict is recorded to count
+  # what sieve would have skipped. sieve v0.3.0 by version and sha256 (from
+  # its cosign-verified SHA256SUMS.txt, 2026-11-21).
+  classify:
+    name: classify
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","linux","x64","light"]') || 'ubuntu-24.04' }}
+    timeout-minutes: 10
+    env:
+      SIEVE_VERSION: v0.3.0
+      SIEVE_SHA256: aae674edf2c454ae5047409f571160f4615ef67f901b2e55628e8b756fb69b40
+    outputs:
+      run_all: ${{ steps.classify.outputs.run_all }}
+      rust: ${{ steps.classify.outputs.rust }}
+      rivet: ${{ steps.classify.outputs.rivet }}
+      e2e: ${{ steps.classify.outputs.e2e }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: fetch pinned sieve
+        run: |
+          d="$RUNNER_TEMP/sieve"; mkdir -p "$d"; cd "$d"
+          a="sieve-$SIEVE_VERSION-x86_64-unknown-linux-musl.tar.gz"
+          curl -fsSL -o "$a" "https://github.com/pulseengine/sieve/releases/download/$SIEVE_VERSION/$a"
+          echo "$SIEVE_SHA256  $a" | sha256sum -c -
+          tar -xzf "$a"
+          echo "$d" >> "$GITHUB_PATH"
+      - id: classify
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
+          EVENT: ${{ github.event_name }}
+        run: sieve classify --config sieve.toml --event "$EVENT" --base "$BASE_SHA" --format github-output --explain
+
+  # The one context that will replace the list: red on any failure,
+  # cancellation, skip of a selected class or a job missing from needs.
+  required:
+    needs: [baseline, classify, build, clippy, rivet, audit, playwright]
+    if: always()
+    uses: pulseengine/jig/.github/workflows/required.yml@3e575e0f0ae507b817ff0a89b93ed1d5442df769
+    with:
+      needs-json: ${{ toJSON(needs) }}
+      never-skip: "build clippy rivet audit playwright"
