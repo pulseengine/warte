@@ -610,3 +610,68 @@ fn every_lockfile_is_committed_and_audited_with_planted_controls() {
         .expect("the audit job runs the planted controls");
     assert!(controls < first_real, "the planted controls must run first");
 }
+
+/// The `toolchain:` of every rust-toolchain step, with its workflow.
+fn toolchains() -> Vec<(String, String)> {
+    let mut out = Vec::new();
+    for (name, _) in workflows() {
+        for (_, job) in jobs(&workflow(&name)) {
+            for step in job["steps"].as_sequence().into_iter().flatten() {
+                if step["uses"]
+                    .as_str()
+                    .is_some_and(|u| u.starts_with("dtolnay/rust-toolchain@"))
+                {
+                    let t = step["with"]["toolchain"].as_str().unwrap_or("").to_string();
+                    out.push((name.clone(), t));
+                }
+            }
+        }
+    }
+    out
+}
+
+/// A literal Rust version: `1.99` or `1.99.1`, or a dated nightly.
+fn pinned_toolchain(t: &str) -> bool {
+    let release = t.split('.').count() >= 2
+        && t.split('.').count() <= 3
+        && t.split('.')
+            .all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()));
+    let nightly = t
+        .strip_prefix("nightly-")
+        .is_some_and(|d| d.len() == 10 && chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").is_ok());
+    release || nightly
+}
+
+// rivet: verifies REQ-CI-007
+#[test]
+fn every_rust_toolchain_is_one_pinned_version_across_workflows() {
+    // planted: floating channels and expressions are refused
+    for bad in [
+        "stable",
+        "beta",
+        "nightly",
+        "${{ env.RUST }}",
+        "${{ matrix.rust }}",
+        "1",
+        "1.x",
+    ] {
+        assert!(!pinned_toolchain(bad), "{bad}");
+    }
+    for good in ["1.99", "1.99.1", "nightly-2026-11-01"] {
+        assert!(pinned_toolchain(good), "{good}");
+    }
+    let all = toolchains();
+    assert!(all.len() >= 7, "found only {} toolchain steps", all.len());
+    for (wf, t) in &all {
+        assert!(
+            pinned_toolchain(t),
+            "{wf}: rust-toolchain `{t}` floats; pin a version so a Rust release is a reviewed diff"
+        );
+    }
+    let versions: BTreeSet<&str> = all.iter().map(|(_, t)| t.as_str()).collect();
+    assert_eq!(
+        versions.len(),
+        1,
+        "CI and release build with different Rust: {versions:?}"
+    );
+}
