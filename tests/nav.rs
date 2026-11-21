@@ -36,12 +36,15 @@ fn the_contract_example_renders_every_link_and_no_other() {
     assert_eq!(hrefs(&h), want, "{h}");
     assert_eq!(h.matches("<a ").count(), 1 + f.apps.len(), "{h}");
     assert_eq!(h.matches("aria-current=\"page\"").count(), 1, "{h}");
-    assert!(h.contains("aria-current=\"page\"><span class=\"mark\">W</span><b>warte</b><span>control tower</span></a>"), "{h}");
+    assert!(h.contains("aria-current=\"page\"><span class=\"mark\" aria-hidden=\"true\">W</span><b>warte</b><span>control tower</span></a>"), "{h}");
     assert!(
-        h.contains("<span class=\"mark\">←</span><b>tower</b><span>Home</span></a>"),
+        h.contains(
+            "<span class=\"mark\" aria-hidden=\"true\">←</span><b>tower</b><span>Home</span></a>"
+        ),
         "{h}"
     );
-    assert!(!h.contains("title="), "{h}");
+    // the one title is the button's; links carry none
+    assert_eq!(h.matches("title=").count(), 1, "{h}");
     assert!(
         h.starts_with("<details class=\"appswitch\">") && h.ends_with("</nav></details>"),
         "{h}"
@@ -425,15 +428,17 @@ fn version_2_marks_render_and_a_missing_mark_falls_back_to_the_first_letter() {
     check(&f, "warte").unwrap();
     let h = html(&f, "warte");
     assert!(
-        h.contains("aria-current=\"page\"><span class=\"mark\">見</span><b>warte</b>"),
+        h.contains(
+            "aria-current=\"page\"><span class=\"mark\" aria-hidden=\"true\">見</span><b>warte</b>"
+        ),
         "{h}"
     );
     assert!(
-        h.contains("<span class=\"mark\">光</span><b>Photos</b></a>"),
+        h.contains("<span class=\"mark\" aria-hidden=\"true\">光</span><b>Photos</b></a>"),
         "{h}"
     );
     assert!(
-        h.contains("<span class=\"mark\">L</span><b>Login</b></a>"),
+        h.contains("<span class=\"mark\" aria-hidden=\"true\">L</span><b>Login</b></a>"),
         "{h}"
     );
     assert_eq!(h.matches("<a ").count(), 1 + f.apps.len(), "{h}");
@@ -448,7 +453,7 @@ fn version_2_marks_render_and_a_missing_mark_falls_back_to_the_first_letter() {
     v["apps"][1]["name"] = "ärger".into();
     let h = html(&parse(&v).unwrap(), "warte");
     assert!(
-        h.contains("<span class=\"mark\">Ä</span><b>ärger</b>"),
+        h.contains("<span class=\"mark\" aria-hidden=\"true\">Ä</span><b>ärger</b>"),
         "{h}"
     );
 }
@@ -506,4 +511,19 @@ fn the_check_command_accepts_version_2() {
     std::fs::write(&p, example_v2().to_string()).unwrap();
     let (code, out, err) = run(&["nav", "check", p.to_str().unwrap(), "--self", "warte"]);
     assert_eq!((code, out.trim()), (0, "ok: nav v2, 3 apps"), "{err}");
+}
+
+// rivet: verifies REQ-NAV-003
+#[test]
+fn the_menu_is_byte_for_byte_the_contract_markup() {
+    let f = parse(&example_v2()).unwrap();
+    let want = concat!(
+        r#"<details class="appswitch"><summary aria-label="House apps" title="House apps"><span class="dots" aria-hidden="true"><i></i><i></i><i></i><i></i></span></summary>"#,
+        r#"<nav class="apps" aria-label="House apps"><a class="home" href="/"><span class="mark" aria-hidden="true">←</span><b>tower</b><span>Home</span></a>"#,
+        r#"<a href="/warte/" aria-current="page"><span class="mark" aria-hidden="true">見</span><b>warte</b><span>control tower</span></a>"#,
+        r#"<a href="/photos/"><span class="mark" aria-hidden="true">光</span><b>Photos</b></a>"#,
+        r#"<a href="https://login.example.internal/"><span class="mark" aria-hidden="true">L</span><b>Login</b></a>"#,
+        "</nav></details>"
+    );
+    assert_eq!(html(&f, "warte"), want);
 }

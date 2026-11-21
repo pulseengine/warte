@@ -207,9 +207,9 @@ pub fn mark(a: &App) -> String {
 /// `1 + apps.len()` links.
 pub fn html(f: &NavFile, self_id: &str) -> String {
     let mut s = format!(
-        "<details class=\"appswitch\"><summary aria-label=\"House apps\"><span class=\"dots\"><i></i><i></i><i></i><i></i></span></summary>\
+        "<details class=\"appswitch\"><summary aria-label=\"House apps\" title=\"House apps\"><span class=\"dots\" aria-hidden=\"true\"><i></i><i></i><i></i><i></i></span></summary>\
          <nav class=\"apps\" aria-label=\"House apps\">\
-         <a class=\"home\" href=\"{}\"><span class=\"mark\">←</span><b>{}</b><span>Home</span></a>",
+         <a class=\"home\" href=\"{}\"><span class=\"mark\" aria-hidden=\"true\">←</span><b>{}</b><span>Home</span></a>",
         esc(&f.home.url),
         esc(f.home.name.trim())
     );
@@ -225,7 +225,7 @@ pub fn html(f: &NavFile, self_id: &str) -> String {
             ""
         };
         s.push_str(&format!(
-            "<a href=\"{}\"{current}><span class=\"mark\">{}</span><b>{}</b>{desc}</a>",
+            "<a href=\"{}\"{current}><span class=\"mark\" aria-hidden=\"true\">{}</span><b>{}</b>{desc}</a>",
             esc(&a.url),
             esc(&mark(a)),
             esc(a.name.trim())

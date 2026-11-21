@@ -39,7 +39,7 @@ artifacts:
     title: tests/nav.rs renders the doc's version 2 example and refuses every bad mark
     status: verified
     release: v1.6.42
-    description: "version_2_marks_render_and_a_missing_mark_falls_back_to_the_first_letter renders the contract's version 2 example: 見 on the own entry, 光, and L for Login, the same links as version 1; a lower-case name falls back to its upper-cased letter. a_mark_follows_the_rules_and_only_in_version_2 refuses an empty mark, nine code points, whitespace, <, &, a quote, a backslash, a control character, a number, and a mark in a version 1 file, each naming apps[2].mark, and accepts eight code points, a ZWJ emoji and 家. the_check_command_accepts_version_2 prints 'ok: nav v2, 3 apps'. The existing nav tests pin the menu markup, no title attribute, the link count and the byte-identical page without [nav]."
+    description: "version_2_marks_render_and_a_missing_mark_falls_back_to_the_first_letter renders the contract's version 2 example: 見 on the own entry, 光, and L for Login, the same links as version 1; a lower-case name falls back to its upper-cased letter. a_mark_follows_the_rules_and_only_in_version_2 refuses an empty mark, nine code points, whitespace, <, &, a quote, a backslash, a control character, a number, and a mark in a version 1 file, each naming apps[2].mark, and accepts eight code points, a ZWJ emoji and 家. the_check_command_accepts_version_2 prints 'ok: nav v2, 3 apps'. the_menu_is_byte_for_byte_the_contract_markup pins the exact strings every app emits. The existing nav tests pin no title attribute, the link count and the byte-identical page without [nav]."
     links:
       - type: verifies
         target: REQ-NAV-003

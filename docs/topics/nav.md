@@ -95,10 +95,10 @@ The same for both versions (owner decision 2026-11-21): a menu at the top
 right of the page header, identical in every app.
 
 ```html
-<details class="appswitch"><summary aria-label="House apps"><span class="dots"><i></i><i></i><i></i><i></i></span></summary>
+<details class="appswitch"><summary aria-label="House apps" title="House apps"><span class="dots" aria-hidden="true"><i></i><i></i><i></i><i></i></span></summary>
 <nav class="apps" aria-label="House apps">
-<a class="home" href="{home.url}"><span class="mark">←</span><b>{home.name}</b><span>Home</span></a>
-<a href="{url}"[ aria-current="page"]><span class="mark">{mark}</span><b>{name}</b>[<span>{desc}</span>]</a>  (per app)
+<a class="home" href="{home.url}"><span class="mark" aria-hidden="true">←</span><b>{home.name}</b><span>Home</span></a>
+<a href="{url}"[ aria-current="page"]><span class="mark" aria-hidden="true">{mark}</span><b>{name}</b>[<span>{desc}</span>]</a>  (per app)
 </nav></details>
 ```
 
