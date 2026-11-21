@@ -606,3 +606,33 @@ details.internals > summary:focus-visible { outline: 2px solid var(--accent); ou
 .north-star-line { margin: .5rem 0; font: .82rem var(--mono); color: var(--text); font-variant-numeric: tabular-nums; }
 .north-star-line .label { color: var(--accent); letter-spacing: .12em; text-transform: uppercase; font-size: .7rem; margin-right: .5rem; }
 .north-star-line a { margin-left: .5rem; }
+
+/* REQ-NS-005: the North Star view */
+.north-star .ns-star { font-size: 1.05rem; line-height: 1.5; max-width: 46rem; margin: .8rem 0 .3rem; padding-left: .9rem; border-left: 3px solid var(--accent); color: var(--text); }
+.north-star .ns-meta { font-size: .78rem; color: var(--text-dim); margin: .15rem 0; font-variant-numeric: tabular-nums; }
+.north-star .ns-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); gap: .9rem; margin-top: 1rem; }
+.north-star .ns-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: .9rem 1rem; display: grid; gap: .45rem; align-content: start; min-width: 0; }
+.north-star .ns-card--stale, .north-star .ns-card--off-target { border-color: var(--amber); }
+.north-star .ns-top { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+.north-star .ns-id { font: 700 .85rem var(--mono); color: var(--text-dim); }
+.north-star .ns-title { font-size: .98rem; margin: 0; color: var(--text); }
+.north-star .ns-state, .north-star .ns-kind, .north-star .ns-counts { font-size: .62rem; text-transform: uppercase; letter-spacing: .08em; font-weight: 700; padding: .1rem .4rem; border-radius: 4px; background: var(--raise); color: var(--text-dim); }
+.north-star .ns-state--measured, .north-star .ns-counts--yes, .north-star .ns-kind--committed { color: var(--green); }
+.north-star .ns-state--unmeasured, .north-star .ns-state--stale { color: var(--amber); }
+.north-star .ns-state--off-target, .north-star .ns-age--stale { color: var(--red); }
+.north-star .ns-summary { margin: 0; color: var(--text-dim); line-height: 1.5; font-size: .85rem; }
+.north-star .ns-value { margin: .2rem 0 0; font: .95rem var(--mono); color: var(--text); }
+.north-star .ns-value strong { font-size: 1.15rem; color: var(--green); }
+.north-star .ns-unmeasured { color: var(--amber); }
+.north-star .ns-bar { height: 6px; border-radius: 3px; background: var(--raise); overflow: hidden; }
+.north-star .ns-bar span { display: block; height: 100%; background: var(--green); }
+.north-star .ns-rows, .north-star .ns-commitments { margin: 0; padding-left: 1.1rem; font-size: .8rem; color: var(--text-dim); display: grid; gap: .2rem; }
+.north-star .ns-controls, .north-star .ns-blind, .north-star .ns-target { font-size: .76rem; color: var(--dim); }
+.north-star .ns-period-id, .north-star .ns-layer { font-family: var(--mono); color: var(--text); }
+.north-star .ns-trend { font-size: .78rem; color: var(--text-dim); }
+.north-star .ns-trend ul { list-style: none; margin: .2rem 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: .3rem .9rem; font-family: var(--mono); }
+.north-star .ns-trend-label { font-size: .7rem; color: var(--dim); }
+.north-star .ns-dl { display: grid; grid-template-columns: auto 1fr; gap: .25rem .7rem; margin: .2rem 0 0; font-size: .8rem; }
+.north-star .ns-dl dt { color: var(--dim); font-weight: 600; }
+.north-star .ns-dl dd { margin: 0; color: var(--text-dim); }
+.north-star .ns-repo { font-family: var(--mono); }

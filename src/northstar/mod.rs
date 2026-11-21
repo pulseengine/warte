@@ -11,14 +11,17 @@ use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use std::time::Duration;
 
+pub mod view;
+
 fn default_base_url() -> String {
     "https://raw.githubusercontent.com/pulseengine/pulseengine.eu/main/data".into()
 }
 fn default_interval_s() -> u64 {
     6 * 3600
 }
+/// A month, as the publisher's monthly check counts it (REQ-NS-005).
 fn default_stale_after_days() -> i64 {
-    45
+    31
 }
 
 /// `[north_star]` in warte.toml.
@@ -51,43 +54,195 @@ impl NorthStarConfig {
 }
 
 /// An objective as the North Star file names it.
-#[derive(Debug, Clone, Serialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, PartialEq, Default)]
 pub struct Objective {
     pub id: String,
     pub title: String,
     pub guard: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub summary: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub indicator: String,
+    /// The state the North Star file declares (`measured`, `unmeasured`), as
+    /// published; empty when the file names none.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub declared: String,
 }
 
-/// The published file: only the fields warte shows; the rest is ignored.
+/// A product or tool repository and the objectives it pulls.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct Puller {
+    pub name: String,
+    /// A product's own North Star; empty for a tool repository.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub north_star: String,
+    pub pulls: Vec<String>,
+    pub product: bool,
+}
+
+/// One commitment of a period, as published.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct Commitment {
+    pub period: String,
+    /// The varve layers the period spans (`2026.11`).
+    pub layers: Vec<String>,
+    pub objective: String,
+    /// `committed` or `stretch`.
+    pub kind: String,
+    pub target: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub target_value: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub target_of: Option<f64>,
+}
+
+/// Everything of north-star.toml the view shows (REQ-NS-005).
+#[derive(Debug, Clone, Serialize, PartialEq, Default)]
+pub struct Board {
+    pub north_star: String,
+    pub updated: String,
+    pub objectives: Vec<Objective>,
+    pub pullers: Vec<Puller>,
+    pub commitments: Vec<Commitment>,
+}
+
+/// The objectives of the published file (REQ-NS-001); see [`parse_board`].
 pub fn parse_objectives(toml_text: &str) -> Result<Vec<Objective>, String> {
+    parse_board(toml_text).map(|b| b.objectives)
+}
+
+/// The published north-star.toml, as data: every text cleaned and cut, lists
+/// capped, objective ids checked; fields warte does not show are ignored.
+pub fn parse_board(toml_text: &str) -> Result<Board, String> {
     #[derive(Deserialize)]
     struct File {
         #[serde(default)]
-        objectives: Vec<Raw>,
+        north_star: String,
+        #[serde(default)]
+        updated: String,
+        #[serde(default)]
+        objectives: Vec<RawObjective>,
+        #[serde(default)]
+        products: Vec<RawPuller>,
+        #[serde(default)]
+        tool_repos: Vec<RawPuller>,
+        #[serde(default)]
+        periods: Vec<RawPeriod>,
     }
     #[derive(Deserialize)]
-    struct Raw {
+    struct RawObjective {
         id: String,
         title: String,
         #[serde(default)]
         guard: String,
+        #[serde(default)]
+        summary: String,
+        #[serde(default)]
+        indicator: String,
+        #[serde(default)]
+        state: String,
+    }
+    #[derive(Deserialize)]
+    struct RawPuller {
+        name: String,
+        #[serde(default)]
+        north_star: String,
+        #[serde(default)]
+        pulls: Vec<String>,
+    }
+    #[derive(Deserialize)]
+    struct RawPeriod {
+        id: String,
+        #[serde(default)]
+        layers: Vec<String>,
+        #[serde(default)]
+        commitments: Vec<RawCommitment>,
+    }
+    #[derive(Deserialize)]
+    struct RawCommitment {
+        objective: String,
+        #[serde(default)]
+        kind: String,
+        #[serde(default)]
+        target: String,
+        target_value: Option<f64>,
+        target_of: Option<f64>,
     }
     let f: File =
         toml::from_str(toml_text).map_err(|_| "north-star.toml does not parse".to_string())?;
-    let out: Vec<Objective> = f
+    let objectives: Vec<Objective> = f
         .objectives
         .into_iter()
         .filter(|o| id_ok(&o.id))
+        .take(MAX_LIST)
         .map(|o| Objective {
             id: o.id,
             title: clean(&o.title, 120),
             guard: clean(&o.guard, 600),
+            summary: clean(&o.summary, 600),
+            indicator: clean(&o.indicator, 800),
+            declared: clean(&o.state, 20),
         })
         .collect();
-    if out.is_empty() {
+    if objectives.is_empty() {
         return Err("north-star.toml names no objective".into());
     }
-    Ok(out)
+    let ids = |v: Vec<String>| -> Vec<String> {
+        v.into_iter().filter(|i| id_ok(i)).take(MAX_LIST).collect()
+    };
+    let pullers = f
+        .products
+        .into_iter()
+        .map(|p| (p, true))
+        .chain(f.tool_repos.into_iter().map(|p| (p, false)))
+        .filter(|(p, _)| repo_name_ok(&p.name))
+        .take(MAX_LIST)
+        .map(|(p, product)| Puller {
+            name: p.name,
+            north_star: clean(&p.north_star, 600),
+            pulls: ids(p.pulls),
+            product,
+        })
+        .collect();
+    let mut commitments = Vec::new();
+    for p in f.periods.into_iter().take(MAX_LIST) {
+        let period = clean(&p.id, 20);
+        let layers: Vec<String> = p.layers.iter().take(12).map(|l| clean(l, 20)).collect();
+        for c in p.commitments.into_iter().take(MAX_LIST) {
+            if !id_ok(&c.objective) {
+                continue;
+            }
+            let finite = |x: Option<f64>| x.filter(|v| v.is_finite());
+            commitments.push(Commitment {
+                period: period.clone(),
+                layers: layers.clone(),
+                objective: c.objective,
+                kind: clean(&c.kind, 20),
+                target: clean(&c.target, 600),
+                target_value: finite(c.target_value),
+                target_of: finite(c.target_of),
+            });
+        }
+    }
+    Ok(Board {
+        north_star: clean(&f.north_star, 600),
+        updated: clean(&f.updated, 40),
+        objectives,
+        pullers,
+        commitments,
+    })
+}
+
+/// At most this many entries of any published list are kept.
+const MAX_LIST: usize = 50;
+
+/// A repository name as GitHub allows it, so it can form a link.
+pub fn repo_name_ok(s: &str) -> bool {
+    !s.is_empty()
+        && s.len() <= 100
+        && s.chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
+        && !s.starts_with('.')
 }
 
 /// An objective id as the North Star uses them: `O` and digits.
@@ -104,7 +259,7 @@ fn clean(s: &str, max: usize) -> String {
 }
 
 /// One published measurement of one objective.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct Observation {
     pub objective: String,
     /// When the publisher measured it (RFC 3339, as published).
@@ -122,6 +277,43 @@ pub struct Observation {
     /// The publisher's schema version; 0 until one is sent.
     #[serde(default)]
     pub schema_version: u32,
+    /// The period the value covers, when the indicator names one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub period: Option<String>,
+    /// Per-repository facts (`repos[]`) and per-item evidence (`items[]`),
+    /// in one list, as published (REQ-NS-005).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub evidence: Vec<Evidence>,
+    /// What the value leaves out, and why.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub not_counted: Vec<NotCounted>,
+}
+
+/// One row of an indicator file's evidence.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct Evidence {
+    /// The repository (`wohl`) or the item (`loom#428`).
+    pub label: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub release: String,
+    /// The published verdict (`pass`, `absent`, a verdict text), if any.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub verdict: String,
+    /// Whether this row counts in the value, when the file says.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub counts: Option<bool>,
+    /// Negative controls and their outcome, as published.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub controls: Vec<(String, String)>,
+    /// An https link to the evidence.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub url: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct NotCounted {
+    pub what: String,
+    pub reason: String,
 }
 
 /// Read a published `<id>.json` (schema 0: no version field yet). The file
@@ -152,7 +344,88 @@ pub fn parse_observation(objective: &str, json: &str) -> Result<Observation, Str
             .map(|s| clean(s, 200))
             .or_else(|| num("guard_value").map(|x| x.to_string())),
         schema_version: v["schema_version"].as_u64().unwrap_or(0).min(1000) as u32,
+        period: text("period", 60),
+        evidence: evidence(&v),
+        not_counted: v["not_counted"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .take(MAX_LIST)
+            .filter_map(|n| {
+                let what = n["product"].as_str().or(n["repo"].as_str())?;
+                Some(NotCounted {
+                    what: clean(what, 100),
+                    reason: n["reason"]
+                        .as_str()
+                        .map(|r| clean(r, 300))
+                        .unwrap_or_default(),
+                })
+            })
+            .collect(),
     })
+}
+
+/// `repos[]` and `items[]` of an indicator file as evidence rows. A release
+/// links to its GitHub release page under the pulseengine organisation, as
+/// the site does; an item links only to an https URL it carries.
+fn evidence(v: &serde_json::Value) -> Vec<Evidence> {
+    let s =
+        |x: &serde_json::Value, max: usize| x.as_str().map(|t| clean(t, max)).unwrap_or_default();
+    let mut out = Vec::new();
+    for r in v["repos"].as_array().into_iter().flatten().take(MAX_LIST) {
+        let repo = s(&r["repo"], 100);
+        if !repo_name_ok(&repo) {
+            continue;
+        }
+        let release = s(&r["release"], 80);
+        let url = if repo_name_ok(&release) {
+            format!("https://github.com/pulseengine/{repo}/releases/tag/{release}")
+        } else {
+            String::new()
+        };
+        let controls = r["controls"]
+            .as_object()
+            .into_iter()
+            .flatten()
+            .take(10)
+            .map(|(k, c)| (clean(k, 80), s(c, 40)))
+            .collect();
+        out.push(Evidence {
+            label: repo,
+            release,
+            verdict: s(&r["verify"], 80),
+            counts: r["counts"].as_bool(),
+            controls,
+            url,
+        });
+    }
+    for i in v["items"].as_array().into_iter().flatten().take(MAX_LIST) {
+        let label = i["pr"]
+            .as_str()
+            .or(i["label"].as_str())
+            .map(|t| clean(t, 120));
+        let Some(label) = label.filter(|l| !l.is_empty()) else {
+            continue;
+        };
+        let url = i["url"]
+            .as_str()
+            .filter(|u| crate::news::link_ok(u))
+            .map(|u| clean(u, 300))
+            .unwrap_or_default();
+        let verdict = if i["in_value"].as_bool() == Some(false) {
+            "reported separately, not in the value".to_string()
+        } else {
+            s(&i["verdict"], 120)
+        };
+        out.push(Evidence {
+            label,
+            verdict,
+            counts: i["counts"].as_bool(),
+            url,
+            ..Default::default()
+        });
+    }
+    out
 }
 
 /// `measured_at` as unix seconds; the publisher writes `2026-11-18T11:32Z`
@@ -193,7 +466,8 @@ pub fn rows(
     objectives
         .iter()
         .map(|o| {
-            let gone = published.is_some_and(|p| !p.contains(&o.id));
+            // the North Star declaring it unmeasured wins over any file
+            let gone = published.is_some_and(|p| !p.contains(&o.id)) || o.declared == "unmeasured";
             let mut mine: Vec<&Observation> = history
                 .iter()
                 .filter(|h| h.objective == o.id && !gone)
@@ -223,7 +497,7 @@ pub fn rows(
         .collect()
 }
 
-fn num(x: f64) -> String {
+pub(crate) fn num(x: f64) -> String {
     if x.fract() == 0.0 && x.abs() < 1e15 {
         format!("{}", x as i64)
     } else {
@@ -311,6 +585,7 @@ pub struct NorthStar {
     pub config: NorthStarConfig,
     pub store: Store,
     objectives: Mutex<Vec<Objective>>,
+    board: Mutex<Option<Board>>,
     /// The objectives whose file existed at the last poll; none before it.
     published: Mutex<Option<std::collections::BTreeSet<String>>>,
     /// The last poll: when, and its result kind (`ok`, `http 404`, ...).
@@ -344,6 +619,7 @@ impl NorthStar {
             config,
             store: Store::open(data_dir),
             objectives: Mutex::new(vec![]),
+            board: Mutex::new(None),
             published: Mutex::new(None),
             last_poll: Mutex::new(None),
             http,
@@ -355,6 +631,11 @@ impl NorthStar {
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .clone()
+    }
+
+    /// The last North Star file read, if any poll has read one.
+    pub fn board(&self) -> Option<Board> {
+        self.board.lock().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
     pub fn rows(&self, now: i64) -> Vec<Row> {
@@ -408,9 +689,10 @@ impl NorthStar {
         let result = match self.fetch(&format!("{base}/north-star.toml")).await {
             Err(e) => e,
             Ok(None) => "north-star.toml not found".into(),
-            Ok(Some(t)) => match parse_objectives(&t) {
+            Ok(Some(t)) => match parse_board(&t) {
                 Err(e) => e,
-                Ok(objs) => {
+                Ok(board) => {
+                    let objs = board.objectives.clone();
                     let mut bad = vec![];
                     let mut published = std::collections::BTreeSet::new();
                     for o in &objs {
@@ -437,6 +719,7 @@ impl NorthStar {
                     }
                     *self.published.lock().unwrap_or_else(|e| e.into_inner()) = Some(published);
                     *self.objectives.lock().unwrap_or_else(|e| e.into_inner()) = objs;
+                    *self.board.lock().unwrap_or_else(|e| e.into_inner()) = Some(board);
                     if bad.is_empty() {
                         "ok".into()
                     } else {

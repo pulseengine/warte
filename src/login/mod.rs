@@ -668,6 +668,8 @@ pub const PUBLIC: &[&str] = &[
     "/api/dashboard/machine-history-partial",
     "/api/dashboard/jobs-partial",
     "/api/dashboard/compliance-partial",
+    // REQ-NS-005: public, like the North Star and /api/north-star
+    "/api/dashboard/north-star-partial",
     "/api/dashboard/queue-partial",
     "/api/dashboard/ci-history-partial",
     "/api/dashboard/critical-path-partial",

@@ -178,6 +178,10 @@ pub fn build_routes() -> Router<AppState> {
             get(crate::dashboard::compliance_partial),
         )
         .route(
+            "/api/dashboard/north-star-partial",
+            get(crate::dashboard::north_star_partial),
+        )
+        .route(
             "/api/dashboard/costs-partial",
             get(crate::dashboard::costs_partial),
         )
@@ -647,6 +651,8 @@ async fn api_north_star(State(state): State<AppState>) -> axum::response::Respon
     Json(serde_json::json!({
         "rows": rows,
         "line": crate::northstar::glance_line(&rows),
+        // REQ-NS-005: the published North Star, commitments and members
+        "board": n.board(),
         "stale_after_days": n.config.stale_after_days,
         "last_poll": last.map(|(at, result)| serde_json::json!({"at": at, "result": result})),
     }))

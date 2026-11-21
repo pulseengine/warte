@@ -47,6 +47,7 @@ fn obs(o: &str, at: &str, value: f64, of: f64) -> Observation {
         blind_spot: None,
         guard_value: None,
         schema_version: 0,
+        ..Default::default()
     }
 }
 
@@ -235,7 +236,7 @@ fn the_config_refuses_plain_http_and_silly_numbers() {
     let ok = NorthStarConfig {
         base_url: "https://raw.githubusercontent.com/pulseengine/pulseengine.eu/main/data".into(),
         interval_s: 21600,
-        stale_after_days: 45,
+        stale_after_days: 31,
     };
     assert!(ok.check().is_ok());
     for bad in [
@@ -271,4 +272,288 @@ async fn live_published_files_parse() {
     let r = n.rows(now);
     assert!(r.len() >= 5, "{r:?}");
     eprintln!("LIVE: {}", glance_line(&r));
+}
+
+// ---- the North Star view (REQ-NS-005) ----
+
+/// The published file in its 2026-11-20 shape, cut down.
+const BOARD: &str = r#"
+north_star = "A safety-critical product team can take a component to a microcontroller."
+updated = "2026-11-20"
+[[products]]
+name = "relay"
+north_star = "Flight-software components, machine-checked."
+pulls = ["O2", "O3"]
+[[products]]
+name = "wohl"
+north_star = "A home supervision system you can leave alone."
+pulls = ["O2"]
+[[tool_repos]]
+name = "gale"
+pulls = ["O3"]
+[[objectives]]
+id = "O1"
+title = "Runs on target"
+summary = "A component runs on a real microcontroller."
+indicator = "Per target: the ladder as pass or fail per rung."
+guard = "A skipped hardware run counts as a failure."
+state = "unmeasured"
+[[objectives]]
+id = "O2"
+title = "One-command evidence bundle"
+summary = "A consumer release carries one verifiable bundle."
+indicator = "Consumer repositories whose latest release carries the full bundle."
+guard = "The verify command must fail when any piece of evidence is removed."
+state = "measured"
+[[objectives]]
+id = "O4"
+title = "Not only one person <script>"
+indicator = "Merged pull requests per month by people other than the maintainer."
+guard = "Reverted or reopened work."
+state = "measured"
+[[periods]]
+id = "2026-Q4"
+layers = ["2026.11", "2026.12"]
+[[periods.commitments]]
+objective = "O2"
+kind = "committed"
+target = "One wohl release carries the full bundle."
+[[periods]]
+id = "2027-Q1"
+layers = ["2027.01", "2027.02", "2027.03"]
+[[periods.commitments]]
+objective = "O2"
+kind = "stretch"
+target = "relay adds the MC/DC part."
+"#;
+
+const O2: &str = r#"{"schema_version":1,"objective":"O2","measured_at":"2026-11-17T19:27Z",
+"verifier":"sigil wsc v0.12.1","value":1,"of":2,
+"repos":[{"repo":"relay","release":"falcon-v1.142.0","bundle":null,"verify":"absent","controls":null,"counts":false},
+{"repo":"wohl","release":"v0.7.0","verify":"pass","controls":{"deleted evidence file":"red","altered signed component":"red"},"counts":true}],
+"blind_spot":"inner bundle consistency only; the cosign/SLSA outer chain is not checked"}"#;
+
+const O4: &str = r#"{"schema_version":1,"objective":"O4","measured_at":"2026-11-18T11:32Z",
+"verifier":"GitHub search","period":"2026-10-01..2026-10-31","value":1,"of":839,
+"items":[{"pr":"loom#428","url":"https://github.com/pulseengine/loom/pull/428"},{"pr":"x#1","url":"javascript:alert(1)"}],
+"not_counted":[{"product":"jess","reason":"no release yet"}],
+"blind_spot":"time from ready to first pick-up is not measured yet"}"#;
+
+async fn view_of(files: &Files, n: &NorthStar, now: i64) -> String {
+    let _ = files;
+    n.poll(now).await;
+    let last = n.last_poll.lock().unwrap().clone();
+    warte::northstar::view::page(
+        n.board().as_ref(),
+        &n.rows(now),
+        &n.store.all(),
+        last.as_ref(),
+        now,
+        n.config.stale_after_days,
+    )
+}
+
+/// The card of one objective, from its opening tag to the next card.
+fn card<'a>(page: &'a str, id: &str) -> &'a str {
+    let start = page
+        .find(&format!(r#"id="ns-{id}""#))
+        .unwrap_or_else(|| panic!("no card for {id}"));
+    let rest = &page[start..];
+    &rest[..rest.find("</article>").unwrap()]
+}
+
+fn ns(base: String) -> (tempfile::TempDir, NorthStar) {
+    let dir = tempfile::tempdir().unwrap();
+    let n = NorthStar::new(
+        NorthStarConfig {
+            base_url: base,
+            interval_s: 3600,
+            stale_after_days: 31,
+        },
+        dir.path(),
+    );
+    (dir, n)
+}
+
+// rivet: verifies REQ-NS-005
+#[tokio::test]
+async fn the_view_shows_the_published_files_and_moves_when_they_change() {
+    let files: Files = Arc::new(Mutex::new(BTreeMap::new()));
+    {
+        let mut f = files.lock().unwrap();
+        f.insert("north-star.toml".into(), BOARD.into());
+        f.insert("north-star/O2.json".into(), O2.into());
+        f.insert("north-star/O4.json".into(), O4.into());
+    }
+    let (_d, n) = ns(serve(files.clone()).await);
+    let now = day("2026-11-20T08:00Z");
+    let page = view_of(&files, &n, now).await;
+
+    assert!(page.contains("A safety-critical product team"));
+    assert!(page.contains("Updated 2026-11-20"));
+    // O2: the value with its denominator, the evidence rows and the controls
+    let o2 = card(&page, "O2");
+    assert!(o2.contains("<strong>1 of 2</strong>"), "{o2}");
+    assert!(o2.contains(r#"aria-label="1 of 2""#));
+    assert!(o2.contains("measured 2026-11-17T19:27Z with sigil wsc v0.12.1"));
+    assert!(o2.contains("first observation"));
+    assert!(o2.contains(r#"<a href="https://github.com/pulseengine/wohl/releases/tag/v0.7.0" rel="noopener">wohl</a> v0.7.0: pass"#), "{o2}");
+    assert!(o2.contains("deleted evidence file red"));
+    assert!(o2.contains("relay</a> falcon-v1.142.0: absent"));
+    assert!(o2.contains("does not count"));
+    // guard and blind spot always shown, the members listed
+    assert!(o2.contains("The verify command must fail"));
+    assert!(o2.contains("inner bundle consistency only"));
+    assert!(o2.contains(">relay</a>") && o2.contains(">wohl</a>"));
+    // the current period's commitment, marked, and the next one
+    assert!(o2.contains("2026-Q4 (now)") && o2.contains("One wohl release carries"));
+    assert!(o2.contains("2027-Q1</span>") && o2.contains("relay adds the MC/DC part"));
+    // the trend is warte's own, per layer, never interpolated
+    assert!(o2.contains("observed by warte, not the official per-layer series"));
+    assert!(o2.contains(r#"<span class="ns-layer">2026.11</span> 1 of 2"#));
+    assert!(o2.contains(r#"<span class="ns-layer">2026.12</span> —"#));
+    // O1 is declared unmeasured and has no file: the word, never a number
+    let o1 = card(&page, "O1");
+    assert!(o1.contains(">unmeasured</p>"), "{o1}");
+    assert!(
+        !o1.contains(" of "),
+        "an unmeasured objective shows no value: {o1}"
+    );
+    assert!(o1.contains("A skipped hardware run counts as a failure."));
+    assert!(o1.contains("no product or tool repository names it"));
+    // O4: items link only over https, published text is escaped
+    let o4 = card(&page, "O4");
+    assert!(o4.contains(
+        r#"<a href="https://github.com/pulseengine/loom/pull/428" rel="noopener">loom#428</a>"#
+    ));
+    assert!(
+        o4.contains("<li>x#1</li>"),
+        "a javascript: URL is not a link: {o4}"
+    );
+    assert!(!page.contains("javascript:"));
+    assert!(o4.contains("Not only one person &lt;script&gt;"));
+    assert!(!page.contains("<script>"));
+    assert!(o4.contains("Not counted: jess (no release yet)."));
+    assert!(o4.contains("period 2026-10-01..2026-10-31"));
+    // no percentage outside the bar's own width
+    let text: String = page
+        .split("style=\"")
+        .enumerate()
+        .map(|(i, s)| {
+            if i == 0 {
+                s
+            } else {
+                s.split_once('"').map_or("", |x| x.1)
+            }
+        })
+        .collect();
+    assert!(!text.contains('%'), "a percentage without its denominator");
+
+    // planted: the publisher measures again; the page follows
+    files.lock().unwrap().insert(
+        "north-star/O2.json".into(),
+        O2.replace("2026-11-17T19:27Z", "2026-12-02T10:00Z")
+            .replace(r#""value":1"#, r#""value":2"#),
+    );
+    let later = day("2026-12-03T08:00Z");
+    let page = view_of(&files, &n, later).await;
+    let o2 = card(&page, "O2");
+    assert!(o2.contains("<strong>2 of 2</strong>"), "{o2}");
+    assert!(o2.contains("was 1 of 2 on 2026-11-17T19:27Z"));
+    assert!(o2.contains(r#"<span class="ns-layer">2026.11</span> 1 of 2"#));
+    assert!(o2.contains(r#"<span class="ns-layer">2026.12</span> 2 of 2"#));
+    // planted: O4's file goes; one poll later it reads unmeasured
+    files.lock().unwrap().remove("north-star/O4.json");
+    let page = view_of(&files, &n, later).await;
+    assert!(card(&page, "O4").contains(">unmeasured</p>"));
+}
+
+// rivet: verifies REQ-NS-005
+#[tokio::test]
+async fn stale_off_target_and_an_empty_denominator_come_only_from_published_fields() {
+    let with_target = BOARD.replace(
+        "target = \"One wohl release carries the full bundle.\"",
+        "target = \"One wohl release carries the full bundle.\"\ntarget_value = 2\ntarget_of = 2",
+    );
+    for (board, o2, now, want_state, want) in [
+        // no target published: measured, never off-target
+        (
+            BOARD.to_string(),
+            O2.to_string(),
+            "2026-11-20T08:00Z",
+            "measured",
+            "<strong>1 of 2</strong>",
+        ),
+        // a target above the value: off-target, the target shown
+        (
+            with_target.clone(),
+            O2.to_string(),
+            "2026-11-20T08:00Z",
+            "off-target",
+            "target 2 of 2",
+        ),
+        // a target outside the current period does not apply
+        (
+            with_target.clone(),
+            O2.to_string(),
+            "2027-01-05T08:00Z",
+            "stale",
+            "<strong>1 of 2</strong>",
+        ),
+        // older than a month: stale, the age in red, the value still shown
+        (
+            BOARD.to_string(),
+            O2.to_string(),
+            "2026-12-20T08:00Z",
+            "stale",
+            "ns-age--stale",
+        ),
+        // nothing in the denominator
+        (
+            BOARD.to_string(),
+            O2.replace(r#""value":1,"of":2"#, r#""value":0,"of":0"#),
+            "2026-11-20T08:00Z",
+            "measured",
+            "no repo in the denominator",
+        ),
+        // declared unmeasured although a file exists: the declaration wins
+        (
+            BOARD.replace(
+                "state = \"measured\"\n[[objectives]]\nid = \"O4\"",
+                "state = \"unmeasured\"\n[[objectives]]\nid = \"O4\"",
+            ),
+            O2.to_string(),
+            "2026-11-20T08:00Z",
+            "unmeasured",
+            ">unmeasured</p>",
+        ),
+    ] {
+        let files: Files = Arc::new(Mutex::new(BTreeMap::new()));
+        {
+            let mut f = files.lock().unwrap();
+            f.insert("north-star.toml".into(), board);
+            f.insert("north-star/O2.json".into(), o2);
+        }
+        let (_d, n) = ns(serve(files.clone()).await);
+        let page = view_of(&files, &n, day(now)).await;
+        let c = card(&page, "O2");
+        assert!(
+            c.contains(&format!(r#"ns-state--{want_state}">{want_state}<"#)),
+            "{now}: want {want_state}: {c}"
+        );
+        assert!(c.contains(want), "{now}: want {want}: {c}");
+        if want_state == "unmeasured" {
+            assert!(!c.contains(" of 2"), "{c}");
+        }
+    }
+}
+
+// rivet: verifies REQ-NS-005
+#[test]
+fn before_the_first_read_the_view_says_so() {
+    let page = warte::northstar::view::page(None, &[], &[], None, 0, 31);
+    assert!(
+        page.contains("has not been read yet (not read yet)"),
+        "{page}"
+    );
 }
