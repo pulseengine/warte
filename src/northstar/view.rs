@@ -93,7 +93,8 @@ fn card(board: &Board, r: &Row, history: &[Observation], now: i64, stale_days: i
         h += &format!(r#"<p class="ns-summary">{}</p>"#, esc(&o.summary));
     }
     match &r.latest {
-        None => h += r#"<p class="ns-value ns-unmeasured">unmeasured</p>"#,
+        // the badge already says unmeasured; no value line, never a 0
+        None => {}
         Some(l) => {
             if l.of == Some(0.0) {
                 h += r#"<p class="ns-value">no repo in the denominator</p>"#;

@@ -414,7 +414,11 @@ async fn the_view_shows_the_published_files_and_moves_when_they_change() {
     assert!(o2.contains(r#"<span class="ns-layer">2026.12</span> —"#));
     // O1 is declared unmeasured and has no file: the word, never a number
     let o1 = card(&page, "O1");
-    assert!(o1.contains(">unmeasured</p>"), "{o1}");
+    assert!(o1.contains(r#"ns-state--unmeasured">unmeasured<"#), "{o1}");
+    assert!(
+        !o1.contains("ns-value"),
+        "an unmeasured card has no value line: {o1}"
+    );
     assert!(
         !o1.contains(" of "),
         "an unmeasured objective shows no value: {o1}"
@@ -465,7 +469,7 @@ async fn the_view_shows_the_published_files_and_moves_when_they_change() {
     // planted: O4's file goes; one poll later it reads unmeasured
     files.lock().unwrap().remove("north-star/O4.json");
     let page = view_of(&files, &n, later).await;
-    assert!(card(&page, "O4").contains(">unmeasured</p>"));
+    assert!(card(&page, "O4").contains(r#"ns-state--unmeasured">unmeasured<"#));
 }
 
 // rivet: verifies REQ-NS-005
@@ -525,7 +529,7 @@ async fn stale_off_target_and_an_empty_denominator_come_only_from_published_fiel
             O2.to_string(),
             "2026-11-20T08:00Z",
             "unmeasured",
-            ">unmeasured</p>",
+            "ns-state--unmeasured",
         ),
     ] {
         let files: Files = Arc::new(Mutex::new(BTreeMap::new()));
