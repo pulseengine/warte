@@ -630,10 +630,10 @@ fn toolchains() -> Vec<(String, String)> {
     out
 }
 
-/// A literal Rust version: `1.99` or `1.99.1`, or a dated nightly.
+/// An exact Rust version, `1.100.0`, or a dated nightly. `1.100` is refused:
+/// it follows patch releases.
 fn pinned_toolchain(t: &str) -> bool {
-    let release = t.split('.').count() >= 2
-        && t.split('.').count() <= 3
+    let release = t.split('.').count() == 3
         && t.split('.')
             .all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()));
     let nightly = t
@@ -654,10 +654,11 @@ fn every_rust_toolchain_is_one_pinned_version_across_workflows() {
         "${{ matrix.rust }}",
         "1",
         "1.x",
+        "1.100",
     ] {
         assert!(!pinned_toolchain(bad), "{bad}");
     }
-    for good in ["1.99", "1.99.1", "nightly-2026-11-01"] {
+    for good in ["1.100.0", "1.99.1", "nightly-2026-11-01"] {
         assert!(pinned_toolchain(good), "{good}");
     }
     let all = toolchains();
