@@ -1,0 +1,47 @@
+# The grouped menu (warte#187). The owner approved the design on 2026-11-19;
+# on 2026-11-21 the owner put North Star first in the Now group.
+artifacts:
+  - id: REQ-DASH-019
+    type: requirement
+    title: "The menu has five groups instead of 19 tabs; empty views are hidden and the groups carry red and amber counts"
+    status: verified
+    release: v1.6.41
+    description: "The dashboard menu SHALL show five groups (Now, CI, Machines, Agents, Compliance) and, in a second row, the views of the open group only. Now SHALL hold North Star, Overview, Outages and Briefing in that order; every other view SHALL belong to exactly one group. A group SHALL open on its first view that is not hidden; the page with no view in its address SHALL open on Overview. Every view SHALL keep its route and its address, so links and bookmarks still open it and its group. Friction with no report and Artifacts with none SHALL be hidden from the row, which SHALL name what it hides; a link SHALL still open them. GET /api/dashboard/nav-state SHALL answer the hidden views and per group a red and an amber count from the same sources as the views: outages for Now, forecasts for Machines, failing temper checks (red) and a stale or missing sweep (amber) for Compliance. A count the server cannot read SHALL show the view, never hide it."
+    fields:
+      category: functional
+      priority: should
+      upstream-ref: https://github.com/pulseengine/warte/issues/187
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-21T08:30:00Z
+
+  - id: DD-DASH-019
+    type: design-decision
+    title: The groups are a row of buttons over the existing view buttons; hiding and counts come from one small public endpoint
+    status: verified
+    release: v1.6.41
+    description: "The 20 view buttons stay as they were (same labels, routes and htmx attributes), each inside one nav row per group; a group row above them switches which row shows. The URL hash still names the view, so a link opens its view and its group. /api/dashboard/nav-state is read at load and every 30 s; it carries counts and view names only and is public like the views it counts."
+    fields:
+      rationale: "Keeping the view buttons and their labels keeps every route, every address and the existing browser tests valid; only the click into a view goes through its group. Hiding needs a known zero, so an unreadable count shows the view. Red and amber counts reuse what the Overview, Machines and Compliance views already compute instead of a second rule set. Deferred: the 'Needs your attention' strip (the second step of #187), Decisions (#184) and the night glance (#179), which the issue plans into Now and Agents; and the CI and Agents counts, which have no red or amber source yet."
+    links:
+      - type: satisfies
+        target: REQ-DASH-019
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-21T08:30:00Z
+
+  - id: TEST-DASH-019
+    type: verification
+    title: tests/menu.rs pins the five groups, every view once, the landing and the hidden views; tests/playwright drives the groups in a browser
+    status: verified
+    release: v1.6.41
+    description: "five_groups_hold_every_view_once_and_overview_is_the_landing reads the template: groups now, ci, machines, agents, compliance; 20 views, each route and label once; Now is North Star, Overview, Outages, Briefing; only Overview is the landing. an_empty_view_is_hidden_and_shown_again_once_it_has_data: an empty database hides friction and artifacts and every group has red and amber counts; one friction row brings Friction back. every_view_in_the_menu_still_answers_on_its_route requests all 20 routes. Negative control: never hiding Friction failed the hidden-view test. The Playwright spec opens each view through its group, checks the five groups, the landing on Overview in Now, a group opening its first view, and a link opening its group; a hidden view is opened by its link."
+    links:
+      - type: verifies
+        target: REQ-DASH-019
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-21T08:30:00Z

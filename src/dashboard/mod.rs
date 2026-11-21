@@ -271,6 +271,65 @@ pub async fn jobs_partial(State(state): State<crate::server::AppState>) -> Respo
 }
 
 /// HTMX partial: compliance from temper's report (REQ-TEMPER-002).
+/// REQ-DASH-019: what the grouped menu needs: the views to hide while empty
+/// and red and amber counts per group, from the same sources as the views.
+/// Public like the views it counts; it carries counts and view names only.
+pub async fn nav_state(State(state): State<crate::server::AppState>) -> Response {
+    let now = crate::hub::now();
+    // an unanswered count shows the view: hiding needs a known zero
+    let friction: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM agent_data WHERE data_type = 'friction'")
+            .fetch_one(state.db.pool())
+            .await
+            .unwrap_or((1,));
+    let artifacts = state.artifacts.list().await.map(|a| a.len()).unwrap_or(1);
+    let mut hidden = Vec::new();
+    if friction.0 == 0 {
+        hidden.push("friction");
+    }
+    if artifacts == 0 {
+        hidden.push("artifacts");
+    }
+    let outages = state
+        .hub
+        .as_ref()
+        .and_then(fleet::detected)
+        .map(|(l, _)| l.len())
+        .unwrap_or(0)
+        + fleet::host_detected(&state, now).len();
+    let forecasts = state
+        .machines
+        .as_ref()
+        .and_then(|m| crate::forecast::of_machines(m, now))
+        .map(|f| f.items.len())
+        .unwrap_or(0);
+    let stale_after = state
+        .config
+        .temper
+        .as_ref()
+        .map(|t| t.stale_after_s)
+        .unwrap_or(26 * 3600);
+    let (temper_red, temper_amber) = match state.temper.as_ref().map(|t| t.latest()) {
+        Some(Some(s)) => (
+            s.report.failures().len(),
+            usize::from(now - s.received_at > stale_after),
+        ),
+        Some(None) => (0, 1),
+        None => (0, 0),
+    };
+    axum::Json(serde_json::json!({
+        "hidden": hidden,
+        "badges": {
+            "now": {"red": outages, "amber": 0},
+            "ci": {"red": 0, "amber": 0},
+            "machines": {"red": 0, "amber": forecasts},
+            "agents": {"red": 0, "amber": 0},
+            "compliance": {"red": temper_red, "amber": temper_amber},
+        },
+    }))
+    .into_response()
+}
+
 /// REQ-NS-005: the North Star view, as published plus the trend warte observed.
 pub async fn north_star_partial(State(state): State<crate::server::AppState>) -> Response {
     let Some(n) = state.north_star.as_deref() else {

@@ -30,8 +30,28 @@ const VIEWS = [
   "Artifacts",
 ];
 
+// REQ-DASH-019: which group holds each view
+const GROUP_OF: Record<string, string> = {
+  "North Star": "Now", Overview: "Now", Outages: "Now", Briefing: "Now",
+  Queue: "CI", Airport: "CI", "CI history": "CI", "Critical Path": "CI",
+  Jobs: "CI", Resources: "CI", Schedule: "CI", Ask: "CI",
+  Machines: "Machines", Health: "Machines",
+  Agents: "Agents", Costs: "Agents", Skills: "Agents", Friction: "Agents", Artifacts: "Agents",
+  Compliance: "Compliance",
+};
+
+// Open the view's group, then the view. A view hidden while empty is still
+// opened by its link.
 async function openView(page: Page, name: string) {
-  await page.getByRole("button", { name, exact: true }).click();
+  await page.locator(".nav-groups").getByRole("button", { name: GROUP_OF[name], exact: true }).click();
+  await waitForHtmx(page);
+  const btn = page.locator(".nav-views").getByRole("button", { name, exact: true });
+  if ((await btn.count()) === 0) {
+    await page.evaluate((h) => { location.hash = h; }, "#" + name.toLowerCase().replace(/\s+/g, "-"));
+    await page.reload();
+  } else {
+    await btn.click();
+  }
   await waitForHtmx(page);
 }
 
@@ -90,7 +110,7 @@ test.describe("the view is in the URL", () => {
     await expect(page).toHaveURL(/#machines$/);
     await page.reload();
     await waitForHtmx(page);
-    await expect(page.getByRole("button", { name: "Machines", exact: true })).toHaveClass(/active/);
+    await expect(page.locator(".nav-views").getByRole("button", { name: "Machines", exact: true })).toHaveClass(/active/);
     await expect(page.locator("#content").getByRole("heading", { name: "Machines" })).toBeVisible();
 
     await page.goto("/#critical-path");
@@ -102,6 +122,31 @@ test.describe("the view is in the URL", () => {
     await page.goBack();
     await waitForHtmx(page);
     await expect(page.locator("#content").getByRole("heading", { name: "Critical Path" })).toBeVisible();
+    expect(errors).toEqual([]);
+  });
+});
+
+// rivet: verifies REQ-DASH-019
+test.describe("grouped menu", () => {
+  test("five groups; a group opens its first view and shows only its own views", async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.goto("/");
+    await waitForHtmx(page);
+    const groups = page.locator(".nav-groups").getByRole("button");
+    await expect(groups).toHaveText(["Now", "CI", "Machines", "Agents", "Compliance"]);
+    // the page lands on Overview, in Now
+    await expect(page.locator(".nav-groups .nav-group.active")).toHaveText("Now");
+    await expect(page.locator(".nav-views").getByRole("button", { name: "Overview", exact: true })).toHaveClass(/active/);
+    await page.locator(".nav-groups").getByRole("button", { name: "CI", exact: true }).click();
+    await waitForHtmx(page);
+    await expect(page).toHaveURL(/#queue$/);
+    await expect(page.locator(".nav-views").getByRole("button", { name: "Overview", exact: true })).toHaveCount(0);
+    await expect(page.locator(".nav-views").getByRole("button", { name: "Ask", exact: true })).toBeVisible();
+    // a view link opens its group
+    await page.goto("/#health");
+    await page.reload();
+    await waitForHtmx(page);
+    await expect(page.locator(".nav-groups .nav-group.active")).toHaveText("Machines");
     expect(errors).toEqual([]);
   });
 });
@@ -406,7 +451,7 @@ test.describe("an open machine history", () => {
     await expect(content.locator(".mhist .hgroup h4", { hasText: "Runners" }).first()).toBeVisible();
     await expect(page).toHaveURL(/#machines\/ci-test\?range=90d$/);
     // the periodic refresh is a click on the view's button: the history stays open
-    await page.getByRole("button", { name: "Machines", exact: true }).click();
+    await page.locator(".nav-views").getByRole("button", { name: "Machines", exact: true }).click();
     await waitForHtmx(page);
     await expect(content.locator(".mhist").first()).toHaveAttribute("open", "");
     await expect(content.locator(".mhist .hgroup h4", { hasText: "Runners" }).first()).toBeVisible();

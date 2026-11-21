@@ -177,6 +177,7 @@ pub fn build_routes() -> Router<AppState> {
             "/api/dashboard/compliance-partial",
             get(crate::dashboard::compliance_partial),
         )
+        .route("/api/dashboard/nav-state", get(crate::dashboard::nav_state))
         .route(
             "/api/dashboard/north-star-partial",
             get(crate::dashboard::north_star_partial),

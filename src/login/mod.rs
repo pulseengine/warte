@@ -668,6 +668,8 @@ pub const PUBLIC: &[&str] = &[
     "/api/dashboard/machine-history-partial",
     "/api/dashboard/jobs-partial",
     "/api/dashboard/compliance-partial",
+    // REQ-DASH-019: counts and view names only, of public views
+    "/api/dashboard/nav-state",
     // REQ-NS-005: public, like the North Star and /api/north-star
     "/api/dashboard/north-star-partial",
     "/api/dashboard/queue-partial",
