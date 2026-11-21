@@ -1,0 +1,49 @@
+# Lockfiles. Owner-approved sweep 2026-11-20, after three gaps in other repos:
+# nested locks the audit skipped, a lock CI ignored, a lock that was gitignored.
+artifacts:
+  - id: REQ-CI-007
+    type: requirement
+    title: Every manifest has a committed lockfile, every build uses it locked, and every lockfile is audited by a gate that can fail
+    status: verified
+    release: v1.6.39
+    description: "Every tracked Cargo.toml and package.json SHALL have its lockfile committed beside it. Every cargo command in ci.yml and release.yml that resolves dependencies (build, test, clippy, check, run, install) SHALL pass --locked, so an out-of-date Cargo.lock fails instead of being rewritten; npm installs SHALL use npm ci. ci.yml's audit job SHALL run cargo audit on every Cargo.lock and npm audit (high and above) on every package-lock.json. Before them, the same job SHALL run planted controls that must fail: a Cargo.lock out of date with its Cargo.toml under --locked, a lock with a known RustSec advisory, and a package-lock with a known npm advisory. No advisory is waived: a waiver SHALL be an owner decision, recorded with its reason in the audit configuration and printed on every run."
+    fields:
+      category: non-functional
+      priority: must
+    links:
+      - type: refines
+        target: REQ-CI-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-20T19:30:00Z
+
+  - id: DD-CI-003
+    type: design-decision
+    title: cargo audit and npm audit in a CI job whose planted controls run first, with no advisory waived
+    status: verified
+    release: v1.6.39
+    description: "A pinned cargo-audit 0.22.1, installed job-scoped like rivet, audits Cargo.lock; npm audit --package-lock-only audits tests/playwright/package-lock.json. The planted controls build their inputs in a temporary directory on every run: a copy of the tree with the package version changed (cargo metadata --locked must refuse), a lock holding smallvec 1.6.0 (RUSTSEC-2021-0003), and a package-lock holding minimist 1.2.5 (GHSA-xvch-5gv4-984h). tests/ci_workflows.rs checks statically that every lock has its audit step, that the controls come first and that no resolving cargo command lacks --locked."
+    fields:
+      rationale: "An audit that never fails looks the same as one that checks nothing; the controls make that visible on every run, not once. Running them in the same job as the real audits means the same tools and advisory sources answer both. The sweep turned up four advisories. Fixed: quick-xml 0.37 to 0.42 (RUSTSEC-2026-0194 and -0195; it parses public feeds, which are untrusted input) and @playwright/test 1.50.1 to 1.55.1 (GHSA-7mvr-c777-76hp, browser download without TLS verification in CI). The other two left with sqlx 0.9 (#192, merged first on the owner's decision of 2026-11-20 that RUSTSEC-2026-0459 gets no waiver): libsqlite3-sys moved to 0.40 (RUSTSEC-2026-0459) and rsa left Cargo.lock (RUSTSEC-2023-0071). The audit runs with nothing ignored. Rejected: cargo-deny, which would add license and source policy beyond this request."
+    links:
+      - type: satisfies
+        target: REQ-CI-007
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-20T19:30:00Z
+
+  - id: TEST-CI-007
+    type: verification
+    title: tests/ci_workflows.rs checks the locks, --locked and the audit steps; the audit job's planted controls must fail on every run
+    status: verified
+    release: v1.6.39
+    description: "every_cargo_build_in_ci_and_release_is_locked fails on a resolving cargo command without --locked (planted cases inside the test). every_lockfile_is_committed_and_audited_with_planted_controls lists tracked manifests with git ls-files, fails on a missing lock, on a lock without an audit step and when the planted controls do not come first. Negative controls: removing --locked from cargo test and replacing the npm audit step each failed its test. In CI, the planted stale lock, RUSTSEC-2021-0003 lock and minimist 1.2.5 lock each have to fail, or the job fails; locally each failed (exit 101, 1, 1)."
+    links:
+      - type: verifies
+        target: REQ-CI-007
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-20T19:30:00Z

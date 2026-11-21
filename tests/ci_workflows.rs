@@ -485,3 +485,128 @@ fn hosted_ubuntu_jobs_are_pinned_never_ubuntu_latest() {
         );
     }
 }
+
+/// Cargo commands that resolve dependencies and must keep Cargo.lock as committed.
+fn resolving_cargo_without_locked(cmd: &str) -> bool {
+    let resolves = [
+        "cargo build",
+        "cargo test",
+        "cargo clippy",
+        "cargo check",
+        "cargo run",
+        "cargo install",
+    ]
+    .iter()
+    .any(|c| cmd.contains(c));
+    resolves && !cmd.contains("--locked")
+}
+
+// rivet: verifies REQ-CI-007
+#[test]
+fn every_cargo_build_in_ci_and_release_is_locked() {
+    // planted: an unlocked build is caught, a locked one and a non-resolving step are not
+    assert!(resolving_cargo_without_locked("cargo build --release"));
+    assert!(!resolving_cargo_without_locked(
+        "cargo build --release --locked"
+    ));
+    assert!(!resolving_cargo_without_locked("cargo fmt --check"));
+    let mut checked = 0;
+    for (name, _) in workflows() {
+        for cmd in commands(&workflow(&name)) {
+            if cmd.contains("cargo ") {
+                checked += 1;
+            }
+            assert!(
+                !resolving_cargo_without_locked(&cmd),
+                "{name}: a cargo build without --locked re-resolves an out-of-date \
+                 Cargo.lock instead of failing: {cmd}"
+            );
+        }
+    }
+    assert!(checked >= 5, "found only {checked} cargo commands");
+}
+
+/// Tracked manifests and the lockfile each one needs, as repo paths.
+fn lockfiles() -> Vec<(String, String)> {
+    let out = std::process::Command::new("git")
+        .args(["ls-files"])
+        .current_dir(env!("CARGO_MANIFEST_DIR"))
+        .output()
+        .expect("git ls-files");
+    let files: BTreeSet<String> = String::from_utf8(out.stdout)
+        .unwrap()
+        .lines()
+        .map(str::to_string)
+        .collect();
+    let mut pairs = Vec::new();
+    for f in &files {
+        let (dir, base) = match f.rsplit_once('/') {
+            Some((d, b)) => (format!("{d}/"), b),
+            None => (String::new(), f.as_str()),
+        };
+        let lock = match base {
+            "Cargo.toml" => "Cargo.lock",
+            "package.json" => "package-lock.json",
+            _ => continue,
+        };
+        let lock = format!("{dir}{lock}");
+        assert!(
+            files.contains(&lock),
+            "{f} has no committed {lock}: its dependencies float"
+        );
+        pairs.push((f.clone(), lock));
+    }
+    pairs
+}
+
+// rivet: verifies REQ-CI-007
+#[test]
+fn every_lockfile_is_committed_and_audited_with_planted_controls() {
+    let locks = lockfiles();
+    assert!(
+        locks.iter().any(|(_, l)| l == "Cargo.lock")
+            && locks.iter().any(|(_, l)| l.ends_with("package-lock.json")),
+        "expected Cargo.lock and a package-lock.json: {locks:?}"
+    );
+    let wf = workflow("ci.yml");
+    let audit = jobs(&wf)
+        .into_iter()
+        .find(|(n, _)| n == "audit")
+        .expect("ci.yml has an audit job")
+        .1;
+    let steps: Vec<(String, String)> = audit["steps"]
+        .as_sequence()
+        .unwrap()
+        .iter()
+        .map(|s| {
+            (
+                s["working-directory"].as_str().unwrap_or("").to_string(),
+                s["run"].as_str().unwrap_or("").to_string(),
+            )
+        })
+        .collect();
+    for (_, lock) in &locks {
+        let audited = if let Some(dir) = lock.strip_suffix("/package-lock.json") {
+            steps
+                .iter()
+                .any(|(wd, run)| wd == dir && run.contains("npm audit") && !run.contains("||"))
+        } else {
+            steps.iter().any(|(_, run)| {
+                run.contains(&format!("cargo audit --file {lock}")) && !run.contains("||")
+            })
+        };
+        assert!(audited, "ci.yml's audit job does not audit {lock}");
+    }
+    // the controls run in the same job, before the real audits
+    let first_real = steps
+        .iter()
+        .position(|(_, r)| r.contains("cargo audit --file Cargo.lock"))
+        .unwrap();
+    let controls = steps
+        .iter()
+        .position(|(_, r)| {
+            r.contains("--locked") && r.contains("RUSTSEC-2021-0003") && r.contains("minimist")
+        })
+        .expect("the audit job runs the planted controls");
+    assert!(controls < first_real, "the planted controls must run first");
+}

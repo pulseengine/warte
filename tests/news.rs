@@ -65,6 +65,16 @@ fn atom_and_rss_entries_are_read_as_plain_text() {
     assert_eq!(r[1].published, None);
     assert_eq!(r[1].key, "https://blog.example/nodate");
 
+    // entities keep the spaces around them (quick-xml 0.38+ reports each one as
+    // its own event); an attribute is unescaped too
+    let ents = parse_feed(
+        "<feed><entry><id> k &amp; 1 </id><link href=\"https://a/?x=1&amp;y=2\"/><title>Fix A &amp; B &#8212; C &lt;D&gt; &bogus; done</title></entry></feed>",
+    )
+    .unwrap();
+    assert_eq!(ents[0].title, "Fix A & B \u{2014} C done");
+    assert_eq!(ents[0].link, "https://a/?x=1&y=2");
+    assert_eq!(ents[0].key, "k & 1");
+
     assert!(parse_feed("<html><body>login</body></html>").is_err());
     assert!(parse_feed("not xml <<<").is_err());
     let long = format!(

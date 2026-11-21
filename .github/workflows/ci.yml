@@ -48,10 +48,10 @@ jobs:
         run: cargo fmt --check
 
       - name: Build
-        run: cargo build --verbose
+        run: cargo build --locked --verbose
 
       - name: Run tests
-        run: cargo test --verbose
+        run: cargo test --locked --verbose
 
   clippy:
     name: Clippy
@@ -69,7 +69,7 @@ jobs:
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
 
       - name: Run clippy
-        run: cargo clippy --all-targets -- -D warnings
+        run: cargo clippy --locked --all-targets -- -D warnings
 
   rivet:
     name: Rivet traceability check
@@ -109,6 +109,73 @@ jobs:
 
       - name: Check traceability coverage
         run: rivet coverage --fail-under 71 --strict-empty
+
+  # Every committed lockfile is audited (REQ-CI-007); tests/ci_workflows.rs
+  # checks that each one has a step here. The planted controls run first, so a
+  # gate that cannot fail is red rather than quietly green.
+  audit:
+    name: Dependency audit
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","linux","x64","rust-cpu"]') || 'ubuntu-24.04' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
+
+      - name: Cache cargo-audit binary
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ${{ runner.temp }}/cargo-audit
+          key: cargo-audit-${{ runner.os }}-0.22.1
+
+      - name: Install cargo-audit (pinned, job-scoped)
+        run: |
+          ROOT="$RUNNER_TEMP/cargo-audit"
+          if [ ! -x "$ROOT/bin/cargo-audit" ]; then
+            cargo install --locked --version 0.22.1 --root "$ROOT" cargo-audit
+          fi
+          echo "$ROOT/bin" >> "$GITHUB_PATH"
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+
+      - name: Planted controls (a stale lock and known advisories must fail)
+        run: |
+          tmp="$(mktemp -d)"
+          # a Cargo.lock out of date with its Cargo.toml fails --locked
+          mkdir "$tmp/stale"
+          git archive HEAD | tar -x -C "$tmp/stale"
+          sed -i '0,/^version = "\(.*\)"/s//version = "\1-planted"/' "$tmp/stale/Cargo.toml"
+          if cargo metadata --locked --format-version 1 --manifest-path "$tmp/stale/Cargo.toml" >/dev/null 2>"$tmp/stale.err"; then
+            echo "::error::a Cargo.lock out of date with Cargo.toml passed --locked"; exit 1
+          fi
+          grep -q -- "--locked" "$tmp/stale.err" || { cat "$tmp/stale.err"; exit 1; }
+          # a lock holding smallvec 1.6.0 (RUSTSEC-2021-0003) fails cargo audit
+          printf '%s\n' 'version = 4' '' '[[package]]' 'name = "smallvec"' 'version = "1.6.0"' \
+            'source = "registry+https://github.com/rust-lang/crates.io-index"' > "$tmp/planted.lock"
+          if cargo audit --file "$tmp/planted.lock" >"$tmp/cargo.out" 2>&1; then
+            echo "::error::cargo audit passed a lock with RUSTSEC-2021-0003"; exit 1
+          fi
+          grep -q RUSTSEC-2021-0003 "$tmp/cargo.out" || { cat "$tmp/cargo.out"; exit 1; }
+          # a package-lock holding minimist 1.2.5 (GHSA-xvch-5gv4-984h) fails npm audit
+          mkdir "$tmp/npm"
+          printf '%s\n' '{"name":"planted","version":"0.0.0","dependencies":{"minimist":"1.2.5"}}' > "$tmp/npm/package.json"
+          printf '%s\n' '{"name":"planted","version":"0.0.0","lockfileVersion":3,"requires":true,"packages":{"":{"name":"planted","version":"0.0.0","dependencies":{"minimist":"1.2.5"}},"node_modules/minimist":{"version":"1.2.5","resolved":"https://registry.npmjs.org/minimist/-/minimist-1.2.5.tgz"}}}' > "$tmp/npm/package-lock.json"
+          if (cd "$tmp/npm" && npm audit --audit-level=high --package-lock-only) >"$tmp/npm.out" 2>&1; then
+            echo "::error::npm audit passed a lock with minimist 1.2.5"; exit 1
+          fi
+          grep -q minimist "$tmp/npm.out" || { cat "$tmp/npm.out"; exit 1; }
+          echo "planted controls failed as they must: stale lock, RUSTSEC-2021-0003, minimist 1.2.5"
+
+      - name: Audit Cargo.lock
+        run: cargo audit --file Cargo.lock
+
+      - name: Audit tests/playwright/package-lock.json
+        working-directory: tests/playwright
+        run: npm audit --audit-level=high --package-lock-only
 
   # Browser E2E (tests/playwright), modelled on rivet's job. Hosted, not
   # self-hosted: `playwright install --with-deps` needs apt-get (sudo), which the
