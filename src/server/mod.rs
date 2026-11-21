@@ -40,7 +40,7 @@ pub struct AppState {
     pub temper: Option<Arc<crate::temper::Store>>,
     /// The dashboard's idle scene (REQ-DASH-018).
     pub idle: crate::config::IdleConfig,
-    /// The header's nav v1 links, rendered once at startup; empty without
+    /// The header's nav links, rendered once at startup; empty without
     /// `[nav]` (REQ-NAV-001).
     pub nav: Arc<String>,
     /// Login through the provider, with `[auth]` (DD-AUTH-001).

@@ -1,0 +1,49 @@
+# nav v2 and the shared app-switcher menu. The owner approved both in chat on
+# 2026-11-21, on a proposal from the photo app's session.
+artifacts:
+  - id: REQ-NAV-003
+    type: requirement
+    title: "nav v2 adds an optional mark per app; every version renders as the same top-right menu"
+    status: verified
+    release: v1.6.42
+    description: "warte SHALL accept nav files of version 1 and 2 (docs/topics/nav.md). Version 2 SHALL allow an optional mark per app of 1 to 8 Unicode code points without whitespace, control characters, quotes, <, >, & or backslash; a mark in a version 1 file SHALL be refused naming the field. Both versions SHALL render as a details menu at the top right of the header (a four-dot button; a 300 px right-anchored panel that scrolls; Escape or a tap outside closes it), holding the home link with mark ← and every app with its mark, or else the first letter of its name upper-cased, its name and its visible description, the own entry marked aria-current with its tile in the accent colour; exactly 1 + apps links, everything HTML-escaped. warte nav check SHALL report the version it read."
+    fields:
+      category: functional
+      priority: should
+    links:
+      - type: refines
+        target: REQ-NAV-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-21T09:30:00Z
+
+  - id: DD-NAV-002
+    type: design-decision
+    title: A mark counts code points, not graphemes; readers accept both versions before the file moves
+    status: verified
+    release: v1.6.42
+    description: "The mark rule counts Unicode code points (1 to 8) and refuses the characters that HTML or a shell would read. The fallback mark is rendering only. The operator switches the file to version 2 only after every app on the host accepts it."
+    fields:
+      rationale: "The contract requires every app to accept and refuse the same files. Grapheme segmentation depends on the Unicode version of each language's library, so two apps could split one mark differently; code points do not move. Eight code points hold a ZWJ family emoji. The fallback's upper-casing can differ between languages, but only in what is shown, never in what is accepted. Every v1 reader refuses unknown keys, so switching the file first would stop every app that was not yet updated."
+    links:
+      - type: satisfies
+        target: REQ-NAV-003
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-21T09:30:00Z
+
+  - id: TEST-NAV-003
+    type: verification
+    title: tests/nav.rs renders the doc's version 2 example and refuses every bad mark
+    status: verified
+    release: v1.6.42
+    description: "version_2_marks_render_and_a_missing_mark_falls_back_to_the_first_letter renders the contract's version 2 example: 見 on the own entry, 光, and L for Login, the same links as version 1; a lower-case name falls back to its upper-cased letter. a_mark_follows_the_rules_and_only_in_version_2 refuses an empty mark, nine code points, whitespace, <, &, a quote, a backslash, a control character, a number, and a mark in a version 1 file, each naming apps[2].mark, and accepts eight code points, a ZWJ emoji and 家. the_check_command_accepts_version_2 prints 'ok: nav v2, 3 apps'. The existing nav tests pin the menu markup, no title attribute, the link count and the byte-identical page without [nav]."
+    links:
+      - type: verifies
+        target: REQ-NAV-003
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-21T09:30:00Z

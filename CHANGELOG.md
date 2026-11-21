@@ -4,6 +4,11 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.42 — 2026-11-21
+
+- **The app switcher is a menu at the top right** (REQ-NAV-003). A four-dot button opens a panel with the home link and every app, each with a mark in a tile, its name and its description; the current app's tile is filled. Escape or a tap outside closes it. The links are the same as before, one per entry in the nav file, and the page is unchanged without `[nav]`.
+- **nav v2: an optional mark per app** (REQ-NAV-003). warte accepts nav files of version 1 and 2. In version 2 an app may carry a `mark` of 1 to 8 characters; without one the menu shows the first letter of the name. Switch the file to version 2 only after every app on the host accepts it; `warte nav check` reports the version it read.
+
 ## v1.6.41 — 2026-11-21
 
 - **Five groups instead of 19 tabs** (REQ-DASH-019, #187). The menu is Now (North Star, Overview, Outages, Briefing), CI, Machines, Agents and Compliance; the open group's views form a second row, and a group opens on its first view. With no view in the address the page still opens on Overview. Every view keeps its route and address, so links and bookmarks open it and its group. Friction and Artifacts leave the row while empty, the row says what it hides, and a link still opens them. Groups carry red and amber counts: outages on Now, forecasts on Machines, failing or stale temper checks on Compliance. `GET /api/dashboard/nav-state` answers both.

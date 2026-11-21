@@ -151,7 +151,7 @@ pub enum Commands {
         token: Option<String>,
     },
 
-    /// The home link and app switcher file (contract nav v1)
+    /// The home link and app switcher file (contract nav v1 or v2)
     Nav {
         #[command(subcommand)]
         action: NavCommands,
@@ -217,10 +217,10 @@ pub enum FleetCommands {
 
 #[derive(Subcommand)]
 pub enum NavCommands {
-    /// Check a nav v1 file; exit 1 naming the file and the field when a rule
+    /// Check a nav v1 or v2 file; exit 1 naming the file and the field when a rule
     /// fails
     Check {
-        /// The nav v1 JSON file
+        /// The nav JSON file
         file: std::path::PathBuf,
         /// The app's own id, which must be in the file (as `[nav] self`)
         #[arg(long = "self", value_name = "ID")]
