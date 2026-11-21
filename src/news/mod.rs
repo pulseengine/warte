@@ -161,8 +161,10 @@ fn date(s: &str) -> Option<String> {
 /// at most `MAX_ITEMS_PER_FEED`. Entries without an https link are skipped.
 pub fn parse_feed(xml: &str) -> Result<Vec<Entry>, String> {
     use quick_xml::events::Event;
+    // No trim_text: since quick-xml 0.38 an entity is its own event, and trimming
+    // the text around it would eat the spaces in "A &amp; B". Values are trimmed
+    // where they are used.
     let mut r = quick_xml::Reader::from_str(xml);
-    r.config_mut().trim_text(true);
     let mut out = Vec::new();
     let mut root: Option<String> = None;
     // the current entry's fields, and the element whose text is being read
@@ -172,7 +174,7 @@ pub fn parse_feed(xml: &str) -> Result<Vec<Entry>, String> {
         let ev = r.read_event().map_err(|e| format!("parse: {e}"))?;
         match ev {
             Event::Start(e) | Event::Empty(e) => {
-                let name = String::from_utf8_lossy(e.local_name().as_ref()).to_string();
+                let name = e.local_name().as_ref().to_string();
                 if root.is_none() {
                     root = Some(name.clone());
                 }
@@ -185,10 +187,9 @@ pub fn parse_feed(xml: &str) -> Result<Vec<Entry>, String> {
                         let mut href = None;
                         let mut rel = None;
                         for a in e.attributes().flatten() {
-                            let k =
-                                String::from_utf8_lossy(a.key.local_name().as_ref()).to_string();
+                            let k = a.key.local_name().as_ref().to_string();
                             let v = a
-                                .unescape_value()
+                                .normalized_value(quick_xml::XmlVersion::Implicit1_0)
                                 .map(|v| v.to_string())
                                 .unwrap_or_default();
                             if k == "href" {
@@ -208,19 +209,25 @@ pub fn parse_feed(xml: &str) -> Result<Vec<Entry>, String> {
             }
             Event::Text(t) => {
                 if let (Some(m), Some(f)) = (cur.as_mut(), field.as_ref()) {
-                    let v = t.unescape().map(|v| v.to_string()).unwrap_or_default();
-                    m.entry(f.clone()).or_default().push_str(&v);
+                    m.entry(f.clone()).or_default().push_str(&t.xml10_content());
+                }
+            }
+            // &amp; &lt; &#38; ...: unknown entities are dropped
+            Event::GeneralRef(e) => {
+                if let (Some(m), Some(f)) = (cur.as_mut(), field.as_ref()) {
+                    let r = format!("&{};", e.xml10_content());
+                    if let Ok(v) = quick_xml::escape::unescape(&r) {
+                        m.entry(f.clone()).or_default().push_str(&v);
+                    }
                 }
             }
             Event::CData(t) => {
                 if let (Some(m), Some(f)) = (cur.as_mut(), field.as_ref()) {
-                    m.entry(f.clone())
-                        .or_default()
-                        .push_str(&String::from_utf8_lossy(&t));
+                    m.entry(f.clone()).or_default().push_str(&t);
                 }
             }
             Event::End(e) => {
-                let name = String::from_utf8_lossy(e.local_name().as_ref()).to_string();
+                let name = e.local_name().as_ref().to_string();
                 if name == "entry" || name == "item" {
                     if let Some(m) = cur.take() {
                         let link = m
