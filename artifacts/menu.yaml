@@ -45,3 +45,51 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-11-21T08:30:00Z
+
+  - id: REQ-DASH-020
+    type: requirement
+    title: "A 'Needs your attention' strip under the menu shows always-open items only while one waits, each opening its view"
+    status: verified
+    release: v1.6.41
+    description: "Under the menu, warte SHALL show a 'Needs your attention' strip only while an item waits, and none otherwise. The items SHALL be the always-open kinds warte can see: a disk 95% full or more (counted; no host named, the strip is public), and each workflow whose latest finished run on a public repository's default branch failed within the last two days of the ledger (REQ-BRIEF-007's rule, with the public repositories and default branches of the latest briefing). An amber disk, another machine finding or a red scheduled run SHALL NOT be an item. Each item SHALL open the view that handles it (Machines, CI history) and its group. Items SHALL be written as text, never as HTML. Routine kinds (an operator duty not set up, decisions to answer) SHALL wait until the owner's attention schedule (#181) exists, so that they never show outside the owner's window."
+    fields:
+      category: functional
+      priority: should
+      upstream-ref: https://github.com/pulseengine/warte/issues/187
+    links:
+      - type: refines
+        target: REQ-DASH-019
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-21T09:30:00Z
+
+  - id: DD-DASH-020
+    type: design-decision
+    title: The strip's items come with the menu's nav-state, from a pure rule over probe findings and the red-run rule
+    status: verified
+    release: v1.6.41
+    description: "dashboard::attention(findings, red) turns probe findings and red runs into items {kind, text, view}; nav-state carries them, read at load and every 30 s; the page builds the list with textContent and hides the strip when it is empty. Red runs reuse briefing::red_runs over two days of the ledger, filtered to the default branch."
+    fields:
+      rationale: "Owner-approved design of #187: the strip ships first with today's sources and follows the night glance's rule that only always-open kinds may show at any hour. warte has no owner window of its own yet, so routine kinds are left out rather than shown at night. Reusing the probe findings and the briefing's red-run rule keeps one definition of a full disk and of a red main. Deferred: a failed release (a tag push is not told apart in the ledger), decisions (#184) and duties (both routine, after #181)."
+    links:
+      - type: satisfies
+        target: REQ-DASH-020
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-21T09:30:00Z
+
+  - id: TEST-DASH-020
+    type: verification
+    title: tests/menu.rs pins the strip's rule, that it names no host, and that it starts hidden and writes text
+    status: verified
+    release: v1.6.41
+    description: "the_strip_lists_only_always_open_items_and_names_no_host: nothing gives no item; an amber disk, a red 'no report' finding and a red scheduled run give none; two red disks and a red main give '2 disk(s) 95% full or more' (Machines) and 'rivet is red on main: CI' (CI history), both views in the menu, no host name in any item. with_nothing_waiting_nav_state_has_no_item_and_the_page_has_the_strip_hidden: an empty server answers no item, the strip starts hidden, items are set with textContent. Negative control: letting red scheduled runs into the strip failed the test. In a browser, planted items put the strip up, an item opened CI history in the CI group, and with no item the strip stayed hidden."
+    links:
+      - type: verifies
+        target: REQ-DASH-020
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-21T09:30:00Z

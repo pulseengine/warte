@@ -7,6 +7,7 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 ## v1.6.41 — 2026-11-21
 
 - **Five groups instead of 19 tabs** (REQ-DASH-019, #187). The menu is Now (North Star, Overview, Outages, Briefing), CI, Machines, Agents and Compliance; the open group's views form a second row, and a group opens on its first view. With no view in the address the page still opens on Overview. Every view keeps its route and address, so links and bookmarks open it and its group. Friction and Artifacts leave the row while empty, the row says what it hides, and a link still opens them. Groups carry red and amber counts: outages on Now, forecasts on Machines, failing or stale temper checks on Compliance. `GET /api/dashboard/nav-state` answers both.
+- **A "Needs your attention" strip under the menu** (REQ-DASH-020, #187). It shows only while something waits, and each item opens its view: a disk 95% full or more (counted, no host named) and each workflow red on a public repository's default branch. Both kinds may show at any hour; routine items wait for the owner's attention schedule (#181).
 
 ## v1.6.40 — 2026-11-21
 

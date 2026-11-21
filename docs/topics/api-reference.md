@@ -116,7 +116,10 @@ Resources, Schedule, Ask), Machines (Machines, Health), Agents (Agents, Costs,
 Skills, Friction, Artifacts) and Compliance. The open group's views form the
 second row; a group opens on its first view, and the page with no view in the
 address opens on Overview. Every view keeps its route and its address
-(`#machines`, `#queue`, ...). `nav-state` answers `{hidden, badges}`: the views
+(`#machines`, `#queue`, ...). `nav-state` answers `{attention, hidden, badges}`: `attention` lists the
+items of the "Needs your attention" strip under the menu (`kind`, `text`,
+`view`; a disk 95% full or more, counted, and each workflow red on a public
+repository's default branch), empty when nothing waits; then: the views
 hidden while empty (Friction with no report, Artifacts with none; a link still
 opens them, and the row says what it hides), and per group the red and amber
 counts the group shows (Now: outages; Machines: forecasts; Compliance: failing

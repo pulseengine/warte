@@ -54,6 +54,8 @@
       <button hx-get="api/dashboard/compliance-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Compliance</button>
     </nav>
     <p class="nav-hidden-note" id="nav-hidden-note" hidden></p>
+    <!-- REQ-DASH-020: only when something waits for the owner -->
+    <div class="attention" id="attention" role="region" aria-label="Needs your attention" hidden><span class="attention-label">Needs your attention</span><ul></ul></div>
     <span class="who" id="who"></span>
     <span class="clock" title="tower time">UTC <b id="utc">--:--:--</b></span>
   </header>
@@ -175,8 +177,21 @@
           badge.hidden = !n;
           badge.textContent = n ? String(n) : '';
           badge.className = 'nav-badge' + (c.red ? ' red' : c.amber ? ' amber' : '');
-          g.title = (c.red ? c.red + ' red' : '') + (c.red && c.amber ? ', ' : '') + (c.amber ? c.amber + ' amber' : '');
+          badge.title = (c.red ? c.red + ' red' : '') + (c.red && c.amber ? ', ' : '') + (c.amber ? c.amber + ' amber' : '');
         });
+        var strip = document.getElementById('attention');
+        var list = strip.querySelector('ul');
+        list.textContent = '';
+        (s.attention || []).forEach(function (a) {
+          var li = document.createElement('li');
+          li.className = 'attention-' + a.kind;
+          var link = document.createElement('a');
+          link.href = '#' + a.view;
+          link.textContent = a.text;
+          li.appendChild(link);
+          list.appendChild(li);
+        });
+        strip.hidden = list.children.length === 0;
         warteHiddenNote();
       }).catch(function () {});
     }

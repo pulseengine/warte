@@ -147,3 +147,83 @@ async fn every_view_in_the_menu_still_answers_on_its_route() {
     }
     assert_eq!(checked, 20);
 }
+
+fn finding(severity: &'static str, text: &str) -> warte::probe::Finding {
+    warte::probe::Finding {
+        host: "a-private-host".into(),
+        severity,
+        text: text.into(),
+    }
+}
+
+fn red(repo: &str, kind: &str) -> warte::briefing::RedRun {
+    warte::briefing::RedRun {
+        repo: repo.into(),
+        workflow: "CI".into(),
+        kind: kind.into(),
+        run: 1,
+        at: 0,
+    }
+}
+
+// rivet: verifies REQ-DASH-020
+#[test]
+fn the_strip_lists_only_always_open_items_and_names_no_host() {
+    use warte::dashboard::attention;
+    // nothing waiting: no item, so no strip
+    assert!(attention(&[], &[]).is_empty());
+    // planted: an amber disk, a red non-disk finding and a red scheduled run
+    // are not items
+    let quiet = attention(
+        &[
+            finding("amber", "disk / is 90% full"),
+            finding("red", "no report for 3 h"),
+        ],
+        &[red("spar", "schedule")],
+    );
+    assert!(quiet.is_empty(), "{quiet:?}");
+    // planted: two full disks and a red main put the strip up
+    let a = attention(
+        &[
+            finding("red", "disk / is 97% full"),
+            finding("red", "disk /data is 99% full"),
+        ],
+        &[red("rivet", "main")],
+    );
+    assert_eq!(a.len(), 2, "{a:?}");
+    assert_eq!(a[0]["kind"], "critical-disk");
+    assert_eq!(a[0]["text"], "2 disk(s) 95% full or more");
+    assert_eq!(a[0]["view"], "machines");
+    assert_eq!(a[1]["kind"], "red-main");
+    assert_eq!(a[1]["text"], "rivet is red on main: CI");
+    assert_eq!(a[1]["view"], "ci-history");
+    // every item opens a view in the menu; no host is named on the public strip
+    let views: BTreeSet<String> = views()
+        .into_iter()
+        .map(|(_, l, _)| l.to_lowercase().replace(' ', "-"))
+        .collect();
+    for item in &a {
+        assert!(views.contains(item["view"].as_str().unwrap()), "{item}");
+        assert!(!item.to_string().contains("a-private-host"), "{item}");
+    }
+}
+
+// rivet: verifies REQ-DASH-020
+#[tokio::test]
+async fn with_nothing_waiting_nav_state_has_no_item_and_the_page_has_the_strip_hidden() {
+    let (_d, base, _db) = serve().await;
+    let s = nav(&base).await;
+    assert_eq!(s["attention"], serde_json::json!([]), "{s}");
+    let strip: Vec<&str> = PAGE
+        .lines()
+        .filter(|l| l.contains(r#"id="attention""#))
+        .collect();
+    assert_eq!(strip.len(), 1);
+    assert!(
+        strip[0].contains(" hidden>"),
+        "the strip starts hidden: {}",
+        strip[0]
+    );
+    // items are written as text, never as HTML
+    assert!(PAGE.contains("link.textContent = a.text;"));
+}
