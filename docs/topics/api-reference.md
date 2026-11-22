@@ -293,18 +293,36 @@ pulseengine.eu's `data/north-star.toml` and `data/north-star/<id>.json` over
 https every 6 hours and keeps every distinct observation (`north-star.jsonl`
 next to the database). warte renders and does not compute.
 
-Answer: `{rows, line, stale_after_days, last_poll}`. Each row has `id`,
+Answer: `{rows, line, board, stale_after_days, last_poll}`. Each row has `id`,
 `title`, `guard`, `state` and, when measured, `latest` and `previous`
 observations (`measured_at`, `value`, `of`, `verifier`, `blind_spot`,
-`guard_value`, `schema_version`; 0 until the publisher sends one) and
-`age_days`.
+`guard_value`, `schema_version`; 0 until the publisher sends one; since
+v1.6.40 also `period`, `evidence` and `not_counted`) and `age_days`. `board`
+(v1.6.40, REQ-NS-005) is the published North Star as warte read it:
+`north_star`, `updated`, `objectives` (with `summary`, `indicator` and the
+declared state), `pullers` (products and tool repositories with the
+objectives they pull) and `commitments` (period, layers, kind, target and,
+when published, `target_value` and `target_of`).
 
-- `unmeasured`: no published file, or the file was gone at the last poll (its
-  history is kept). Never 0.
-- `stale`: the latest observation is older than `stale_after_days` (45).
+- `unmeasured`: the North Star declares it unmeasured, there is no published
+  file, or the file was gone at the last poll (its history is kept). Never 0.
+- `stale`: the latest observation is older than `stale_after_days` (31 since
+  v1.6.40, a month as the publisher's monthly check counts it; 45 before).
 - `line` is the one-line summary the Overview shows, e.g.
   `O2 1/2 (2 d) · O4 1/839 (1 d) · 3 unmeasured`.
 - `404` without `[north_star]`.
+
+The North Star view (Overview line, or the North Star tab;
+`GET /api/dashboard/north-star-partial`) shows the same files as
+pulseengine.eu's /north-star page: one card per objective with the value as
+"N of M" and a bar (never a percentage), the change since the previous value
+and its age (red when stale), the evidence rows with their links, what is not
+counted, the period's commitments, the products and tool repositories that
+pull it, and the indicator, guard and blind spot, always shown. `off-target`
+appears only when the current period's commitment publishes `target_value`;
+`of = 0` reads "no repo in the denominator". The trend lists one value per
+varve layer of the current period from warte's own observations, labelled
+"observed by warte"; a layer without an observation shows a dash.
 
 ```toml
 [north_star]

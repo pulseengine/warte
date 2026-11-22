@@ -4,6 +4,10 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.40 — 2026-11-21
+
+- **A North Star view** (REQ-NS-005). The North Star tab, also linked from the Overview line, shows what pulseengine.eu's /north-star page shows, from the same published files: the North Star sentence, then one card per objective with its value as "N of M" and a bar, the change since the previous value and its age, the evidence rows with links, what is not counted, every commitment with the current period marked, the products and tool repositories that pull it, and the indicator, guard and blind spot, always shown. States come from published fields only: unmeasured (never 0), stale after a month (31 days; the age in red, the value kept), off-target only when a commitment publishes `target_value`, and "no repo in the denominator" for `of = 0`. Each card lists one value per varve layer of the current period from what warte observed, labelled as warte's own, never interpolated. `GET /api/north-star` adds `board`.
+
 ## v1.6.39 — 2026-11-21
 
 - **Lockfiles are enforced and audited** (REQ-CI-007). Every cargo build, test and clippy in CI and the release build pass `--locked`, so an out-of-date Cargo.lock fails instead of being rewritten. A new CI job, Dependency audit, runs cargo audit on Cargo.lock and npm audit on the Playwright lock with no advisory waived, after planted controls that must fail on every run: a stale lock, a RustSec advisory and an npm advisory. Fixed on the way: quick-xml 0.37 to 0.42 for the feed parser (RUSTSEC-2026-0194, -0195; an entity in a feed title now keeps its surrounding spaces) and @playwright/test 1.50.1 to 1.55.1 (GHSA-7mvr-c777-76hp). The Rust toolchain is pinned to exactly 1.100.0 in every CI and release job instead of the floating `stable`, so a new Rust release reaches the build only as a reviewed change (found by jig's pin check).

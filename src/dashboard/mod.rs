@@ -87,7 +87,7 @@ pub async fn overview_partial(State(state): State<crate::server::AppState>) -> R
             } else {
                 strip
                     + &format!(
-                        r#"<div class="north-star-line"><span class="label">North Star</span> {} <a href="https://github.com/pulseengine/pulseengine.eu/blob/main/data/north-star.toml" class="dim">the North Star ↗</a></div>"#,
+                        r##"<div class="north-star-line"><span class="label">North Star</span> {} <a href="#" hx-get="api/dashboard/north-star-partial" hx-target="#content" hx-swap="innerHTML" class="dim">the North Star view</a></div>"##,
                         fleet::esc(&line)
                     )
             }
@@ -271,6 +271,31 @@ pub async fn jobs_partial(State(state): State<crate::server::AppState>) -> Respo
 }
 
 /// HTMX partial: compliance from temper's report (REQ-TEMPER-002).
+/// REQ-NS-005: the North Star view, as published plus the trend warte observed.
+pub async fn north_star_partial(State(state): State<crate::server::AppState>) -> Response {
+    let Some(n) = state.north_star.as_deref() else {
+        return Html(
+            r#"<div class="overview north-star"><h2>North Star</h2><p class="empty">No [north_star] is configured on this warte.</p></div>"#,
+        )
+        .into_response();
+    };
+    let now = crate::hub::now();
+    let last = n
+        .last_poll
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
+    Html(crate::northstar::view::page(
+        n.board().as_ref(),
+        &n.rows(now),
+        &n.store.all(),
+        last.as_ref(),
+        now,
+        n.config.stale_after_days,
+    ))
+    .into_response()
+}
+
 pub async fn compliance_partial(State(state): State<crate::server::AppState>) -> Response {
     let latest = state.temper.as_ref().and_then(|t| t.latest());
     let stale = state

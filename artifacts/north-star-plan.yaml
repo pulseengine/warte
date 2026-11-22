@@ -79,3 +79,51 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-11-20T06:30:00Z
+
+  - id: REQ-NS-005
+    type: requirement
+    title: "[O1..O5 visibility] A North Star view shows every objective as the published page does, with states and the trend warte observed"
+    status: verified
+    release: v1.6.40
+    description: "warte SHALL show a North Star view built only from the published data/north-star.toml and data/north-star/<id>.json: the north_star sentence and updated date, then one card per objective in the file's order with its state, its value as 'N of M' with a bar and never a percentage, the measurement time, verifier and age, the change since the previous observation, the evidence rows (repos[] and items[]) with their published verdict, whether each counts, the negative controls and an https link, the not_counted entries with reasons, the period, every commitment for that objective with the current period marked and a published target, the products and tool repositories that pull it, and the indicator, guard and blind spot, always shown. States SHALL come only from published fields: unmeasured when the file declares it or no file is published (the word, never 0); stale when the latest measured_at is older than stale_after_days, 31 by default, with the age in red and the value kept; off-target only when the current period's commitment publishes target_value and the value is below it; of = 0 reads 'no repo in the denominator'. The trend SHALL list one value per varve layer of the current period from warte's kept observations, labelled 'observed by warte', with a dash for a layer without one and no interpolation. Published text SHALL be escaped and only https URLs linked. GET /api/north-star SHALL carry the board it renders from."
+    fields:
+      category: functional
+      priority: must
+      upstream-ref: https://pulseengine.eu/north-star/
+    links:
+      - type: refines
+        target: REQ-NS-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-21T07:30:00Z
+
+  - id: DD-NS-002
+    type: design-decision
+    title: warte mirrors the published /north-star page as its own view, renders states from published fields, and labels its own trend
+    status: verified
+    release: v1.6.40
+    description: "The view is a pure function of the last north-star.toml read, the poll's rows and the kept observations (src/northstar/view.rs), served as a dashboard partial with a tab and linked from the Overview line. The parser keeps summary, indicator, declared state, products, tool repositories and per-period commitments, and per observation the period, evidence rows and not_counted entries, each cleaned and capped. A release row links to github.com/pulseengine/<repo>/releases/tag/<release> as the site does; an item links only to the https URL it carries."
+    fields:
+      rationale: "Owner, 2026-11-21: the one-line Overview of v1.6.36 disappointed; the view should show what pulseengine.eu's North Star page and its design (relayed from the pulseengine.eu session, 2026-11-21) show. This reverses DD-NS-001's rejection of a separate view inside warte; the render-only rule stands. Off-target needs a published target because warte may compare a published value with a published target but may not invent one. 'Pulled by' lists the members as published and is not asserted to equal the denominator, which for O4 counts pull requests. The trend uses warte's own observations until pulseengine.eu publishes an official per-layer history, and says so on the page. Deferred to its own change: the open issues serving each objective (needs GitHub queries within warte's API budget and the owner's ready-label decision)."
+    links:
+      - type: satisfies
+        target: REQ-NS-005
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-21T07:30:00Z
+
+  - id: TEST-NS-002
+    type: verification
+    title: tests/north_star.rs renders the view from mock published files and follows a changed and a removed file
+    status: verified
+    release: v1.6.40
+    description: "the_view_shows_the_published_files_and_moves_when_they_change polls a mock of the published files and checks the statement, O2's '1 of 2' with bar, verifier, release links, controls and counts, guard and blind spot, members, both periods' commitments with 2026-Q4 marked, the trend '2026.11 1 of 2 · 2026.12 —' labelled 'observed by warte'; O1 declared unmeasured shows the word and no value; an item with a javascript: URL is not linked; a <script> title is escaped; no percentage outside the bar's width. A new O2 file moves the page to '2 of 2', 'was 1 of 2' and fills 2026.12; a removed O4 file reads unmeasured after one poll. stale_off_target_and_an_empty_denominator_come_only_from_published_fields covers no target (measured), a target above the value (off-target), a target outside the current period (no off-target), older than 31 days (stale, age in red, value kept), of = 0, and a declared unmeasured with a file present. Negative controls: making off-target never fire, and rendering unmeasured as '0 of 0' or as a value '0', each failed the tests. An unmeasured card has no value line at all; its badge says unmeasured."
+    links:
+      - type: verifies
+        target: REQ-NS-005
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-21T07:30:00Z
