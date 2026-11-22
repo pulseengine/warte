@@ -4,6 +4,10 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.45 — 2026-11-22
+
+- **The token broker serves more than one account** (REQ-GHTOKEN-006). Install the App on another account and list it under `[[github_app.installation]]` with its `installation_id`; the same App id and key serve all. An agent's repositories must all be under one account, and its token comes from that account's installation, so a token never reaches two accounts. Existing single-account configs work unchanged (`warte docs github-tokens`).
+
 ## v1.6.44 — 2026-11-22
 
 - **The artifact store and multi-instance sync are removed** (REQ-RETIRE-001, #37, #38). Neither was finished: sync applied no record, and the artifact store's upload and download were stubs whose integrity check always passed, while the docs claimed more. Gone: `/api/artifacts`, `/api/artifacts/{id}/download`, `/api/sync/state`, `/api/sync/update`, the `sync:update` right, `warte artifact`, the Artifacts view and overview count, and the `artifact-distribution` and `multi-instance-sync` docs topics. The `crdts` dependency and 10 crates it pulled in are dropped. Migration 016 drops their three empty tables (`artifacts`, `sync_state`, `instances`), after the operator confirmed 0 rows in each in production. Upgrade note: a token minted with `--right sync:update` is refused at mint time now; drop the right.

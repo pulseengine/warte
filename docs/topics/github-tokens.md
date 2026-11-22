@@ -20,13 +20,27 @@ pattern is octo-sts', with warte as the identity provider.
 [github_app]
 app_id = 123456
 installation_id = 7890123
-account = "your-org"            # every repository must be under it
+account = "your-org"            # repositories are under it, or a listed installation's account
 key_path = "/var/lib/warte/github-app.pem"
 # optional:
 # permissions = { contents = "write", pull_requests = "write", issues = "write", actions = "read", metadata = "read" }
 # per_agent_per_hour = 12
 # global_per_hour = 300
 ```
+
+   The App can be installed on more than one account (REQ-GHTOKEN-006). Keep
+   the pair above and list the others; the same `app_id` and key serve all:
+
+```toml
+[[github_app.installation]]
+account = "example-user"
+installation_id = 7890456
+```
+
+   Each account and installation id may appear once. An agent's repositories
+   must all be under one account, and its token is minted from that account's
+   installation: a token never reaches two accounts. `warte agents repos set`
+   refuses repositories under different accounts, or under none configured.
 
    `permissions` may only lower that set. `actions = "write"` and any
    `workflows` are refused here: they are granted per agent.
