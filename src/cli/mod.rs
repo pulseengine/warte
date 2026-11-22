@@ -92,6 +92,23 @@ pub enum Commands {
         ca_cert: Option<std::path::PathBuf>,
     },
 
+    /// Ask for admission before opening a pull request: prints the verdict
+    /// and exits 0 open, 10 batch, 11 hold, 1 on any error (REQ-QUEUE-005)
+    Admit {
+        /// Repository name without the org, e.g. spar
+        #[arg(long)]
+        repo: String,
+        /// What the pull request is: docs, fix, feature, security or red-main
+        #[arg(long)]
+        kind: String,
+        /// warte's base URL, e.g. https://host/warte (default: the configured bind)
+        #[arg(long, env = "WARTE_URL")]
+        url: Option<String>,
+        /// PEM CA certificate to trust for --url
+        #[arg(long, env = "WARTE_CA_CERT")]
+        ca_cert: Option<std::path::PathBuf>,
+    },
+
     /// Operator tools for bearer tokens (run on the ground station host)
     Token {
         #[command(subcommand)]
@@ -186,6 +203,12 @@ pub enum Commands {
         /// Name on the hub's page and status report
         #[arg(long, default_value = crate::hub::DEFAULT_BRAND)]
         brand: String,
+    },
+
+    /// The architecture view's contract, architecture.v1 (REQ-ARCHVIEW-001)
+    Arch {
+        #[command(subcommand)]
+        action: ArchCommands,
     },
 
     /// Manage artifacts
@@ -338,7 +361,7 @@ pub enum ReposCommands {
     },
     /// Remove an agent's repositories; its live tokens are revoked within a minute
     Clear { name: String },
-    /// Grant a permission beyond the configured set (only actions:write)
+    /// Grant a permission beyond the configured set (actions:write or workflows:write)
     Grant { name: String, permission: String },
     /// Take a granted permission back
     Revoke { name: String, permission: String },
@@ -402,6 +425,21 @@ pub enum TokenCommands {
         /// (repeatable; an unknown right is an error)
         #[arg(long = "right", value_name = "RIGHT")]
         rights: Vec<String>,
+        /// The person the agent works for, by their login subject (shown in the
+        /// app under My hours); the token then reads that person's attention
+        /// schedule
+        #[arg(long)]
+        owner: Option<String>,
+    },
+}
+
+/// `warte arch`.
+#[derive(Subcommand)]
+pub enum ArchCommands {
+    /// Check an architecture.v1 file: exit 0 valid, 1 invalid, 2 unreadable
+    Check {
+        /// The architecture.v1 JSON file
+        file: std::path::PathBuf,
     },
 }
 
@@ -409,6 +447,20 @@ pub enum TokenCommands {
 pub enum ProbeCommands {
     /// Collect once and print (read-only; nothing is sent)
     Report,
+    /// macOS: derive the attention schedule's `available` from the night
+    /// Focus's schedule; print it, or write it with --write. Writes nothing and
+    /// exits 1 if anything is in doubt (REQ-FOCUS-001)
+    Focus {
+        /// The night Focus: its identifier or its (localized) name
+        #[arg(long, default_value = crate::probe::focus::DEFAULT_MODE)]
+        mode: String,
+        /// The Focus modes file (default ~/Library/DoNotDisturb/DB/ModeConfigurations.json)
+        #[arg(long)]
+        from: Option<std::path::PathBuf>,
+        /// The attention schedule to update; only `available` changes
+        #[arg(long)]
+        write: Option<std::path::PathBuf>,
+    },
     /// On this machine, no network I/O: each volume's free space and verdict,
     /// and what agents hold (scratchpads, target/, worktrees) with paths and
     /// sessions, as the probe last sized it (REQ-PRESSURE-002). Reads only;

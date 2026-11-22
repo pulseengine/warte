@@ -204,6 +204,9 @@ async fn the_run_reads_the_queue_openly_and_marks_done_with_its_right() {
             probe_self: false,
             costs_file: None,
             skill_usage_file: None,
+            quic: None,
+            quic_names: vec![],
+            require_quic: false,
         }),
         triage: Some(cfg(&gh)),
         ..Default::default()

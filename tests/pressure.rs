@@ -263,6 +263,9 @@ async fn serve(reports: Vec<(Report, i64)>, t: Option<Thresholds>) -> (tempfile:
             probe_self: false,
             costs_file: None,
             skill_usage_file: None,
+            quic: None,
+            quic_names: vec![],
+            require_quic: false,
         }),
         pressure: t.unwrap_or_default(),
         ..Default::default()

@@ -33,11 +33,11 @@ const VIEWS = [
 // REQ-DASH-019: which group holds each view
 const GROUP_OF: Record<string, string> = {
   "North Star": "Now", Overview: "Now", Outages: "Now", Briefing: "Now",
-  Queue: "CI", Airport: "CI", "CI history": "CI", "Critical Path": "CI",
+  Queue: "CI", Reviews: "CI", Airport: "CI", "CI history": "CI", "Critical Path": "CI",
   Jobs: "CI", Resources: "CI", Schedule: "CI", Ask: "CI",
-  Machines: "Machines", Health: "Machines",
-  Agents: "Agents", Costs: "Agents", Skills: "Agents", Friction: "Agents", Artifacts: "Agents",
-  Compliance: "Compliance",
+  Machines: "Machines", Health: "Machines", Architecture: "Machines", Security: "Machines",
+  Agents: "Agents", Decisions: "Agents", Costs: "Agents", Skills: "Agents", Friction: "Agents", Artifacts: "Agents",
+  Compliance: "Compliance", Seams: "Compliance",
 };
 
 // Open the view's group, then the view. A view hidden while empty is still

@@ -22,6 +22,10 @@ pub struct AppState {
     pub artifacts: Arc<ArtifactStore>,
     pub sync: Arc<SyncService>,
     pub tokens: Arc<crate::auth::TokenManager>,
+    /// Attention schedules per login (REQ-ATTN-001).
+    pub attention: crate::attention::Store,
+    /// The reviews view's latest scan (REQ-PRREVIEW-001), with `[reviews]`.
+    pub reviews: Option<crate::reviews::Shared>,
     pub realtime: Arc<crate::realtime::EventBroadcaster>,
     pub status: Arc<crate::status::StatusClient>,
     /// The ground station, when `[hub]` is configured.
@@ -85,6 +89,8 @@ pub fn build_router(state: AppState) -> Router {
             axum::routing::get(crate::login::logout_route),
         )
         .route("/api/me", axum::routing::get(crate::login::me_route))
+        // the night glance, one phone-sized page (REQ-GLANCE-001)
+        .route("/glance", axum::routing::get(api::glance_page))
         .route("/ci", axum::routing::any(ci_gone))
         .route("/ci/", axum::routing::any(ci_gone))
         .route("/ci/{*rest}", axum::routing::any(ci_gone))
@@ -156,6 +162,28 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
                 .spawn_ingest(&h.udp, h.allow.clone())
                 .map_err(anyhow::Error::msg)?;
             tracing::info!(%udp, data_dir = %h.data_dir, "ground station up");
+            hub.set_require_quic(h.require_quic);
+            if let Some(q) = &h.quic {
+                // transport v2 (REQ-SEC-001): QUIC + mutual TLS + relay-sec
+                let addr: std::net::SocketAddr = q
+                    .parse()
+                    .map_err(|e| anyhow::anyhow!("[hub] quic {q}: {e}"))?;
+                let (cert, key) = ca.issue_server_cert(&h.quic_names, 365)?;
+                let cfg = crate::hub::quic::server_config(ca.ca_cert_der().to_vec(), cert, key)?;
+                let listener = Arc::new(crate::hub::quic::Listener {
+                    hub: hub.clone(),
+                    db: db.clone(),
+                    sas: crate::hub::quic::SaStore::new(db.pool().clone()),
+                    epoch: crate::hub::quic::EpochFile::new(
+                        std::path::Path::new(&h.data_dir).join("quic-epoch"),
+                    ),
+                    counts: hub.quic.clone(),
+                });
+                let at = crate::hub::quic::spawn(addr, cfg, listener)?;
+                tracing::info!(quic = %at, "transport v2 listener up");
+            } else if h.require_quic {
+                anyhow::bail!("[hub] require_quic needs [hub] quic");
+            }
             Some(hub)
         }
         None => match &config.github {
@@ -381,6 +409,12 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
         triage,
         news,
         north_star,
+        attention: crate::attention::Store::new(db.pool().clone()),
+        reviews: config.reviews.clone().map(|r| {
+            let shared: crate::reviews::Shared = Default::default();
+            crate::reviews::spawn(r, shared.clone());
+            shared
+        }),
         github_tokens,
         canaries,
         expiry,

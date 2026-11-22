@@ -44,6 +44,8 @@ pub const APID_TRACE: u16 = 0x304;
 /// carries it now inside the probe's signed envelope and later over the
 /// QUIC + relay-sec transport (DD-TRANSPORT-001).
 pub const APID_FEED_TEMPER: u16 = 0x400;
+/// The security findings feed (REQ-FINDINGS-001).
+pub const APID_FEED_SECURITY: u16 = 0x401;
 /// Sent LAST in every burst: tells the hub a snapshot is complete.
 pub const APID_FRAME_END: u16 = 0x3F0;
 /// Stay under the WireGuard MTU so no packet is IP-fragmented.
@@ -65,6 +67,7 @@ pub fn apid_name(apid: u16) -> String {
         APID_TRACE => "trace-rollout".into(),
         APID_FRAME_END => "frame-end".into(),
         APID_FEED_TEMPER => "feed-temper".into(),
+        APID_FEED_SECURITY => "feed-security".into(),
         a if (APID_HOSTED_BASE..APID_HOSTED_BASE + HOSTED_CHUNKS).contains(&a) => {
             format!("hosted{}", a - APID_HOSTED_BASE)
         }

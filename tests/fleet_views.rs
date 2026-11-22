@@ -350,6 +350,9 @@ async fn serve_with_a_hub_answers_under_its_own_api_and_no_longer_at_ci() {
         probe_self: false,
         costs_file: None,
         skill_usage_file: None,
+        quic: None,
+        quic_names: vec![],
+        require_quic: false,
     };
     let (_d, base) = serve_app(Some(cfg)).await;
     // the absorbed hub page and API are retired from `warte serve`
@@ -483,6 +486,9 @@ async fn every_view_escapes_author_controlled_text() {
         probe_self: false,
         costs_file: None,
         skill_usage_file: None,
+        quic: None,
+        quic_names: vec![],
+        require_quic: false,
     };
     let (_d, base, db) = serve_app_db(Some(cfg)).await;
 
@@ -576,6 +582,9 @@ async fn with_a_hub_stale_data_is_shown_as_stale() {
         probe_self: false,
         costs_file: None,
         skill_usage_file: None,
+        quic: None,
+        quic_names: vec![],
+        require_quic: false,
     };
     let (_d, base) = serve_app(Some(cfg)).await;
     for p in ["queue-partial", "critical-path-partial", "health-partial"] {
@@ -811,6 +820,9 @@ async fn machines_publish_no_paths_pids_or_dirs_and_no_cross_origin_reads() {
         probe_self: false,
         costs_file: None,
         skill_usage_file: None,
+        quic: None,
+        quic_names: vec![],
+        require_quic: false,
     };
     let config = warte::config::Config {
         db_path: dir.path().join("state.db"),

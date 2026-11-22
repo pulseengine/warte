@@ -362,6 +362,9 @@ async fn the_api_overview_and_alerts_show_a_shared_incident() {
             probe_self: false,
             costs_file: None,
             skill_usage_file: None,
+            quic: None,
+            quic_names: vec![],
+            require_quic: false,
         }),
         ..Default::default()
     };

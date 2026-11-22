@@ -15,6 +15,8 @@
 //! change is large (see the constants): a trend shown is one worth acting
 //! on, and "not enough data" is never a warning.
 
+pub mod usage;
+
 use crate::dashboard::fleet::esc;
 use crate::hub::model::JobRecord;
 use serde::Serialize;

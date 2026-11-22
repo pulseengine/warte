@@ -135,6 +135,18 @@ pub struct Config {
     /// Per-agent GitHub tokens from a GitHub App (REQ-GHTOKEN-001).
     #[serde(default)]
     pub github_app: Option<crate::ghtoken::GithubAppConfig>,
+    /// The architecture view (REQ-ARCHVIEW-001): an `architecture.v1` file the
+    /// operator's model export copies here.
+    #[serde(default)]
+    pub architecture: Option<ArchitectureConfig>,
+    /// The night glance (REQ-GLANCE-001): which decision tags reach the owner
+    /// at any hour. Mirrors the notice client's always_open_kinds.
+    #[serde(default)]
+    pub glance: Option<GlanceConfig>,
+    /// The reviews view (REQ-PRREVIEW-001): the reviewer's read-only token and
+    /// watchlists.
+    #[serde(default)]
+    pub reviews: Option<crate::reviews::ReviewsConfig>,
     /// The issue triage queue (REQ-TRIAGE-001).
     #[serde(default)]
     pub triage: Option<crate::triage::TriageConfig>,
@@ -313,6 +325,20 @@ fn default_github_data_dir() -> String {
     "/var/lib/warte/github".into()
 }
 
+/// `[glance]` (REQ-GLANCE-001).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GlanceConfig {
+    /// Decision tags that are always urgent; default security and red-main.
+    #[serde(default)]
+    pub always_open: Vec<String>,
+}
+
+/// `[architecture]`: where the `architecture.v1` file is (REQ-ARCHVIEW-001).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ArchitectureConfig {
+    pub file: String,
+}
+
 /// `[hub]` in warte.toml — the same settings as `warte hub`'s flags.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HubConfig {
@@ -339,6 +365,17 @@ pub struct HubConfig {
     /// `POST /api/skill-usage`.
     #[serde(default)]
     pub skill_usage_file: Option<String>,
+    /// Transport v2 (REQ-SEC-001): the QUIC listen address, beside the v1 UDP
+    /// listener. None: wire v1 over UDP only.
+    #[serde(default)]
+    pub quic: Option<String>,
+    /// The names agents dial the QUIC endpoint by (DNS names or IP
+    /// addresses), put in its server certificate from warte's CA.
+    #[serde(default)]
+    pub quic_names: Vec<String>,
+    /// Drop wire v1 UDP packets: set once every agent speaks transport v2.
+    #[serde(default)]
+    pub require_quic: bool,
 }
 
 fn default_true() -> bool {
@@ -379,6 +416,9 @@ impl Default for Config {
             news: None,
             north_star: None,
             github_app: None,
+            architecture: None,
+            glance: None,
+            reviews: None,
             canaries: None,
             expiry: None,
         }

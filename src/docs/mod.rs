@@ -62,6 +62,11 @@ const TOPICS: &[Topic] = &[
         content: include_str!("../../docs/topics/migration.md"),
     },
     Topic {
+        name: "architecture-view",
+        title: "Architecture view: contract architecture.v1",
+        content: include_str!("../../docs/topics/architecture-view.md"),
+    },
+    Topic {
         name: "ground-station",
         title: "Ground station (absorbed hub)",
         content: include_str!("../../docs/topics/ground-station.md"),

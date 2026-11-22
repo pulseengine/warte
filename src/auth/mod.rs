@@ -24,11 +24,24 @@ use std::sync::Arc;
 /// (REQ-PROBE-006), renewals (REQ-PROBE-007) and signed feeds such as
 /// temper's report (REQ-TEMPER-002). An auth proxy in front must
 /// leave exactly these open (docs: deployment, REQ-DOCS-010).
-pub const PROBE_OPEN_PATHS: [&str; 4] = [
+/// The one write made with a login rather than a token (REQ-ATTN-001).
+pub const ATTENTION_PATH: &str = "/api/attention";
+
+/// Writes made with a login, not a token: each handler checks the session,
+/// the origin and the session's CSRF token itself (REQ-ATTN-001,
+/// REQ-DECIDE-001). (method, path).
+pub const LOGIN_WRITES: [(&str, &str); 3] = [
+    ("PUT", ATTENTION_PATH),
+    ("POST", "/api/decisions/answer"),
+    ("POST", "/api/security/accept"),
+];
+
+pub const PROBE_OPEN_PATHS: [&str; 5] = [
     "/api/probe/enroll",
     "/api/probe/report",
     "/api/probe/renew",
     "/api/probe/feed/temper",
+    "/api/probe/feed/security",
 ];
 
 /// Token payload.
@@ -38,6 +51,10 @@ pub struct TokenPayload {
     pub issued_at: DateTime<Utc>,
     pub expires_at: DateTime<Utc>,
     pub rights: Vec<String>,
+    /// The person the agent works for (REQ-ATTN-001): the subject of their
+    /// warte login. Their attention schedule is the one this token reads.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub owner: Option<String>,
 }
 
 /// Token manager — issues and verifies bearer tokens.
@@ -84,6 +101,16 @@ impl TokenManager {
 
     /// Issue a bearer token for an agent.
     pub fn issue_token(&self, agent_id: &str, rights: Vec<String>) -> anyhow::Result<String> {
+        self.issue_token_owned(agent_id, rights, None)
+    }
+
+    /// Issue a bearer token that names the person its agent works for.
+    pub fn issue_token_owned(
+        &self,
+        agent_id: &str,
+        rights: Vec<String>,
+        owner: Option<&str>,
+    ) -> anyhow::Result<String> {
         let now = Utc::now();
         let expires = now + Duration::hours(self.token_validity_hours);
 
@@ -92,6 +119,7 @@ impl TokenManager {
             issued_at: now,
             expires_at: expires,
             rights,
+            owner: owner.map(String::from),
         };
 
         let payload_json = serde_json::to_vec(&payload)?;
@@ -100,6 +128,17 @@ impl TokenManager {
         let sig_b64 = base64url_encode(&signature.to_bytes());
 
         Ok(format!("warte1.{}.{}", payload_b64, sig_b64))
+    }
+
+    /// The CSRF token for one login session (REQ-ATTN-001): a hash of the
+    /// signing key's signature over the session id, so only this server can
+    /// make it and it changes with every session.
+    pub fn csrf_token(&self, session_id: &str) -> String {
+        use sha2::{Digest, Sha256};
+        let sig = self
+            .signing_key
+            .sign(format!("warte-csrf:{session_id}").as_bytes());
+        hex::encode(Sha256::digest(sig.to_bytes()))
     }
 
     /// Verify a bearer token. Returns the payload if valid.
@@ -161,12 +200,81 @@ pub const RIGHT_ANY_AGENT: &str = "agents:any";
 /// data. Never a default right; `agents:any` widens it to every agent.
 pub const RIGHT_AGENTS_READ: &str = "agents:read";
 
+/// Read the architecture view's data without a login (REQ-ARCHVIEW-001):
+/// it shows where every credential lives. Never a default right.
+pub const RIGHT_ARCH_READ: &str = "architecture:read";
+
 /// The read routes `agents:read` opens, and whose id each names.
 pub const AGENT_READ_ROUTES: [(&str, Binding); 3] = [
     ("/api/agents", Binding::None),
     ("/api/agents/{id}", Binding::PathId),
     ("/api/agents/{id}/data", Binding::PathId),
 ];
+
+/// REQ-API-007 (#46): read routes that need a warte agent token with
+/// `agents:read` even without `[auth]`, because they carry an agent's
+/// captured data, who holds which rights, artifact bytes or the sync state.
+/// With `[auth]` the login gate covers them (they are in `login::SIGNED_IN`).
+/// The `{id}` binding is the same as for `AGENT_READ_ROUTES`; `agents:any`
+/// lifts it.
+pub const TOKEN_READ_ROUTES: [(&str, Binding, &str); 5] = [
+    ("/api/agents/{id}/data", Binding::PathId, RIGHT_AGENTS_READ),
+    (
+        "/api/access/list/{id}",
+        Binding::TokenAgent,
+        RIGHT_AGENTS_READ,
+    ),
+    (
+        "/api/artifacts/{id}/download",
+        Binding::None,
+        RIGHT_AGENTS_READ,
+    ),
+    ("/api/sync/state", Binding::None, RIGHT_AGENTS_READ),
+    ("/api/architecture", Binding::None, RIGHT_ARCH_READ),
+];
+
+/// May this GET pass without `[auth]` (REQ-API-007)? `Ok` for any route not
+/// in [`TOKEN_READ_ROUTES`]; otherwise 401 without a valid warte agent token
+/// and 403 without `agents:read` or for another agent's `{id}`.
+async fn token_read_check(
+    state: &crate::server::AppState,
+    path: &str,
+    token: Option<String>,
+) -> Result<(), StatusCode> {
+    let Some((binding, id, right)) = TOKEN_READ_ROUTES
+        .iter()
+        .find_map(|(p, b, r)| match_path(p, path).map(|id| (*b, id, *r)))
+    else {
+        return Ok(());
+    };
+    let token = token.ok_or(StatusCode::UNAUTHORIZED)?;
+    let p = state
+        .tokens
+        .verify_token(&token)
+        .map_err(|_| StatusCode::UNAUTHORIZED)?;
+    let has = |r: &str| p.rights.iter().any(|x| x == r);
+    if !has(right) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    if binding == Binding::None || has(RIGHT_ANY_AGENT) {
+        return Ok(());
+    }
+    let Some(id) = id else {
+        return Err(StatusCode::FORBIDDEN);
+    };
+    let ok = match binding {
+        Binding::PathId => {
+            matches!(state.agents.get(&id).await, Ok(Some(a)) if a.name == p.agent_id)
+        }
+        Binding::TokenAgent => id == p.agent_id,
+        _ => false,
+    };
+    if ok {
+        Ok(())
+    } else {
+        Err(StatusCode::FORBIDDEN)
+    }
+}
 
 /// Whose id a route's request names, which must be the token's agent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -200,7 +308,7 @@ pub struct RouteRule {
 /// valid token, so a route added without a row is closed, not open; the
 /// test `every_mutating_route_in_the_router_has_a_right` also fails.
 /// The probe routes (`PROBE_OPEN_PATHS`) authenticate themselves and are not here.
-pub const MUTATING_ROUTES: [RouteRule; 12] = [
+pub const MUTATING_ROUTES: [RouteRule; 13] = [
     RouteRule {
         method: "POST",
         pattern: "/api/agents/register",
@@ -273,6 +381,13 @@ pub const MUTATING_ROUTES: [RouteRule; 12] = [
         right: RIGHT_GITHUB_TOKEN,
         binding: Binding::TokenAgent,
     },
+    // a producer posting its report (REQ-REPORTS-001, seam pulseengine-warte/reports)
+    RouteRule {
+        method: "POST",
+        pattern: "/api/reports/seam-check",
+        right: "reports:write:seam-check",
+        binding: Binding::None,
+    },
 ];
 
 /// The right to exchange an agent token for a GitHub App installation token
@@ -284,6 +399,7 @@ pub const RIGHT_GITHUB_TOKEN: &str = "github:token";
 pub fn is_known_right(right: &str) -> bool {
     right == RIGHT_ANY_AGENT
         || right == RIGHT_AGENTS_READ
+        || right == RIGHT_ARCH_READ
         || MUTATING_ROUTES.iter().any(|r| r.right == right)
 }
 
@@ -291,6 +407,7 @@ pub fn is_known_right(right: &str) -> bool {
 pub fn known_rights() -> Vec<&'static str> {
     let mut v: Vec<&str> = MUTATING_ROUTES.iter().map(|r| r.right).collect();
     v.push(RIGHT_AGENTS_READ);
+    v.push(RIGHT_ARCH_READ);
     v.push(RIGHT_ANY_AGENT);
     v
 }
@@ -497,7 +614,27 @@ pub fn mint_agent_token_with(
     hours: i64,
     extra: &[String],
 ) -> anyhow::Result<String> {
+    mint_agent_token_owned(config, agent_id, hours, extra, None)
+}
+
+/// [`mint_agent_token_with`], naming the person the agent works for by their
+/// login subject (REQ-ATTN-001).
+pub fn mint_agent_token_owned(
+    config: &crate::Config,
+    agent_id: &str,
+    hours: i64,
+    extra: &[String],
+    owner: Option<&str>,
+) -> anyhow::Result<String> {
     anyhow::ensure!(!agent_id.trim().is_empty(), "agent id is empty");
+    if let Some(o) = owner {
+        anyhow::ensure!(
+            !o.is_empty()
+                && o.len() <= 200
+                && !o.chars().any(|c| c.is_whitespace() || c.is_control()),
+            "--owner must be a login subject"
+        );
+    }
     anyhow::ensure!(
         (1..=MAX_TOKEN_HOURS).contains(&hours),
         "--valid-hours must be between 1 and {MAX_TOKEN_HOURS}"
@@ -516,7 +653,7 @@ pub fn mint_agent_token_with(
         }
     }
     let seed = load_or_create_seed(&config.token_seed_file())?;
-    TokenManager::from_seed(&seed, hours).issue_token(agent_id, rights)
+    TokenManager::from_seed(&seed, hours).issue_token_owned(agent_id, rights, owner)
 }
 
 /// Extracted auth info from a request.
@@ -549,6 +686,17 @@ pub async fn auth_middleware(
             if let Some(r) = crate::login::gate(l, &state.tokens, &mut req).await {
                 return Ok(r);
             }
+        } else {
+            // without [auth], the sensitive reads still need a token (REQ-API-007);
+            // owned before the await: a request body is not Sync
+            let path = req.uri().path().to_string();
+            let token = req
+                .headers()
+                .get(AUTHORIZATION)
+                .and_then(|v| v.to_str().ok())
+                .and_then(|v| v.strip_prefix("Bearer "))
+                .map(String::from);
+            token_read_check(&state, &path, token).await?;
         }
         return Ok(next.run(req).await);
     }
@@ -559,6 +707,14 @@ pub async fn auth_middleware(
     // handler (REQ-PROBE-006), and so do renewals (REQ-PROBE-007) and feeds
     // (REQ-TEMPER-002). One list: PROBE_OPEN_PATHS, which the docs test reads.
     if method == axum::http::Method::POST && PROBE_OPEN_PATHS.contains(&req.uri().path()) {
+        return Ok(next.run(req).await);
+    }
+    // The attention schedule is written with a login, not a token: the
+    // handler checks the session, the origin and the CSRF token (REQ-ATTN-001).
+    if LOGIN_WRITES
+        .iter()
+        .any(|(m, p)| method.as_str() == *m && req.uri().path() == *p)
+    {
         return Ok(next.run(req).await);
     }
 

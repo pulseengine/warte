@@ -86,12 +86,33 @@ pub fn build_routes() -> Router<AppState> {
             "/probe/feed/temper",
             post(api_probe_feed_temper).layer(axum::extract::DefaultBodyLimit::max(3 << 20)),
         )
+        // a host's security findings, the same signed transport (REQ-FINDINGS-001)
+        .route(
+            "/probe/feed/security",
+            post(api_probe_feed_security).layer(axum::extract::DefaultBodyLimit::max(3 << 20)),
+        )
+        .route("/security/accept", post(api_security_accept))
         .route("/compliance", get(api_compliance))
         .route("/pressure", get(api_pressure))
         .route("/forecast", get(api_forecast))
         .route("/canaries", get(api_canaries))
         .route("/expiry", get(api_expiry))
         .route("/ci-health", get(api_ci_health))
+        .route("/runner-usage", get(api_runner_usage))
+        .route("/attention", get(api_attention_get).put(api_attention_put))
+        .route("/architecture", get(api_architecture))
+        .route("/glance", get(api_glance))
+        .route("/reviews", get(api_reviews))
+        .route(
+            "/decisions/answer",
+            axum::routing::post(api_decisions_answer),
+        )
+        .route(
+            "/reports/seam-check",
+            axum::routing::post(api_report_seam_check).layer(axum::extract::DefaultBodyLimit::max(
+                crate::reports::MAX_BYTES + 1024,
+            )),
+        )
         .route("/incidents", get(api_incidents))
         .route("/operator", get(api_operator))
         .route("/openapi.json", get(api_openapi));
@@ -181,6 +202,18 @@ pub fn build_routes() -> Router<AppState> {
         .route(
             "/api/dashboard/north-star-partial",
             get(crate::dashboard::north_star_partial),
+        )
+        .route("/api/dashboard/decisions-partial", get(decisions_partial))
+        .route("/api/dashboard/seams-partial", get(seams_partial))
+        .route("/api/dashboard/reviews-partial", get(reviews_partial))
+        .route("/api/dashboard/security-partial", get(security_partial))
+        .route(
+            "/api/dashboard/architecture-partial",
+            get(crate::dashboard::architecture_partial),
+        )
+        .route(
+            "/api/dashboard/attention-partial",
+            get(crate::dashboard::attention_partial),
         )
         .route(
             "/api/dashboard/costs-partial",
@@ -951,6 +984,8 @@ async fn api_probe_renew(
             Json(enroll::EnrollResponse {
                 cert,
                 ca: state.ca.ca_cert_pem().to_string(),
+                spi: None,
+                sa_key: None,
             })
             .into_response()
         }
@@ -1093,10 +1128,24 @@ async fn api_probe_enroll(
         .await
     {
         Ok(cert) => {
+            // a fresh security association for transport v2 (REQ-SEC-001);
+            // enrolling again replaces the old one
+            let sa = crate::hub::quic::SaStore::new(state.db.pool().clone())
+                .issue(&req.host)
+                .await;
+            let (spi, sa_key) = match sa {
+                Ok((s, k)) => (Some(s), Some(k)),
+                Err(e) => {
+                    tracing::error!(error = %e, "probe enrollment: security association");
+                    return plain(StatusCode::SERVICE_UNAVAILABLE, "enrollment unavailable");
+                }
+            };
             tracing::info!(host = %req.host, "probe enrolled");
             Json(enroll::EnrollResponse {
                 cert,
                 ca: state.ca.ca_cert_pem().to_string(),
+                spi,
+                sa_key,
             })
             .into_response()
         }
@@ -1388,11 +1437,30 @@ async fn get_agent(
         .ok_or(StatusCode::NOT_FOUND)
 }
 
+/// A heartbeat, optionally with `{"status": "ended" | "idle" | "working"}`
+/// (seam warte-plugin/heartbeat-status, REQ-GLANCE-001); a bodyless beat is
+/// as before. Any other body is 422.
 async fn agent_heartbeat(
     State(state): State<AppState>,
     Path(id): Path<String>,
+    body: axum::body::Bytes,
 ) -> impl IntoResponse {
-    match state.agents.heartbeat(&id).await {
+    // Older clients send `{}` or other JSON with a beat: anything without a
+    // `status` field is a beat as before. Only a `status` outside the three
+    // known values is refused.
+    let status = match serde_json::from_slice::<serde_json::Value>(&body)
+        .ok()
+        .and_then(|v| v.get("status").cloned())
+    {
+        None => None,
+        Some(serde_json::Value::String(s))
+            if ["ended", "idle", "working"].contains(&s.as_str()) =>
+        {
+            Some(s)
+        }
+        Some(_) => return StatusCode::UNPROCESSABLE_ENTITY,
+    };
+    match state.agents.heartbeat_with(&id, status.as_deref()).await {
         Ok(()) => StatusCode::NO_CONTENT,
         Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
     }
@@ -1741,6 +1809,132 @@ async fn api_ci_health(State(state): State<AppState>) -> axum::response::Respons
     }
 }
 
+/// The attention schedule (REQ-ATTN-001, warte#181): a signed-in user reads
+/// their own; a warte token with `agents:read` reads its owner's (`--owner`);
+/// 404 when none is set or the token names no owner, 401 otherwise.
+async fn api_attention_get(
+    State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    let now = crate::hub::now();
+    let subject = if let Some((_, who)) = state
+        .login
+        .as_ref()
+        .and_then(|l| l.identity_of(&headers, now))
+    {
+        Some(who.sub)
+    } else {
+        let bearer = headers
+            .get(axum::http::header::AUTHORIZATION)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.strip_prefix("Bearer "));
+        let Some(p) = bearer.and_then(|b| state.tokens.verify_token(b).ok()) else {
+            return plain(StatusCode::UNAUTHORIZED, "sign in, or use an agent token");
+        };
+        if !p.rights.iter().any(|r| r == crate::auth::RIGHT_AGENTS_READ) {
+            return plain(StatusCode::FORBIDDEN, "the token needs agents:read");
+        }
+        p.owner
+    };
+    let Some(subject) = subject else {
+        return plain(StatusCode::NOT_FOUND, "no attention schedule");
+    };
+    match state.attention.get(&subject).await {
+        Ok(Some(doc)) => Json(doc).into_response(),
+        Ok(None) => plain(StatusCode::NOT_FOUND, "no attention schedule"),
+        Err(e) => {
+            tracing::warn!("attention: {e}");
+            plain(StatusCode::INTERNAL_SERVER_ERROR, "database error")
+        }
+    }
+}
+
+/// Is the request's Origin this server (same scheme-less authority as Host)?
+fn same_origin(h: &axum::http::HeaderMap) -> bool {
+    let get = |k: axum::http::header::HeaderName| h.get(k).and_then(|v| v.to_str().ok());
+    let (Some(origin), Some(host)) = (
+        get(axum::http::header::ORIGIN),
+        get(axum::http::header::HOST),
+    ) else {
+        return false;
+    };
+    origin
+        .strip_prefix("https://")
+        .or_else(|| origin.strip_prefix("http://"))
+        .is_some_and(|authority| authority == host)
+}
+
+/// Replace the signed-in user's own attention schedule (REQ-ATTN-001). Only
+/// with a login: from this server's origin, with the session's CSRF token in
+/// `X-Warte-CSRF`. Logged as who changed which fields, never the values.
+async fn api_attention_put(
+    State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
+    body: axum::body::Bytes,
+) -> axum::response::Response {
+    let Some(login) = state.login.as_ref() else {
+        return plain(StatusCode::FORBIDDEN, "editing a schedule needs [auth]");
+    };
+    let Some((session, who)) = login.identity_of(&headers, crate::hub::now()) else {
+        return plain(StatusCode::UNAUTHORIZED, "sign in first");
+    };
+    let csrf = headers.get("x-warte-csrf").and_then(|v| v.to_str().ok());
+    if !same_origin(&headers) || csrf != Some(state.tokens.csrf_token(&session).as_str()) {
+        return plain(StatusCode::FORBIDDEN, "not from this page");
+    }
+    let Ok(v) = serde_json::from_slice::<serde_json::Value>(&body) else {
+        return plain(StatusCode::UNPROCESSABLE_ENTITY, "the body is not JSON");
+    };
+    match state.attention.put(&who.sub, &v).await {
+        Ok(doc) => {
+            let fields: Vec<&str> = doc
+                .as_object()
+                .map(|m| m.keys().map(String::as_str).collect())
+                .unwrap_or_default();
+            tracing::info!(user = %who.name, ?fields, "attention schedule changed");
+            Json(doc).into_response()
+        }
+        Err(e) if e.starts_with("database error") => {
+            tracing::warn!("attention: {e}");
+            plain(StatusCode::INTERNAL_SERVER_ERROR, "database error")
+        }
+        Err(e) => plain(StatusCode::UNPROCESSABLE_ENTITY, &e),
+    }
+}
+
+/// Runner usage of one repository over a window of ledger days (REQ-CI-009):
+/// runner-minutes and runner wait per pool, with no runner names.
+async fn api_runner_usage(
+    State(state): State<AppState>,
+    Query(q): Query<std::collections::HashMap<String, String>>,
+) -> axum::response::Response {
+    let Some(hub) = state.hub.clone() else {
+        return plain(StatusCode::SERVICE_UNAVAILABLE, "no CI source configured");
+    };
+    let arg = |k: &str| q.get(k).cloned().unwrap_or_default();
+    let (repo, from, until) = (arg("repo"), arg("from"), arg("until"));
+    if let Err(e) = crate::cihealth::usage::check(&repo, &from, &until) {
+        return plain(StatusCode::BAD_REQUEST, &e);
+    }
+    // Only public repositories are answered, from the same `type=public`
+    // listing the attention strip uses. Private, archived and unknown names
+    // get one answer, so the endpoint never confirms that a repository exists.
+    // No briefing yet means no public list, so nothing is answered.
+    let public = state
+        .briefing
+        .as_ref()
+        .and_then(|s| s.latest())
+        .is_some_and(|b| b.facts.known_repos.iter().any(|r| r == &repo));
+    if !public {
+        return plain(StatusCode::NOT_FOUND, "no such public repository");
+    }
+    let (f, u) = (from.clone(), until.clone());
+    let recs = tokio::task::spawn_blocking(move || hub.ledger_days(&f, &u))
+        .await
+        .unwrap_or_default();
+    Json(crate::cihealth::usage::usage(&recs, &repo, &from, &until)).into_response()
+}
+
 /// Shared incidents: one error failing jobs in several repositories (REQ-CI-005).
 async fn api_incidents(State(state): State<AppState>) -> axum::response::Response {
     match (&state.hub, &state.incidents) {
@@ -1858,4 +2052,446 @@ async fn api_pressure(
         "volumes": vols.into_iter().map(|v| v.1).collect::<Vec<_>>(),
     }))
     .into_response()
+}
+
+/// The architecture view's data (REQ-ARCHVIEW-001): with a login, or without
+/// one for a token holding `architecture:read` (TOKEN_READ_ROUTES). 404
+/// without `[architecture]`; 422 with the errors when the file does not check.
+async fn api_architecture(State(state): State<AppState>) -> axum::response::Response {
+    match crate::architecture::load(state.config.architecture.as_ref()) {
+        None => plain(StatusCode::NOT_FOUND, "no [architecture] file"),
+        Some(Ok(c)) => Json(c).into_response(),
+        Some(Err(errs)) => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(serde_json::json!({ "errors": errs })),
+        )
+            .into_response(),
+    }
+}
+
+/// Everything the night glance reads, now (REQ-GLANCE-001).
+async fn glance_now(state: &AppState) -> crate::glance::Glance {
+    use crate::probe::pressure::{free_gb, Verdict};
+    let now = crate::hub::now();
+    let notices: Vec<serde_json::Value> = sqlx::query_as::<_, (String,)>(
+        "SELECT content FROM agent_data WHERE data_type = 'notice.v1' ORDER BY captured_at DESC LIMIT 5000",
+    )
+    .fetch_all(state.db.pool())
+    .await
+    .unwrap_or_default()
+    .into_iter()
+    .filter_map(|(c,)| serde_json::from_str(&c).ok())
+    .collect();
+    let red_mains = crate::dashboard::red_runs_now(state, now)
+        .await
+        .into_iter()
+        .filter(|r| r.kind == "main")
+        .map(|r| (r.repo, r.workflow))
+        .collect();
+    let failed_releases = match state.hub.clone() {
+        Some(hub) => {
+            let day = |t: i64| crate::hub::report::day_of(t);
+            let (from, until) = (day(now - 7 * 86_400), day(now + 86_400));
+            let recs = tokio::task::spawn_blocking(move || hub.ledger_days(&from, &until))
+                .await
+                .unwrap_or_default();
+            crate::glance::failed_releases(&recs)
+        }
+        None => vec![],
+    };
+    let t = state.config.pressure;
+    let critical_disks = state
+        .machines
+        .as_ref()
+        .map(|m| m.list())
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|s| now - s.received_at <= crate::probe::MACHINE_STALE_S)
+        .filter(|s| {
+            s.report
+                .disks
+                .iter()
+                .any(|d| t.verdict(free_gb(d)) == Verdict::Critical)
+        })
+        .map(|s| s.report.host.clone())
+        .collect();
+    let heartbeats = state
+        .agents
+        .list()
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .map(|a| a.last_heartbeat.map(|t| t.timestamp()))
+        .collect();
+    let always_open = state
+        .config
+        .glance
+        .as_ref()
+        .map(|g| g.always_open.clone())
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| crate::glance::ALWAYS_OPEN.map(String::from).to_vec());
+    let findings = crate::findings::Store::new(state.db.pool().clone());
+    let security_findings = findings
+        .open()
+        .await
+        .into_iter()
+        .filter(|o| o.finding.severity >= crate::findings::Severity::High)
+        .map(|o| (o.host, o.finding.rule))
+        .collect();
+    let silent_detectors = findings.silent(now).await;
+    crate::glance::glance(&crate::glance::Inputs {
+        notices,
+        red_mains,
+        failed_releases,
+        critical_disks,
+        security_findings,
+        silent_detectors,
+        heartbeats,
+        always_open,
+        now,
+    })
+}
+
+/// The night glance as JSON (REQ-GLANCE-001): signed-in only; without
+/// [auth] it is 401, since it reads notices.
+async fn api_glance(State(state): State<AppState>) -> axum::response::Response {
+    if state.login.is_none() {
+        return plain(
+            StatusCode::UNAUTHORIZED,
+            "the glance needs a login: configure [auth]",
+        );
+    }
+    Json(glance_now(&state).await).into_response()
+}
+
+/// The night glance as one phone-sized page (REQ-GLANCE-001).
+pub async fn glance_page(State(state): State<AppState>) -> axum::response::Response {
+    if state.login.is_none() {
+        return plain(
+            StatusCode::UNAUTHORIZED,
+            "the glance needs a login: configure [auth]",
+        );
+    }
+    axum::response::Html(crate::glance::page(&glance_now(&state).await)).into_response()
+}
+
+/// Every notice and answer row, for the decisions (REQ-DECIDE-001).
+async fn decision_rows(
+    state: &AppState,
+) -> (Vec<(String, serde_json::Value)>, Vec<serde_json::Value>) {
+    let rows: Vec<(String, serde_json::Value)> = sqlx::query_as::<_, (String, String)>(
+        "SELECT agent_id, content FROM agent_data WHERE data_type = 'notice.v1' ORDER BY captured_at DESC LIMIT 5000",
+    )
+    .fetch_all(state.db.pool())
+    .await
+    .unwrap_or_default()
+    .into_iter()
+    .filter_map(|(a, c)| serde_json::from_str(&c).ok().map(|v| (a, v)))
+    .collect();
+    let answers: Vec<serde_json::Value> = sqlx::query_as::<_, (String,)>(
+        "SELECT content FROM agent_data WHERE data_type = 'answer.v1' ORDER BY captured_at DESC LIMIT 5000",
+    )
+    .fetch_all(state.db.pool())
+    .await
+    .unwrap_or_default()
+    .into_iter()
+    .filter_map(|(c,)| serde_json::from_str(&c).ok())
+    .collect();
+    (rows, answers)
+}
+
+fn always_open(state: &AppState) -> Vec<String> {
+    state
+        .config
+        .glance
+        .as_ref()
+        .map(|g| g.always_open.clone())
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| crate::glance::ALWAYS_OPEN.map(String::from).to_vec())
+}
+
+/// HTMX partial: the open decisions (REQ-DECIDE-001), signed-in only.
+pub async fn decisions_partial(
+    State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    let Some((session, _)) = state
+        .login
+        .as_ref()
+        .and_then(|l| l.identity_of(&headers, crate::hub::now()))
+    else {
+        return axum::response::Html(r#"<div class="overview"><h2>Decisions</h2><p class="empty">Answering the agents' decisions needs a login: configure <code>[auth]</code> and sign in.</p></div>"#.to_string()).into_response();
+    };
+    let (rows, answers) = decision_rows(&state).await;
+    let ds = crate::decisions::open(&rows, &answers, &always_open(&state));
+    axum::response::Html(crate::decisions::view(
+        &ds,
+        &state.tokens.csrf_token(&session),
+    ))
+    .into_response()
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AnswerRequest {
+    notice_id: String,
+    revision: u64,
+    option_id: String,
+    #[serde(default)]
+    note: Option<String>,
+}
+
+/// Answer a decision (REQ-DECIDE-001): the owner role only, from this
+/// origin with the session's CSRF token. Stores an `answer.v1` row on the
+/// agent that asked; logged with who and which notice, never the note.
+async fn api_decisions_answer(
+    State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
+    body: axum::body::Bytes,
+) -> axum::response::Response {
+    let Some(login) = state.login.as_ref() else {
+        return plain(StatusCode::UNAUTHORIZED, "answering needs [auth]");
+    };
+    let Some((session, who)) = login.identity_of(&headers, crate::hub::now()) else {
+        return plain(StatusCode::UNAUTHORIZED, "sign in first");
+    };
+    let csrf = headers.get("x-warte-csrf").and_then(|v| v.to_str().ok());
+    if !same_origin(&headers) || csrf != Some(state.tokens.csrf_token(&session).as_str()) {
+        return plain(StatusCode::FORBIDDEN, "not from this page");
+    }
+    if who.role != crate::login::Role::Owner {
+        return plain(StatusCode::FORBIDDEN, "only the owner answers decisions");
+    }
+    let Ok(req) = serde_json::from_slice::<AnswerRequest>(&body) else {
+        return plain(StatusCode::UNPROCESSABLE_ENTITY, "not an answer");
+    };
+    let (rows, answers) = decision_rows(&state).await;
+    let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let (agent_row, answer) = match crate::decisions::answer(
+        &rows,
+        &answers,
+        &req.notice_id,
+        req.revision,
+        &req.option_id,
+        req.note.as_deref(),
+        &now,
+    ) {
+        Ok(x) => x,
+        Err(e) => return plain(StatusCode::CONFLICT, &e),
+    };
+    let r = sqlx::query(
+        "INSERT INTO agent_data (id, agent_id, data_type, content, captured_at, instance_id) VALUES (?, ?, 'answer.v1', ?, ?, ?)",
+    )
+    .bind(uuid::Uuid::now_v7().to_string())
+    .bind(&agent_row)
+    .bind(answer.to_string())
+    .bind(Utc::now().to_rfc3339())
+    .bind(state.config.instance_id())
+    .execute(state.db.pool())
+    .await;
+    match r {
+        Ok(_) => {
+            tracing::info!(user = %who.name, notice = %req.notice_id, option = %req.option_id, "decision answered");
+            (StatusCode::CREATED, Json(answer)).into_response()
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "decision answer");
+            plain(StatusCode::INTERNAL_SERVER_ERROR, "database error")
+        }
+    }
+}
+
+/// A producer posts its report (REQ-REPORTS-001): the token's right is
+/// checked by the middleware (MUTATING_ROUTES); the body against the kind.
+async fn api_report_seam_check(
+    State(state): State<AppState>,
+    body: axum::body::Bytes,
+) -> axum::response::Response {
+    let kind = crate::reports::SEAM_CHECK;
+    match crate::reports::check(&kind, &body) {
+        Ok(v) => match crate::reports::Store::new(state.db.pool().clone())
+            .put(&kind, &v)
+            .await
+        {
+            Ok(()) => StatusCode::NO_CONTENT.into_response(),
+            Err(e) => {
+                tracing::error!(error = %e, "report store");
+                plain(StatusCode::INTERNAL_SERVER_ERROR, "database error")
+            }
+        },
+        Err(e) => plain(StatusCode::UNPROCESSABLE_ENTITY, &e),
+    }
+}
+
+/// HTMX partial: the Seams view (#76), signed-in only: seam issues can come
+/// from private repositories.
+pub async fn seams_partial(State(state): State<AppState>) -> axum::response::Response {
+    if state.login.is_none() {
+        return axum::response::Html(r#"<div class="overview"><h2>Seams</h2><p class="empty">The Seams view lists issues from private repositories too, so it needs a login: configure <code>[auth]</code>.</p></div>"#.to_string()).into_response();
+    }
+    let r = crate::reports::Store::new(state.db.pool().clone())
+        .get(&crate::reports::SEAM_CHECK)
+        .await;
+    axum::response::Html(crate::reports::seams_view(r.as_ref(), crate::hub::now())).into_response()
+}
+
+/// Who may read the reviews (REQ-PRREVIEW-001): with `[auth]` the login gate
+/// already required a signed-in user; without it, only a warte bound to
+/// loopback, since PR titles and authors are private work data.
+fn reviews_allowed(state: &AppState) -> bool {
+    state.login.is_some()
+        || state
+            .config
+            .bind
+            .parse::<std::net::SocketAddr>()
+            .is_ok_and(|a| a.ip().is_loopback())
+}
+
+async fn api_reviews(State(state): State<AppState>) -> axum::response::Response {
+    if !reviews_allowed(&state) {
+        return plain(
+            StatusCode::UNAUTHORIZED,
+            "the reviews need [auth], or a warte bound to loopback",
+        );
+    }
+    match &state.reviews {
+        None => plain(StatusCode::NOT_FOUND, "no [reviews] configured"),
+        Some(s) => Json(s.lock().map(|g| g.clone()).unwrap_or_default()).into_response(),
+    }
+}
+
+pub async fn reviews_partial(State(state): State<AppState>) -> axum::response::Response {
+    let body = if !reviews_allowed(&state) {
+        r#"<div class="overview"><h2>Reviews</h2><p class="empty">The reviews show private work data: configure <code>[auth]</code>, or run this warte on loopback.</p></div>"#.to_string()
+    } else {
+        match &state.reviews {
+            None => r#"<div class="overview"><h2>Reviews</h2><p class="empty">No <code>[reviews]</code> configured: it needs your own read-only GitHub token.</p></div>"#.to_string(),
+            Some(s) => crate::reviews::view(&s.lock().map(|g| g.clone()).unwrap_or_default()),
+        }
+    };
+    axum::response::Html(body).into_response()
+}
+
+/// A host's security findings, sent by its enrolled probe as the signed
+/// `security` feed (REQ-FINDINGS-001). Any enrolled, unrevoked host may send
+/// its own; one answer for every refusal, the reason to the log.
+async fn api_probe_feed_security(
+    State(state): State<AppState>,
+    Json(f): Json<crate::probe::send::SignedFeed>,
+) -> axum::response::Response {
+    let refused = || plain(StatusCode::FORBIDDEN, "feed refused");
+    if f.name != "security" || f.cert.len() > 16 * 1024 || f.sig.len() > 512 {
+        return refused();
+    }
+    let now = crate::hub::now();
+    let v = match crate::probe::send::verify_feed(state.ca.ca_cert_der(), &f, now) {
+        Ok(v) => v,
+        Err(e) => {
+            tracing::warn!(error = %e, "security feed refused");
+            return refused();
+        }
+    };
+    match crate::probe::enroll::revoked(&state.db, &v.host, v.issued_at).await {
+        Ok(false) => {}
+        Ok(true) => {
+            tracing::warn!(host = %v.host, "security feed refused: host revoked");
+            return refused();
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "security feed: revocation store");
+            return plain(StatusCode::SERVICE_UNAVAILABLE, "feed unavailable");
+        }
+    }
+    let report = match crate::findings::parse(&v.data) {
+        Ok(r) => r,
+        Err(why) => {
+            return plain(
+                StatusCode::UNPROCESSABLE_ENTITY,
+                &format!("report rejected: {why}"),
+            )
+        }
+    };
+    match crate::findings::Store::new(state.db.pool().clone())
+        .record(&v.host, f.at, now, &report)
+        .await
+    {
+        Ok(true) => StatusCode::NO_CONTENT.into_response(),
+        Ok(false) => {
+            tracing::warn!(host = %v.host, "security feed refused: not newer than the last (replay?)");
+            refused()
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "security feed: store");
+            plain(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "could not store the findings",
+            )
+        }
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AcceptRequest {
+    host: String,
+    source: String,
+    rule: String,
+    subject: String,
+}
+
+/// Accept one finding into its host's baseline (REQ-FINDINGS-001): the owner
+/// role only, from this origin with the session's CSRF token.
+async fn api_security_accept(
+    State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
+    body: axum::body::Bytes,
+) -> axum::response::Response {
+    let Some(login) = state.login.as_ref() else {
+        return plain(StatusCode::UNAUTHORIZED, "accepting needs [auth]");
+    };
+    let Some((session, who)) = login.identity_of(&headers, crate::hub::now()) else {
+        return plain(StatusCode::UNAUTHORIZED, "sign in first");
+    };
+    let csrf = headers.get("x-warte-csrf").and_then(|v| v.to_str().ok());
+    if !same_origin(&headers) || csrf != Some(state.tokens.csrf_token(&session).as_str()) {
+        return plain(StatusCode::FORBIDDEN, "not from this page");
+    }
+    if who.role != crate::login::Role::Owner {
+        return plain(StatusCode::FORBIDDEN, "only the owner accepts findings");
+    }
+    let Ok(r) = serde_json::from_slice::<AcceptRequest>(&body) else {
+        return plain(StatusCode::UNPROCESSABLE_ENTITY, "not an accept request");
+    };
+    match crate::findings::Store::new(state.db.pool().clone())
+        .accept(&r.host, &r.source, &r.rule, &r.subject, &who.name)
+        .await
+    {
+        Ok(true) => {
+            tracing::info!(user = %who.name, host = %r.host, rule = %r.rule, "finding accepted into the baseline");
+            StatusCode::NO_CONTENT.into_response()
+        }
+        Ok(false) => plain(StatusCode::CONFLICT, "no such open finding"),
+        Err(e) => {
+            tracing::error!(error = %e, "accept finding");
+            plain(StatusCode::INTERNAL_SERVER_ERROR, "database error")
+        }
+    }
+}
+
+/// HTMX partial: open security findings (REQ-FINDINGS-001), signed-in only.
+pub async fn security_partial(
+    State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    let Some(login) = state.login.as_ref() else {
+        return axum::response::Html(r#"<div class="overview"><h2>Security findings</h2><p class="empty">Security findings need a login: configure <code>[auth]</code>.</p></div>"#.to_string()).into_response();
+    };
+    let ident = login.identity_of(&headers, crate::hub::now());
+    let store = crate::findings::Store::new(state.db.pool().clone());
+    let open = store.open().await;
+    let silent = store.silent(crate::hub::now()).await;
+    let csrf = ident
+        .filter(|(_, who)| who.role == crate::login::Role::Owner)
+        .map(|(s, _)| state.tokens.csrf_token(&s));
+    axum::response::Html(crate::findings::view(&open, &silent, csrf.as_deref())).into_response()
 }

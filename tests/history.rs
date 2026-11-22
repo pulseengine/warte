@@ -213,6 +213,9 @@ async fn serve_with_history() -> (tempfile::TempDir, String, History) {
         probe_self: false,
         costs_file: None,
         skill_usage_file: None,
+        quic: None,
+        quic_names: vec![],
+        require_quic: false,
     };
     let config = warte::config::Config {
         db_path: dir.path().join("state.db"),

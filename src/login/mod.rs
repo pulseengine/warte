@@ -546,6 +546,13 @@ impl Login {
         s.get(id).filter(|v| v.expires > now).map(|v| v.who.clone())
     }
 
+    /// The signed-in identity and its session id from a request's cookie.
+    pub fn identity_of(&self, h: &HeaderMap, now: i64) -> Option<(String, Identity)> {
+        let id = cookie_value(h)?;
+        let who = self.session(&id, now)?;
+        Some((id, who))
+    }
+
     pub fn drop_session(&self, id: &str) {
         self.sessions
             .lock()
@@ -606,6 +613,15 @@ pub const SIGNED_IN: &[&str] = &[
     "/api/artifacts/{id}/download",
     "/api/sync/state",
     "/api/dashboard/costs-partial",
+    "/api/dashboard/attention-partial",
+    "/api/dashboard/decisions-partial",
+    "/api/dashboard/seams-partial",
+    "/api/dashboard/reviews-partial",
+    "/api/dashboard/security-partial",
+    "/api/reviews",
+    "/api/glance",
+    "/glance",
+    "/api/dashboard/architecture-partial",
     "/api/dashboard/skills-partial",
     "/api/dashboard/briefing-partial",
     "/api/dashboard/agents-partial",
@@ -618,6 +634,8 @@ pub const SIGNED_IN: &[&str] = &[
 
 /// Read routes a scheduled job reads with its write right.
 pub const SIGNED_IN_OR_RIGHT: &[(&str, &str)] = &[
+    ("/api/attention", "agents:read"),
+    ("/api/architecture", "architecture:read"),
     ("/api/briefing", "briefing:write"),
     ("/api/briefing/facts", "briefing:write"),
     ("/api/triage", "triage:write"),
@@ -649,6 +667,7 @@ pub const PUBLIC: &[&str] = &[
     "/api/canaries",
     "/api/expiry",
     "/api/ci-health",
+    "/api/runner-usage",
     "/api/incidents",
     "/api/fleet",
     "/api/jobs",

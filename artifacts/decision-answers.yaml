@@ -1,0 +1,50 @@
+# warte#184: decisions in the app. Seam notice-warte/decision-answers
+# (decided 2026-11-19); the owner chose to build it on 2026-11-22.
+artifacts:
+  - id: REQ-DECIDE-001
+    type: requirement
+    title: The owner sees the agents' open decisions in warte and answers them there as answer.v1 rows
+    status: verified
+    release: v1.6.43
+    description: "warte SHALL show every open needs-decision notice (newest revision, not answered at it) in a signed-in Decisions view, always-open tags first, then by flow, with its options and the recommended one marked. POST /api/decisions/answer SHALL accept an answer only from a signed-in user with the owner role, from this origin with the session's CSRF token, and only for a notice that exists, is at that revision, is open, is not yet answered and offered the option; it SHALL store an answer.v1 row (schema_version 1, via warte) on the agent that asked, and refuse anything else with nothing stored. A note SHALL be at most 2000 characters and never logged."
+    fields:
+      category: functional
+      priority: should
+      upstream-ref: https://github.com/pulseengine/warte/issues/184
+    links:
+      - type: refines
+        target: REQ-ATTN-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-22T18:00:00Z
+
+  - id: DD-DECIDE-001
+    type: design-decision
+    title: The decision rules are pure functions; the write reuses the login-write machinery
+    status: verified
+    release: v1.6.43
+    description: "decisions::open and decisions::answer decide over the stored notice and answer rows, so every refusal is tested without a server. The answer route joins PUT /api/attention in auth::LOGIN_WRITES: the middleware passes it to its handler, which checks the session, the origin, the CSRF token and the owner role. The answer goes to the agents row the notice was posted under, so it reaches the agent that asked."
+    fields:
+      rationale: "An answer is an instruction-shaped thing reaching an agent; only the owner gives one, only to a question that was asked and is still current."
+    links:
+      - type: satisfies
+        target: REQ-DECIDE-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-22T18:00:00Z
+
+  - id: TEST-DECIDE-001
+    type: verification
+    title: Ordering, disappearing answers, every refusal, and the owner-only write
+    status: verified
+    release: v1.6.43
+    description: "tests/decisions.rs: urgent decisions first, then by flow; answered and withdrawn ones disappear, and an answer to an older revision does not hide a newer one; the answer has the schema shape and leaves an empty note out; a stale revision, an unoffered option, a closed notice, an unknown id, an answered one and a too-long note are refused. tests/auth.rs only_the_owner_answers_a_decision_from_this_page_and_it_reaches_the_agent_once: 401 without [auth] and without a login; no CSRF token, a foreign origin and a member are 403; a stale revision and an unoffered option are 409; the owner's answer is stored once on the asking agent with via warte, and the decision leaves the view. Negative controls: dropping the owner-role check and dropping the revision check each failed a test."
+    links:
+      - type: verifies
+        target: REQ-DECIDE-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-22T18:00:00Z

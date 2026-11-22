@@ -1,0 +1,50 @@
+# warte#87/#76: reports posted by producers, and the Seams view. Seam
+# pulseengine-warte/reports, decided 2026-11-22.
+artifacts:
+  - id: REQ-REPORTS-001
+    type: requirement
+    title: Producers post reports with a per-kind right; warte checks, keeps the latest and shows them only to a login
+    status: verified
+    release: v1.6.43
+    description: "warte SHALL accept POST /api/reports/<kind> only with a token holding reports:write:<kind>, check the report's schema string and the fields it renders (seam-check.v1: now, seams[] with source.repo, violations and warnings lists, issues_without_block, errors, exit), refuse anything else or anything over 2 MiB with 422 naming the field, and keep the latest. The Seams view SHALL list every seam with status, provider, consumers, violations, warnings and open questions, violations first, flag a report older than 8 days stale, and show data only to a signed-in user."
+    fields:
+      category: functional
+      priority: should
+      upstream-ref: https://github.com/pulseengine/warte/issues/76
+    links:
+      - type: refines
+        target: REQ-AUTH-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-22T20:00:00Z
+
+  - id: DD-REPORTS-001
+    type: design-decision
+    title: One intake, one row per kind, one right per kind
+    status: verified
+    release: v1.6.43
+    description: "Each kind is a fixed route in MUTATING_ROUTES with its own right, so a producer's token can post one kind and read nothing. Reports are stored latest-wins in the reports table and rendered on request. warte validates only what it renders, plus the schema string, so the producer keeps its schema and announces a new version through the seam. incident-ledger.v1 and experiments.v1 join as new kinds once their producer adds them."
+    fields:
+      rationale: "The sweeps are slow and cached by design; warte never calls GitHub for them, and the private repositories they cover keep the views behind a login."
+    links:
+      - type: satisfies
+        target: REQ-REPORTS-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-22T20:00:00Z
+
+  - id: TEST-REPORTS-001
+    type: verification
+    title: Planted bad reports, the per-kind right, and the signed-in view
+    status: verified
+    release: v1.6.43
+    description: "tests/reports.rs: a report in seam-check.py's shape passes; a wrong schema, seams not a list, a seam without source.repo, violations not a list, errors not a list, exit not a number, no now, non-JSON and an oversized body are refused by field; the view puts violations first, shows open questions, flags a report older than 8 days stale and says when none arrived. tests/auth.rs a_producer_posts_its_report_with_its_right_and_only_a_login_sees_it: no token 401, another right 403, a wrong schema 422, the producer's token 204; the producer's token cannot read the view, a login can, and without [auth] it shows nothing. tests/agent_token.rs covers the new route's right like every other. Negative control: skipping the schema check failed two tests."
+    links:
+      - type: verifies
+        target: REQ-REPORTS-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-22T20:00:00Z

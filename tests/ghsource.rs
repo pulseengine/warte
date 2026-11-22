@@ -470,6 +470,9 @@ async fn misconfiguration_is_refused_at_startup() {
             probe_self: false,
             costs_file: None,
             skill_usage_file: None,
+            quic: None,
+            quic_names: vec![],
+            require_quic: false,
         }),
         github: Some(cfg("http://127.0.0.1:9")),
         ..Default::default()

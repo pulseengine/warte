@@ -50,6 +50,9 @@ async fn serve() -> Server {
             probe_self: false,
             costs_file: None,
             skill_usage_file: Some(file.to_str().unwrap().into()),
+            quic: None,
+            quic_names: vec![],
+            require_quic: false,
         }),
         ..Default::default()
     };

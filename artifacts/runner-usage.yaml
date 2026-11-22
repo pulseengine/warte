@@ -1,0 +1,50 @@
+# Runner usage per repository over a window of ledger days: the before and
+# after numbers for the jig shadow pilot, asked by jig and the org
+# coordinator, 2026-11-22.
+artifacts:
+  - id: REQ-CI-009
+    type: requirement
+    title: "GET /api/runner-usage reports one repository's runner-minutes and runner wait per pool over a window of ledger days, without runner names"
+    status: verified
+    release: v1.6.43
+    description: "warte SHALL answer GET /api/runner-usage?repo=&from=&until= from the finished-job ledger alone, for the jobs of one repository whose run was created on a day from from to until inclusive, at most 31 days: runner-minutes (completed minus started, every attempt that got a runner) in total, per pool and per event, runs and minutes per run, pull-request branches and minutes per branch, and per pool the runner wait (started minus created, first attempts) at the 50th and 90th percentile with its sample count. A rate or percentile without samples SHALL be null, never 0. The answer SHALL NOT name a runner. warte SHALL answer only repositories on GitHub's type=public listing (the briefing's known_repos, as the attention strip), and SHALL give a private, archived or unknown name one identical 404, and every name 404 before the first listing. Anything but a repository name and a real window SHALL be refused with 400."
+    fields:
+      category: functional
+      priority: should
+    links:
+      - type: refines
+        target: REQ-CI-008
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-22T11:00:00Z
+
+  - id: DD-CI-005
+    type: design-decision
+    title: Aggregate the ledger per window; a branch stands for its pull request
+    status: verified
+    release: v1.6.43
+    description: "The ledger already keeps every finished job with pool, runner and timings, with no expiry, so the before window needs no new collection. The endpoint aggregates on request, one window per call; a caller compares two windows. The ledger has no pull request number, so a pull_request run's head branch stands for its pull request. Re-runs count toward runner-minutes, since they use runner time, but not toward the wait, which is measured on first attempts as /api/ci-health does."
+    fields:
+      rationale: "Runner names are internal and the read API is public, so only pool names, which public workflows already carry, leave the module. 31 days keeps the window inside the two calendar months the ledger reader spans."
+    links:
+      - type: satisfies
+        target: REQ-CI-009
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-22T11:00:00Z
+
+  - id: TEST-CI-009
+    type: verification
+    title: tests/runner_usage.rs plants other repositories, other days, a re-run and a job without a runner
+    status: verified
+    release: v1.6.43
+    description: "usage_sums_runner_minutes_per_pool_event_and_branch_without_runner_names checks totals, per pool, per event and per branch over a planted ledger with another repository, a day outside the window, a re-run whose wait must not count and a job that never got a runner, and that no runner name appears in the JSON. a_private_or_unknown_repository_gets_the_same_404_and_is_never_named plants a private repository in the ledger: it and an unknown name get the same 404 body, its name appears in no response, and with no public listing a public name gets 404 too. an_empty_window_has_no_rates_and_no_waits checks null rates. only_a_repository_name_and_a_real_window_of_at_most_31_days_pass covers the 400 cases. the_api_answers_from_the_ledger_and_refuses_a_bad_window serves the route over an ingested ledger. Negative controls: counting re-run waits, dropping the repository filter and dropping the public-repository filter each failed the tests."
+    links:
+      - type: verifies
+        target: REQ-CI-009
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-22T11:00:00Z

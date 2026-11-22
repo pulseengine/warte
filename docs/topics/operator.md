@@ -48,13 +48,18 @@ station, with only the right that job needs:
 warte token mint briefing-job --valid-hours 720 --right briefing:write
 ```
 
+An agent that reads its person's attention schedule (REQ-ATTN-001) needs
+`agents:read` and `--owner <subject>`, the subject of that person's login as
+shown under My hours. Without `--owner` it gets 404 and falls back to its
+local file.
+
 ## ci-source
 
 **Feed the CI source.** Run `warte serve` (`warte.service`) behind a TLS
 proxy (`Caddyfile.snippet`). Feed it either from a fleet agent (`[hub]`)
 or from GitHub's API (`[github]`, see deployment). The proxy must leave
-`POST` to `/api/probe/enroll`, `/api/probe/report`, `/api/probe/renew` and
-`/api/probe/feed/temper` reachable: probes authenticate themselves and cannot
+`POST` to `/api/probe/enroll`, `/api/probe/report`, `/api/probe/renew`,
+`/api/probe/feed/temper` and `/api/probe/feed/security` reachable: probes authenticate themselves and cannot
 answer a password prompt.
 
 *Late when* no snapshot has arrived for 15 minutes. *Not set up* without
@@ -151,9 +156,17 @@ These rights belong to agents and peers rather than the operator's jobs:
   reporting that it is alive, and storing its data;
 - `agents:read`: with `[auth]`, list the agents and read the token's own
   agent's row and data (`GET /api/agents`, `/api/agents/{id}`,
-  `/api/agents/{id}/data`); never in a bare mint;
+  `/api/agents/{id}/data`); with or without `[auth]`, read the token's own
+  data and access list, artifact downloads and the sync state (REQ-API-007);
+  never in a bare mint;
 - `agents:any`: a token that writes as any agent (and, with `agents:read`,
   reads any agent);
+- `reports:write:seam-check`: the weekly seam-check workflow posting its
+  report to `POST /api/reports/seam-check` (REQ-REPORTS-001); mint it for
+  that job alone, since it can post the report and do nothing else;
+- `architecture:read`: read `GET /api/architecture`, the architecture view's
+  data, without a login (REQ-ARCHVIEW-001); it shows where every credential
+  lives, so mint it only for the job that needs it; never in a bare mint;
 - `github:token`: an agent exchanging its own token for a one-hour GitHub
   token for its assigned repositories (`warte docs github-tokens`);
   `agents:any` does not extend it to other agents;

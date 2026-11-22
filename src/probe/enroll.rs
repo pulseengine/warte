@@ -32,6 +32,13 @@ pub struct EnrollRequest {
 pub struct EnrollResponse {
     pub cert: String,
     pub ca: String,
+    /// Transport v2 (REQ-SEC-001): the security association, on enrolment
+    /// only (a renewal keeps it). Handed out once; the agent keeps `sa_key` in
+    /// a file only its user can read.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spi: Option<u16>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sa_key: Option<String>,
 }
 
 /// A host name we are willing to put in a certificate: DNS hostname shape,
@@ -207,5 +214,26 @@ pub async fn enroll(
     }
     std::fs::write(&cert_path, &enrolled.cert).context("writing probe certificate")?;
     std::fs::write(&ca_path, &enrolled.ca).context("writing CA certificate")?;
+    // transport v2: the SPI and SA key, 0600 like the private key
+    if let (Some(spi), Some(k)) = (enrolled.spi, enrolled.sa_key.as_deref()) {
+        use std::io::Write;
+        use std::os::unix::fs::OpenOptionsExt;
+        let sa_path = state_dir.join("telemetry-sa.json");
+        let mut f = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(&sa_path)
+            .context("creating telemetry-sa.json")?;
+        f.write_all(
+            serde_json::json!({"spi": spi, "sa_key": k})
+                .to_string()
+                .as_bytes(),
+        )
+        .context("writing telemetry-sa.json")?;
+        std::fs::set_permissions(&sa_path, std::fs::Permissions::from_mode(0o600))
+            .context("chmod 0600 on telemetry-sa.json")?;
+    }
     Ok(())
 }

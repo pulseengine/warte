@@ -305,7 +305,10 @@ pub fn attention(
 /// rule over the last two days of the ledger), with the public repositories
 /// and default branches the latest briefing read from GitHub. Without a
 /// ground station or a briefing there is nothing to say, never a guess.
-async fn red_runs_now(state: &crate::server::AppState, now: i64) -> Vec<crate::briefing::RedRun> {
+pub(crate) async fn red_runs_now(
+    state: &crate::server::AppState,
+    now: i64,
+) -> Vec<crate::briefing::RedRun> {
     let (Some(hub), Some(b)) = (
         state.hub.clone(),
         state.briefing.as_ref().and_then(|s| s.latest()),
@@ -1019,4 +1022,79 @@ pub async fn health_partial(State(state): State<crate::server::AppState>) -> Res
     );
 
     Html(html).into_response()
+}
+
+/// HTMX partial: My hours, the signed-in user's attention schedule
+/// (REQ-ATTN-001). The schedule is edited as its JSON, so a span's days or an
+/// off period's note are never lost by a narrower form; the server validates
+/// it and names a broken field. Signed-in only (login::SIGNED_IN).
+pub async fn attention_partial(
+    State(state): State<crate::server::AppState>,
+    headers: axum::http::HeaderMap,
+) -> Response {
+    let Some((session, who)) = state
+        .login
+        .as_ref()
+        .and_then(|l| l.identity_of(&headers, crate::hub::now()))
+    else {
+        return Html(crate::login::sign_in_panel()).into_response();
+    };
+    let doc = state.attention.get(&who.sub).await.ok().flatten();
+    let set = doc.is_some();
+    let body = doc.unwrap_or_else(|| {
+        serde_json::json!({
+            "schema_version": 1,
+            "timezone": "UTC",
+            "windows": ["09:00-11:00", "16:00-17:00"],
+            "available": ["08:00-18:00"]
+        })
+    });
+    let pretty = serde_json::to_string_pretty(&body).unwrap_or_default();
+    Html(format!(
+        r#"<div class="overview my-hours"><h2>My hours</h2>
+<p>Your attention schedule ({state_line}). Agents whose token names you with <code>--owner {sub}</code> read it at <code>GET /api/attention</code>; the night window is the time outside <code>available</code>.</p>
+<form id="my-hours" data-csrf="{csrf}">
+<textarea name="schedule" rows="16" spellcheck="false" aria-label="Attention schedule as JSON">{json}</textarea>
+<p><button type="submit" class="btn-small">Save</button> <span class="my-hours-status" role="status"></span></p>
+</form>
+<script>
+(function () {{
+  var f = document.getElementById("my-hours");
+  if (!f) return;
+  f.addEventListener("submit", function (e) {{
+    e.preventDefault();
+    var s = f.querySelector(".my-hours-status");
+    var body;
+    try {{ body = JSON.parse(f.schedule.value); }} catch (x) {{ s.textContent = "Not valid JSON."; return; }}
+    fetch("api/attention", {{method: "PUT", headers: {{"Content-Type": "application/json", "X-Warte-CSRF": f.dataset.csrf}}, body: JSON.stringify(body)}})
+      .then(function (r) {{ return r.text().then(function (t) {{ s.textContent = r.ok ? "Saved." : t; }}); }})
+      .catch(function () {{ s.textContent = "Could not reach warte."; }});
+  }});
+}})();
+</script></div>"#,
+        state_line = if set { "saved" } else { "not set yet: agents use their local file" },
+        sub = fleet::esc(&who.sub),
+        csrf = fleet::esc(&state.tokens.csrf_token(&session)),
+        json = fleet::esc(&pretty),
+    ))
+    .into_response()
+}
+
+/// HTMX partial: the architecture view (REQ-ARCHVIEW-001). It shows where
+/// every credential lives, so it renders data only to a signed-in user; the
+/// login gate classes it signed-in. Without `[auth]` it says so and shows
+/// nothing.
+pub async fn architecture_partial(State(state): State<crate::server::AppState>) -> Response {
+    if state.login.is_none() {
+        return Html(r#"<div class="overview"><h2>Architecture</h2><p class="empty">The architecture view shows where credentials live, so it needs a login: configure <code>[auth]</code>. A script can read <code>GET /api/architecture</code> with a token holding <code>architecture:read</code>.</p></div>"#.to_string()).into_response();
+    }
+    let body = match crate::architecture::load(state.config.architecture.as_ref()) {
+        None => r#"<div class="overview"><h2>Architecture</h2><p class="empty">No architecture file: set <code>[architecture] file</code> (<code>warte docs architecture-view</code>).</p></div>"#.to_string(),
+        Some(Ok(c)) => crate::architecture::view(&c),
+        Some(Err(errs)) => format!(
+            r#"<div class="overview"><h2>Architecture</h2><p>The architecture file does not check out; nothing is shown until it does.</p><ul>{}</ul></div>"#,
+            errs.iter().map(|e| format!("<li>{}</li>", fleet::esc(e))).collect::<String>()
+        ),
+    };
+    Html(body).into_response()
 }

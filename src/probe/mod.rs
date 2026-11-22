@@ -12,6 +12,7 @@
 
 pub mod activity;
 pub mod enroll;
+pub mod focus;
 pub mod hardware;
 pub mod health;
 pub mod hooks;

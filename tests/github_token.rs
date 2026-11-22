@@ -15,7 +15,7 @@ use serde_json::{json, Value};
 use std::sync::{Arc, Mutex};
 use warte::auth::mint_agent_token_with;
 use warte::ghtoken::{
-    git_credential_answer, git_credential_wants, token_agent, Broker, GithubAppConfig, Store,
+    git_credential_answer, git_credential_wants, token_agent, Broker, GithubAppConfig, Grant, Store,
 };
 
 const APP_ID: u64 = 4242;
@@ -489,6 +489,66 @@ async fn actions_write_is_opt_in_per_agent() {
     let mut g = app_config(t.dir.path(), "https://api.github.com");
     g.permissions.insert("actions".into(), "write".into());
     assert!(g.check().unwrap_err().contains("per agent"));
+}
+
+// rivet: verifies REQ-GHTOKEN-005
+#[tokio::test]
+async fn workflows_write_is_opt_in_per_agent_and_never_configured() {
+    let t = start(12).await;
+    assign(&t, "a1", &["pulseengine/warte"]).await;
+    assign(&t, "a2", &["pulseengine/warte"]).await;
+    let a1 = tok(&t, "a1", &["github:token"]);
+    let a2 = tok(&t, "a2", &["github:token"]);
+    let want = json!({"permissions":{"workflows":"write","contents":"write"}});
+    // not granted: asking is refused, and the default set leaves it out
+    let (s, _) = ask(&t, "a1", Some(&a1), want.clone()).await;
+    assert_eq!(s, 403);
+    let (s, v) = ask(&t, "a1", Some(&a1), json!({})).await;
+    assert_eq!(s, 200, "{v}");
+    assert!(v["permissions"].get("workflows").is_none(), "{v}");
+    // granted to a1 only
+    t.store.set_workflows_write("a1", true).await.unwrap();
+    let (s, v) = ask(&t, "a1", Some(&a1), want.clone()).await;
+    assert_eq!(s, 200, "{v}");
+    assert_eq!(v["permissions"]["workflows"], "write", "{v}");
+    let granted = v["token"].as_str().unwrap().to_string();
+    let (s, _) = ask(&t, "a2", Some(&a2), want).await;
+    assert_eq!(s, 403, "a grant is per agent");
+    // the grants are separate: workflows does not bring actions write
+    let (s, _) = ask(
+        &t,
+        "a1",
+        Some(&a1),
+        json!({"permissions":{"actions":"write"}}),
+    )
+    .await;
+    assert_eq!(s, 403);
+    let shown = t.store.get("a1").await.unwrap().unwrap();
+    assert!(shown.workflows_write && !shown.actions_write);
+    // taken back: the live token carrying it is revoked by the sweep
+    t.store.set_workflows_write("a1", false).await.unwrap();
+    t.broker.sweep(chrono::Utc::now().timestamp()).await;
+    assert!(
+        t.gh.lock().unwrap().revoked.contains(&granted),
+        "the workflows token must be revoked"
+    );
+    // the configured set can never carry it, at any level
+    for level in ["read", "write"] {
+        let mut g = app_config(t.dir.path(), "https://api.github.com");
+        g.permissions.insert("workflows".into(), level.into());
+        assert!(g.check().unwrap_err().contains("per agent"), "{level}");
+    }
+    // only the two named grants exist
+    assert_eq!(Grant::parse("workflows:write"), Some(Grant::WorkflowsWrite));
+    assert_eq!(Grant::parse("actions:write"), Some(Grant::ActionsWrite));
+    for bad in [
+        "administration:write",
+        "workflows:read",
+        "workflows",
+        "secrets:write",
+    ] {
+        assert_eq!(Grant::parse(bad), None, "{bad}");
+    }
 }
 
 // rivet: verifies REQ-GHTOKEN-003

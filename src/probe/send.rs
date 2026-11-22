@@ -233,6 +233,7 @@ pub fn feed_message(name: &str, at: i64, packets: &[u8]) -> Vec<u8> {
 pub fn feed_apid(name: &str) -> Option<u16> {
     match name {
         "temper" => Some(crate::hub::telemetry::APID_FEED_TEMPER),
+        "security" => Some(crate::hub::telemetry::APID_FEED_SECURITY),
         _ => None,
     }
 }
@@ -284,7 +285,8 @@ pub async fn send_feed(
     path: &std::path::Path,
     now: i64,
 ) -> anyhow::Result<()> {
-    let apid = feed_apid(name).ok_or_else(|| anyhow!("unknown feed {name:?} (known: temper)"))?;
+    let apid = feed_apid(name)
+        .ok_or_else(|| anyhow!("unknown feed {name:?} (known: temper, security)"))?;
     let key = std::fs::read_to_string(state_dir.join("probe-key.pem"))?;
     let cert = std::fs::read_to_string(state_dir.join("probe-cert.pem"))?;
     let meta =

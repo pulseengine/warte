@@ -83,6 +83,9 @@ async fn state(temper: bool) -> (tempfile::TempDir, warte::server::AppState) {
             probe_self: false,
             costs_file: None,
             skill_usage_file: None,
+            quic: None,
+            quic_names: vec![],
+            require_quic: false,
         }),
         temper: temper.then(|| warte::config::TemperFeedConfig {
             host: "vps".into(),
@@ -189,6 +192,9 @@ async fn a_restart_does_not_reset_the_wait_for_a_missing_temper_report() {
             probe_self: false,
             costs_file: None,
             skill_usage_file: None,
+            quic: None,
+            quic_names: vec![],
+            require_quic: false,
         }),
         temper: Some(warte::config::TemperFeedConfig {
             host: "vps".into(),

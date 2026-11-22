@@ -1,0 +1,34 @@
+{
+  "schema": "architecture.v1",
+  "generated_at": "2026-11-22T12:00:00Z",
+  "source": {"tool": "spar", "version": "0.9.0", "model": "architecture/example.aadl", "commit": "0000000000000000000000000000000000000000"},
+  "zones": [
+    {"id": "z-home", "name": "Home network", "trust": "internal"},
+    {"id": "z-ci", "name": "CI network", "trust": "internal"},
+    {"id": "z-internet", "name": "Internet", "trust": "external"}
+  ],
+  "components": [
+    {"id": "c-server", "name": "Example server", "kind": "host", "zone": "z-home", "controller": ["CTRL-001"]},
+    {"id": "c-ground", "name": "Ground station", "kind": "service", "zone": "z-home", "host": "c-server",
+     "controller": ["CTRL-002", "CTRL-003"],
+     "credentials": [{"name": "app-key", "kind": "private-key", "purpose": "mints agent tokens"},
+                     {"name": "ca-key", "kind": "private-key", "purpose": "signs agent certificates"}],
+     "aadl": "example::GroundStation.impl"},
+    {"id": "c-ci-host", "name": "Example CI host", "kind": "host", "zone": "z-ci"},
+    {"id": "c-agent", "name": "Fleet agent", "kind": "service", "zone": "z-ci", "host": "c-ci-host",
+     "credentials": [{"name": "probe-cert", "kind": "certificate"}, {"name": "sa-key", "kind": "seed", "purpose": "relay-sec association"}]},
+    {"id": "c-session", "name": "Example agent session", "kind": "session", "zone": "z-home", "host": "c-server", "agent": "example-agent",
+     "credentials": [{"name": "warte-token", "kind": "token"}]},
+    {"id": "c-forge", "name": "Code forge", "kind": "external", "zone": "z-internet"},
+    {"id": "c-sensor", "name": "Example sensor", "kind": "device", "zone": "z-home"}
+  ],
+  "connections": [
+    {"id": "e-telemetry", "from": "c-agent", "to": "c-ground", "protocol": "quic", "port": 8095,
+     "authenticated": true, "encrypted": true, "credential": "c-agent/probe-cert", "controller": ["CTRL-003"]},
+    {"id": "e-forge", "from": "c-ground", "to": "c-forge", "protocol": "https", "authenticated": true, "encrypted": true,
+     "credential": "c-ground/app-key", "zone_crossing": true},
+    {"id": "e-session", "from": "c-session", "to": "c-ground", "protocol": "https", "authenticated": true, "encrypted": true,
+     "credential": "c-session/warte-token"},
+    {"id": "e-sensor", "from": "c-sensor", "to": "c-agent", "protocol": "udp", "authenticated": false, "encrypted": false}
+  ]
+}

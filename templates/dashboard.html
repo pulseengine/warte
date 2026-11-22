@@ -31,6 +31,7 @@
     </nav>
     <nav class="nav nav-views" data-group="ci" aria-label="CI" hidden>
       <button hx-get="api/dashboard/queue-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Queue</button>
+      <button hx-get="api/dashboard/reviews-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Reviews</button>
       <button hx-get="api/dashboard/airport-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn" data-no-refresh>Airport</button>
       <button hx-get="api/dashboard/ci-history-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn" data-no-refresh>CI history</button>
       <button hx-get="api/dashboard/critical-path-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Critical Path</button>
@@ -42,9 +43,12 @@
     <nav class="nav nav-views" data-group="machines" aria-label="Machines" hidden>
       <button hx-get="api/dashboard/machines-partial" hx-vals="js:{range: warteRange(), open: warteOpen()}" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Machines</button>
       <button hx-get="api/dashboard/health-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Health</button>
+      <button hx-get="api/dashboard/architecture-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Architecture</button>
+      <button hx-get="api/dashboard/security-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Security</button>
     </nav>
     <nav class="nav nav-views" data-group="agents" aria-label="Agents" hidden>
       <button hx-get="api/dashboard/agents-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Agents</button>
+      <button hx-get="api/dashboard/decisions-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn" data-no-refresh>Decisions</button>
       <button hx-get="api/dashboard/costs-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Costs</button>
       <button hx-get="api/dashboard/skills-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Skills</button>
       <button hx-get="api/dashboard/friction-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Friction</button>
@@ -52,6 +56,7 @@
     </nav>
     <nav class="nav nav-views" data-group="compliance" aria-label="Compliance" hidden>
       <button hx-get="api/dashboard/compliance-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Compliance</button>
+      <button hx-get="api/dashboard/seams-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Seams</button>
     </nav>
     <p class="nav-hidden-note" id="nav-hidden-note" hidden></p>
     <!-- REQ-DASH-020: only when something waits for the owner -->
@@ -215,6 +220,11 @@
       if (!m.auth || !el) return;
       if (m.user) {
         el.textContent = m.user.name + " · " + m.user.role + " · ";
+        // REQ-ATTN-001: the signed-in user's own attention schedule
+        var h = document.createElement("a"); h.href = "#my-hours"; h.textContent = "My hours";
+        h.setAttribute("hx-get", "api/dashboard/attention-partial"); h.setAttribute("hx-target", "#content");
+        el.appendChild(h); el.appendChild(document.createTextNode(" · "));
+        if (window.htmx) htmx.process(h);
         var a = document.createElement("a"); a.href = "auth/logout"; a.textContent = "Sign out";
         el.appendChild(a);
       } else {
