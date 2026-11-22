@@ -28,7 +28,7 @@ warte access list <agent-id>
 ## Revocation
 
 Revocation is push-based: the access control service broadcasts the
-revocation to all instances via the sync channel, actively disconnects
+revocation inside the instance, actively disconnects
 the agent's connections, and confirms propagation before acknowledging.
 
 ## API

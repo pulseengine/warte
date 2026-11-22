@@ -30,9 +30,9 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -D warnings
-  # rivet v0.41.1 — the rivet in the varve layer pinned by varve.toml (2026.10.30).
+  # rivet v0.43.3 — the rivet in the varve layer pinned by varve.toml (2026.11.36).
   # Must match release.yml (tests/ci_workflows.rs checks this).
-  RIVET_REV: 29ca43828c8060af135fcd47ecff4c48662d1567
+  RIVET_REV: 3422f42e8461b17ec08dcfb6be215535cc9ede38
 
 jobs:
   build:
@@ -110,7 +110,7 @@ jobs:
               --bin rivet \
               rivet-cli
           fi
-          "$ROOT/bin/rivet" --version | grep -q "^rivet 0.41.1 (${RIVET_REV:0:8}"
+          "$ROOT/bin/rivet" --version | grep -q "^rivet 0.43.3 (${RIVET_REV:0:8}"
           echo "$ROOT/bin" >> "$GITHUB_PATH"
 
       - name: Validate rivet artifacts

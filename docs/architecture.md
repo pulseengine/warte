@@ -3,6 +3,12 @@
 The PulseEngine control tower. A CI dashboard with an ask feature, agent
 orchestration, access control, multi-instance sync, and mobile access.
 
+> The original design. Two parts of it were removed in v1.6.44 because they
+> were never finished: the artifact store (section 4, #38) and multi-instance
+> sync (section 5, #37). Their replacements are planned in
+> `docs/plans/2026-11-22-artifacts-varve.md` and
+> `docs/plans/2026-11-22-rivet-state.md`.
+
 German: "watchtower" — and "bitte warte auf mich", "please wait for me".
 
 ## Context
@@ -91,15 +97,11 @@ bearer token). Endpoints:
 | `/api/agents/:id/heartbeat` | POST | agent | Agent heartbeat |
 | `/api/agents/:id/data` | POST | agent | Agent captures data |
 | `/api/agents/:id/data` | GET | operator | Query agent data |
-| `/api/artifacts` | GET | agent | List available artifacts |
-| `/api/artifacts/:id/download` | GET | agent | Download artifact (integrity-verified) |
 | `/api/access/grant` | POST | operator | Grant access rights |
 | `/api/access/revoke` | POST | operator | Revoke access rights |
 | `/api/access/list` | GET | operator | List access rights |
 | `/api/dashboard/overview` | GET | operator | Dashboard overview data |
 | `/api/eta` | GET | public (read-only) | ETA query ("when will this PR run?"), from the ground station |
-| `/api/sync/state` | GET | instance | Get sync state |
-| `/api/sync/update` | POST | instance | Push state update |
 | `/api/watch` | GET (long-poll) | agent | Blocks until a PR's or branch's CI changes (`warte watch`) |
 
 ### 2. Agent Registry
@@ -258,8 +260,8 @@ Scope: 48 artifacts (12 design decisions + 27 requirements + 9 verifications).
 | Server skeleton | Axum server, CLI, health endpoint | done |
 | Agent auth | mTLS, registration, heartbeat | done (mTLS cert issuance pending) |
 | Access control | RBAC, grant/revoke, push-based revocation | done |
-| Artifact store | Download, integrity verification, scoping | done (sigil signatures pending) |
-| Multi-instance sync | CRDT, version vectors, divergence detection | done |
+| Artifact store | Download, integrity verification, scoping | removed in v1.6.44 (#38) |
+| Multi-instance sync | CRDT, version vectors, divergence detection | removed in v1.6.44 (#37) |
 | Dashboard API | Overview, ask, queue, critical path | partial |
 | Migration | original-hub import, temper import | pending |
 | Edge deployment | edge config, WireGuard, auto-patch | docs done |

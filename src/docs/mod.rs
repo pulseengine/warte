@@ -27,16 +27,6 @@ const TOPICS: &[Topic] = &[
         content: include_str!("../../docs/topics/access-control.md"),
     },
     Topic {
-        name: "artifact-distribution",
-        title: "Artifact distribution",
-        content: include_str!("../../docs/topics/artifact-distribution.md"),
-    },
-    Topic {
-        name: "multi-instance-sync",
-        title: "Multi-instance sync",
-        content: include_str!("../../docs/topics/multi-instance-sync.md"),
-    },
-    Topic {
         name: "deployment",
         title: "Deployment",
         content: include_str!("../../docs/topics/deployment.md"),
@@ -189,8 +179,6 @@ pub fn check_coverage() -> Vec<String> {
         "architecture",
         "agent-registration",
         "access-control",
-        "artifact-distribution",
-        "multi-instance-sync",
         "deployment",
         "security-model",
         "cli-reference",

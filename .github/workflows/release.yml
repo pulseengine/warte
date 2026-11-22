@@ -16,8 +16,8 @@ defaults:
 
 env:
   CARGO_TERM_COLOR: always
-  # rivet v0.41.1 — must match ci.yml (tests/ci_workflows.rs checks this).
-  RIVET_REV: 29ca43828c8060af135fcd47ecff4c48662d1567
+  # rivet v0.43.3 — must match ci.yml (tests/ci_workflows.rs checks this).
+  RIVET_REV: 3422f42e8461b17ec08dcfb6be215535cc9ede38
   TAG: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', inputs.version) || github.ref_name }}
 
 # Release jobs sign (cosign/OIDC) and publish, so they run on ephemeral
@@ -46,7 +46,7 @@ jobs:
             --root "$ROOT" \
             --bin rivet \
             rivet-cli
-          "$ROOT/bin/rivet" --version | grep -q "^rivet 0.41.1 (${RIVET_REV:0:8}"
+          "$ROOT/bin/rivet" --version | grep -q "^rivet 0.43.3 (${RIVET_REV:0:8}"
           echo "$ROOT/bin" >> "$GITHUB_PATH"
 
       # rivet exits non-zero unless every artifact scoped to this release is verified.

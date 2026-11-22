@@ -213,23 +213,17 @@ pub const AGENT_READ_ROUTES: [(&str, Binding); 3] = [
 
 /// REQ-API-007 (#46): read routes that need a warte agent token with
 /// `agents:read` even without `[auth]`, because they carry an agent's
-/// captured data, who holds which rights, artifact bytes or the sync state.
+/// captured data or who holds which rights.
 /// With `[auth]` the login gate covers them (they are in `login::SIGNED_IN`).
 /// The `{id}` binding is the same as for `AGENT_READ_ROUTES`; `agents:any`
 /// lifts it.
-pub const TOKEN_READ_ROUTES: [(&str, Binding, &str); 5] = [
+pub const TOKEN_READ_ROUTES: [(&str, Binding, &str); 3] = [
     ("/api/agents/{id}/data", Binding::PathId, RIGHT_AGENTS_READ),
     (
         "/api/access/list/{id}",
         Binding::TokenAgent,
         RIGHT_AGENTS_READ,
     ),
-    (
-        "/api/artifacts/{id}/download",
-        Binding::None,
-        RIGHT_AGENTS_READ,
-    ),
-    ("/api/sync/state", Binding::None, RIGHT_AGENTS_READ),
     ("/api/architecture", Binding::None, RIGHT_ARCH_READ),
 ];
 
@@ -308,7 +302,7 @@ pub struct RouteRule {
 /// valid token, so a route added without a row is closed, not open; the
 /// test `every_mutating_route_in_the_router_has_a_right` also fails.
 /// The probe routes (`PROBE_OPEN_PATHS`) authenticate themselves and are not here.
-pub const MUTATING_ROUTES: [RouteRule; 13] = [
+pub const MUTATING_ROUTES: [RouteRule; 12] = [
     RouteRule {
         method: "POST",
         pattern: "/api/agents/register",
@@ -337,12 +331,6 @@ pub const MUTATING_ROUTES: [RouteRule; 13] = [
         method: "POST",
         pattern: "/api/access/revoke",
         right: "access:revoke",
-        binding: Binding::None,
-    },
-    RouteRule {
-        method: "POST",
-        pattern: "/api/sync/update",
-        right: "sync:update",
         binding: Binding::None,
     },
     RouteRule {

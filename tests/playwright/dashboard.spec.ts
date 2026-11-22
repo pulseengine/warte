@@ -27,7 +27,6 @@ const VIEWS = [
   "Costs",
   "Skills",
   "Agents",
-  "Artifacts",
 ];
 
 // REQ-DASH-019: which group holds each view
@@ -36,7 +35,7 @@ const GROUP_OF: Record<string, string> = {
   Queue: "CI", Reviews: "CI", Airport: "CI", "CI history": "CI", "Critical Path": "CI",
   Jobs: "CI", Resources: "CI", Schedule: "CI", Ask: "CI",
   Machines: "Machines", Health: "Machines", Architecture: "Machines", Security: "Machines",
-  Agents: "Agents", Decisions: "Agents", Costs: "Agents", Skills: "Agents", Friction: "Agents", Artifacts: "Agents",
+  Agents: "Agents", Decisions: "Agents", Costs: "Agents", Skills: "Agents", Friction: "Agents",
   Compliance: "Compliance", Seams: "Compliance",
 };
 

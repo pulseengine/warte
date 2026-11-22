@@ -157,7 +157,7 @@ These rights belong to agents and peers rather than the operator's jobs:
 - `agents:read`: with `[auth]`, list the agents and read the token's own
   agent's row and data (`GET /api/agents`, `/api/agents/{id}`,
   `/api/agents/{id}/data`); with or without `[auth]`, read the token's own
-  data and access list, artifact downloads and the sync state (REQ-API-007);
+  data and access list (REQ-API-007);
   never in a bare mint;
 - `agents:any`: a token that writes as any agent (and, with `agents:read`,
   reads any agent);
@@ -171,6 +171,5 @@ These rights belong to agents and peers rather than the operator's jobs:
   token for its assigned repositories (`warte docs github-tokens`);
   `agents:any` does not extend it to other agents;
 - `access:grant`, `access:revoke`: changing an agent's rights;
-- `sync:update`: another warte instance syncing;
 - `news:write`: a reader marking news items (contract news v1); with `[auth]`
   it also reads `/api/news`.

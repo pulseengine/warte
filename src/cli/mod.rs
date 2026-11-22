@@ -211,12 +211,6 @@ pub enum Commands {
         action: ArchCommands,
     },
 
-    /// Manage artifacts
-    Artifact {
-        #[command(subcommand)]
-        action: ArtifactCommands,
-    },
-
     /// Show embedded documentation
     Docs {
         /// Topic name (omit to list all topics)
@@ -572,26 +566,6 @@ pub enum AccessCommands {
     },
     /// List access rights for an agent
     List { agent_id: String },
-}
-
-#[derive(Subcommand)]
-pub enum ArtifactCommands {
-    /// List available artifacts
-    List,
-    /// Upload a new artifact
-    Upload {
-        name: String,
-        version: String,
-        /// Path to the artifact file
-        path: String,
-    },
-    /// Download an artifact
-    Download {
-        artifact_id: String,
-        /// Output path
-        #[arg(long, default_value = ".")]
-        output: String,
-    },
 }
 
 /// `<name>=<path>` for `probe send --feed`.

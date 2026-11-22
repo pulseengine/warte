@@ -41,12 +41,13 @@ artifacts:
   - id: REQ-ARTIFACT-001
     type: requirement
     title: Artifact downloads require agent authentication
-    status: accepted
+    status: deprecated
     release: v0.1.0
     description: >
       The artifact download endpoint SHALL require a valid agent authentication
       token (mTLS or signed bearer token with < 5 minute expiry). Unauthenticated
       download requests SHALL be rejected with HTTP 401.
+    tags: [removed-in-v1.6.44]
     links:
       - type: satisfies
         target: SC-002
@@ -54,7 +55,7 @@ artifacts:
   - id: REQ-ARTIFACT-002
     type: requirement
     title: Artifacts carry verifiable integrity proofs
-    status: accepted
+    status: deprecated
     release: v0.1.0
     description: >
       Every artifact in the distribution store SHALL carry an integrity proof:
@@ -62,6 +63,7 @@ artifacts:
       a signed manifest (SHA256SUMS signed by the release key). The control
       tower SHALL verify the proof before serving. Agents SHALL verify the
       proof after download.
+    tags: [removed-in-v1.6.44]
     links:
       - type: satisfies
         target: SC-002
@@ -71,12 +73,13 @@ artifacts:
   - id: REQ-ARTIFACT-003
     type: requirement
     title: Artifact download is scoped to agent access rights
-    status: accepted
+    status: deprecated
     release: v0.1.0
     description: >
       The control tower SHALL enforce per-agent access scoping on artifact
       downloads. An agent SHALL only download artifacts it has been granted
       access to. Access grants SHALL be checked on every download request.
+    tags: [removed-in-v1.6.44]
     links:
       - type: satisfies
         target: SC-002
@@ -129,13 +132,14 @@ artifacts:
   - id: REQ-SYNC-001
     type: requirement
     title: Instances synchronize state via an authenticated sync protocol
-    status: accepted
+    status: deprecated
     release: v0.1.0
     description: >
       All warte instances SHALL synchronize shared state (agent registrations,
       access rights, captured data) via an authenticated sync protocol using
       mutual TLS with per-instance certificates. Sync messages SHALL carry
       integrity proofs.
+    tags: [removed-in-v1.6.44]
     links:
       - type: satisfies
         target: SC-005
@@ -145,13 +149,14 @@ artifacts:
   - id: REQ-SYNC-002
     type: requirement
     title: Sync conflicts are detected and resolved deterministically
-    status: accepted
+    status: deprecated
     release: v0.1.0
     description: >
       The sync mechanism SHALL detect conflicting updates using version vectors
       and resolve them deterministically (last-writer-wins by version vector,
       or CRDT-based merge for commutative state). Unresolvable conflicts SHALL
       trigger an operator alert.
+    tags: [removed-in-v1.6.44]
     links:
       - type: satisfies
         target: SC-005
@@ -159,12 +164,13 @@ artifacts:
   - id: REQ-SYNC-003
     type: requirement
     title: Instance divergence is detected and alerted
-    status: accepted
+    status: deprecated
     release: v0.1.0
     description: >
       The system SHALL detect when instances have diverged beyond a threshold
       (e.g., version vector distance > 3, or conflicting state for > 30 seconds)
       and SHALL alert the operator via the dashboard and mobile notification.
+    tags: [removed-in-v1.6.44]
     links:
       - type: satisfies
         target: SC-005

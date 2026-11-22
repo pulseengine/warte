@@ -1,11 +1,10 @@
-//! Dashboard HTML frontend — HTMX-based overview, ask, agents, artifacts.
+//! Dashboard HTML frontend — HTMX-based overview, ask, agents.
 //!
 //! REQ-DASH-004: The system SHALL serve an HTML dashboard frontend
 //! (HTMX-based, like rivet serve) with views:
 //! - Overview: all repos, all gates, green/red/pending
 //! - Ask: ETA query form with results
 //! - Agents: agent registry with health status
-//! - Artifacts: artifact list with download links
 //!
 //! Views refresh every 30 s and show the age of the data they render.
 
@@ -57,7 +56,6 @@ pub async fn idle_js() -> Response {
 /// HTMX partial: overview content (auto-refreshes via SSE).
 pub async fn overview_partial(State(state): State<crate::server::AppState>) -> Response {
     let agents = state.agents.list().await.unwrap_or_default();
-    let artifacts = state.artifacts.list().await.unwrap_or_default();
 
     let healthy = agents
         .iter()
@@ -120,7 +118,6 @@ pub async fn overview_partial(State(state): State<crate::server::AppState>) -> R
   {}
   <section class="panel tower"><h3>Tower</h3><div class="kpis">
     <div class="kpi"><div class="l">Agents</div><div class="v">{}</div><div class="s">{} healthy, {} unhealthy</div></div>
-    <div class="kpi"><div class="l">Artifacts</div><div class="v">{}</div><div class="s">stored by warte</div></div>
     <div class="kpi"><div class="l">Instance</div><div class="v mono">{}</div><div class="s">warte v{}</div></div>
   </div></section>
   <p class="freshness">Rendered {}</p>
@@ -129,7 +126,6 @@ pub async fn overview_partial(State(state): State<crate::server::AppState>) -> R
         agents.len(),
         healthy,
         unhealthy,
-        artifacts.len(),
         fleet::esc(&state.config.instance_id()[..8]),
         env!("CARGO_PKG_VERSION"),
         chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC"),
@@ -339,13 +335,9 @@ pub async fn nav_state(State(state): State<crate::server::AppState>) -> Response
             .fetch_one(state.db.pool())
             .await
             .unwrap_or((1,));
-    let artifacts = state.artifacts.list().await.map(|a| a.len()).unwrap_or(1);
     let mut hidden = Vec::new();
     if friction.0 == 0 {
         hidden.push("friction");
-    }
-    if artifacts == 0 {
-        hidden.push("artifacts");
     }
     let outages = state
         .hub
@@ -513,45 +505,6 @@ pub async fn agents_partial(State(state): State<crate::server::AppState>) -> Res
         r#"<div class="overview"><h2>Agents</h2>{body}<p class="freshness">Rendered {}</p></div>"#,
         chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC"),
     );
-
-    Html(html).into_response()
-}
-
-/// HTMX partial: artifacts list.
-pub async fn artifacts_partial(State(state): State<crate::server::AppState>) -> Response {
-    let artifacts = state.artifacts.list().await.unwrap_or_default();
-
-    let rows: String = artifacts
-        .iter()
-        .map(|a| {
-            format!(
-                r#"<tr>
-  <td><code>{}</code></td>
-  <td>{}</td>
-  <td>{}</td>
-  <td><code>{}</code></td>
-  <td><a href="api/artifacts/{}/download" class="btn-small">Download</a></td>
-</tr>"#,
-                fleet::esc(&a.id[..8]),
-                fleet::esc(&a.name),
-                fleet::esc(&a.version),
-                fleet::esc(&a.content_hash[..12]),
-                fleet::esc(&a.id),
-            )
-        })
-        .collect();
-
-    let body = if artifacts.is_empty() {
-        r#"<p class="empty">No artifacts stored. Agents publish build outputs here for others to download by hash (<code>warte artifact</code>, <code>warte docs artifact-distribution</code>).</p>"#.to_string()
-    } else {
-        format!(
-            r#"<table class="data-table">
-  <thead><tr><th>ID</th><th>Name</th><th>Version</th><th>SHA-256</th><th></th></tr></thead>
-  <tbody>{rows}</tbody>
-</table>"#
-        )
-    };
-    let html = format!(r#"<div class="overview"><h2>Artifacts</h2>{body}</div>"#);
 
     Html(html).into_response()
 }

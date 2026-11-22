@@ -1,9 +1,8 @@
-//! Relay contract patterns — thin interfaces, seam traits, consumption contracts.
+//! Relay contract patterns — thin interfaces and seam traits.
 //!
 //! REQ-REUSE-001: Reuse relay's architectural patterns for agent orchestration:
 //! - Thin agreed interfaces (contracts) between agents and the control tower
 //! - HAL-style seam traits for platform abstraction (CiPlatform already implements this)
-//! - Consumption contracts for artifact distribution
 //!
 //! From the relay/jess contracts (jess #62, jess #167, relay #572):
 //! - HAL contract: relay owns the abstraction (seam traits), jess owns the binding
@@ -12,7 +11,6 @@
 //!
 //! Applied to warte:
 //! - AgentContract: the thin interface between an agent and the control tower
-//! - ConsumptionContract: what an agent can download and how it verifies it
 //! - CiPlatform: seam trait for CI platform abstraction (already implemented)
 
 use serde::{Deserialize, Serialize};
@@ -118,14 +116,6 @@ pub fn current_contract() -> AgentContract {
                 required_right: right_for("/api/agents/{id}/github-token"),
             },
             ContractOperation {
-                name: "download_artifact".to_string(),
-                direction: OperationDirection::AgentToTower,
-                request_type: "ArtifactDownloadRequest".to_string(),
-                response_type: "ArtifactDownload".to_string(),
-                auth_required: true,
-                required_right: None, // a read route: public (#79)
-            },
-            ContractOperation {
                 name: "capture_data".to_string(),
                 direction: OperationDirection::AgentToTower,
                 request_type: "CaptureDataRequest".to_string(),
@@ -156,14 +146,6 @@ pub fn current_contract() -> AgentContract {
                 response_type: "()".to_string(),
                 auth_required: true,
                 required_right: right_for("/api/access/revoke"),
-            },
-            ContractOperation {
-                name: "sync_update".to_string(),
-                direction: OperationDirection::Bidirectional,
-                request_type: "SyncUpdate".to_string(),
-                response_type: "()".to_string(),
-                auth_required: true,
-                required_right: right_for("/api/sync/update"),
             },
             ContractOperation {
                 name: "post_costs".to_string(),
@@ -230,78 +212,11 @@ pub fn current_contract() -> AgentContract {
                 integrity_guarantee: IntegrityGuarantee::WscSignature,
             },
             ContractDataType {
-                name: "ArtifactDownload".to_string(),
-                schema: "{ id: string, name: string, version: string, content: bytes, integrity_proof: bytes, content_hash: string }".to_string(),
-                integrity_guarantee: IntegrityGuarantee::Sha256,
-            },
-            ContractDataType {
                 name: "CapturedData".to_string(),
                 schema: "{ agent_id: string, data_type: string, content: string, captured_at: datetime }".to_string(),
                 integrity_guarantee: IntegrityGuarantee::None,
             },
         ],
-    }
-}
-
-/// Consumption contract — what an agent can download and how it verifies it.
-///
-/// This is the warte equivalent of jess #167 (consumption contract):
-/// a thin agreed interface for consuming artifacts. The agent knows
-/// exactly what it can download, what integrity guarantee it gets,
-/// and how to verify it.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ConsumptionContract {
-    /// Contract version.
-    pub version: String,
-    /// Artifact types the agent can consume.
-    pub consumable_types: Vec<ConsumableType>,
-    /// Verification procedure.
-    pub verification: VerificationProcedure,
-}
-
-/// A type of artifact an agent can consume.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ConsumableType {
-    pub name: String,
-    pub integrity_guarantee: IntegrityGuarantee,
-    pub access_scope: Vec<String>,
-}
-
-/// How the agent verifies an artifact.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct VerificationProcedure {
-    pub steps: Vec<String>,
-}
-
-/// Get the current consumption contract.
-pub fn current_consumption_contract() -> ConsumptionContract {
-    ConsumptionContract {
-        version: "0.1.0".to_string(),
-        consumable_types: vec![
-            ConsumableType {
-                name: "tool".to_string(),
-                integrity_guarantee: IntegrityGuarantee::Sha256,
-                access_scope: vec!["artifacts:download".to_string()],
-            },
-            ConsumableType {
-                name: "config".to_string(),
-                integrity_guarantee: IntegrityGuarantee::Sha256,
-                access_scope: vec!["artifacts:download".to_string()],
-            },
-            ConsumableType {
-                name: "data".to_string(),
-                integrity_guarantee: IntegrityGuarantee::Sha256,
-                access_scope: vec!["artifacts:download".to_string()],
-            },
-        ],
-        verification: VerificationProcedure {
-            steps: vec![
-                "Download artifact from /api/artifacts/{id}/download".to_string(),
-                "Verify SHA-256 hash: sha256(content) == content_hash".to_string(),
-                "If integrity_type is wsc-signature, verify with wsc verify".to_string(),
-                "Reject artifact if verification fails".to_string(),
-            ],
-        },
     }
 }
 
@@ -321,9 +236,6 @@ pub trait AgentSeam: Send + Sync {
     /// Send a heartbeat.
     async fn heartbeat(&self) -> anyhow::Result<()>;
 
-    /// Download an artifact.
-    async fn download(&self, artifact_id: &str) -> anyhow::Result<Vec<u8>>;
-
     /// Capture data.
     async fn capture(&self, data_type: &str, content: &str) -> anyhow::Result<()>;
 }
@@ -336,8 +248,8 @@ mod tests {
     fn test_agent_contract() {
         let contract = current_contract();
         assert_eq!(contract.version, "0.1.0");
-        assert_eq!(contract.operations.len(), 15);
-        assert_eq!(contract.data_types.len(), 4);
+        assert_eq!(contract.operations.len(), 13);
+        assert_eq!(contract.data_types.len(), 3);
 
         // Every operation requires auth; every mutating route's right is listed.
         for op in &contract.operations {
@@ -352,19 +264,6 @@ mod tests {
                 "contract omits {}",
                 rule.right
             );
-        }
-    }
-
-    #[test]
-    fn test_consumption_contract() {
-        let contract = current_consumption_contract();
-        assert_eq!(contract.version, "0.1.0");
-        assert_eq!(contract.consumable_types.len(), 3);
-        assert_eq!(contract.verification.steps.len(), 4);
-
-        // All consumable types require SHA-256 integrity
-        for ct in &contract.consumable_types {
-            assert_eq!(ct.integrity_guarantee, IntegrityGuarantee::Sha256);
         }
     }
 

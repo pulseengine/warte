@@ -4,6 +4,12 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.44 — 2026-11-22
+
+- **The artifact store and multi-instance sync are removed** (REQ-RETIRE-001, #37, #38). Neither was finished: sync applied no record, and the artifact store's upload and download were stubs whose integrity check always passed, while the docs claimed more. Gone: `/api/artifacts`, `/api/artifacts/{id}/download`, `/api/sync/state`, `/api/sync/update`, the `sync:update` right, `warte artifact`, the Artifacts view and overview count, and the `artifact-distribution` and `multi-instance-sync` docs topics. The `crdts` dependency and 10 crates it pulled in are dropped. The database tables stay until the operator confirms they are empty. Upgrade note: a token minted with `--right sync:update` is refused at mint time now; drop the right.
+- **varve pin to layer 2026.11.36** (REQ-PIN-002, #53). It carries warte, so `varve which warte` works in this repo, and rivet v0.43.3, which CI and the release workflow now build.
+- **Plans for the four redesigns** in `docs/plans/`: state to rivet (#37), the advisory sweep (#47), artifacts to varve (#38), and sigil signing with the varve layer (#53).
+
 ## v1.6.43 — 2026-11-22
 
 - **Security findings from your machines** (REQ-FINDINGS-001, #114). Detectors on a host (a baseline-drift check, AIDE, Falco) write a findings file, and the probe forwards it signed: `warte probe send --feed security=<file>`. Machines gains Security: the open findings per host, highest first, and you can accept a known state into that host's baseline so it stops alerting. High and critical findings, and a host whose findings stopped for over 36 hours, show on the night glance. The report carries metadata only; a file with any other field is refused. A database migration adds the findings.

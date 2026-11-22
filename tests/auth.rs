@@ -736,8 +736,6 @@ async fn without_a_login_sensitive_reads_still_need_an_agent_token() {
     let sensitive = [
         format!("/api/agents/{id1}/data"),
         "/api/access/list/a1".to_string(),
-        "/api/artifacts/no-such-artifact/download".to_string(),
-        "/api/sync/state".to_string(),
     ];
     // planted: no token, a token that is not a warte token, and a warte token
     // without agents:read

@@ -51,12 +51,13 @@ artifacts:
   - id: TEST-ARTIFACT-001
     type: verification
     title: "test_artifact_store_and_integrity — store, download, verify integrity"
-    status: accepted
+    status: deprecated
     release: v0.1.0
     description: >
       Integration test verifies artifact storage, download with content
       integrity verification (SHA-256), and listing.
       Located in tests/integration.rs::test_artifact_store_and_integrity.
+    tags: [removed-in-v1.6.44]
     links:
       - type: verifies
         target: REQ-ARTIFACT-001
@@ -68,12 +69,13 @@ artifacts:
   - id: TEST-SYNC-001
     type: verification
     title: "test_sync_version_vectors — version vector increment, merge, divergence"
-    status: accepted
+    status: deprecated
     release: v0.1.0
     description: >
       Integration test verifies version vector increment, CRDT merge with
       remote vectors, and divergence detection.
       Located in tests/integration.rs::test_sync_version_vectors.
+    tags: [removed-in-v1.6.44]
     links:
       - type: verifies
         target: REQ-SYNC-001
@@ -328,7 +330,7 @@ artifacts:
     title: varve layer integration — warte.toml pin, varve-realms.toml, CLI conventions, embedded docs
     status: accepted
     release: v0.2.0
-    description: "Verification: warte has varve.toml pin (realm: pulseengine, channel: rolling, layer: 2026.10.30) and varve-realms.toml committed. CLI follows PulseEngine conventions (--version prints 'warte <semver>', --help exits 0, --format json). Embedded docs via warte docs <topic>. docs/varve-layer.md documents the layer manifest entry for adding warte to the varve layer. The actual layer deposit happens in the varve/realm repo."
+    description: "Verification: warte has varve.toml pin (realm: pulseengine, channel: rolling, layer: 2026.11.36) and varve-realms.toml committed. CLI follows PulseEngine conventions (--version prints 'warte <semver>', --help exits 0, --format json). Embedded docs via warte docs <topic>. docs/varve-layer.md documents the layer manifest entry for adding warte to the varve layer. The actual layer deposit happens in the varve/realm repo."
     links:
       - type: verifies
         target: REQ-LAYER-001

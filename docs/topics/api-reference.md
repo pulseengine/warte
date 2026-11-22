@@ -25,7 +25,6 @@ warte token mint <agent-id> [--valid-hours 720] [--any-agent] [--right <r>]...
   | `POST /api/agents/{id}/data` | `agents:data` |
   | `POST /api/access/grant` | `access:grant` |
   | `POST /api/access/revoke` | `access:revoke` |
-  | `POST /api/sync/update` | `sync:update` |
   | `POST /api/costs` | `costs:write` |
   | `POST /api/skill-usage` | `skills:write` |
   | `POST /api/briefing` | `briefing:write` |
@@ -36,7 +35,7 @@ warte token mint <agent-id> [--valid-hours 720] [--any-agent] [--right <r>]...
   `src/auth/mod.rs`) is refused with `403`. The probe routes authenticate
   themselves and are not in it.
 - A bare mint carries `agents:register`, `agents:data` and `agents:heartbeat`:
-  enough for an agent, not for `access:*`, `sync:update`, `costs:write`, `skills:write`, `briefing:write`, `triage:write` or `news:write`.
+  enough for an agent, not for `access:*`, `costs:write`, `skills:write`, `briefing:write`, `triage:write` or `news:write`.
   `--right <r>` (repeatable) adds a right, e.g. `--right costs:write`; a name
   that is not in the table is refused at mint time.
 - The agent binding: a token names an agent by the name it registers under.
@@ -55,9 +54,8 @@ warte token mint <agent-id> [--valid-hours 720] [--any-agent] [--right <r>]...
   `--right agents:read`, e.g. for a notice client that reads back what it
   posted. Without `[auth]` the list and rows are open, as before.
 - Sensitive reads (since warte v1.6.44, REQ-API-007, #46): even without
-  `[auth]`, `GET /api/agents/{id}/data`, `GET /api/access/list/{agent}`,
-  `GET /api/artifacts/{id}/download` and `GET /api/sync/state` need a warte
-  token holding `agents:read`: `401` without a valid token, `403` without the
+  `[auth]`, `GET /api/agents/{id}/data` and `GET /api/access/list/{agent}` need a
+  warte token holding `agents:read`: `401` without a valid token, `403` without the
   right. Data and access lists answer only for the token's own agent unless
   it also holds `agents:any`. With `[auth]` a login opens them as before.
 - `--valid-hours` is 1 to 8760; the default is 24.
@@ -193,13 +191,6 @@ characters. Read-only: it answers and triggers nothing.
 POST /api/access/grant              # grant access rights
 POST /api/access/revoke             # revoke access rights
 GET  /api/access/list/{agent_id}    # list access rights
-```
-
-## Artifacts
-
-```
-GET /api/artifacts                  # list artifacts
-GET /api/artifacts/{id}/download    # download artifact (integrity-verified)
 ```
 
 ## Dashboard
@@ -568,9 +559,3 @@ whole snapshot carries raw log lines; the telemetry link and the timers are on t
 Health view. `warte hub`, the standalone ground station, still serves the old API
 on its own port (`warte docs ground-station`).
 
-## Sync
-
-```
-GET  /api/sync/state                # current sync state
-POST /api/sync/update               # push state update
-```

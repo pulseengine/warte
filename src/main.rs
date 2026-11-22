@@ -538,54 +538,6 @@ async fn main() -> anyhow::Result<()> {
             }
         }
 
-        Commands::Artifact { action } => {
-            use warte::cli::ArtifactCommands;
-            match action {
-                ArtifactCommands::List => {
-                    let config = Config::load_at(config_path.as_deref())?;
-                    let client = reqwest::Client::new();
-                    let url = format!("http://{}/api/artifacts", config.bind);
-                    let resp = client.get(&url).send().await?;
-                    let artifacts: Vec<serde_json::Value> = resp.json().await?;
-                    match cli.format {
-                        OutputFormat::Json => {
-                            println!("{}", serde_json::to_string_pretty(&artifacts)?)
-                        }
-                        OutputFormat::Text => {
-                            println!(
-                                "{:<38} {:<12} {:<10} HASH",
-                                "ARTIFACT ID", "NAME", "VERSION"
-                            );
-                            for a in &artifacts {
-                                println!(
-                                    "{:<38} {:<12} {:<10} {}",
-                                    a["id"].as_str().unwrap_or(""),
-                                    a["name"].as_str().unwrap_or(""),
-                                    a["version"].as_str().unwrap_or(""),
-                                    &a["content_hash"].as_str().unwrap_or("")[..12],
-                                );
-                            }
-                        }
-                    }
-                }
-                ArtifactCommands::Upload {
-                    name,
-                    version,
-                    path,
-                } => {
-                    println!("Uploading {} v{} from {}", name, version, path);
-                    // TODO: implement upload
-                }
-                ArtifactCommands::Download {
-                    artifact_id,
-                    output,
-                } => {
-                    println!("Downloading {} to {}", artifact_id, output);
-                    // TODO: implement download
-                }
-            }
-        }
-
         Commands::Hub {
             http,
             udp,
