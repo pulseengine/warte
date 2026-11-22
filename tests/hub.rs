@@ -17,9 +17,10 @@ const STRANGER: IpAddr = IpAddr::V4(Ipv4Addr::new(198, 51, 100, 7));
 
 /// sha256 of the hub contract, `src/hub/web/openapi.json` (fleet agent wire
 /// contract, `docs/topics/ground-station.md`). It must not drift silently from
-/// the contract agents use: change it with the contract version.
+/// the contract agents use: change it with the contract version. v1.6.44 changed
+/// the description only (no host name); paths and schemas are unchanged, 0.1.0.
 const UPSTREAM_OPENAPI_SHA256: &str =
-    "af630b5c04d69c1eabea7f63b0a19c73d6b91fe9a341d892be8af21dcf064bde";
+    "04779f320dd6257d5e8e484a74bb27fcddce12f0397dac902726d2c2eb13b1e6";
 
 fn snapshot(host: &str) -> Snapshot {
     Snapshot {

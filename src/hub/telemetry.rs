@@ -1189,7 +1189,7 @@ mod tests {
             wf: "CI".into(),
             job: "ä".repeat(200),
             pool: "rust-cpu".into(),
-            runner: "pulseengine-ci-01-3".into(),
+            runner: "runner-a-3".into(),
             ev: "pull_request".into(),
             c: 1,
             s: Some(2),
@@ -1408,7 +1408,7 @@ mod tests {
     fn full_snapshot_survives_the_link() {
         let s = Snapshot {
             agent_version: "0.1.0".into(),
-            host: "pulseengine-ci-01".into(),
+            host: "ci-host".into(),
             taken_at: 1792653039,
             runners: vec![runner(1), runner(13)],
             queue: Some(Queue {

@@ -189,7 +189,8 @@ The ground station:
 
 ## API
 
-Unchanged from the original hub; the contract is `/api/openapi.json`.
+Unchanged from the original hub; the contract is `/api/openapi.json` (0.1.0). Since
+v1.6.44 its description names no runner host; paths and schemas are the same.
 
 | Path | |
 |---|---|
