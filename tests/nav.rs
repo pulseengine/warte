@@ -36,9 +36,19 @@ fn the_contract_example_renders_every_link_and_no_other() {
     assert_eq!(hrefs(&h), want, "{h}");
     assert_eq!(h.matches("<a ").count(), 1 + f.apps.len(), "{h}");
     assert_eq!(h.matches("aria-current=\"page\"").count(), 1, "{h}");
-    assert!(h.contains("aria-current=\"page\">warte</a>"), "{h}");
-    assert!(h.contains(">← tower</a>"), "{h}");
-    assert!(h.contains("title=\"control tower\""), "{h}");
+    assert!(h.contains("aria-current=\"page\"><span class=\"mark\" aria-hidden=\"true\">W</span><b>warte</b><span>control tower</span></a>"), "{h}");
+    assert!(
+        h.contains(
+            "<span class=\"mark\" aria-hidden=\"true\">←</span><b>tower</b><span>Home</span></a>"
+        ),
+        "{h}"
+    );
+    // the one title is the button's; links carry none
+    assert_eq!(h.matches("title=").count(), 1, "{h}");
+    assert!(
+        h.starts_with("<details class=\"appswitch\">") && h.ends_with("</nav></details>"),
+        "{h}"
+    );
 }
 
 // rivet: verifies REQ-NAV-001
@@ -52,7 +62,7 @@ fn names_and_descriptions_are_escaped() {
     let h = html(&f, "warte");
     assert!(h.contains("&lt;b&gt;x&lt;/b&gt;"), "{h}");
     assert!(h.contains("a &quot;quote&quot; &amp; &lt;tag&gt;"), "{h}");
-    assert!(!h.contains("<b>"), "{h}");
+    assert!(!h.contains("<b>x</b>"), "{h}");
 }
 
 // rivet: verifies REQ-NAV-001
@@ -64,8 +74,8 @@ fn every_rule_refuses_a_file_and_names_the_field() {
         .collect();
     let cases: Vec<(&str, Edit, &str)> = vec![
         (
-            "version 2",
-            Box::new(|v| v["version"] = 2.into()),
+            "version 3",
+            Box::new(|v| v["version"] = 3.into()),
             "version",
         ),
         (
@@ -324,7 +334,7 @@ async fn the_dashboard_renders_the_file_and_nothing_without_it() {
     // a broken file stops startup and names the rule and the file
     std::fs::write(
         &file,
-        r#"{"version": 2, "home": {"name": "h", "url": "/"}, "apps": []}"#,
+        r#"{"version": 3, "home": {"name": "h", "url": "/"}, "apps": []}"#,
     )
     .unwrap();
     let err = page(Some(NavConfig {
@@ -399,4 +409,121 @@ fn the_check_command_gives_the_startup_verdict() {
     .unwrap_err();
     assert!(err.contains(&startup), "{err:?} lacks {startup:?}");
     assert!(startup.contains("apps[2].url"), "{startup}");
+}
+
+/// The contract doc's version 2 example: the second JSON block.
+fn example_v2() -> serde_json::Value {
+    let first = DOC.find("```json\n").unwrap() + 8;
+    let start = first + DOC[first..].find("```json\n").expect("v2 example") + 8;
+    let end = start + DOC[start..].find("```").unwrap();
+    serde_json::from_str(&DOC[start..end]).expect("the doc's v2 example is JSON")
+}
+
+// rivet: verifies REQ-NAV-003
+#[test]
+fn version_2_marks_render_and_a_missing_mark_falls_back_to_the_first_letter() {
+    let v = example_v2();
+    assert_eq!(v["version"], 2);
+    let f = parse(&v).unwrap();
+    check(&f, "warte").unwrap();
+    let h = html(&f, "warte");
+    assert!(
+        h.contains(
+            "aria-current=\"page\"><span class=\"mark\" aria-hidden=\"true\">見</span><b>warte</b>"
+        ),
+        "{h}"
+    );
+    assert!(
+        h.contains("<span class=\"mark\" aria-hidden=\"true\">光</span><b>Photos</b></a>"),
+        "{h}"
+    );
+    assert!(
+        h.contains("<span class=\"mark\" aria-hidden=\"true\">L</span><b>Login</b></a>"),
+        "{h}"
+    );
+    assert_eq!(h.matches("<a ").count(), 1 + f.apps.len(), "{h}");
+    // the same links as the version 1 file: only the marks differ
+    let v1 = parse(&example()).unwrap();
+    let mut want = vec![v1.home.url.clone()];
+    want.extend(v1.apps.iter().map(|a| a.url.clone()));
+    assert_eq!(hrefs(&h), want);
+    // lower-case names upper-case their fallback; null is no mark
+    let mut v = example_v2();
+    v["apps"][1]["mark"] = serde_json::Value::Null;
+    v["apps"][1]["name"] = "ärger".into();
+    let h = html(&parse(&v).unwrap(), "warte");
+    assert!(
+        h.contains("<span class=\"mark\" aria-hidden=\"true\">Ä</span><b>ärger</b>"),
+        "{h}"
+    );
+}
+
+// rivet: verifies REQ-NAV-003
+#[test]
+fn a_mark_follows_the_rules_and_only_in_version_2() {
+    let mut cases: Vec<(&str, serde_json::Value, serde_json::Value)> = vec![
+        ("empty", 2.into(), "".into()),
+        ("nine code points", 2.into(), "123456789".into()),
+        ("space", 2.into(), "a b".into()),
+        ("angle", 2.into(), "<".into()),
+        ("ampersand", 2.into(), "&".into()),
+        ("quote", 2.into(), "\"".into()),
+        ("backslash", 2.into(), "\\".into()),
+        ("control", 2.into(), "\u{7}".into()),
+        ("wrong type", 2.into(), 7.into()),
+        ("in a version 1 file", 1.into(), "見".into()),
+    ];
+    for (what, version, mark) in cases.drain(..) {
+        let mut v = example_v2();
+        if version == 1 {
+            v["apps"][0].as_object_mut().unwrap().remove("mark");
+            v["apps"][1].as_object_mut().unwrap().remove("mark");
+        }
+        v["version"] = version;
+        v["apps"][2]["mark"] = mark;
+        let err = match parse(&v) {
+            Err(e) => e,
+            Ok(f) => check(&f, "warte").expect_err(what),
+        };
+        assert!(err.contains("apps[2].mark"), "{what}: {err:?}");
+    }
+    // the limits pass: eight code points, and a ZWJ emoji (five code points)
+    for ok in [
+        "12345678",
+        "\u{1F469}\u{200D}\u{1F469}\u{200D}\u{1F467}",
+        "家",
+    ] {
+        let mut v = example_v2();
+        v["apps"][2]["mark"] = ok.into();
+        check(&parse(&v).unwrap(), "warte").unwrap_or_else(|e| panic!("{ok}: {e}"));
+    }
+    // a mark is escaped like the rest (the rules refuse < and &, html escapes anyway)
+    let mut f = parse(&example_v2()).unwrap();
+    f.apps[2].mark = Some("<i>".into());
+    assert!(html(&f, "warte").contains("&lt;i&gt;"));
+}
+
+// rivet: verifies REQ-NAV-003
+#[test]
+fn the_check_command_accepts_version_2() {
+    let dir = tempfile::tempdir().unwrap();
+    let p = dir.path().join("nav.json");
+    std::fs::write(&p, example_v2().to_string()).unwrap();
+    let (code, out, err) = run(&["nav", "check", p.to_str().unwrap(), "--self", "warte"]);
+    assert_eq!((code, out.trim()), (0, "ok: nav v2, 3 apps"), "{err}");
+}
+
+// rivet: verifies REQ-NAV-003
+#[test]
+fn the_menu_is_byte_for_byte_the_contract_markup() {
+    let f = parse(&example_v2()).unwrap();
+    let want = concat!(
+        r#"<details class="appswitch"><summary aria-label="House apps" title="House apps"><span class="dots" aria-hidden="true"><i></i><i></i><i></i><i></i></span></summary>"#,
+        r#"<nav class="apps" aria-label="House apps"><a class="home" href="/"><span class="mark" aria-hidden="true">←</span><b>tower</b><span>Home</span></a>"#,
+        r#"<a href="/warte/" aria-current="page"><span class="mark" aria-hidden="true">見</span><b>warte</b><span>control tower</span></a>"#,
+        r#"<a href="/photos/"><span class="mark" aria-hidden="true">光</span><b>Photos</b></a>"#,
+        r#"<a href="https://login.example.internal/"><span class="mark" aria-hidden="true">L</span><b>Login</b></a>"#,
+        "</nav></details>"
+    );
+    assert_eq!(html(&f, "warte"), want);
 }

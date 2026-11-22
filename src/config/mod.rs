@@ -119,7 +119,7 @@ pub struct Config {
     /// stays open.
     #[serde(default)]
     pub auth: Option<crate::login::AuthConfig>,
-    /// The home link and app switcher, contract nav v1 (REQ-NAV-001).
+    /// The home link and app switcher, contract nav (REQ-NAV-001, REQ-NAV-003).
     /// Without it nothing renders.
     #[serde(default)]
     pub nav: Option<crate::nav::NavConfig>,

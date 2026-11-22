@@ -1,7 +1,7 @@
-//! The home link and app switcher (REQ-NAV-001): contract nav v1, in
-//! `docs/topics/nav.md`. One JSON file, written by the operator and shared by
-//! every app on the host, is read and checked once at startup. A file that
-//! breaks a rule stops startup with the rule named.
+//! The home link and app switcher (REQ-NAV-001, REQ-NAV-003): contract nav
+//! v1 and v2, in `docs/topics/nav.md`. One JSON file, written by the operator
+//! and shared by every app on the host, is read and checked once at startup.
+//! A file that breaks a rule stops startup with the rule named.
 
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -32,9 +32,12 @@ pub struct App {
     pub url: String,
     #[serde(default)]
     pub desc: Option<String>,
+    /// nav v2 only: the app's icon, 1 to 8 code points.
+    #[serde(default)]
+    pub mark: Option<String>,
 }
 
-/// A nav v1 file.
+/// A nav v1 or v2 file.
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct NavFile {
@@ -43,8 +46,10 @@ pub struct NavFile {
     pub apps: Vec<App>,
 }
 
-pub const VERSION: u32 = 1;
+/// The versions a reader accepts.
+pub const VERSIONS: [u32; 2] = [1, 2];
 pub const MAX_APPS: usize = 20;
+pub const MAX_MARK: usize = 8;
 pub const MAX_NAME: usize = 40;
 pub const MAX_DESC: usize = 120;
 pub const MAX_ID: usize = 32;
@@ -62,10 +67,19 @@ fn name_ok(s: &str) -> bool {
     (1..=MAX_NAME).contains(&n)
 }
 
-/// Check a parsed file against the nav v1 rules and this app's id.
+/// Code points, not graphemes: grapheme rules move with the Unicode version,
+/// and every app must accept and refuse the same files.
+fn mark_ok(m: &str) -> bool {
+    (1..=MAX_MARK).contains(&m.chars().count())
+        && !m
+            .chars()
+            .any(|c| c.is_whitespace() || c.is_control() || "\"'<>&\\".contains(c))
+}
+
+/// Check a parsed file against the nav rules and this app's id.
 pub fn check(f: &NavFile, self_id: &str) -> Result<(), String> {
-    if f.version != VERSION {
-        return Err(format!("version is {}, nav v1 needs 1", f.version));
+    if !VERSIONS.contains(&f.version) {
+        return Err(format!("version is {}, nav needs 1 or 2", f.version));
     }
     if !name_ok(&f.home.name) {
         return Err(format!("home.name must be 1 to {MAX_NAME} characters"));
@@ -110,6 +124,18 @@ pub fn check(f: &NavFile, self_id: &str) -> Result<(), String> {
             .is_some_and(|d| d.chars().count() > MAX_DESC)
         {
             return Err(format!("{at}.desc must be at most {MAX_DESC} characters"));
+        }
+        if let Some(m) = &a.mark {
+            if f.version < 2 {
+                return Err(format!(
+                    "{at}.mark is unknown in nav v1, it needs version 2"
+                ));
+            }
+            if !mark_ok(m) {
+                return Err(format!(
+                    "{at}.mark must be 1 to {MAX_MARK} characters, without spaces, control characters, quotes, <, >, & or \\"
+                ));
+            }
         }
     }
     if !seen.contains(self_id) {
@@ -161,19 +187,37 @@ fn esc(s: &str) -> String {
         .replace('\'', "&#39;")
 }
 
-/// The header's nav: the home link, then every app in file order; this app's
-/// entry carries `aria-current="page"`. Exactly `1 + apps.len()` links.
+/// The mark an app shows: its own (v2), or the first letter of its name,
+/// upper-cased.
+pub fn mark(a: &App) -> String {
+    match &a.mark {
+        Some(m) => m.clone(),
+        None => a
+            .name
+            .trim()
+            .chars()
+            .next()
+            .map(|c| c.to_uppercase().collect())
+            .unwrap_or_default(),
+    }
+}
+
+/// The header's app switcher: a menu holding the home link, then every app
+/// in file order; this app's entry carries `aria-current="page"`. Exactly
+/// `1 + apps.len()` links.
 pub fn html(f: &NavFile, self_id: &str) -> String {
     let mut s = format!(
-        "<nav class=\"apps\" aria-label=\"apps\"><a class=\"home\" href=\"{}\">← {}</a>",
+        "<details class=\"appswitch\"><summary aria-label=\"House apps\" title=\"House apps\"><span class=\"dots\" aria-hidden=\"true\"><i></i><i></i><i></i><i></i></span></summary>\
+         <nav class=\"apps\" aria-label=\"House apps\">\
+         <a class=\"home\" href=\"{}\"><span class=\"mark\" aria-hidden=\"true\">←</span><b>{}</b><span>Home</span></a>",
         esc(&f.home.url),
         esc(f.home.name.trim())
     );
     for a in &f.apps {
-        let title = a
+        let desc = a
             .desc
             .as_deref()
-            .map(|d| format!(" title=\"{}\"", esc(d)))
+            .map(|d| format!("<span>{}</span>", esc(d)))
             .unwrap_or_default();
         let current = if a.id == self_id {
             " aria-current=\"page\""
@@ -181,11 +225,12 @@ pub fn html(f: &NavFile, self_id: &str) -> String {
             ""
         };
         s.push_str(&format!(
-            "<a href=\"{}\"{title}{current}>{}</a>",
+            "<a href=\"{}\"{current}><span class=\"mark\" aria-hidden=\"true\">{}</span><b>{}</b>{desc}</a>",
             esc(&a.url),
+            esc(&mark(a)),
             esc(a.name.trim())
         ));
     }
-    s.push_str("</nav>");
+    s.push_str("</nav></details>");
     s
 }

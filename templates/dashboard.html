@@ -223,6 +223,20 @@
       }
     }).catch(function () {});
   </script>
+  <script>
+    // nav: the app switcher closes on a tap outside it or on Escape
+    document.addEventListener('click', function (e) {
+      document.querySelectorAll('details.appswitch[open]').forEach(function (d) {
+        if (!d.contains(e.target)) d.open = false;
+      });
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape') return;
+      document.querySelectorAll('details.appswitch[open]').forEach(function (d) {
+        d.open = false; d.querySelector('summary').focus();
+      });
+    });
+  </script>
   <script src="idle.js" defer></script>
 </body>
 </html>

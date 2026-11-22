@@ -73,7 +73,7 @@ const TOPICS: &[Topic] = &[
     },
     Topic {
         name: "nav",
-        title: "Contract: nav v1, the home link and app switcher",
+        title: "Contract: nav v2, the home link and app switcher",
         content: include_str!("../../docs/topics/nav.md"),
     },
     Topic {
