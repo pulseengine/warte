@@ -90,3 +90,25 @@ fn nothing_still_advertises_them() {
         .unwrap();
     assert_eq!(out.status.code(), Some(2), "an unknown subcommand");
 }
+
+// rivet: verifies REQ-RETIRE-001
+#[tokio::test]
+async fn the_retired_tables_are_dropped_and_the_rest_of_the_schema_stays() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = warte::db::Database::connect(&dir.path().join("state.db"))
+        .await
+        .unwrap();
+    let tables: Vec<(String,)> =
+        sqlx::query_as("SELECT name FROM sqlite_master WHERE type = 'table'")
+            .fetch_all(db.pool())
+            .await
+            .unwrap();
+    let names: Vec<&str> = tables.iter().map(|(n,)| n.as_str()).collect();
+    assert!(
+        names.contains(&"agents") && names.contains(&"agent_data"),
+        "{names:?}"
+    );
+    for gone in ["artifacts", "sync_state", "instances"] {
+        assert!(!names.contains(&gone), "{gone}: {names:?}");
+    }
+}

@@ -1,6 +1,6 @@
 # Plan: durable state from SQLite to rivet YAML (warte#37)
 
-> **Status 2026-11-22.** The owner chose a written plan first. Phase 1's code removal shipped in v1.6.44 (src/sync, its routes and the crdts dependency); the sync_state and instances tables stay until the operator confirms they are empty. Blocker B1 is filed as rivet#1328.
+> **Status 2026-11-22.** The owner chose a written plan first. Phase 1's code removal shipped in v1.6.44 (src/sync, its routes and the crdts dependency); migration 016 dropped the sync_state and instances tables after the operator confirmed they were empty. Blocker B1 is filed as rivet#1328.
 
 
 Status: draft for owner review, 2026-11-22. No code until the owner approves.

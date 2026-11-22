@@ -1,6 +1,6 @@
 # Plan: retire warte's artifact blob store, point at varve layers (warte#38)
 
-> **Status 2026-11-22.** The owner chose plans and seam options first. The dead store's code was removed in v1.6.44; the artifacts table stays until the operator confirms it has 0 rows. The Layers view waits for varve's answer on the seam.
+> **Status 2026-11-22.** The owner chose plans and seam options first. The dead store's code was removed in v1.6.44; migration 016 dropped the artifacts table after the operator confirmed it had 0 rows. The Layers view waits for varve's answer on the seam.
 
 
 Status: plan plus seam options. Owner decision 2026-11-22: varve agrees the seam first; warte's side is built after that.

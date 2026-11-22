@@ -6,7 +6,7 @@ artifacts:
     title: warte serves and advertises no feature it does not implement
     status: verified
     release: v1.6.44
-    description: "warte SHALL NOT serve the artifact store routes (/api/artifacts, /api/artifacts/{id}/download, the artifacts dashboard partial) or the multi-instance sync routes (/api/sync/state, /api/sync/update): they answer as an unknown route does. The menu, the embedded docs topics, the agent contract, the route-rights table and the CLI SHALL NOT offer them, and the overview SHALL NOT count artifacts. The artifact and sync requirements are deprecated (tag removed-in-v1.6.44); their tables stay until the operator confirms they hold no rows."
+    description: "warte SHALL NOT serve the artifact store routes (/api/artifacts, /api/artifacts/{id}/download, the artifacts dashboard partial) or the multi-instance sync routes (/api/sync/state, /api/sync/update): they answer as an unknown route does. The menu, the embedded docs topics, the agent contract, the route-rights table and the CLI SHALL NOT offer them, and the overview SHALL NOT count artifacts. The artifact and sync requirements are deprecated (tag removed-in-v1.6.44); migration 016 drops their three tables, which the operator confirmed held 0 rows in production."
     fields:
       category: functional
       priority: should
@@ -21,7 +21,7 @@ artifacts:
     title: Remove the unfinished artifact store and sync instead of finishing them; keep their tables for now
     status: verified
     release: v1.6.44
-    description: "The sync service merged version vectors but applied no record and nothing sent updates; the artifact store had stub upload and download commands and an integrity check that re-hashed the stored column, so it always passed. Both claimed properties in docs that did not hold. Removing the code (src/sync, src/artifact, the unused src/sigil, their routes, the CLI command, the menu entry, two docs topics, the crdts dependency and 10 crates it pulled in) makes the docs true. The tables are not dropped: a migration cannot be undone, so dropping waits for the operator's row counts. Replacements are planned in docs/plans/2026-11-22-artifacts-varve.md and docs/plans/2026-11-22-rivet-state.md."
+    description: "The sync service merged version vectors but applied no record and nothing sent updates; the artifact store had stub upload and download commands and an integrity check that re-hashed the stored column, so it always passed. Both claimed properties in docs that did not hold. Removing the code (src/sync, src/artifact, the unused src/sigil, their routes, the CLI command, the menu entry, two docs topics, the crdts dependency and 10 crates it pulled in) makes the docs true. A dropped table cannot be restored, so the drop (migration 016) came only after the operator read 0 rows in all three tables in production. Replacements are planned in docs/plans/2026-11-22-artifacts-varve.md and docs/plans/2026-11-22-rivet-state.md."
     fields:
       rationale: "Code that claims checks it does not make is worse than no code: a reader trusts the docs."
     links:
@@ -37,7 +37,7 @@ artifacts:
     title: The removed routes answer like an unknown route, and nothing still advertises them
     status: verified
     release: v1.6.44
-    description: "tests/retired.rs: GET /api/artifacts, /api/artifacts/x/download, /api/sync/state and the artifacts partial answer exactly as an unknown route does, POST /api/sync/update does not succeed, and the overview has no artifacts count; the menu, docs topics, agent contract, route-rights table and CLI do not offer them (warte artifact list exits 2). Negative controls: putting back the /api/sync/state route failed the first test, and putting back the menu button failed the second."
+    description: "tests/retired.rs: GET /api/artifacts, /api/artifacts/x/download, /api/sync/state and the artifacts partial answer exactly as an unknown route does, POST /api/sync/update does not succeed, and the overview has no artifacts count; the menu, docs topics, agent contract, route-rights table and CLI do not offer them (warte artifact list exits 2). A third test checks that after migrating, the three tables are gone and the rest of the schema remains. Negative controls: putting back the /api/sync/state route failed the first test, putting back the menu button failed the second, and a build without migration 016 failed the third."
     links:
       - type: verifies
         target: REQ-RETIRE-001
