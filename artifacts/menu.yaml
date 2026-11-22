@@ -1,0 +1,95 @@
+# The grouped menu (warte#187). The owner approved the design on 2026-11-19;
+# on 2026-11-21 the owner put North Star first in the Now group.
+artifacts:
+  - id: REQ-DASH-019
+    type: requirement
+    title: "The menu has five groups instead of 19 tabs; empty views are hidden and the groups carry red and amber counts"
+    status: verified
+    release: v1.6.41
+    description: "The dashboard menu SHALL show five groups (Now, CI, Machines, Agents, Compliance) and, in a second row, the views of the open group only. Now SHALL hold North Star, Overview, Outages and Briefing in that order; every other view SHALL belong to exactly one group. A group SHALL open on its first view that is not hidden; the page with no view in its address SHALL open on Overview. Every view SHALL keep its route and its address, so links and bookmarks still open it and its group. Friction with no report and Artifacts with none SHALL be hidden from the row, which SHALL name what it hides; a link SHALL still open them. GET /api/dashboard/nav-state SHALL answer the hidden views and per group a red and an amber count from the same sources as the views: outages for Now, forecasts for Machines, failing temper checks (red) and a stale or missing sweep (amber) for Compliance. A count the server cannot read SHALL show the view, never hide it."
+    fields:
+      category: functional
+      priority: should
+      upstream-ref: https://github.com/pulseengine/warte/issues/187
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-21T08:30:00Z
+
+  - id: DD-DASH-019
+    type: design-decision
+    title: The groups are a row of buttons over the existing view buttons; hiding and counts come from one small public endpoint
+    status: verified
+    release: v1.6.41
+    description: "The 20 view buttons stay as they were (same labels, routes and htmx attributes), each inside one nav row per group; a group row above them switches which row shows. The URL hash still names the view, so a link opens its view and its group. /api/dashboard/nav-state is read at load and every 30 s; it carries counts and view names only and is public like the views it counts."
+    fields:
+      rationale: "Keeping the view buttons and their labels keeps every route, every address and the existing browser tests valid; only the click into a view goes through its group. Hiding needs a known zero, so an unreadable count shows the view. Red and amber counts reuse what the Overview, Machines and Compliance views already compute instead of a second rule set. Deferred: the 'Needs your attention' strip (the second step of #187), Decisions (#184) and the night glance (#179), which the issue plans into Now and Agents; and the CI and Agents counts, which have no red or amber source yet."
+    links:
+      - type: satisfies
+        target: REQ-DASH-019
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-21T08:30:00Z
+
+  - id: TEST-DASH-019
+    type: verification
+    title: tests/menu.rs pins the five groups, every view once, the landing and the hidden views; tests/playwright drives the groups in a browser
+    status: verified
+    release: v1.6.41
+    description: "five_groups_hold_every_view_once_and_overview_is_the_landing reads the template: groups now, ci, machines, agents, compliance; 20 views, each route and label once; Now is North Star, Overview, Outages, Briefing; only Overview is the landing. an_empty_view_is_hidden_and_shown_again_once_it_has_data: an empty database hides friction and artifacts and every group has red and amber counts; one friction row brings Friction back. every_view_in_the_menu_still_answers_on_its_route requests all 20 routes. Negative control: never hiding Friction failed the hidden-view test. The Playwright spec opens each view through its group, checks the five groups, the landing on Overview in Now, a group opening its first view, and a link opening its group; a hidden view is opened by its link."
+    links:
+      - type: verifies
+        target: REQ-DASH-019
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-21T08:30:00Z
+
+  - id: REQ-DASH-020
+    type: requirement
+    title: "A 'Needs your attention' strip under the menu shows always-open items only while one waits, each opening its view"
+    status: verified
+    release: v1.6.41
+    description: "Under the menu, warte SHALL show a 'Needs your attention' strip only while an item waits, and none otherwise. The items SHALL be the always-open kinds warte can see: a disk 95% full or more (counted; no host named, the strip is public), and each workflow whose latest finished run on a public repository's default branch failed within the last two days of the ledger (REQ-BRIEF-007's rule, with the public repositories and default branches of the latest briefing). An amber disk, another machine finding or a red scheduled run SHALL NOT be an item. Each item SHALL open the view that handles it (Machines, CI history) and its group. Items SHALL be written as text, never as HTML. Routine kinds (an operator duty not set up, decisions to answer) SHALL wait until the owner's attention schedule (#181) exists, so that they never show outside the owner's window."
+    fields:
+      category: functional
+      priority: should
+      upstream-ref: https://github.com/pulseengine/warte/issues/187
+    links:
+      - type: refines
+        target: REQ-DASH-019
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-21T09:30:00Z
+
+  - id: DD-DASH-020
+    type: design-decision
+    title: The strip's items come with the menu's nav-state, from a pure rule over probe findings and the red-run rule
+    status: verified
+    release: v1.6.41
+    description: "dashboard::attention(findings, red) turns probe findings and red runs into items {kind, text, view}; nav-state carries them, read at load and every 30 s; the page builds the list with textContent and hides the strip when it is empty. Red runs reuse briefing::red_runs over two days of the ledger, filtered to the default branch."
+    fields:
+      rationale: "Owner-approved design of #187: the strip ships first with today's sources and follows the night glance's rule that only always-open kinds may show at any hour. warte has no owner window of its own yet, so routine kinds are left out rather than shown at night. Reusing the probe findings and the briefing's red-run rule keeps one definition of a full disk and of a red main. Deferred: a failed release (a tag push is not told apart in the ledger), decisions (#184) and duties (both routine, after #181)."
+    links:
+      - type: satisfies
+        target: REQ-DASH-020
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-21T09:30:00Z
+
+  - id: TEST-DASH-020
+    type: verification
+    title: tests/menu.rs pins the strip's rule, that it names no host, and that it starts hidden and writes text
+    status: verified
+    release: v1.6.41
+    description: "the_strip_lists_only_always_open_items_and_names_no_host: nothing gives no item; an amber disk, a red 'no report' finding and a red scheduled run give none; two red disks and a red main give '2 disk(s) 95% full or more' (Machines) and 'rivet is red on main: CI' (CI history), both views in the menu, no host name in any item. with_nothing_waiting_nav_state_has_no_item_and_the_page_has_the_strip_hidden: an empty server answers no item, the strip starts hidden, items are set with textContent. Negative control: letting red scheduled runs into the strip failed the test. In a browser, planted items put the strip up, an item opened CI history in the CI group, and with no item the strip stayed hidden."
+    links:
+      - type: verifies
+        target: REQ-DASH-020
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-21T09:30:00Z

@@ -636,3 +636,28 @@ details.internals > summary:focus-visible { outline: 2px solid var(--accent); ou
 .north-star .ns-dl dt { color: var(--dim); font-weight: 600; }
 .north-star .ns-dl dd { margin: 0; color: var(--text-dim); }
 .north-star .ns-repo { font-family: var(--mono); }
+
+/* REQ-DASH-019: five groups, then the open group's views */
+.nav-groups { display: flex; gap: .3rem; flex-wrap: wrap; flex-basis: 100%; }
+.nav-group {
+  background: none; border: 1px solid transparent; border-radius: 6px;
+  color: var(--text-dim); padding: .35rem .7rem; cursor: pointer;
+  font: 600 .8rem var(--mono); letter-spacing: .1em; text-transform: uppercase;
+  display: inline-flex; align-items: center; gap: .4rem;
+}
+.nav-group:hover { color: var(--text); }
+.nav-group.active { color: var(--accent); border-color: var(--accent-dim); background: var(--bg-hover); }
+.nav-badge { font: 700 .62rem var(--mono); letter-spacing: 0; padding: .05rem .35rem; border-radius: 8px; background: var(--raise); color: var(--text); }
+.nav-badge.red { background: var(--red); color: var(--bg); }
+.nav-badge.amber { background: var(--amber); color: var(--bg); }
+.nav-views { flex-basis: 100%; padding-left: .2rem; }
+.nav-views .nav-btn { font-size: .66rem; }
+.nav-hidden-note { flex-basis: 100%; margin: 0; padding-left: .7rem; font: .66rem var(--mono); color: var(--dim); }
+.nav-views[hidden], .nav-btn[hidden], .nav-badge[hidden], .nav-hidden-note[hidden] { display: none; }
+
+/* REQ-DASH-020: the "Needs your attention" strip under the menu */
+.attention { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .9rem; padding: .35rem .7rem; border: 1px solid var(--red); border-radius: 6px; background: rgba(255, 80, 80, .08); }
+.attention[hidden] { display: none; }
+.attention-label { font: 700 .66rem var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--red); }
+.attention ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: .2rem 1rem; font-size: .8rem; }
+.attention a { color: var(--text); }

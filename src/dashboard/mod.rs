@@ -270,7 +270,127 @@ pub async fn jobs_partial(State(state): State<crate::server::AppState>) -> Respo
     Html(jobs::view(jobs.as_deref(), crate::hub::now())).into_response()
 }
 
-/// HTMX partial: compliance from temper's report (REQ-TEMPER-002).
+/// The strip's items (REQ-DASH-020): a disk 95% full or more (counted, no
+/// host named: the strip is public) and each workflow red on a public
+/// repository's default branch. Both are always-open kinds, shown at any
+/// hour; an amber disk, a red scheduled run or another finding is not an
+/// item. Routine kinds wait for the owner's attention schedule (#181).
+pub fn attention(
+    findings: &[crate::probe::Finding],
+    red: &[crate::briefing::RedRun],
+) -> Vec<serde_json::Value> {
+    let mut out = Vec::new();
+    let disks = findings
+        .iter()
+        .filter(|f| f.severity == "red" && f.text.starts_with("disk "))
+        .count();
+    if disks > 0 {
+        out.push(serde_json::json!({
+            "kind": "critical-disk",
+            "text": format!("{disks} disk(s) 95% full or more"),
+            "view": "machines",
+        }));
+    }
+    for r in red.iter().filter(|r| r.kind == "main") {
+        out.push(serde_json::json!({
+            "kind": "red-main",
+            "text": format!("{} is red on main: {}", r.repo, r.workflow),
+            "view": "ci-history",
+        }));
+    }
+    out
+}
+
+/// Workflows red on a public repository's default branch now (REQ-BRIEF-007's
+/// rule over the last two days of the ledger), with the public repositories
+/// and default branches the latest briefing read from GitHub. Without a
+/// ground station or a briefing there is nothing to say, never a guess.
+async fn red_runs_now(state: &crate::server::AppState, now: i64) -> Vec<crate::briefing::RedRun> {
+    let (Some(hub), Some(b)) = (
+        state.hub.clone(),
+        state.briefing.as_ref().and_then(|s| s.latest()),
+    ) else {
+        return vec![];
+    };
+    let day = |t: i64| {
+        chrono::DateTime::from_timestamp(t, 0)
+            .map(|d| d.format("%Y-%m-%d").to_string())
+            .unwrap_or_default()
+    };
+    let (from, until) = (day(now - 2 * 86_400), day(now));
+    let recs = tokio::task::spawn_blocking(move || hub.ledger_days(&from, &until))
+        .await
+        .unwrap_or_default();
+    let public: std::collections::BTreeSet<String> = b.facts.known_repos.iter().cloned().collect();
+    crate::briefing::red_runs(&recs, &public, &b.facts.default_branches).0
+}
+
+/// REQ-DASH-019: what the grouped menu needs: the views to hide while empty
+/// and red and amber counts per group, from the same sources as the views.
+/// Public like the views it counts; it carries counts and view names only.
+pub async fn nav_state(State(state): State<crate::server::AppState>) -> Response {
+    let now = crate::hub::now();
+    // an unanswered count shows the view: hiding needs a known zero
+    let friction: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM agent_data WHERE data_type = 'friction'")
+            .fetch_one(state.db.pool())
+            .await
+            .unwrap_or((1,));
+    let artifacts = state.artifacts.list().await.map(|a| a.len()).unwrap_or(1);
+    let mut hidden = Vec::new();
+    if friction.0 == 0 {
+        hidden.push("friction");
+    }
+    if artifacts == 0 {
+        hidden.push("artifacts");
+    }
+    let outages = state
+        .hub
+        .as_ref()
+        .and_then(fleet::detected)
+        .map(|(l, _)| l.len())
+        .unwrap_or(0)
+        + fleet::host_detected(&state, now).len();
+    let forecasts = state
+        .machines
+        .as_ref()
+        .and_then(|m| crate::forecast::of_machines(m, now))
+        .map(|f| f.items.len())
+        .unwrap_or(0);
+    let stale_after = state
+        .config
+        .temper
+        .as_ref()
+        .map(|t| t.stale_after_s)
+        .unwrap_or(26 * 3600);
+    let (temper_red, temper_amber) = match state.temper.as_ref().map(|t| t.latest()) {
+        Some(Some(s)) => (
+            s.report.failures().len(),
+            usize::from(now - s.received_at > stale_after),
+        ),
+        Some(None) => (0, 1),
+        None => (0, 0),
+    };
+    let findings = state
+        .machines
+        .as_ref()
+        .map(|m| crate::probe::findings(&m.list(), now))
+        .unwrap_or_default();
+    let attention = attention(&findings, &red_runs_now(&state, now).await);
+    axum::Json(serde_json::json!({
+        "attention": attention,
+        "hidden": hidden,
+        "badges": {
+            "now": {"red": outages, "amber": 0},
+            "ci": {"red": 0, "amber": 0},
+            "machines": {"red": 0, "amber": forecasts},
+            "agents": {"red": 0, "amber": 0},
+            "compliance": {"red": temper_red, "amber": temper_amber},
+        },
+    }))
+    .into_response()
+}
+
 /// REQ-NS-005: the North Star view, as published plus the trend warte observed.
 pub async fn north_star_partial(State(state): State<crate::server::AppState>) -> Response {
     let Some(n) = state.north_star.as_deref() else {
@@ -296,6 +416,7 @@ pub async fn north_star_partial(State(state): State<crate::server::AppState>) ->
     .into_response()
 }
 
+/// HTMX partial: compliance from temper's report (REQ-TEMPER-002).
 pub async fn compliance_partial(State(state): State<crate::server::AppState>) -> Response {
     let latest = state.temper.as_ref().and_then(|t| t.latest());
     let stale = state

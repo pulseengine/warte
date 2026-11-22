@@ -15,28 +15,47 @@
       <h1>warte</h1>
       <span class="subtitle">control tower</span>
     </div>
-    <nav class="nav">
-      <button hx-get="api/dashboard/overview-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn active">Overview</button>
+    <!-- REQ-DASH-019: five groups; the open group's views form the second row -->
+    <nav class="nav-groups" aria-label="Groups">
+      <button class="nav-group active" data-group="now">Now<span class="nav-badge" aria-hidden="true" hidden></span></button>
+      <button class="nav-group" data-group="ci">CI<span class="nav-badge" aria-hidden="true" hidden></span></button>
+      <button class="nav-group" data-group="machines">Machines<span class="nav-badge" aria-hidden="true" hidden></span></button>
+      <button class="nav-group" data-group="agents">Agents<span class="nav-badge" aria-hidden="true" hidden></span></button>
+      <button class="nav-group" data-group="compliance">Compliance<span class="nav-badge" aria-hidden="true" hidden></span></button>
+    </nav>
+    <nav class="nav nav-views" data-group="now" aria-label="Now">
       <button hx-get="api/dashboard/north-star-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">North Star</button>
+      <button hx-get="api/dashboard/overview-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn active" data-default>Overview</button>
+      <button hx-get="api/dashboard/outages-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Outages</button>
       <button hx-get="api/dashboard/briefing-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn" data-no-refresh>Briefing</button>
-      <button hx-get="api/dashboard/airport-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn" data-no-refresh>Airport</button>
-      <button hx-get="api/dashboard/machines-partial" hx-vals="js:{range: warteRange(), open: warteOpen()}" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Machines</button>
-      <button hx-get="api/dashboard/jobs-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Jobs</button>
-      <button hx-get="api/dashboard/compliance-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Compliance</button>
-      <button hx-get="api/dashboard/ask-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn" data-no-refresh>Ask</button>
+    </nav>
+    <nav class="nav nav-views" data-group="ci" aria-label="CI" hidden>
       <button hx-get="api/dashboard/queue-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Queue</button>
+      <button hx-get="api/dashboard/airport-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn" data-no-refresh>Airport</button>
       <button hx-get="api/dashboard/ci-history-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn" data-no-refresh>CI history</button>
       <button hx-get="api/dashboard/critical-path-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Critical Path</button>
+      <button hx-get="api/dashboard/jobs-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Jobs</button>
       <button hx-get="api/dashboard/resources-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Resources</button>
-      <button hx-get="api/dashboard/outages-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Outages</button>
-      <button hx-get="api/dashboard/friction-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Friction</button>
       <button hx-get="api/dashboard/schedule-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Schedule</button>
+      <button hx-get="api/dashboard/ask-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn" data-no-refresh>Ask</button>
+    </nav>
+    <nav class="nav nav-views" data-group="machines" aria-label="Machines" hidden>
+      <button hx-get="api/dashboard/machines-partial" hx-vals="js:{range: warteRange(), open: warteOpen()}" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Machines</button>
+      <button hx-get="api/dashboard/health-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Health</button>
+    </nav>
+    <nav class="nav nav-views" data-group="agents" aria-label="Agents" hidden>
+      <button hx-get="api/dashboard/agents-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Agents</button>
       <button hx-get="api/dashboard/costs-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Costs</button>
       <button hx-get="api/dashboard/skills-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Skills</button>
-      <button hx-get="api/dashboard/health-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Health</button>
-      <button hx-get="api/dashboard/agents-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Agents</button>
+      <button hx-get="api/dashboard/friction-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Friction</button>
       <button hx-get="api/dashboard/artifacts-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Artifacts</button>
     </nav>
+    <nav class="nav nav-views" data-group="compliance" aria-label="Compliance" hidden>
+      <button hx-get="api/dashboard/compliance-partial" hx-target="#content" hx-swap="innerHTML" class="nav-btn">Compliance</button>
+    </nav>
+    <p class="nav-hidden-note" id="nav-hidden-note" hidden></p>
+    <!-- REQ-DASH-020: only when something waits for the owner -->
+    <div class="attention" id="attention" role="region" aria-label="Needs your attention" hidden><span class="attention-label">Needs your attention</span><ul></ul></div>
     <span class="who" id="who"></span>
     <span class="clock" title="tower time">UTC <b id="utc">--:--:--</b></span>
   </header>
@@ -98,23 +117,86 @@
     // The view lives in the URL (#machines, #queue, ...): a reload, a bookmark
     // or a shared link opens that view, and back/forward move between views.
     var buttons = Array.prototype.slice.call(document.querySelectorAll('.nav-btn'));
-    var current = buttons[0];
+    // with no view in the URL the page opens on Overview, in the Now group
+    var landing = document.querySelector('.nav-btn[data-default]') || buttons[0];
+    var current = landing;
     function slug(btn) { return '#' + btn.textContent.trim().toLowerCase().replace(/\s+/g, '-'); }
     function fromHash() {
       var view = location.hash.split(/[\/?]/)[0];
-      return buttons.find(function (b) { return slug(b) === view; }) || buttons[0];
+      return buttons.find(function (b) { return slug(b) === view; }) || landing;
     }
+    // REQ-DASH-019: five groups; the open group's views form the second row,
+    // and a group opens on its first view that is not hidden
+    var groups = Array.prototype.slice.call(document.querySelectorAll('.nav-group'));
+    var rows = Array.prototype.slice.call(document.querySelectorAll('.nav-views'));
+    function showGroup(g) {
+      groups.forEach(function (b) { b.classList.toggle('active', b.dataset.group === g); });
+      rows.forEach(function (r) { r.hidden = r.dataset.group !== g; });
+      warteHiddenNote();
+    }
+    groups.forEach(function (gb) {
+      gb.addEventListener('click', function () {
+        var row = rows.find(function (r) { return r.dataset.group === gb.dataset.group; });
+        var first = row && row.querySelector('.nav-btn:not([hidden])');
+        if (first) htmx.trigger(first, 'click'); else showGroup(gb.dataset.group);
+      });
+    });
     buttons.forEach(function (btn) {
       btn.addEventListener('click', function () {
         buttons.forEach(function (b) { b.classList.remove('active'); });
         btn.classList.add('active');
         current = btn;
+        btn.hidden = false;
+        showGroup(btn.closest('.nav-views').dataset.group);
         if (location.hash.split(/[\/?]/)[0] !== slug(btn)) history.pushState(null, '', slug(btn));
       });
     });
     window.addEventListener('popstate', function () { htmx.trigger(fromHash(), 'click'); });
     // after htmx has processed the page (its listener was registered first)
     document.addEventListener('DOMContentLoaded', function () { htmx.trigger(fromHash(), 'click'); });
+    // Empty views leave the row and the row says so; a link to one still opens
+    // it. Red and amber counts sit on the groups (REQ-DASH-019).
+    var warteHidden = [];
+    function warteHiddenNote() {
+      var note = document.getElementById('nav-hidden-note');
+      var open = rows.find(function (r) { return !r.hidden; });
+      var names = open ? Array.prototype.slice.call(open.querySelectorAll('.nav-btn[hidden]')).map(function (b) { return b.textContent.trim(); }) : [];
+      note.hidden = names.length === 0;
+      note.textContent = names.length ? 'hidden while empty: ' + names.join(', ') : '';
+    }
+    function warteNavState() {
+      fetch('api/dashboard/nav-state').then(function (r) { return r.json(); }).then(function (s) {
+        warteHidden = s.hidden || [];
+        buttons.forEach(function (b) {
+          b.hidden = b !== current && warteHidden.indexOf(slug(b).slice(1)) >= 0;
+        });
+        groups.forEach(function (g) {
+          var c = (s.badges || {})[g.dataset.group] || {};
+          var badge = g.querySelector('.nav-badge');
+          var n = c.red || c.amber || 0;
+          badge.hidden = !n;
+          badge.textContent = n ? String(n) : '';
+          badge.className = 'nav-badge' + (c.red ? ' red' : c.amber ? ' amber' : '');
+          badge.title = (c.red ? c.red + ' red' : '') + (c.red && c.amber ? ', ' : '') + (c.amber ? c.amber + ' amber' : '');
+        });
+        var strip = document.getElementById('attention');
+        var list = strip.querySelector('ul');
+        list.textContent = '';
+        (s.attention || []).forEach(function (a) {
+          var li = document.createElement('li');
+          li.className = 'attention-' + a.kind;
+          var link = document.createElement('a');
+          link.href = '#' + a.view;
+          link.textContent = a.text;
+          li.appendChild(link);
+          list.appendChild(li);
+        });
+        strip.hidden = list.children.length === 0;
+        warteHiddenNote();
+      }).catch(function () {});
+    }
+    warteNavState();
+    setInterval(function () { if (!document.hidden) warteNavState(); }, 30000);
     // Tower clock: UTC, like the timestamps everywhere else.
     var utc = document.getElementById('utc');
     function tick() { utc.textContent = new Date().toISOString().slice(11, 19); }
