@@ -133,9 +133,14 @@ test.describe("grouped menu", () => {
     await page.goto("/");
     await waitForHtmx(page);
     const groups = page.locator(".nav-groups").getByRole("button");
-    await expect(groups).toHaveText(["Now", "CI", "Machines", "Agents", "Compliance"]);
+    // by accessible name: a group's count badge is aria-hidden and not part of its name
+    const names = ["Now", "CI", "Machines", "Agents", "Compliance"];
+    await expect(groups).toHaveCount(names.length);
+    for (const [i, name] of names.entries()) {
+      await expect(groups.nth(i)).toHaveAccessibleName(name);
+    }
     // the page lands on Overview, in Now
-    await expect(page.locator(".nav-groups .nav-group.active")).toHaveText("Now");
+    await expect(page.locator(".nav-groups .nav-group.active")).toHaveAccessibleName("Now");
     await expect(page.locator(".nav-views").getByRole("button", { name: "Overview", exact: true })).toHaveClass(/active/);
     await page.locator(".nav-groups").getByRole("button", { name: "CI", exact: true }).click();
     await waitForHtmx(page);
@@ -146,7 +151,7 @@ test.describe("grouped menu", () => {
     await page.goto("/#health");
     await page.reload();
     await waitForHtmx(page);
-    await expect(page.locator(".nav-groups .nav-group.active")).toHaveText("Machines");
+    await expect(page.locator(".nav-groups .nav-group.active")).toHaveAccessibleName("Machines");
     expect(errors).toEqual([]);
   });
 });
