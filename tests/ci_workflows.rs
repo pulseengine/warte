@@ -807,6 +807,18 @@ fn the_jig_shadow_pilot_has_the_caller_shape_and_changes_no_required_context() {
         .filter(|j| *j != "required")
         .collect();
     assert_eq!(needs, others);
+    // least privilege: the token reads contents and nothing else, and no job widens it
+    let perms = wf["permissions"]
+        .as_mapping()
+        .expect("ci.yml sets top-level permissions");
+    assert_eq!(perms.len(), 1, "{perms:?}");
+    assert_eq!(wf["permissions"]["contents"].as_str(), Some("read"));
+    for (id, def) in &all {
+        assert!(
+            def.get("permissions").is_none(),
+            "{id}: widens permissions without a reason here"
+        );
+    }
     // every pull request and the merge queue, no filter
     assert!(wf["on"]["pull_request"].is_null() && wf["on"].get("pull_request").is_some());
     assert!(wf["on"].get("merge_group").is_some());

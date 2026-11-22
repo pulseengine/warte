@@ -10,6 +10,13 @@ on:
   pull_request:
   merge_group:
 
+# Least privilege: GITHUB_TOKEN reads the repository and nothing else. No job
+# here writes (actions/cache and upload-artifact use the runner's runtime
+# token), and jig's workflows declare contents: read themselves. A job that
+# needs more gets it at job level, with the reason beside it.
+permissions:
+  contents: read
+
 defaults:
   run:
     shell: bash
