@@ -1,0 +1,6 @@
+# plant guard: no fork pull request may reach a self-hosted runner.
+# Labels the workflows may select on the fail-closed same-repo form.
+fallback = "ubuntu-24.04"
+labels = ["self-hosted", "linux", "x64", "rust-cpu", "light"]
+# jig's reusable workflows carry their own fork guard (pinned by full SHA).
+trusted_workflows = ["pulseengine/jig/.github/workflows/*.yml"]

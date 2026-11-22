@@ -183,8 +183,11 @@ fn toolchain_steps_are_not_masked() {
     for (name, _) in workflows() {
         let wf = workflow(&name);
         for (job_name, job) in jobs(&wf) {
+            // jig's advisory canary is the one job allowed to fail, by name
+            // in the verdict (every_rust_toolchain_is_one_pinned_version_across_workflows
+            // holds it to exactly one); its steps are still checked below
             assert!(
-                job.get("continue-on-error").is_none(),
+                job.get("continue-on-error").is_none() || advisory_canary(&wf, &job_name),
                 "{name}: job {job_name} sets continue-on-error"
             );
             for step in job["steps"].as_sequence().into_iter().flatten() {
@@ -316,6 +319,8 @@ fn runners(text: &str) -> Vec<String> {
 /// a PR whose fork was deleted (head.repo null) to self-hosted. Routing only: a fork PR can edit the workflow, so isolation itself
 /// is the org's runner-group policy and fork-PR approval, not this expression.
 const SELF_HOSTED_CPU_SAME_REPO_ONLY: &str = "${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('[\"self-hosted\",\"linux\",\"x64\",\"rust-cpu\"]') || 'ubuntu-24.04' }}";
+/// The light pool, for the classifier: same fail-closed form, label `light`.
+const SELF_HOSTED_LIGHT_SAME_REPO_ONLY: &str = "${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('[\"self-hosted\",\"linux\",\"x64\",\"light\"]') || 'ubuntu-24.04' }}";
 
 // rivet: verifies DD-CI-001
 // rivet: verifies REQ-CI-003
@@ -330,10 +335,20 @@ fn ci_jobs_run_self_hosted_with_forks_guarded() {
     let wf = workflow("ci.yml");
     let mut checked = 0;
     for (job, def) in jobs(&wf) {
+        // a reusable-workflow call has no runs-on: jig pins its own fork guard
+        // and plant guard checks it (trusted_workflows)
+        if def["uses"].is_string() {
+            assert!(def["runs-on"].is_null(), "ci.yml job {job}");
+            continue;
+        }
         checked += 1;
         let runner = def["runs-on"].as_str().unwrap_or_default();
         match HOSTED.iter().find(|(j, _, _)| *j == job) {
             Some((_, want, why)) => assert_eq!(runner, *want, "ci.yml job {job} ({why})"),
+            None if job == "classify" => assert_eq!(
+                runner, SELF_HOSTED_LIGHT_SAME_REPO_ONLY,
+                "ci.yml job classify: the light pool, fail-closed"
+            ),
             None => assert_eq!(
                 runner, SELF_HOSTED_CPU_SAME_REPO_ONLY,
                 "ci.yml job {job}: unexpected runner"
@@ -612,17 +627,17 @@ fn every_lockfile_is_committed_and_audited_with_planted_controls() {
 }
 
 /// The `toolchain:` of every rust-toolchain step, with its workflow.
-fn toolchains() -> Vec<(String, String)> {
+fn toolchains() -> Vec<(String, String, String)> {
     let mut out = Vec::new();
     for (name, _) in workflows() {
-        for (_, job) in jobs(&workflow(&name)) {
+        for (id, job) in jobs(&workflow(&name)) {
             for step in job["steps"].as_sequence().into_iter().flatten() {
                 if step["uses"]
                     .as_str()
                     .is_some_and(|u| u.starts_with("dtolnay/rust-toolchain@"))
                 {
                     let t = step["with"]["toolchain"].as_str().unwrap_or("").to_string();
-                    out.push((name.clone(), t));
+                    out.push((name.clone(), id.clone(), t));
                 }
             }
         }
@@ -640,6 +655,34 @@ fn pinned_toolchain(t: &str) -> bool {
         .strip_prefix("nightly-")
         .is_some_and(|d| d.len() == 10 && chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").is_ok());
     release || nightly
+}
+
+/// jig pins' advisory canary (REQ-021 in jig): job-level
+/// `continue-on-error: true` as a literal boolean, needed by no job except
+/// `required`, and named in `required`'s `advisory` input.
+fn advisory_canary(wf: &Value, id: &str) -> bool {
+    let all = jobs(wf);
+    let Some((_, job)) = all.iter().find(|(j, _)| j == id) else {
+        return false;
+    };
+    let needs_it = |def: &Value| match &def["needs"] {
+        Value::String(s) => s == id,
+        Value::Sequence(v) => v.iter().any(|n| n.as_str() == Some(id)),
+        _ => false,
+    };
+    let only_required_needs_it = all
+        .iter()
+        .filter(|(j, def)| j != "required" && needs_it(def))
+        .count()
+        == 0;
+    let advisory = all
+        .iter()
+        .find(|(j, _)| j == "required")
+        .and_then(|(_, def)| def["with"]["advisory"].as_str().map(str::to_string))
+        .unwrap_or_default();
+    job["continue-on-error"].as_bool() == Some(true)
+        && only_required_needs_it
+        && advisory.split_whitespace().any(|a| a == id)
 }
 
 // rivet: verifies REQ-CI-007
@@ -661,18 +704,156 @@ fn every_rust_toolchain_is_one_pinned_version_across_workflows() {
     for good in ["1.100.0", "1.99.1", "nightly-2026-11-01"] {
         assert!(pinned_toolchain(good), "{good}");
     }
+    // planted: the canary exception holds only in jig's advisory shape
+    let canary = |yaml: &str| {
+        let wf: Value = serde_yaml::from_str(yaml).unwrap();
+        advisory_canary(&wf, "canary-stable")
+    };
+    let shape = |coe: &str, other_needs: &str, advisory: &str| {
+        format!(
+            "jobs:\n  canary-stable:\n    continue-on-error: {coe}\n  build:\n    needs: [{other_needs}]\n  required:\n    needs: [build, canary-stable]\n    with:\n      advisory: \"{advisory}\"\n"
+        )
+    };
+    assert!(canary(&shape("true", "", "canary-stable")));
+    assert!(!canary(&shape("false", "", "canary-stable")));
+    assert!(!canary(&shape("\"true\"", "", "canary-stable")));
+    assert!(!canary(&shape("${{ true }}", "", "canary-stable")));
+    assert!(!canary(&shape("true", "canary-stable", "canary-stable")));
+    assert!(!canary(&shape("true", "", "")));
+    assert!(!canary(&shape("true", "", "canary-stable-2")));
     let all = toolchains();
     assert!(all.len() >= 7, "found only {} toolchain steps", all.len());
-    for (wf, t) in &all {
+    let mut canaries = vec![];
+    for (wf, id, t) in &all {
+        if t == "stable" && advisory_canary(&workflow(wf), id) {
+            canaries.push(format!("{wf} {id}"));
+            continue;
+        }
         assert!(
             pinned_toolchain(t),
-            "{wf}: rust-toolchain `{t}` floats; pin a version so a Rust release is a reviewed diff"
+            "{wf}: rust-toolchain `{t}` in job {id} floats; pin a version so a Rust release is a reviewed diff"
         );
     }
-    let versions: BTreeSet<&str> = all.iter().map(|(_, t)| t.as_str()).collect();
+    assert_eq!(
+        canaries,
+        ["ci.yml canary-stable"],
+        "exactly one advisory canary"
+    );
+    let versions: BTreeSet<&str> = all
+        .iter()
+        .filter(|(wf, id, _)| !canaries.contains(&format!("{wf} {id}")))
+        .map(|(_, _, t)| t.as_str())
+        .collect();
     assert_eq!(
         versions.len(),
         1,
         "CI and release build with different Rust: {versions:?}"
+    );
+}
+
+// rivet: verifies REQ-CI-008
+#[test]
+fn the_jig_shadow_pilot_has_the_caller_shape_and_changes_no_required_context() {
+    let wf = workflow("ci.yml");
+    let all = jobs(&wf);
+    let job = |id: &str| {
+        all.iter()
+            .find(|(j, _)| j == id)
+            .unwrap_or_else(|| panic!("ci.yml has no job {id}"))
+            .1
+            .clone()
+    };
+    // both jig calls pin one full SHA
+    let sha = |id: &str, file: &str| {
+        let u = job(id)["uses"].as_str().unwrap_or_default().to_string();
+        let (path, sha) = u.split_once('@').unwrap_or_else(|| panic!("{id}: {u}"));
+        assert_eq!(
+            path,
+            format!("pulseengine/jig/.github/workflows/{file}"),
+            "{id}"
+        );
+        assert!(
+            sha.len() == 40
+                && sha
+                    .chars()
+                    .all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c)),
+            "{id}: {sha} is not a full SHA"
+        );
+        sha.to_string()
+    };
+    assert_eq!(
+        sha("baseline", "baseline.yml"),
+        sha("required", "required.yml")
+    );
+    // shadow mode: enforce-skips is never set, and no job reads the classifier yet
+    assert!(job("baseline")["with"]["enforce-skips"].is_null());
+    for (id, def) in &all {
+        if id != "required" {
+            assert!(def["if"].is_null(), "{id}: shadow mode gates nothing");
+        }
+    }
+    // required waits for every other job, always
+    let req = job("required");
+    assert_eq!(req["if"].as_str(), Some("always()"));
+    let needs: BTreeSet<&str> = req["needs"]
+        .as_sequence()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_str().unwrap())
+        .collect();
+    let others: BTreeSet<&str> = all
+        .iter()
+        .map(|(j, _)| j.as_str())
+        .filter(|j| *j != "required")
+        .collect();
+    assert_eq!(needs, others);
+    // least privilege: the token reads contents and nothing else, and no job widens it
+    let perms = wf["permissions"]
+        .as_mapping()
+        .expect("ci.yml sets top-level permissions");
+    assert_eq!(perms.len(), 1, "{perms:?}");
+    assert_eq!(wf["permissions"]["contents"].as_str(), Some("read"));
+    for (id, def) in &all {
+        assert!(
+            def.get("permissions").is_none(),
+            "{id}: widens permissions without a reason here"
+        );
+    }
+    // every pull request and the merge queue, no filter
+    assert!(wf["on"]["pull_request"].is_null() && wf["on"].get("pull_request").is_some());
+    assert!(wf["on"].get("merge_group").is_some());
+    // the controls ci.yml runs exist in the manifest
+    let manifest =
+        fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("ci-controls.toml")).unwrap();
+    let only = job("baseline")["with"]["controls-only"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(only.split_whitespace().count() >= 4, "{only}");
+    for id in only.split_whitespace() {
+        assert!(
+            manifest.contains(&format!("id = \"{id}\"")),
+            "{id} not in ci-controls.toml"
+        );
+    }
+    // sieve is fetched by version and sha256
+    let env = &job("classify")["env"];
+    assert!(env["SIEVE_VERSION"]
+        .as_str()
+        .is_some_and(|v| v.starts_with('v')));
+    assert_eq!(env["SIEVE_SHA256"].as_str().map(str::len), Some(64));
+    // the required contexts are still warte's own four
+    let ctx = fs::read_to_string(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join(".github/required-contexts.txt"),
+    )
+    .unwrap();
+    assert_eq!(
+        ctx.lines().collect::<Vec<_>>(),
+        [
+            "Build",
+            "Clippy",
+            "Rivet traceability check",
+            "Playwright E2E"
+        ]
     );
 }

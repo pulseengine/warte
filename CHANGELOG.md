@@ -4,6 +4,8 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+- **jig shadow pilot** (REQ-CI-008). CI calls the shared jig baseline (guard, pins, supply, planted controls) and its required verdict, pinned by commit SHA, beside warte's own jobs. sieve classifies each pull request without skipping anything yet. An advisory canary-stable job builds and tests on Rust stable, reported by name in the verdict and never red on its own. CI now runs on every pull request and in the merge queue. The required checks are unchanged.
+
 ## v1.6.42 — 2026-11-21
 
 - **The app switcher is a menu at the top right** (REQ-NAV-003). A four-dot button opens a panel with the home link and every app, each with a mark in a tile, its name and its description; the current app's tile is filled. Escape or a tap outside closes it. The links are the same as before, one per entry in the nav file, and the page is unchanged without `[nav]`.
