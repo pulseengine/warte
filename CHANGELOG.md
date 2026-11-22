@@ -4,7 +4,7 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
-- **jig shadow pilot** (REQ-CI-008). CI calls the shared jig baseline (guard, pins, supply, planted controls) and its required verdict, pinned by commit SHA, beside warte's own jobs. sieve classifies each pull request without skipping anything yet. CI now runs on every pull request and in the merge queue. The required checks are unchanged.
+- **jig shadow pilot** (REQ-CI-008). CI calls the shared jig baseline (guard, pins, supply, planted controls) and its required verdict, pinned by commit SHA, beside warte's own jobs. sieve classifies each pull request without skipping anything yet. An advisory canary-stable job builds and tests on Rust stable, reported by name in the verdict and never red on its own. CI now runs on every pull request and in the merge queue. The required checks are unchanged.
 
 ## v1.6.42 — 2026-11-21
 

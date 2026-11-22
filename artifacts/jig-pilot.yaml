@@ -5,8 +5,8 @@ artifacts:
     type: requirement
     title: "ci.yml calls jig's baseline and required workflows in shadow mode, beside warte's own required jobs"
     status: verified
-    release: v1.6.40
-    description: "ci.yml SHALL call pulseengine/jig's baseline.yml and required.yml, both pinned to one full commit SHA, with enforce-skips unset (shadow mode). It SHALL run sieve classify as its own job, with sieve fetched by version and sha256, and no job SHALL read the classifier's outputs yet. The required job SHALL need every other job, with if: always(). ci.yml SHALL trigger on every pull_request and on merge_group, without a paths, branch or types filter. plant-guard.toml SHALL trust only jig's workflows. ci-controls.toml SHALL hold a planted control for supply, pins, guard and the verdict, each run per pull request. The required contexts SHALL stay Build, Clippy, Rivet traceability check and Playwright E2E. Adding required / verdict is the owner's call after the shadow criteria are met."
+    release: v1.6.43
+    description: "ci.yml SHALL call pulseengine/jig's baseline.yml and required.yml, both pinned to one full commit SHA, with enforce-skips unset (shadow mode). It SHALL run sieve classify as its own job, with sieve fetched by version and sha256, and no job SHALL read the classifier's outputs yet. The required job SHALL need every other job, with if: always(). ci.yml SHALL trigger on every pull_request and on merge_group, without a paths, branch or types filter. plant-guard.toml SHALL trust only jig's workflows. ci-controls.toml SHALL hold a planted control for supply, pins, guard and the verdict, each run per pull request. An advisory canary-stable job SHALL build and test on Rust stable in jig pins' advisory shape: job-level continue-on-error: true, needed by no job except required, and named in the verdict's advisory input. The required contexts SHALL stay Build, Clippy, Rivet traceability check and Playwright E2E. Adding required / verdict is the owner's call after the shadow criteria are met."
     fields:
       category: functional
       priority: should
@@ -23,7 +23,7 @@ artifacts:
     type: design-decision
     title: Shadow first, three classes, controls that fetch the pinned jig
     status: verified
-    release: v1.6.40
+    release: v1.6.43
     description: "Every warte job still runs on every pull request. sieve's verdict is only recorded, so its misses can be counted against full runs before any skip is enforced. The sieve classes are rust, rivet and e2e. All three use the Cargo root, because rivet coverage reads source markers and the browser tests drive the binary. A planted control that needs jig fetches the pinned release by sha256, since the baseline's controls job ships only plant and cargo."
     fields:
       rationale: "In shadow mode a wrong class costs nothing yet, and the counts decide whether it is safe to enforce. Broad classes select more and never less. An include_str! whose path sat on its own line was unresolved for sieve 0.3.0. It is now a one-line const, so check-graph holds 2570 of 2570."
@@ -39,8 +39,8 @@ artifacts:
     type: verification
     title: tests/ci_workflows.rs pins the pilot's shape; the planted controls fail
     status: verified
-    release: v1.6.40
-    description: "the_jig_shadow_pilot_has_the_caller_shape_and_changes_no_required_context checks one full jig SHA on both calls, enforce-skips unset, no job gated, required needing every other job with if: always(), pull_request and merge_group unfiltered, every controls-only id present in ci-controls.toml, sieve pinned by version and sha256, and the four required contexts unchanged. ci_jobs_run_self_hosted_with_forks_guarded accepts jig calls without runs-on and the light pool for classify. Locally: jig pins (0 violations), jig caller (green), plant guard (OK), sieve check-workflows (PASS) and check-graph (2570/2570). plant ci-controls.toml passed 4 of 4: lock-stale exited 101, toolchain-floating 1, guard-unguarded 1, verdict-sees-failure 1, each with a green unplanted run. Negative control: required on if: success() failed the shape test."
+    release: v1.6.43
+    description: "the_jig_shadow_pilot_has_the_caller_shape_and_changes_no_required_context checks one full jig SHA on both calls, enforce-skips unset, no job gated, required needing every other job with if: always(), pull_request and merge_group unfiltered, every controls-only id present in ci-controls.toml, sieve pinned by version and sha256, and the four required contexts unchanged. every_rust_toolchain_is_one_pinned_version_across_workflows accepts toolchain stable only in exactly one advisory canary, ci.yml canary-stable; planted YAML refuses continue-on-error false, quoted or as an expression, a canary another job needs, and one missing from or misspelled in advisory. ci_jobs_run_self_hosted_with_forks_guarded accepts jig calls without runs-on and the light pool for classify. Locally, with jig v0.1.1 (pinned at 0a7b3588): jig pins (one advisory canary line, 0 violations), jig caller (green), plant guard (OK), sieve check-workflows (PASS) and check-graph (2570/2570). plant ci-controls.toml passed 4 of 4: lock-stale exited 101, toolchain-floating 1, guard-unguarded 1, verdict-sees-failure 1, each with a green unplanted run. Negative control: required on if: success() failed the shape test."
     links:
       - type: verifies
         target: REQ-CI-008

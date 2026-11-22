@@ -4,4 +4,5 @@
  "clippy": {"result": "failure", "outputs": {}},
  "rivet": {"result": "success", "outputs": {}},
  "audit": {"result": "success", "outputs": {}},
- "playwright": {"result": "success", "outputs": {}}}
+ "playwright": {"result": "success", "outputs": {}},
+ "canary-stable": {"result": "success", "outputs": {}}}

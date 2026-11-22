@@ -183,8 +183,11 @@ fn toolchain_steps_are_not_masked() {
     for (name, _) in workflows() {
         let wf = workflow(&name);
         for (job_name, job) in jobs(&wf) {
+            // jig's advisory canary is the one job allowed to fail, by name
+            // in the verdict (every_rust_toolchain_is_one_pinned_version_across_workflows
+            // holds it to exactly one); its steps are still checked below
             assert!(
-                job.get("continue-on-error").is_none(),
+                job.get("continue-on-error").is_none() || advisory_canary(&wf, &job_name),
                 "{name}: job {job_name} sets continue-on-error"
             );
             for step in job["steps"].as_sequence().into_iter().flatten() {
@@ -624,17 +627,17 @@ fn every_lockfile_is_committed_and_audited_with_planted_controls() {
 }
 
 /// The `toolchain:` of every rust-toolchain step, with its workflow.
-fn toolchains() -> Vec<(String, String)> {
+fn toolchains() -> Vec<(String, String, String)> {
     let mut out = Vec::new();
     for (name, _) in workflows() {
-        for (_, job) in jobs(&workflow(&name)) {
+        for (id, job) in jobs(&workflow(&name)) {
             for step in job["steps"].as_sequence().into_iter().flatten() {
                 if step["uses"]
                     .as_str()
                     .is_some_and(|u| u.starts_with("dtolnay/rust-toolchain@"))
                 {
                     let t = step["with"]["toolchain"].as_str().unwrap_or("").to_string();
-                    out.push((name.clone(), t));
+                    out.push((name.clone(), id.clone(), t));
                 }
             }
         }
@@ -652,6 +655,34 @@ fn pinned_toolchain(t: &str) -> bool {
         .strip_prefix("nightly-")
         .is_some_and(|d| d.len() == 10 && chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").is_ok());
     release || nightly
+}
+
+/// jig pins' advisory canary (REQ-021 in jig): job-level
+/// `continue-on-error: true` as a literal boolean, needed by no job except
+/// `required`, and named in `required`'s `advisory` input.
+fn advisory_canary(wf: &Value, id: &str) -> bool {
+    let all = jobs(wf);
+    let Some((_, job)) = all.iter().find(|(j, _)| j == id) else {
+        return false;
+    };
+    let needs_it = |def: &Value| match &def["needs"] {
+        Value::String(s) => s == id,
+        Value::Sequence(v) => v.iter().any(|n| n.as_str() == Some(id)),
+        _ => false,
+    };
+    let only_required_needs_it = all
+        .iter()
+        .filter(|(j, def)| j != "required" && needs_it(def))
+        .count()
+        == 0;
+    let advisory = all
+        .iter()
+        .find(|(j, _)| j == "required")
+        .and_then(|(_, def)| def["with"]["advisory"].as_str().map(str::to_string))
+        .unwrap_or_default();
+    job["continue-on-error"].as_bool() == Some(true)
+        && only_required_needs_it
+        && advisory.split_whitespace().any(|a| a == id)
 }
 
 // rivet: verifies REQ-CI-007
@@ -673,15 +704,46 @@ fn every_rust_toolchain_is_one_pinned_version_across_workflows() {
     for good in ["1.100.0", "1.99.1", "nightly-2026-11-01"] {
         assert!(pinned_toolchain(good), "{good}");
     }
+    // planted: the canary exception holds only in jig's advisory shape
+    let canary = |yaml: &str| {
+        let wf: Value = serde_yaml::from_str(yaml).unwrap();
+        advisory_canary(&wf, "canary-stable")
+    };
+    let shape = |coe: &str, other_needs: &str, advisory: &str| {
+        format!(
+            "jobs:\n  canary-stable:\n    continue-on-error: {coe}\n  build:\n    needs: [{other_needs}]\n  required:\n    needs: [build, canary-stable]\n    with:\n      advisory: \"{advisory}\"\n"
+        )
+    };
+    assert!(canary(&shape("true", "", "canary-stable")));
+    assert!(!canary(&shape("false", "", "canary-stable")));
+    assert!(!canary(&shape("\"true\"", "", "canary-stable")));
+    assert!(!canary(&shape("${{ true }}", "", "canary-stable")));
+    assert!(!canary(&shape("true", "canary-stable", "canary-stable")));
+    assert!(!canary(&shape("true", "", "")));
+    assert!(!canary(&shape("true", "", "canary-stable-2")));
     let all = toolchains();
     assert!(all.len() >= 7, "found only {} toolchain steps", all.len());
-    for (wf, t) in &all {
+    let mut canaries = vec![];
+    for (wf, id, t) in &all {
+        if t == "stable" && advisory_canary(&workflow(wf), id) {
+            canaries.push(format!("{wf} {id}"));
+            continue;
+        }
         assert!(
             pinned_toolchain(t),
-            "{wf}: rust-toolchain `{t}` floats; pin a version so a Rust release is a reviewed diff"
+            "{wf}: rust-toolchain `{t}` in job {id} floats; pin a version so a Rust release is a reviewed diff"
         );
     }
-    let versions: BTreeSet<&str> = all.iter().map(|(_, t)| t.as_str()).collect();
+    assert_eq!(
+        canaries,
+        ["ci.yml canary-stable"],
+        "exactly one advisory canary"
+    );
+    let versions: BTreeSet<&str> = all
+        .iter()
+        .filter(|(wf, id, _)| !canaries.contains(&format!("{wf} {id}")))
+        .map(|(_, _, t)| t.as_str())
+        .collect();
     assert_eq!(
         versions.len(),
         1,
