@@ -208,6 +208,56 @@ fn the_strip_lists_only_always_open_items_and_names_no_host() {
     }
 }
 
+fn failed_main(run: u64, repo: &str) -> warte::hub::model::JobRecord {
+    warte::hub::model::JobRecord {
+        d: "2026-11-21".into(),
+        id: run * 10,
+        run,
+        att: 1,
+        repo: repo.into(),
+        wf: "CI".into(),
+        job: "test".into(),
+        pool: "rust-cpu".into(),
+        runner: "r1".into(),
+        ev: "push".into(),
+        c: 1_795_000_000,
+        s: Some(1_795_000_010),
+        e: Some(1_795_000_100 + run as i64),
+        r: "failure".into(),
+        sig: None,
+        br: Some("main".into()),
+    }
+}
+
+// rivet: verifies REQ-DASH-020
+#[test]
+fn a_private_repository_never_reaches_the_public_strip_by_name_or_count() {
+    use std::collections::BTreeMap;
+    use warte::dashboard::attention;
+    let public: BTreeSet<String> = ["rivet".to_string()].into();
+    let defaults: BTreeMap<String, String> = [
+        ("rivet".to_string(), "main".to_string()),
+        ("private-one".to_string(), "main".to_string()),
+    ]
+    .into();
+    // planted: only a private repository is red on main
+    let (red, unplaced) =
+        warte::briefing::red_runs(&[failed_main(1, "private-one")], &public, &defaults);
+    assert!(red.is_empty(), "{red:?}");
+    assert_eq!(unplaced, 0, "a private repository is not even counted");
+    assert!(attention(&[], &red).is_empty());
+    // beside a public red main, the strip holds the public one alone
+    let (red, _) = warte::briefing::red_runs(
+        &[failed_main(1, "private-one"), failed_main(2, "rivet")],
+        &public,
+        &defaults,
+    );
+    let a = attention(&[], &red);
+    assert_eq!(a.len(), 1, "{a:?}");
+    assert_eq!(a[0]["text"], "rivet is red on main: CI");
+    assert!(!serde_json::to_string(&a).unwrap().contains("private-one"));
+}
+
 // rivet: verifies REQ-DASH-020
 #[tokio::test]
 async fn with_nothing_waiting_nav_state_has_no_item_and_the_page_has_the_strip_hidden() {
