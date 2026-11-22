@@ -22,7 +22,6 @@ pub fn build_routes() -> Router<AppState> {
         .route("/agents/{id}/data", post(capture_data))
         .route("/access/grant", post(grant_access))
         .route("/access/revoke", post(revoke_access))
-        .route("/sync/update", post(sync_update))
         // a workstation job replaces the notional-cost report whole (REQ-COSTS-001);
         // GET serves it. Larger than axum's 2 MB default: a report carries every session.
         .route(
@@ -58,10 +57,7 @@ pub fn build_routes() -> Router<AppState> {
         .route("/agents/{id}", get(get_agent))
         .route("/agents/{id}/data", get(query_data))
         .route("/access/list/{agent_id}", get(list_access))
-        .route("/artifacts", get(list_artifacts))
-        .route("/artifacts/{id}/download", get(download_artifact))
         .route("/dashboard/overview", get(dashboard_overview))
-        .route("/sync/state", get(sync_state))
         // Agents: machine-readable queue and PR admission (#55)
         .route("/queue", get(api_queue))
         .route("/admission", get(api_admission))
@@ -134,10 +130,6 @@ pub fn build_routes() -> Router<AppState> {
         .route(
             "/api/dashboard/agents-partial",
             get(crate::dashboard::agents_partial),
-        )
-        .route(
-            "/api/dashboard/artifacts-partial",
-            get(crate::dashboard::artifacts_partial),
         )
         .route(
             "/api/dashboard/ask-partial",
@@ -1649,40 +1641,10 @@ async fn list_access(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
-// ── Artifacts ───────────────────────────────────────────────────────
-
-async fn list_artifacts(
-    State(state): State<AppState>,
-) -> Result<Json<Vec<crate::artifact::Artifact>>, StatusCode> {
-    state
-        .artifacts
-        .list()
-        .await
-        .map(Json)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
-}
-
-async fn download_artifact(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-) -> Result<Json<crate::artifact::ArtifactDownload>, StatusCode> {
-    state
-        .artifacts
-        .download(&id)
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "artifact download failed");
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?
-        .map(Json)
-        .ok_or(StatusCode::NOT_FOUND)
-}
-
 // ── Dashboard ───────────────────────────────────────────────────────
 
 async fn dashboard_overview(State(state): State<AppState>) -> impl IntoResponse {
     let agents = state.agents.list().await.unwrap_or_default();
-    let artifacts = state.artifacts.list().await.unwrap_or_default();
 
     let healthy = agents
         .iter()
@@ -1701,37 +1663,8 @@ async fn dashboard_overview(State(state): State<AppState>) -> impl IntoResponse 
             "healthy": healthy,
             "unhealthy": unhealthy,
         },
-        "artifacts": {
-            "total": artifacts.len(),
-        },
         "freshness": "green", // TODO: compute from actual data age
     }))
-}
-
-// ── Sync ────────────────────────────────────────────────────────────
-
-async fn sync_state(
-    State(state): State<AppState>,
-) -> Result<Json<crate::sync::SyncState>, StatusCode> {
-    state
-        .sync
-        .get_state()
-        .await
-        .map(Json)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
-}
-
-async fn sync_update(
-    State(state): State<AppState>,
-    Json(update): Json<crate::sync::SyncUpdate>,
-) -> impl IntoResponse {
-    match state.sync.apply_remote_update(&update).await {
-        Ok(()) => StatusCode::NO_CONTENT,
-        Err(e) => {
-            tracing::error!(error = %e, "failed to apply sync update");
-            StatusCode::INTERNAL_SERVER_ERROR
-        }
-    }
 }
 
 /// Whether a host's disks are low (REQ-PRESSURE-001): a verdict per volume

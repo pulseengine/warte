@@ -4,10 +4,8 @@ pub mod api;
 
 use crate::access::AccessControl;
 use crate::agent::AgentRegistry;
-use crate::artifact::ArtifactStore;
 use crate::config::Config;
 use crate::db::Database;
-use crate::sync::SyncService;
 use axum::Router;
 use std::sync::Arc;
 use tower_http::trace::TraceLayer;
@@ -19,8 +17,6 @@ pub struct AppState {
     pub db: Database,
     pub agents: Arc<AgentRegistry>,
     pub access: Arc<AccessControl>,
-    pub artifacts: Arc<ArtifactStore>,
-    pub sync: Arc<SyncService>,
     pub tokens: Arc<crate::auth::TokenManager>,
     /// Attention schedules per login (REQ-ATTN-001).
     pub attention: crate::attention::Store,
@@ -433,8 +429,6 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
             ca,
         )),
         access: Arc::new(AccessControl::new(pool.clone(), instance_id.clone())),
-        artifacts: Arc::new(ArtifactStore::new(pool.clone())),
-        sync: Arc::new(SyncService::new(pool.clone(), instance_id.clone())),
         tokens: Arc::new(crate::auth::TokenManager::from_seed(&token_seed, 24)),
         realtime: Arc::new(crate::realtime::EventBroadcaster::new()),
         status: Arc::new(

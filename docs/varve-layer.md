@@ -29,7 +29,7 @@ manifest-version = 1
 [toolchain]
 realm   = "pulseengine"
 channel = "rolling"
-layer   = "2026.10.30"
+layer   = "2026.11.36"
 ```
 
 ## Verification

@@ -1,0 +1,92 @@
+# warte#37, #38: the artifact store and multi-instance sync were never
+# finished; the owner chose on 2026-11-22 to remove them.
+artifacts:
+  - id: REQ-RETIRE-001
+    type: requirement
+    title: warte serves and advertises no feature it does not implement
+    status: verified
+    release: v1.6.44
+    description: "warte SHALL NOT serve the artifact store routes (/api/artifacts, /api/artifacts/{id}/download, the artifacts dashboard partial) or the multi-instance sync routes (/api/sync/state, /api/sync/update): they answer as an unknown route does. The menu, the embedded docs topics, the agent contract, the route-rights table and the CLI SHALL NOT offer them, and the overview SHALL NOT count artifacts. The artifact and sync requirements are deprecated (tag removed-in-v1.6.44); migration 016 drops their three tables, which the operator confirmed held 0 rows in production."
+    fields:
+      category: functional
+      priority: should
+      upstream-ref: https://github.com/pulseengine/warte/issues/38
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-22T23:00:00Z
+
+  - id: DD-RETIRE-001
+    type: design-decision
+    title: Remove the unfinished artifact store and sync instead of finishing them; keep their tables for now
+    status: verified
+    release: v1.6.44
+    description: "The sync service merged version vectors but applied no record and nothing sent updates; the artifact store had stub upload and download commands and an integrity check that re-hashed the stored column, so it always passed. Both claimed properties in docs that did not hold. Removing the code (src/sync, src/artifact, the unused src/sigil, their routes, the CLI command, the menu entry, two docs topics, the crdts dependency and 10 crates it pulled in) makes the docs true. A dropped table cannot be restored, so the drop (migration 016) came only after the operator read 0 rows in all three tables in production. Replacements are planned in docs/plans/2026-11-22-artifacts-varve.md and docs/plans/2026-11-22-rivet-state.md."
+    fields:
+      rationale: "Code that claims checks it does not make is worse than no code: a reader trusts the docs."
+    links:
+      - type: satisfies
+        target: REQ-RETIRE-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-22T23:00:00Z
+
+  - id: TEST-RETIRE-001
+    type: verification
+    title: The removed routes answer like an unknown route, and nothing still advertises them
+    status: verified
+    release: v1.6.44
+    description: "tests/retired.rs: GET /api/artifacts, /api/artifacts/x/download, /api/sync/state and the artifacts partial answer exactly as an unknown route does, POST /api/sync/update does not succeed, and the overview has no artifacts count; the menu, docs topics, agent contract, route-rights table and CLI do not offer them (warte artifact list exits 2). A third test checks that after migrating, the three tables are gone and the rest of the schema remains. Negative controls: putting back the /api/sync/state route failed the first test, putting back the menu button failed the second, and a build without migration 016 failed the third."
+    links:
+      - type: verifies
+        target: REQ-RETIRE-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-22T23:00:00Z
+
+  - id: REQ-PIN-002
+    type: requirement
+    title: warte pins the newest varve layer, with CI and release on that layer's rivet
+    status: verified
+    release: v1.6.44
+    description: "varve.toml SHALL pin layer 2026.11.36, which carries warte and rivet v0.43.3; ci.yml and release.yml SHALL build rivet at that layer's commit (3422f42e), and tests/ci_workflows.rs keeps the two workflows equal."
+    fields:
+      category: non-functional
+      priority: should
+      upstream-ref: https://github.com/pulseengine/warte/issues/53
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-22T23:00:00Z
+
+  - id: TEST-PIN-002
+    type: verification
+    title: The layer installs and verifies, its rivet validates the repo, and CI matches its commit
+    status: verified
+    release: v1.6.44
+    description: "varve 0.47.0 installed layer 2026.11.36 (counter 37) and verified its signature; varve which warte and varve which rivet resolve in this repo; that rivet (0.43.3, 3422f42e) reports PASS on rivet validate with the same warnings as 0.41.1. tests/ci_workflows.rs checks that ci.yml and release.yml carry the same full-SHA RIVET_REV; the workflows' own install step refuses a binary whose --version is not rivet 0.43.3 at that commit."
+    links:
+      - type: verifies
+        target: REQ-PIN-002
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-22T23:00:00Z
+
+  - id: DD-PIN-002
+    type: design-decision
+    title: Move the pin to the newest layer now, before any signing change
+    status: verified
+    release: v1.6.44
+    description: "Phase 1 of the #53 plan: the pin bump touches no signing step, so it ships alone. It moves CI and release.yml from rivet v0.41.1 to v0.43.3 because the workflows build the pinned layer's rivet; the layer's binary validated the repo before the change."
+    fields:
+      rationale: "A pin that cannot resolve warte itself hides the layer lag the #53 plan wants to alert on."
+    links:
+      - type: satisfies
+        target: REQ-PIN-002
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-22T23:00:00Z

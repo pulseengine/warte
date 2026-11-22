@@ -48,7 +48,7 @@ fn five_groups_hold_every_view_once_and_overview_is_the_landing() {
         .collect();
     assert_eq!(groups, ["now", "ci", "machines", "agents", "compliance"]);
     let v = views();
-    assert_eq!(v.len(), 25, "{v:?}");
+    assert_eq!(v.len(), 24, "{v:?}");
     let routes: BTreeSet<&str> = v.iter().map(|x| x.2.as_str()).collect();
     assert_eq!(routes.len(), v.len(), "a view is in the menu twice");
     let labels: BTreeSet<&str> = v.iter().map(|x| x.1.as_str()).collect();
@@ -107,11 +107,7 @@ async fn nav(base: &str) -> serde_json::Value {
 async fn an_empty_view_is_hidden_and_shown_again_once_it_has_data() {
     let (_d, base, db) = serve().await;
     let s = nav(&base).await;
-    assert_eq!(
-        s["hidden"],
-        serde_json::json!(["friction", "artifacts"]),
-        "{s}"
-    );
+    assert_eq!(s["hidden"], serde_json::json!(["friction"]), "{s}");
     for g in ["now", "ci", "machines", "agents", "compliance"] {
         assert!(
             s["badges"][g]["red"].is_u64() && s["badges"][g]["amber"].is_u64(),
@@ -128,7 +124,7 @@ async fn an_empty_view_is_hidden_and_shown_again_once_it_has_data() {
         .await
         .unwrap();
     let s = nav(&base).await;
-    assert_eq!(s["hidden"], serde_json::json!(["artifacts"]), "{s}");
+    assert_eq!(s["hidden"], serde_json::json!([]), "{s}");
 }
 
 // rivet: verifies REQ-DASH-019
@@ -145,7 +141,7 @@ async fn every_view_in_the_menu_still_answers_on_its_route() {
         );
         checked += 1;
     }
-    assert_eq!(checked, 25);
+    assert_eq!(checked, 24);
 }
 
 fn finding(severity: &'static str, text: &str) -> warte::probe::Finding {

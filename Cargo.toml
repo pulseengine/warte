@@ -1,6 +1,6 @@
 [package]
 name = "warte"
-version = "1.6.43"
+version = "1.6.44"
 edition = "2021"
 description = "Warte — the PulseEngine control tower. A CI dashboard with an ask feature and an API."
 license = "Apache-2.0"
@@ -61,11 +61,8 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 thiserror = "2"
 anyhow = "1"
 
-# HTTP client (for GitHub API, sync)
+# HTTP client (for GitHub API)
 reqwest = { version = "0.12", features = ["json", "rustls-tls-native-roots"], default-features = false }
-
-# CRDT / sync
-crdts = "7"
 
 # CCSDS space-packet codec (fleet agent -> ground station telemetry), the same
 # rev the original hub used, so the wire format is unchanged (DD-SMITHY-001).

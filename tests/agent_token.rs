@@ -228,13 +228,12 @@ fn cli_prints_only_the_token_on_stdout() {
 // ── REQ-API-004: rights and agent binding on the mutating routes ─────────
 
 /// Every right a route can require, plus the agent-binding override.
-const ALL_RIGHTS: [&str; 14] = [
+const ALL_RIGHTS: [&str; 13] = [
     "agents:register",
     "agents:heartbeat",
     "agents:data",
     "access:grant",
     "access:revoke",
-    "sync:update",
     "costs:write",
     "skills:write",
     "briefing:write",
@@ -246,13 +245,12 @@ const ALL_RIGHTS: [&str; 14] = [
 ];
 
 /// (path, right) of every mutating route. `{id}` is filled with the agent.
-const ROUTES: [(&str, &str); 13] = [
+const ROUTES: [(&str, &str); 12] = [
     ("/api/agents/register", "agents:register"),
     ("/api/agents/{id}/heartbeat", "agents:heartbeat"),
     ("/api/agents/{id}/data", "agents:data"),
     ("/api/access/grant", "access:grant"),
     ("/api/access/revoke", "access:revoke"),
-    ("/api/sync/update", "sync:update"),
     ("/api/costs", "costs:write"),
     ("/api/skill-usage", "skills:write"),
     ("/api/briefing", "briefing:write"),
@@ -355,7 +353,6 @@ async fn a_fresh_mint_cannot_grant_or_revoke_access() {
     assert_eq!(post_as(&s, "/api/access/revoke", "a1", Some(&t)).await, 403);
     assert_eq!(post_as(&s, "/api/costs", "a1", Some(&t)).await, 403);
     assert_eq!(post_as(&s, "/api/skill-usage", "a1", Some(&t)).await, 403);
-    assert_eq!(post_as(&s, "/api/sync/update", "a1", Some(&t)).await, 403);
 }
 
 #[tokio::test]
@@ -484,11 +481,11 @@ fn mint_flags_add_rights_and_the_default_stays() {
         dir.path(),
         &mint_cli(
             dir.path(),
-            &["--right", "costs:write", "--right", "sync:update"],
+            &["--right", "costs:write", "--right", "skills:write"],
         ),
     );
     assert!(more.contains(&"costs:write".to_string()));
-    assert!(more.contains(&"sync:update".to_string()));
+    assert!(more.contains(&"skills:write".to_string()));
     assert!(!more.contains(&"agents:any".to_string()) && has_default(&more));
 }
 

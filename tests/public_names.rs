@@ -142,3 +142,55 @@ fn no_tracked_file_names_a_private_repo_or_host() {
         "a private name is back (see tests/public_names.rs): {bad:?}"
     );
 }
+
+/// Every `line:column` where a lowercase CI host name appears: a word ending
+/// in `-ci-` followed by two digits (a runner host, `<org>-ci-01`). Uppercase
+/// requirement IDs (`REQ-CI-007`) do not match.
+pub fn ci_hosts(text: &str) -> Vec<(usize, usize)> {
+    let mut out = Vec::new();
+    for (ln, line) in text.lines().enumerate() {
+        let b = line.as_bytes();
+        let mut from = 0;
+        while let Some(k) = line[from..].find("-ci-") {
+            let i = from + k;
+            let before = i > 0 && (b[i - 1].is_ascii_lowercase() || b[i - 1].is_ascii_digit());
+            let digits = b.len() >= i + 6 && b[i + 4].is_ascii_digit() && b[i + 5].is_ascii_digit();
+            if before && digits {
+                out.push((ln + 1, i + 1));
+            }
+            from = i + 4;
+        }
+    }
+    out
+}
+
+// rivet: verifies REQ-TEMPLATE-001
+#[test]
+fn no_tracked_file_names_a_ci_runner_host() {
+    // planted: a host and a runner name are found; IDs and prose are not.
+    // Built at run time, so this file does not hold a host-shaped name.
+    let host = format!("acme-ci-{}", "01");
+    assert_eq!(ci_hosts(&format!("runs on {host} today")), vec![(1, 13)]);
+    assert_eq!(ci_hosts(&format!("x\nrunner: \"{host}-3\"")), vec![(2, 14)]);
+    assert!(ci_hosts("REQ-CI-007, the -ci- job, acme-ci-x").is_empty());
+    let out = std::process::Command::new("git")
+        .args(["ls-files", "-z"])
+        .output()
+        .expect("git");
+    let mut scanned = 0;
+    let mut bad = Vec::new();
+    for f in String::from_utf8_lossy(&out.stdout)
+        .split('\0')
+        .filter(|f| !f.is_empty())
+    {
+        let Ok(text) = std::fs::read_to_string(f) else {
+            continue;
+        };
+        scanned += 1;
+        for (l, c) in ci_hosts(&text) {
+            bad.push(format!("{f}:{l}:{c}"));
+        }
+    }
+    assert!(scanned > 100, "only {scanned} files scanned");
+    assert!(bad.is_empty(), "a CI runner host name: {bad:?}");
+}
