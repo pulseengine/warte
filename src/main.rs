@@ -147,6 +147,20 @@ async fn main() -> anyhow::Result<()> {
             std::process::exit(code);
         }
 
+        Commands::Admit {
+            repo,
+            kind,
+            url,
+            ca_cert,
+        } => {
+            let base = match url {
+                Some(u) => u.trim_end_matches('/').to_string(),
+                None => format!("http://{}", Config::load_at(config_path.as_deref())?.bind),
+            };
+            let code = warte::admission::admit::run(&base, &repo, &kind, ca_cert.as_deref()).await;
+            std::process::exit(code);
+        }
+
         Commands::Sessions { action } => match action {
             warte::cli::SessionsCommands::Check { file } => {
                 let f = warte::sessions::load(&file).map_err(anyhow::Error::msg)?;
@@ -268,13 +282,19 @@ async fn main() -> anyhow::Result<()> {
                 valid_hours,
                 any_agent,
                 mut rights,
+                owner,
             } => {
                 let config = Config::load_at(config_path.as_deref())?;
                 if any_agent {
                     rights.push(warte::auth::RIGHT_ANY_AGENT.to_string());
                 }
-                let t =
-                    warte::auth::mint_agent_token_with(&config, &agent_id, valid_hours, &rights)?;
+                let t = warte::auth::mint_agent_token_owned(
+                    &config,
+                    &agent_id,
+                    valid_hours,
+                    &rights,
+                    owner.as_deref(),
+                )?;
                 println!("{t}");
             }
         },
@@ -291,10 +311,27 @@ async fn main() -> anyhow::Result<()> {
                     warte::probe::enroll::TOKEN_TTL_S / 60
                 );
             }
+            warte::cli::ProbeCommands::Focus { mode, from, write } => {
+                let Some(from) = from.or_else(warte::probe::focus::default_path) else {
+                    eprintln!("warning: no HOME, so no Focus file; nothing written");
+                    std::process::exit(1);
+                };
+                match warte::probe::focus::run(&from, &mode, write.as_deref()) {
+                    Ok(line) => println!("{line}"),
+                    Err(e) => {
+                        eprintln!("warning: {e}; nothing written");
+                        std::process::exit(1);
+                    }
+                }
+            }
             warte::cli::ProbeCommands::Revoke { host } => {
                 let config = Config::load_at(config_path.as_deref())?;
                 let db = Database::connect(&config.db_path).await?;
                 warte::probe::enroll::revoke(&db, &host, chrono::Utc::now().timestamp()).await?;
+                warte::hub::quic::SaStore::new(db.pool().clone())
+                    .revoke(&host)
+                    .await
+                    .map_err(anyhow::Error::msg)?;
                 eprintln!(
                     "{host} revoked: its reports and renewals are refused until it enrolls with a new token (warte probe token --host {host})"
                 );
@@ -564,6 +601,39 @@ async fn main() -> anyhow::Result<()> {
             let listener = tokio::net::TcpListener::bind(&http).await?;
             tracing::info!(%http, %udp, %data_dir, "ground station up");
             axum::serve(listener, hub.router()).await?;
+        }
+
+        Commands::Arch {
+            action: warte::cli::ArchCommands::Check { file },
+        } => {
+            let text = match std::fs::read_to_string(&file) {
+                Ok(t) => t,
+                Err(e) => {
+                    eprintln!("warte arch check: {}: {e}", file.display());
+                    std::process::exit(2);
+                }
+            };
+            match warte::architecture::check(&text) {
+                Ok(c) => {
+                    let a = &c.architecture;
+                    println!(
+                        "valid: {} zone(s), {} component(s), {} connection(s), {} crossing a zone",
+                        a.zones.len(),
+                        a.components.len(),
+                        a.connections.len(),
+                        c.crossings.values().filter(|x| **x).count()
+                    );
+                    for f in &c.findings {
+                        println!("finding: {f}");
+                    }
+                }
+                Err(errs) => {
+                    for e in errs {
+                        eprintln!("error: {e}");
+                    }
+                    std::process::exit(1);
+                }
+            }
         }
 
         Commands::Docs { topic, check } => {

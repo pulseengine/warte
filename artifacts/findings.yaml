@@ -1,0 +1,50 @@
+# warte#114: a security findings feed. The owner chose to build it on
+# 2026-11-22.
+artifacts:
+  - id: REQ-FINDINGS-001
+    type: requirement
+    title: Hosts send metadata-only security findings through their probe; warte keeps the latest per host, a baseline, and alerts
+    status: verified
+    release: v1.6.43
+    description: "warte SHALL accept the security feed only from an enrolled, unrevoked probe, signed like every feed, with the host taken from its certificate. It SHALL accept only security-findings.v1 with source, rule, severity, subject, first_seen, last_seen and count per finding, refuse an unknown field such as file contents, more than 500 findings, or a report not newer than the host's last, and replace the host's set with each report. The owner SHALL be able to accept a finding into the host's baseline (signed in, owner role, from this origin with the CSRF token) so it no longer shows as open. The Security view SHALL list open findings, highest first, for a signed-in user; open high and critical findings and a host silent for over 36 hours SHALL be items on the night glance."
+    fields:
+      category: functional
+      priority: should
+      upstream-ref: https://github.com/pulseengine/warte/issues/114
+    links:
+      - type: refines
+        target: REQ-TEMPER-002
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-22T22:00:00Z
+
+  - id: DD-FINDINGS-001
+    type: design-decision
+    title: The temper feed's transport, a strict metadata schema, snapshot per host, and the glance as the alert
+    status: verified
+    release: v1.6.43
+    description: "The feed reuses the signed CCSDS sequence and verify_feed of the temper feed on its own APID 0x401, so authentication and replay rules are the probe's. The schema is serde types with deny_unknown_fields: a field for contents or secrets cannot exist. Each report replaces the host's set in one transaction, so a fixed finding disappears; the baseline is a separate table, so acceptance survives new reports. Alerting goes through the night glance, where security is an always-open kind, including the dead-man's switch for a detector that stopped."
+    fields:
+      rationale: "warte detects nothing itself; the feed is only trustworthy if a silent detector is visible, and only safe if it can never carry what it found."
+    links:
+      - type: satisfies
+        target: REQ-FINDINGS-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-22T22:00:00Z
+
+  - id: TEST-FINDINGS-001
+    type: verification
+    title: Planted fields, replace and replay, the baseline, silence, the glance, and a signed feed end to end
+    status: verified
+    release: v1.6.43
+    description: "tests/findings.rs: a contents field, a wrong schema, an unknown source or severity, an empty or long rule, a bad time and too many findings are refused without echoing values; a report replaces the host's set, a replay is refused, accepting closes a finding and holds across reports, an unknown finding cannot be accepted, and silence after 36 hours is reported; high findings and a silent detector are glance items and the view highlights them, with accept buttons only for the owner; an enrolled host's signed feed is stored under its certificate's host, and a replay, a forged signature and an unknown field are refused. Negative controls: skipping the replay check and ignoring the baseline each failed a test."
+    links:
+      - type: verifies
+        target: REQ-FINDINGS-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-22T22:00:00Z

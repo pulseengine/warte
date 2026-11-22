@@ -1,0 +1,50 @@
+# The architecture view: the owner's request of 2026-11-22, relayed by the
+# operator's configuration session and confirmed by the owner, who placed it
+# right after #41. Contract architecture.v1, owned by warte.
+artifacts:
+  - id: REQ-ARCHVIEW-001
+    type: requirement
+    title: warte checks and renders an architecture.v1 file, only to a login or a token with architecture:read
+    status: verified
+    release: v1.6.43
+    description: "warte SHALL read an architecture.v1 file from [architecture] file and check it before showing anything: the schema string, no unknown field, values inside each field's set, unique [a-z0-9-] ids, resolving zone, host, endpoint and credential references, no host on a host, an agent only on a session, a zone_crossing that agrees with the endpoints' zones, and no value that looks like a secret. An error SHALL name the field or id, never a value. `warte arch check FILE` SHALL exit 0 valid, 1 invalid, 2 unreadable. The view SHALL group components by zone, list connections with zone crossings and unauthenticated or unencrypted crossings first and highlighted, and name each credential, never show a value. It SHALL show data only to a signed-in user; without [auth] the view shows none, and GET /api/architecture SHALL need a token holding architecture:read, never a default right."
+    fields:
+      category: functional
+      priority: should
+    links:
+      - type: refines
+        target: REQ-AUTH-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-22T16:00:00Z
+
+  - id: DD-ARCHVIEW-001
+    type: design-decision
+    title: A strict schema, read on request, with secrets refused at the door
+    status: verified
+    release: v1.6.43
+    description: "architecture.v1 is serde types with deny_unknown_fields, so the contract cannot drift silently. warte reads the file when the view or the API asks, as small files are, and shows an invalid file only as its errors. Every string is scanned for secret markers before the types are even parsed. Read access reuses TOKEN_READ_ROUTES with a per-route right, so architecture:read opens /api/architecture without [auth] and nothing else. The view is a menu entry under Machines that, without a login, says it needs one."
+    fields:
+      rationale: "The view maps where every credential lives, the most useful page for an attacker on the network, so it is never open even without [auth]."
+    links:
+      - type: satisfies
+        target: REQ-ARCHVIEW-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-22T16:00:00Z
+
+  - id: TEST-ARCHVIEW-001
+    type: verification
+    title: Planted broken references, secret values, the exit codes, and the access rules with and without a login
+    status: verified
+    release: v1.6.43
+    description: "tests/architecture.rs: the synthetic example checks with three crossings and one finding; twelve planted errors are each refused by name; six secret-looking values are refused without echoing them; the CLI exits 0, 1 and 2. tests/auth.rs the_architecture_is_never_open_and_needs_a_login_or_architecture_read: without [auth] no token is 401, agents:read 403, architecture:read 200, and the view shows no data; with [auth] a login reads it, no login is 401, and the view highlights the insecure crossing. Negative controls: switching off the secret scan, and dropping the route from TOKEN_READ_ROUTES, each failed a test."
+    links:
+      - type: verifies
+        target: REQ-ARCHVIEW-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-22T16:00:00Z

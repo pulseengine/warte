@@ -391,6 +391,9 @@ async fn serve(gh: &str) -> Server {
             probe_self: false,
             costs_file: None,
             skill_usage_file: None,
+            quic: None,
+            quic_names: vec![],
+            require_quic: false,
         }),
         briefing: Some(cfg(gh)),
         ..Default::default()

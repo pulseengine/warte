@@ -112,6 +112,23 @@
         }
       }
     },
+    "/api/runner-usage": {
+      "get": {
+        "summary": "How much runner time did one repository use, and how long did its jobs wait?",
+        "description": "From the finished-job ledger, for the jobs of one repository whose run was created on a day from `from` to `until` (inclusive, at most 31 days): runner-minutes per pool over every attempt that got a runner, runs and minutes per run by event, pull-request branches and minutes per branch (a branch stands for its pull request), and per pool the runner wait (started minus created, first attempts) at the 50th and 90th percentile with its sample count. Only public repositories are answered, from GitHub's type=public listing; a private, archived or unknown name gets the same 404. No runner names. Compare two windows to see a change, for example before and after a CI change.",
+        "parameters": [
+          {"name": "repo", "in": "query", "required": true, "schema": {"type": "string"}, "description": "repository name without the organization"},
+          {"name": "from", "in": "query", "required": true, "schema": {"type": "string", "format": "date"}},
+          {"name": "until", "in": "query", "required": true, "schema": {"type": "string", "format": "date"}}
+        ],
+        "responses": {
+          "200": {"description": "the usage over the window"},
+          "400": {"description": "not a repository name, not days, from after until, or more than 31 days"},
+          "404": {"description": "not a public repository, or no public listing yet"},
+          "503": {"description": "no CI source configured"}
+        }
+      }
+    },
     "/api/incidents": {
       "get": {
         "summary": "Is one cause failing jobs in several repositories?",

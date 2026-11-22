@@ -380,8 +380,9 @@ pub fn health_view(hub: Option<&Hub>) -> String {
         (false, n) => format!("{n} collection error(s)"),
         (true, n) => format!("packets lost, {n} collection error(s)"),
     };
+    let transport = transport_view(hub);
     format!(
-        r#"{}<details class="panel internals"><summary>Ground station internals · {} · fleet agent {}</summary><h3>Telemetry link · CCSDS</h3><div class="scroll"><table class="data-table"><thead><tr><th>APID</th><th>Stream</th><th class="n">Received</th><th class="n">Lost</th><th class="n">Loss</th><th class="n">Restarts</th><th class="n">Last</th></tr></thead><tbody>{link}</tbody></table></div><div class="note">Counted since warte last started. A lost packet is a gap in the stream's sequence count.</div><h3 style="margin-top:1rem">Collection errors</h3>{errors}</details>{}"#,
+        r#"{}<details class="panel internals"><summary>Ground station internals · {} · fleet agent {}</summary><h3>Telemetry link · CCSDS</h3><div class="scroll"><table class="data-table"><thead><tr><th>APID</th><th>Stream</th><th class="n">Received</th><th class="n">Lost</th><th class="n">Loss</th><th class="n">Restarts</th><th class="n">Last</th></tr></thead><tbody>{link}</tbody></table></div><div class="note">Counted since warte last started. A lost packet is a gap in the stream's sequence count.</div>{transport}<h3 style="margin-top:1rem">Collection errors</h3>{errors}</details>{}"#,
         super::cihistory::timers(&s.automation),
         esc(&state),
         esc(&s.agent_version),
@@ -1397,6 +1398,63 @@ pub fn overview(hub: Option<&Hub>) -> String {
     format!(
         r#"{hero}<section class="kpis">{kpis}</section>{errors}<section class="panel"><h3>Traffic · last 6 h</h3>{}</section><div class="split"><section class="panel"><h3>Runways</h3><div class="strips">{strips}</div></section><section class="panel"><h3>Departures</h3>{board}<div class="note">"Boards" is the pool's measured median wait minus time already waited; past the pool's p90 a run is marked overdue. Ask for any PR in <b>Ask</b>; full detail and the telemetry link on the <a href="ci/">ground station ↗</a>.</div></section></div>"#,
         traffic(&hist, total, t)
+    )
+}
+
+/// The transport counts under Ground station internals (REQ-SEC-001): wire
+/// v1 over UDP and transport v2 over QUIC, with what each refused.
+fn transport_view(hub: &Hub) -> String {
+    use std::sync::atomic::Ordering::Relaxed;
+    let (udp, dropped, require) = hub.transport();
+    let q = &hub.quic;
+    let row = |what: &str, n: u64, bad: bool| {
+        format!(
+            r#"<tr class="{}"><td>{what}</td><td class="n">{n}</td></tr>"#,
+            if bad && n > 0 { "warnrow" } else { "" }
+        )
+    };
+    let rows = [
+        row("Wire v1 packets over UDP", udp, false),
+        row(
+            "Wire v1 packets dropped (transport v2 required)",
+            dropped,
+            false,
+        ),
+        row(
+            "Agents connected over QUIC",
+            q.connected.load(Relaxed),
+            false,
+        ),
+        row(
+            "Sealed packets accepted over QUIC",
+            q.accepted.load(Relaxed),
+            false,
+        ),
+        row(
+            "Refused: certificate (tls_identity)",
+            q.tls_identity.load(Relaxed),
+            true,
+        ),
+        row(
+            "Refused: no security association (unknown_spi)",
+            q.unknown_spi.load(Relaxed),
+            true,
+        ),
+        row("Refused: bad tag (bad_tag)", q.bad_tag.load(Relaxed), true),
+        row(
+            "Refused: replayed (replayed)",
+            q.replayed.load(Relaxed),
+            true,
+        ),
+    ]
+    .concat();
+    format!(
+        r#"<h3 style="margin-top:1rem">Transport</h3><div class="scroll"><table class="data-table"><tbody>{rows}</tbody></table></div><div class="note">{}</div>"#,
+        if require {
+            "Transport v2 is required: wire v1 packets over UDP are dropped."
+        } else {
+            "Wire v1 over UDP is still accepted beside transport v2 (QUIC, mutual TLS, relay-sec); once it stays at 0, set require_quic."
+        }
     )
 }
 

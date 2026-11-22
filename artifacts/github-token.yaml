@@ -134,7 +134,7 @@ artifacts:
     type: sec-constraint
     title: A GitHub token reaches only the operator-assigned repositories of the agent that asked, for at most an hour, and is revoked when the agent or its scope goes
     status: draft
-    description: "The exchange is bound to the token's own agent with no agents:any override; the scope is set only on the host; the permissions are fixed and never include administration, workflows or secrets; actions write is a per-agent grant; tokens are never at rest and are revoked within a minute of removal or narrowing; issuance is rate-limited and audited. Outside warte: agents must not be able to read each other's warte token files (operator sandboxing), which this constraint depends on."
+    description: "The exchange is bound to the token's own agent with no agents:any override; the scope is set only on the host; the permissions are fixed and never include administration or secrets; actions write and workflows write are per-agent grants set on the host (workflows write by owner decision 2026-11-22, REQ-GHTOKEN-005), never in the configured set; tokens are never at rest and are revoked within a minute of removal or narrowing; issuance is rate-limited and audited. Outside warte: agents must not be able to read each other's warte token files (operator sandboxing), which this constraint depends on."
     links:
       - type: prevents-sec-hazard
         target: SH-012
@@ -142,3 +142,50 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-11-20T13:30:00Z
+
+  - id: REQ-GHTOKEN-005
+    type: requirement
+    title: workflows write is a per-agent grant from the operator, like actions write, and never in the configured set
+    status: verified
+    release: v1.6.43
+    description: "The operator SHALL be able to grant and take back workflows write for one agent with `warte agents repos grant|revoke <agent> workflows:write` on the host, stored per agent, so that agent's tokens may push changes under .github/workflows/. Without the grant a request for workflows SHALL be refused and the default set SHALL leave it out. The configured [github_app] permissions SHALL refuse workflows at any level. Taking the grant back SHALL revoke the agent's live tokens that carry it within a minute. Only actions:write and workflows:write SHALL be grantable per agent. Owner decision 2026-11-22."
+    fields:
+      category: constraint
+      priority: must
+    links:
+      - type: refines
+        target: REQ-GHTOKEN-002
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-22T12:00:00Z
+
+  - id: DD-GHTOKEN-002
+    type: design-decision
+    title: A closed Grant enum for per-agent permissions, one column each
+    status: verified
+    release: v1.6.43
+    description: "Per-agent grants are a closed enum (actions:write, workflows:write) mapped to one column each in agent_github, added by migration 010 with default 0, so existing agents get nothing new. The SQL for each grant is fixed per enum value, never built from input. The sweep keeps a live token only while every grant it carries is still set."
+    fields:
+      rationale: "Agents edit workflow files, and GitHub refuses such a push without workflows write. workflows write lets an agent change CI itself (runner routing, triggers, the jig and sieve checks), so it stays off by default and per agent; the CI's own guards (plant guard, jig guard and pins, the required checks) still review what such a push changes."
+    links:
+      - type: satisfies
+        target: REQ-GHTOKEN-005
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-22T12:00:00Z
+
+  - id: TEST-GHTOKEN-002
+    type: verification
+    title: workflows write is refused until granted, per agent, revoked on take-back and never configurable
+    status: verified
+    release: v1.6.43
+    description: "tests/github_token.rs workflows_write_is_opt_in_per_agent_and_never_configured: a request for workflows is 403 and the default set leaves it out; after the grant to a1 it is issued, while a2 is still refused and a1 still cannot get actions write; after take-back the sweep revokes the token; [github_app] refuses workflows read and write; Grant::parse accepts only the two grants. Negative controls: keeping the token in the sweep regardless of the grant, and putting workflows in every default set, each failed the test."
+    links:
+      - type: verifies
+        target: REQ-GHTOKEN-005
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-22T12:00:00Z

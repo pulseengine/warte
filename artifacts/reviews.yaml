@@ -1,0 +1,50 @@
+# warte#85: the pull requests one person has to review. The owner chose to
+# build it on 2026-11-22.
+artifacts:
+  - id: REQ-PRREVIEW-001
+    type: requirement
+    title: warte lists the pull requests one reviewer has to review, with size, build, decision, re-review and age
+    status: verified
+    release: v1.6.43
+    description: "With [reviews], warte SHALL scan GitHub with the reviewer's own read-only token from a private file, on an interval, one search per bucket (review requested from the reviewer, from each configured team, watched authors, watched repositories), leave out drafts and the reviewer's own pull requests, and show for each why it is listed, its size bucket, build state with the first failed check, review decision, the reviewer's latest review, whether a re-review is needed (commits after that review) and whether it is done (approved, green, mergeable), re-reviews first, then the longest waiting, done ones last. A failed scan SHALL keep the last list and never show the token. The view and GET /api/reviews SHALL answer a signed-in user, or without [auth] only a warte bound to loopback."
+    fields:
+      category: functional
+      priority: should
+      upstream-ref: https://github.com/pulseengine/warte/issues/85
+    links:
+      - type: refines
+        target: REQ-AUTH-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-22T21:00:00Z
+
+  - id: DD-PRREVIEW-001
+    type: design-decision
+    title: GraphQL search per bucket, a pure classifier, and loopback-only without a login
+    status: verified
+    release: v1.6.43
+    description: "reviews::from_node and reviews::order turn GitHub's search nodes into the view's rows and order, so every rule is tested without GitHub. One viewer query plus one search per bucket per interval keeps the request count small (four searches every ten minutes for one team and two watchlists). The token is the reviewer's, read from a 0600 file at each scan, never stored or shown. Without [auth] the read API has no login, so the view answers only when warte is bound to loopback, which is how the reviewer runs it on their own machine."
+    fields:
+      rationale: "PR titles, authors and team membership are private work data; GitHub's own review list does not answer size, build, wait and re-review in one place."
+    links:
+      - type: satisfies
+        target: REQ-PRREVIEW-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-22T21:00:00Z
+
+  - id: TEST-PRREVIEW-001
+    type: verification
+    title: Nodes in GitHub's shape, the order, a scan against a stand-in GraphQL, the token file, and loopback-only access
+    status: verified
+    release: v1.6.43
+    description: "tests/reviews.rs: a node becomes a row with its size, red build and failed check, re-review on an older reviewed commit, done when approved, green and mergeable, and a highlight; re-reviews come first, then the longest waiting, done ones last, and a duplicate keeps its first reason; a scan asks who the reviewer is and each search, leaves out drafts and the reviewer's own, and a refusal never echoes the token; the token file must be 0600 and hold one token; without a login a LAN bind answers 401 and the view shows no data, while loopback answers. Negative controls: always allowing access and never flagging a re-review each failed a test."
+    links:
+      - type: verifies
+        target: REQ-PRREVIEW-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-22T21:00:00Z

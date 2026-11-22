@@ -171,6 +171,40 @@ impl CertificateAuthority {
 }
 
 impl CertificateAuthority {
+    /// A server certificate for the transport v2 QUIC endpoint (REQ-SEC-001),
+    /// made at start-up: the names agents dial (DNS names or IP addresses),
+    /// ServerAuth only. Returns the certificate and its PKCS#8 key, both DER.
+    pub fn issue_server_cert(
+        &self,
+        names: &[String],
+        days: u32,
+    ) -> anyhow::Result<(Vec<u8>, Vec<u8>)> {
+        anyhow::ensure!(
+            !names.is_empty(),
+            "the QUIC endpoint needs at least one name"
+        );
+        let key = KeyPair::generate_for(&rcgen::PKCS_ECDSA_P256_SHA256)?;
+        let mut params = CertificateParams::new(names.to_vec())?;
+        params.distinguished_name = DistinguishedName::new();
+        params
+            .distinguished_name
+            .push(DnType::CommonName, &names[0]);
+        params
+            .distinguished_name
+            .push(DnType::OrganizationName, "PulseEngine Ground Station");
+        params.key_usages = vec![rcgen::KeyUsagePurpose::DigitalSignature];
+        params.extended_key_usages = vec![rcgen::ExtendedKeyUsagePurpose::ServerAuth];
+        let now = time::OffsetDateTime::now_utc();
+        params.not_before = now - time::Duration::minutes(5);
+        params.not_after = now + time::Duration::days(days as i64);
+        // at start-up nothing else holds the CA, so try_read never waits
+        let ca_key = self.ca_key.try_read()?;
+        let ca_params = self.ca_params.try_read()?;
+        let ca_cert = ca_params.clone().self_signed(&ca_key)?;
+        let cert = params.signed_by(&key, &ca_cert, &ca_key)?;
+        Ok((cert.der().to_vec(), key.serialize_der()))
+    }
+
     /// Sign a probe's certificate request (DD-PROBE-002). The probe made its
     /// key and keeps it; only its public key comes from the request. The name
     /// is the host the enrollment token was minted for, never the request's:

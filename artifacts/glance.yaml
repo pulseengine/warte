@@ -1,0 +1,50 @@
+# warte#179: the night glance, and the heartbeat status of seam
+# warte-plugin/heartbeat-status. The owner chose to build it on 2026-11-22.
+artifacts:
+  - id: REQ-GLANCE-001
+    type: requirement
+    title: One signed-in glance says whether anything needs the owner now, and heartbeats may carry a status
+    status: verified
+    release: v1.6.43
+    description: "GET /api/glance and GET /glance SHALL answer only a signed-in user (401 without [auth] or a login). The verdict SHALL be needs-you with one item per open needs-decision notice (newest revision) tagged with an always-open kind (default security and red-main, [glance] always_open), repository red on its default branch, release run that failed and was not rerun green, and host with a critically full disk; otherwise quiet. A routine decision SHALL only be counted, never listed; agents silent over 30 minutes and agents never heard from SHALL only be counted. A title SHALL be cut to 80 characters, with no paths. POST /api/agents/{id}/heartbeat SHALL accept an optional body {status: ended | idle | working}, store it, treat a beat without a status field (no body, {}, or another body older clients send) as before, and refuse only a status outside the three values with 422."
+    fields:
+      category: functional
+      priority: should
+      upstream-ref: https://github.com/pulseengine/warte/issues/179
+    links:
+      - type: refines
+        target: REQ-AUTH-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-22T17:00:00Z
+
+  - id: DD-GLANCE-001
+    type: design-decision
+    title: A pure verdict over gathered inputs; silence counted, never listed
+    status: verified
+    release: v1.6.43
+    description: "glance::glance decides from plain inputs (notice.v1 contents, red runs from the attention strip's rule, failed releases from the job ledger, disk verdicts from the pressure thresholds, heartbeat times), so every rule is tested without a server. A release is judged by the newest run per tag, so a rerun that went green clears it. Silence is never an item in v1, because a session that ended or waits at the prompt is silent too; the heartbeat status gives a later version the marker to tell them apart."
+    fields:
+      rationale: "A glance that fires every night trains the owner to ignore it; only what cannot wait becomes an item."
+    links:
+      - type: satisfies
+        target: REQ-GLANCE-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-22T17:00:00Z
+
+  - id: TEST-GLANCE-001
+    type: verification
+    title: Planted urgent and routine decisions, red main, releases, disk, silence, and access
+    status: verified
+    release: v1.6.43
+    description: "tests/glance.rs: an urgent decision turns the verdict and routine ones are only counted (negative control), a newer answered revision closes it, other notice kinds are ignored; red main, failed release and critical disk are items without paths; a failed release rerun green is not listed and one not rerun is; a 2-hour-silent agent leaves it quiet and is counted, a never-heard one is unknown; titles are cut to 80. tests/auth.rs the_glance_reads_notices_for_a_login_and_heartbeats_carry_a_status: 401 without [auth] and without a login; a heartbeat with no body, an older client's body or status ended is 204 and an unknown status is 422; a notice posted as agent data turns the glance and the page. Negative controls: treating every decision as urgent, and counting any failed release run, each failed a test."
+    links:
+      - type: verifies
+        target: REQ-GLANCE-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-22T17:00:00Z

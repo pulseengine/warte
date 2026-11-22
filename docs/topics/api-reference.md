@@ -21,6 +21,7 @@ warte token mint <agent-id> [--valid-hours 720] [--any-agent] [--right <r>]...
   |---|---|
   | `POST /api/agents/register` | `agents:register` |
   | `POST /api/agents/{id}/heartbeat` | `agents:heartbeat` |
+  | `POST /api/reports/seam-check` | `reports:write:seam-check` |
   | `POST /api/agents/{id}/data` | `agents:data` |
   | `POST /api/access/grant` | `access:grant` |
   | `POST /api/access/revoke` | `access:revoke` |
@@ -52,7 +53,13 @@ warte token mint <agent-id> [--valid-hours 720] [--any-agent] [--right <r>]...
   write routes are; another agent's or an unknown `{id}` is `403`, unless the
   token also holds `agents:any`. A bare mint does not carry it: add
   `--right agents:read`, e.g. for a notice client that reads back what it
-  posted. Without `[auth]` these reads are open, as before.
+  posted. Without `[auth]` the list and rows are open, as before.
+- Sensitive reads (since warte v1.6.44, REQ-API-007, #46): even without
+  `[auth]`, `GET /api/agents/{id}/data`, `GET /api/access/list/{agent}`,
+  `GET /api/artifacts/{id}/download` and `GET /api/sync/state` need a warte
+  token holding `agents:read`: `401` without a valid token, `403` without the
+  right. Data and access lists answer only for the token's own agent unless
+  it also holds `agents:any`. With `[auth]` a login opens them as before.
 - `--valid-hours` is 1 to 8760; the default is 24.
 - The signing seed is a file, `token-seed` next to the CA key
   (`<state-dir>/token-seed`) unless `token_seed_path` in `warte.toml` or
@@ -87,6 +94,98 @@ warte already has returns that agent's `agent_id` (the newest, if older
 releases left several), with a fresh certificate and the request's `repo`,
 `identity_type` and `public_key`. A retry or a rerun never makes a second
 agent.
+
+A heartbeat may carry `{"status": "ended" | "idle" | "working"}` (since
+v1.6.48, REQ-GLANCE-001, seam warte-plugin/heartbeat-status): `ended` from a
+session's end hook, `idle` when it waits at the prompt. A beat without a
+`status` field (no body, `{}`, or what older clients send) is as before; only
+an unknown `status` is `422`.
+
+## Decisions (REQ-DECIDE-001)
+
+```
+POST /api/decisions/answer   {"notice_id": "...", "revision": 2, "option_id": "...", "note": "optional"}
+```
+
+The owner answers an agent's open `needs-decision` notice from the
+Decisions view (Agents). Only a signed-in user with the owner role, from this
+server's origin, with the session's CSRF token in `X-Warte-CSRF` (the view
+sends both); otherwise `401` or `403`, and without `[auth]` always `401`. The
+notice must exist, be at that revision, still be open and not answered, and
+have offered the option; otherwise `409` with the reason, and nothing is
+stored. The answer is stored on the agent that asked as an `answer.v1` row
+(notice.schema.json answer, schema_version 1, `via: "warte"`), which the
+notice client polls and consumes once. A note is data for the agent, never
+instructions, at most 2000 characters. Each answer is logged with who and
+which notice, never the note.
+
+## Reviews (REQ-PRREVIEW-001)
+
+```
+GET /api/reviews
+```
+
+The pull requests one person has to review (#85), from `[reviews]`:
+
+```toml
+[reviews]
+token_file = "/home/me/.config/warte/review-token"  # the reviewer's own read-only token, mode 0600
+teams = ["acme/core"]                 # team review requests that count
+highlight_authors = ["boss"]          # also listed, and highlighted
+highlight_repos = ["acme/app"]
+highlight_labels = ["urgent"]
+# api_url = "https://api.github.com"  # a GitHub Enterprise API
+# interval_s = 600
+```
+
+Every `interval_s` warte asks GitHub who the token is, then runs one search
+per bucket: review requested from the reviewer, from each team, watched
+authors, watched repositories. Drafts and the reviewer's own pull requests
+are left out. Each pull request shows why it is listed, its size (S up to 50
+changed lines, M up to 250, L up to 1000, XL above), its build (green, red
+with the first failed check, running), the review decision, the reviewer's
+own latest review, and how long it has waited. It is a re-review when
+commits were pushed after that review, and done when approved, green and
+mergeable. Order: re-reviews first, then the longest waiting, done ones last.
+A failed scan keeps the last list and says why, never with the token.
+
+PR titles and authors are private work data: with `[auth]` only a signed-in
+user reads them; without it, only a warte bound to loopback (`401`
+otherwise). The CI menu shows them as Reviews.
+
+## Reports (REQ-REPORTS-001)
+
+```
+POST /api/reports/seam-check     # seam-check.v1, with reports:write:seam-check
+```
+
+A producer posts its report after its run (seam pulseengine-warte/reports,
+#87). The token needs the kind's right, `reports:write:<kind>`, and nothing
+else. warte checks the schema string and the fields it renders, at most
+2 MiB, and keeps the latest; `422` names the broken field. The views render
+only what was posted and compute nothing: Compliance, Seams shows every seam
+with its status, provider, consumers, violations, warnings and open
+questions, violations first, stale after 8 days. Signed-in only, because the
+reports cover private repositories; without `[auth]` the view shows nothing.
+
+## Night glance (REQ-GLANCE-001)
+
+```
+GET /api/glance
+GET /glance
+```
+
+Whether anything needs the owner now, as JSON or one phone-sized page.
+Signed-in only, since it reads notices; without `[auth]` both are `401`.
+`verdict` is `needs-you` when `items` holds anything, one per: an open
+`needs-decision` notice tagged with an always-open kind (default `security`
+and `red-main`, set with `[glance] always_open` to mirror the notice client's
+`always_open_kinds`), a repository red on its default branch, a release run
+that failed and was not rerun green, a host with a critically full disk.
+Otherwise `quiet`. Routine decisions are counted in `routine_decisions`, never
+listed; agents silent for over 30 minutes and agents never heard from are
+counted in `silent` and `unknown`, never listed. A decision title is cut to 80
+characters. Read-only: it answers and triggers nothing.
 
 ## Access control
 
@@ -251,6 +350,82 @@ jobs and more than before, a queue wait of 5 minutes or more that at least
 doubled, a release run 50% and 5 minutes slower (5 samples a week or more).
 Recomputed at most every 10 minutes; 503 without a CI source. The overview
 shows it as its CI health panel.
+
+## Architecture (REQ-ARCHVIEW-001)
+
+```
+GET /api/architecture
+```
+
+The `[architecture] file`, checked against `architecture.v1`: `architecture`
+(the document), `crossings` (connection id to whether it crosses a trust
+zone) and `findings` (zone crossings without authentication or encryption).
+With a login it needs a signed-in user; without one, a warte token holding
+`architecture:read`; otherwise `401`, and `403` for a token without the
+right. `404` without `[architecture]`, `422` with `errors` when the file does
+not check out. The contract and the checks: `warte docs architecture-view`.
+
+## Attention schedule (REQ-ATTN-001)
+
+```
+GET /api/attention
+PUT /api/attention
+```
+
+One person's attention schedule: decision windows, available hours, focus
+blocks, off periods, timezone, `max_asking_flows` and `always_open_kinds`, in
+the shape of pulseengine.eu's `attention.schema.json` (schema_version 1),
+which the notice client reads before its cached copy, its local file and its
+defaults.
+
+- `GET`: a signed-in user reads their own. A warte token holding
+  `agents:read` reads the schedule of the person its agent works for, named
+  at mint time with `warte token mint <agent> --right agents:read --owner
+  <subject>` (the subject is shown in the app under My hours). `404` when no
+  schedule is set or the token names no owner, so the client keeps its local
+  file; `401` with neither a login nor a token; `403` for a token without
+  `agents:read`.
+- `PUT`: only a signed-in user, for their own schedule, from this server's
+  origin with the session's CSRF token in `X-Warte-CSRF` (the My hours panel
+  sends both); otherwise `403`. A token never writes a schedule. The body is
+  validated before anything is stored: HH:MM spans, `from` different from
+  `to`, `max_asking_flows` 1 to 100, a timezone the system's zone database
+  knows, `off.to` after `off.from`, no unknown field. A span written as
+  `"HH:MM-HH:MM"` is stored as `{from, to}`. A broken field answers `422`
+  naming the field, never its value. The change is logged as who changed
+  which fields, without the values.
+
+The app edits it under My hours, next to the sign-out link, as JSON so a
+span's days and an off period's note are kept.
+
+## Runner usage (REQ-CI-009)
+
+```
+GET /api/runner-usage?repo=<name>&from=YYYY-MM-DD&until=YYYY-MM-DD
+```
+
+How much runner time one repository used over a window of ledger days, and
+how long its jobs waited for a runner, from the finished-job ledger with no
+extra GitHub requests. A job counts when its run was created on a day from
+`from` to `until`, inclusive; the window is at most 31 days.
+
+- `runner_minutes`, `runs` and `minutes_per_run`: completed minus started,
+  over every attempt that got a runner, since a re-run uses runner time too.
+- `events`: the same per event (`pull_request`, `push`, `merge_group`, ...).
+- `pr_branches` and `minutes_per_pr_branch`: the ledger has no pull request
+  number, so a pull request's head branch stands for it.
+- `pools`: per runner pool, `jobs`, `runner_minutes`, and the runner wait,
+  started minus created over first attempts, as `wait_p50_s` and
+  `wait_p90_s` with `wait_samples` (`null` without samples).
+- `records`: the ledger records of the repository in the window.
+
+Only public repositories are answered, from the same `type=public` listing
+the attention strip uses; a private, archived or unknown name gets one 404,
+so the endpoint never confirms that a repository exists, and before the
+first listing nothing is answered. No runner names. Compare two windows to
+see a change, for example the two weeks before and after a CI change. 400
+for anything but a repository name and a valid window; 503 without a CI
+source.
 
 ## Shared incidents (REQ-CI-005)
 

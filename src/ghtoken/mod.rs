@@ -28,7 +28,8 @@ pub const REUSE_MIN_LEFT_S: i64 = 15 * 60;
 pub const SWEEP_EVERY_S: u64 = 60;
 
 /// The permissions a token may carry, and the most each may be. `actions`
-/// write is never in the configured set: the operator grants it per agent.
+/// write and `workflows` are never in the configured set: the operator grants
+/// `actions:write` and `workflows:write` per agent (see [`Grant`]).
 const CEILING: [(&str, &str); 5] = [
     ("contents", "write"),
     ("pull_requests", "write"),
@@ -103,6 +104,11 @@ impl GithubAppConfig {
         }
         for (k, v) in &self.permissions {
             let Some((_, max)) = CEILING.iter().find(|(c, _)| c == k) else {
+                if k == "workflows" {
+                    return Err(
+                        "[github_app] workflows is never in the configured set; grant workflows:write per agent with `warte agents repos grant`".into(),
+                    );
+                }
                 return Err(format!(
                     "[github_app] permission {k:?} is not one of {}",
                     CEILING.map(|(c, _)| c).join(", ")
@@ -214,11 +220,41 @@ pub fn token_agent(token: &str) -> Option<String> {
     v.get("agent_id")?.as_str().map(str::to_string)
 }
 
+/// A permission the operator may grant one agent beyond the configured set.
+/// Nothing else can be granted per agent.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Grant {
+    /// `actions: write`, to re-run jobs.
+    ActionsWrite,
+    /// `workflows: write`, to push changes under `.github/workflows/`
+    /// (REQ-GHTOKEN-005; owner decision 2026-11-22).
+    WorkflowsWrite,
+}
+
+impl Grant {
+    /// The CLI spelling, `actions:write` or `workflows:write`.
+    pub fn parse(s: &str) -> Option<Grant> {
+        match s {
+            "actions:write" => Some(Grant::ActionsWrite),
+            "workflows:write" => Some(Grant::WorkflowsWrite),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Grant::ActionsWrite => "actions:write",
+            Grant::WorkflowsWrite => "workflows:write",
+        }
+    }
+}
+
 /// What the operator assigned to one agent.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Assignment {
     pub repos: Vec<String>,
     pub actions_write: bool,
+    pub workflows_write: bool,
 }
 
 /// The operator-set scope, in warte's database (REQ-GHTOKEN-002).
@@ -237,33 +273,37 @@ impl Store {
     }
 
     pub async fn get(&self, name: &str) -> Result<Option<Assignment>, String> {
-        let row: Option<(String, i64)> =
-            sqlx::query_as("SELECT repos, actions_write FROM agent_github WHERE name = ?")
-                .bind(name)
-                .fetch_optional(&self.pool)
-                .await
-                .map_err(db)?;
-        Ok(row.map(|(r, a)| Assignment {
+        let row: Option<(String, i64, i64)> = sqlx::query_as(
+            "SELECT repos, actions_write, workflows_write FROM agent_github WHERE name = ?",
+        )
+        .bind(name)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(row.map(|(r, a, w)| Assignment {
             repos: serde_json::from_str(&r).unwrap_or_default(),
             actions_write: a != 0,
+            workflows_write: w != 0,
         }))
     }
 
     pub async fn list(&self) -> Result<Vec<(String, Assignment)>, String> {
-        let rows: Vec<(String, String, i64)> =
-            sqlx::query_as("SELECT name, repos, actions_write FROM agent_github ORDER BY name")
-                .fetch_all(&self.pool)
-                .await
-                .map_err(db)?;
+        let rows: Vec<(String, String, i64, i64)> = sqlx::query_as(
+            "SELECT name, repos, actions_write, workflows_write FROM agent_github ORDER BY name",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
         Ok(rows
             .into_iter()
-            .map(|(n, r, a)| {
+            .map(|(n, r, a, w)| {
                 let repos = serde_json::from_str(&r).unwrap_or_default();
                 (
                     n,
                     Assignment {
                         repos,
                         actions_write: a != 0,
+                        workflows_write: w != 0,
                     },
                 )
             })
@@ -271,7 +311,7 @@ impl Store {
     }
 
     /// Replace an agent's repositories (1..=MAX_REPOS, each `owner/name`,
-    /// under `account` when one is configured). Keeps its actions grant.
+    /// under `account` when one is configured). Keeps its grants.
     pub async fn set_repos(
         &self,
         name: &str,
@@ -321,14 +361,33 @@ impl Store {
 
     /// Grant or take back `actions: write` for an agent that has repositories.
     pub async fn set_actions_write(&self, name: &str, on: bool) -> Result<(), String> {
-        let r =
-            sqlx::query("UPDATE agent_github SET actions_write = ?, updated_at = ? WHERE name = ?")
-                .bind(on as i64)
-                .bind(chrono::Utc::now().to_rfc3339())
-                .bind(name)
-                .execute(&self.pool)
-                .await
-                .map_err(db)?;
+        self.set_grant(name, Grant::ActionsWrite, on).await
+    }
+
+    /// Grant or take back `workflows: write` for an agent that has
+    /// repositories (REQ-GHTOKEN-005).
+    pub async fn set_workflows_write(&self, name: &str, on: bool) -> Result<(), String> {
+        self.set_grant(name, Grant::WorkflowsWrite, on).await
+    }
+
+    /// Grant or take back one per-agent permission.
+    pub async fn set_grant(&self, name: &str, grant: Grant, on: bool) -> Result<(), String> {
+        // the column comes from a closed enum, never from input
+        let sql = match grant {
+            Grant::ActionsWrite => {
+                "UPDATE agent_github SET actions_write = ?, updated_at = ? WHERE name = ?"
+            }
+            Grant::WorkflowsWrite => {
+                "UPDATE agent_github SET workflows_write = ?, updated_at = ? WHERE name = ?"
+            }
+        };
+        let r = sqlx::query(sql)
+            .bind(on as i64)
+            .bind(chrono::Utc::now().to_rfc3339())
+            .bind(name)
+            .execute(&self.pool)
+            .await
+            .map_err(db)?;
         if r.rows_affected() == 0 {
             return Err(format!(
                 "{name} has no repositories assigned; set them first"
@@ -518,6 +577,9 @@ impl Broker {
         if assigned.actions_write {
             base.insert("actions".into(), "write".into());
         }
+        if assigned.workflows_write {
+            base.insert("workflows".into(), "write".into());
+        }
         let perms = match req.permissions {
             None => base.clone(),
             Some(want) => {
@@ -701,6 +763,7 @@ impl Broker {
                             && (a.actions_write
                                 || x.permissions.get("actions").map(String::as_str)
                                     != Some("write"))
+                            && (a.workflows_write || !x.permissions.contains_key("workflows"))
                     });
                 if still {
                     continue;
@@ -850,10 +913,18 @@ pub mod cli {
     use crate::cli::{AgentClientCommands, ReposCommands};
 
     fn show(name: &str, a: &Assignment) {
-        let grant = if a.actions_write {
-            "  (actions:write)"
+        let grants: Vec<&str> = [
+            (a.actions_write, "actions:write"),
+            (a.workflows_write, "workflows:write"),
+        ]
+        .iter()
+        .filter(|(on, _)| *on)
+        .map(|(_, g)| *g)
+        .collect();
+        let grant = if grants.is_empty() {
+            String::new()
         } else {
-            ""
+            format!("  ({})", grants.join(", "))
         };
         println!("{name}: {}{grant}", a.repos.join(" "));
     }
@@ -892,19 +963,24 @@ pub mod cli {
                 }
                 ReposCommands::Grant { name, permission }
                 | ReposCommands::Revoke { name, permission }
-                    if permission != "actions:write" =>
+                    if Grant::parse(&permission).is_none() =>
                 {
                     return Err(format!(
-                        "{name}: only actions:write can be granted per agent, not {permission:?}"
+                        "{name}: only actions:write and workflows:write can be granted per agent, not {permission:?}"
                     ));
                 }
-                ReposCommands::Grant { name, .. } => {
-                    store.set_actions_write(&name, true).await?;
-                    println!("{name}: actions:write granted");
+                ReposCommands::Grant { name, permission } => {
+                    let g = Grant::parse(&permission).expect("checked above");
+                    store.set_grant(&name, g, true).await?;
+                    println!("{name}: {} granted", g.as_str());
                 }
-                ReposCommands::Revoke { name, .. } => {
-                    store.set_actions_write(&name, false).await?;
-                    println!("{name}: actions:write taken back; live tokens with it are revoked within a minute");
+                ReposCommands::Revoke { name, permission } => {
+                    let g = Grant::parse(&permission).expect("checked above");
+                    store.set_grant(&name, g, false).await?;
+                    println!(
+                        "{name}: {} taken back; live tokens with it are revoked within a minute",
+                        g.as_str()
+                    );
                 }
             }
             Ok::<(), String>(())

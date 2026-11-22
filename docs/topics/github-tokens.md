@@ -28,14 +28,15 @@ key_path = "/var/lib/warte/github-app.pem"
 # global_per_hour = 300
 ```
 
-   `permissions` may only lower that set. `actions = "write"` is refused here:
-   it is granted per agent.
+   `permissions` may only lower that set. `actions = "write"` and any
+   `workflows` are refused here: they are granted per agent.
 4. Give each agent that needs tokens the right, and assign its repositories, on the host:
 
 ```sh
 warte token mint my-agent --right github:token
 warte agents repos set my-agent your-org/repo-a your-org/repo-b
 warte agents repos grant my-agent actions:write    # only if it must re-run jobs
+warte agents repos grant my-agent workflows:write  # only if it must push changes under .github/workflows/
 warte agents repos list
 ```
 
@@ -52,6 +53,11 @@ GH_TOKEN=$(warte agent github-token) gh pr list
 git config --global credential.https://github.com.helper '!warte agent git-credential'
 ```
 
+An agent behind a sandbox network proxy reaches warte through that proxy. Some
+proxies cannot resolve mDNS names (`*.local`): the CONNECT hangs while the same
+host's address works. Give `WARTE_URL` a name the proxy can resolve, or add the
+host to `/etc/hosts` on the machine the proxy runs on.
+
 `warte agent github-token --repo your-org/repo-a` narrows to fewer
 repositories; `--json` prints the expiry and permissions too. The git helper
 answers only for https on github.com. Nothing is written to a file; a repeated
@@ -66,7 +72,7 @@ request within the hour gets the same live token back.
 
 Every minute warte revokes the live tokens of an agent whose row was removed
 (`warte agents rm`), whose repositories were narrowed or cleared, or whose
-actions grant was taken back. A restart forgets live tokens; they expire
+actions or workflows grant was taken back. A restart forgets live tokens; they expire
 within the hour.
 
 ## API

@@ -1989,6 +1989,11 @@ dependencies = [
 ]
 
 [[package]]
+name = "relay-sec"
+version = "0.1.0"
+source = "git+https://github.com/pulseengine/relay?rev=4cc48b7577432d2403d50f8e961d5c1281e44fa8#4cc48b7577432d2403d50f8e961d5c1281e44fa8"
+
+[[package]]
 name = "reqwest"
 version = "0.12.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3178,7 +3183,7 @@ dependencies = [
 
 [[package]]
 name = "warte"
-version = "1.6.42"
+version = "1.6.43"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3193,10 +3198,12 @@ dependencies = [
  "indexmap",
  "mdns-sd",
  "quick-xml",
+ "quinn",
  "rand 0.8.8",
  "rcgen",
  "redb",
  "relay-ccsds",
+ "relay-sec",
  "reqwest",
  "ring",
  "rustls",

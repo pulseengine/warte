@@ -1,6 +1,6 @@
 [package]
 name = "warte"
-version = "1.6.42"
+version = "1.6.43"
 edition = "2021"
 description = "Warte — the PulseEngine control tower. A CI dashboard with an ask feature and an API."
 license = "Apache-2.0"
@@ -70,6 +70,12 @@ crdts = "7"
 # CCSDS space-packet codec (fleet agent -> ground station telemetry), the same
 # rev the original hub used, so the wire format is unchanged (DD-SMITHY-001).
 relay-ccsds = { git = "https://github.com/pulseengine/relay", rev = "4cc48b7577432d2403d50f8e961d5c1281e44fa8" }
+# Transport v2 (REQ-SEC-001): relay-sec seals each telemetry packet; same relay
+# commit as relay-ccsds.
+relay-sec = { git = "https://github.com/pulseengine/relay", rev = "4cc48b7577432d2403d50f8e961d5c1281e44fa8" }
+# QUIC with mutual TLS 1.3 for transport v2, on the rustls + ring stack warte
+# already uses. Pinned exactly: the one dependency fetched online for #41.
+quinn = { version = "=0.11.12", default-features = false, features = ["runtime-tokio", "rustls-ring", "log"] }
 
 # Service discovery (mDNS/Bonjour)
 mdns-sd = "0.21"

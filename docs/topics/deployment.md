@@ -435,7 +435,7 @@ and probes cannot answer a password prompt.
 warte.example.internal {
 	@guarded not {
 		method POST
-		path /api/probe/enroll /api/probe/report /api/probe/renew /api/probe/feed/temper
+		path /api/probe/enroll /api/probe/report /api/probe/renew /api/probe/feed/temper /api/probe/feed/security
 	}
 	# caddy hash-password --plaintext '<password>'
 	basic_auth @guarded {

@@ -1,0 +1,51 @@
+# warte#181: the attention schedule per login, served to the notice client.
+# Seam notice-warte/attention-schedule (decided 2026-11-18); the owner chose
+# to build it on 2026-11-22.
+artifacts:
+  - id: REQ-ATTN-001
+    type: requirement
+    title: warte stores one attention schedule per login and serves it at GET /api/attention in attention.schema.json schema_version 1
+    status: verified
+    release: v1.6.43
+    description: "warte SHALL store one attention schedule per warte login, keyed by the provider's subject, and serve it at GET /api/attention in exactly the shape of pulseengine.eu's attention.schema.json schema_version 1. A signed-in user SHALL read only their own; a warte token holding agents:read SHALL read only the schedule of the owner it names (minted with --owner); no schedule or no owner SHALL answer 404 and neither a login nor a token 401. Only the signed-in user SHALL replace their own schedule, with PUT /api/attention from this server's origin carrying the session's CSRF token; a token SHALL never write one. Before storing, warte SHALL apply the schema's and notice.py's rules (HH:MM spans, from differs from to, max_asking_flows 1 to 100, a known timezone, off.to after off.from, no unknown field) and SHALL name a broken field, never its value. Each change SHALL be logged as who changed which fields, without values."
+    fields:
+      category: functional
+      priority: should
+      upstream-ref: https://github.com/pulseengine/warte/issues/181
+    links:
+      - type: refines
+        target: REQ-AUTH-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-22T14:00:00Z
+
+  - id: DD-ATTN-001
+    type: design-decision
+    title: Owner on the token, a session-bound CSRF token, and a JSON editor
+    status: verified
+    release: v1.6.43
+    description: "A person maps to their agents by an optional owner field in the signed agent token (`warte token mint --owner <subject>`), which answers the seam's open question; older tokens without it still verify. The PUT is warte's first write made with a login: the auth middleware passes PUT /api/attention to its handler, which requires the session, an Origin whose authority equals Host, and X-Warte-CSRF equal to a hash of the server's signature over the session id, so the token changes with each session and only this server can make it. The timezone is checked against the system's zone database files, never as a path. My hours edits the schedule as JSON, so a span's days or an off period's note are never dropped by a narrower form."
+    fields:
+      rationale: "A per-session token derived from the signing key needs no new state, and same-site cookies alone do not stop every cross-site write. No time zone crate is in the build; every supported host (Linux, macOS, the Pi) ships a zone database."
+    links:
+      - type: satisfies
+        target: REQ-ATTN-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-22T14:00:00Z
+
+  - id: TEST-ATTN-001
+    type: verification
+    title: Two users, an owner token, CSRF and origin plants, and every validation rule
+    status: verified
+    release: v1.6.43
+    description: "tests/auth.rs each_person_reads_and_writes_only_their_own_attention_schedule: two logins (u1, u2) each read only their own schedule; an agent token minted for u1 reads u1's; a token without an owner gets 404 and one without agents:read 403; writes without the CSRF token, with another session's, from a foreign origin, without an origin, or with an agent token are refused and change nothing; a string span is stored as {from, to}. a_broken_schedule_is_refused_by_field_and_nothing_is_stored: twelve broken inputs each answer 422 naming the field, never echoing the value, and nothing is stored. Negative controls: skipping the CSRF and origin check, and skipping the timezone check, each failed a test."
+    links:
+      - type: verifies
+        target: REQ-ATTN-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-22T14:00:00Z

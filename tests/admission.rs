@@ -208,6 +208,9 @@ async fn serve(snapshot: Option<&Snapshot>) -> (tempfile::TempDir, String) {
             probe_self: false,
             costs_file: None,
             skill_usage_file: None,
+            quic: None,
+            quic_names: vec![],
+            require_quic: false,
         }),
         ..Default::default()
     };
@@ -284,6 +287,8 @@ async fn endpoints_answer_as_documented() {
             "/api/triage" | "/api/triage/done" => continue,
             // 503 without [canaries]; tests/canaries.rs covers both
             "/api/canaries" => continue,
+            // needs repo, from and until and a public repository; tests/runner_usage.rs covers it
+            "/api/runner-usage" => continue,
             _ => "",
         };
         assert_eq!(get(&format!("{p}{q}")).await.unwrap().status(), 200, "{p}");

@@ -249,16 +249,23 @@ impl AgentRegistry {
 
     /// Record a heartbeat from an agent.
     pub async fn heartbeat(&self, agent_id: &str) -> anyhow::Result<()> {
+        self.heartbeat_with(agent_id, None).await
+    }
+
+    /// A heartbeat with the optional status of seam warte-plugin/heartbeat-status
+    /// (ended, idle or working); None for a bodyless beat, which clears it.
+    pub async fn heartbeat_with(&self, agent_id: &str, status: Option<&str>) -> anyhow::Result<()> {
         let now = Utc::now();
         sqlx::query(
             r#"
             UPDATE agents
-            SET last_heartbeat = ?, health_status = 'healthy', updated_at = ?
+            SET last_heartbeat = ?, health_status = 'healthy', updated_at = ?, heartbeat_status = ?
             WHERE id = ?
             "#,
         )
         .bind(now.to_rfc3339())
         .bind(now.to_rfc3339())
+        .bind(status)
         .bind(agent_id)
         .execute(&self.pool)
         .await?;

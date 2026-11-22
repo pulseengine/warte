@@ -1,0 +1,35 @@
+# #41: the hub half of transport v2, decided 2026-11-22 (owner: straight to
+# QUIC + relay-sec). REQ-SEC-001 stays at v1.7.0: it says every probe SHALL
+# connect this way, which holds once require_quic is on.
+artifacts:
+  - id: REQ-SEC-003
+    type: requirement
+    title: The hub accepts transport v2 (QUIC, mutual TLS, relay-sec) beside wire v1 and can drop v1
+    status: verified
+    release: v1.6.43
+    description: "With [hub] quic, warte SHALL listen for transport v2 as written in docs/topics/ground-station.md: QUIC with TLS 1.3 mutual authentication against warte's CA, ALPN warte-telemetry/1, relay-sec's handshake on the first stream under the agent's SPI and k_id from enrolment, and MAC-only sealed frames on channel 1 (DATAGRAM, at most a 1173-byte packet) and channel 2 (ledger streams), whose packets go to the v1 assembler unchanged. It SHALL refuse and count a certificate that does not chain or is revoked (tls_identity), a host with no SA (unknown_spi), a bad tag (bad_tag) and a replayed epoch or frame (replayed). `warte probe enroll` SHALL issue a new SPI and k_id, replacing the old, and `warte probe revoke` SHALL delete them. With require_quic, wire v1 UDP packets SHALL be dropped and counted. The counts SHALL show on Health."
+    fields:
+      category: constraint
+      priority: must
+      upstream-ref: https://github.com/pulseengine/warte/issues/41
+    links:
+      - type: refines
+        target: REQ-SEC-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-22T15:00:00Z
+
+  - id: TEST-SEC-003
+    type: verification
+    title: A real QUIC client plays the fleet agent against the hub
+    status: verified
+    release: v1.6.43
+    description: "tests/quic_transport.rs: an_enrolled_agent_s_sealed_packets_reach_the_hub_over_quic (sealed DATAGRAMs and a ledger stream reach the assembler; resent and tampered frames are counted replayed and bad_tag and change nothing; the counts show on Health); a_replayed_epoch_a_wrong_key_or_an_unenrolled_agent_gets_no_session (a reused epoch, a wrong k_id, a host without an SA and the old k_id after re-enrolment are refused; a new SA starts its epochs again); a_foreign_or_revoked_certificate_is_refused_and_v1_can_be_switched_off (another CA's certificate and a revoked host get no session; require_quic drops wire v1). Negative controls: passing 0 as the last epoch with no epoch advance, and skipping the revocation check, each failed a test."
+    links:
+      - type: verifies
+        target: REQ-SEC-003
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-22T15:00:00Z

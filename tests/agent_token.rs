@@ -228,7 +228,7 @@ fn cli_prints_only_the_token_on_stdout() {
 // ── REQ-API-004: rights and agent binding on the mutating routes ─────────
 
 /// Every right a route can require, plus the agent-binding override.
-const ALL_RIGHTS: [&str; 13] = [
+const ALL_RIGHTS: [&str; 14] = [
     "agents:register",
     "agents:heartbeat",
     "agents:data",
@@ -241,11 +241,12 @@ const ALL_RIGHTS: [&str; 13] = [
     "triage:write",
     "news:write",
     "github:token",
+    "reports:write:seam-check",
     "agents:any",
 ];
 
 /// (path, right) of every mutating route. `{id}` is filled with the agent.
-const ROUTES: [(&str, &str); 12] = [
+const ROUTES: [(&str, &str); 13] = [
     ("/api/agents/register", "agents:register"),
     ("/api/agents/{id}/heartbeat", "agents:heartbeat"),
     ("/api/agents/{id}/data", "agents:data"),
@@ -258,6 +259,7 @@ const ROUTES: [(&str, &str); 12] = [
     ("/api/triage/done", "triage:write"),
     ("/api/news/state", "news:write"),
     ("/api/agents/{id}/github-token", "github:token"),
+    ("/api/reports/seam-check", "reports:write:seam-check"),
 ];
 
 fn token_with(s: &Server, agent: &str, rights: &[&str]) -> String {
@@ -273,6 +275,9 @@ async fn post_as(s: &Server, path: &str, target: &str, bearer: Option<&str>) -> 
     let right = serde_json::json!([{"resource": "artifacts", "action": "download"}]);
     let body = if path.ends_with("/register") {
         serde_json::json!({"name": target, "identity_type": "token", "public_key": "k"})
+    } else if path == "/api/reports/seam-check" {
+        serde_json::json!({"schema": "seam-check.v1", "now": "2026-11-22T00:00:00Z", "seams": [],
+                           "issues_without_block": [], "errors": [], "exit": 0})
     } else if path.ends_with("/data") {
         serde_json::json!({"data_type": "notice", "content": "x"})
     } else if path.ends_with("/grant") {
@@ -409,7 +414,11 @@ async fn every_mutating_route_in_the_router_has_a_right() {
             seen.push(format!("/api{path}"));
         }
     }
-    seen.retain(|p| !open.contains(&p.as_str()));
+    // the probe routes authenticate themselves; the attention schedule is
+    // written with a login and checked by its handler (REQ-ATTN-001)
+    seen.retain(|p| {
+        !open.contains(&p.as_str()) && !warte::auth::LOGIN_WRITES.iter().any(|(_, w)| w == p)
+    });
     assert!(seen.len() >= ROUTES.len(), "scraped too little: {seen:?}");
     let s = start(tempfile::tempdir().unwrap()).await;
     let t = token_with(&s, "a1", &ALL_RIGHTS);

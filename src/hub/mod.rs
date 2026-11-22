@@ -20,6 +20,7 @@ pub mod eta;
 pub mod model;
 pub mod parse;
 pub mod pools;
+pub mod quic;
 pub mod report;
 pub mod telemetry;
 
@@ -58,6 +59,14 @@ pub fn now() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
+}
+
+/// Unix milliseconds: the floor of the transport v2 hub epoch.
+pub fn now_ms() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
         .unwrap_or(0)
 }
 
@@ -197,6 +206,10 @@ struct Shared {
     /// Datagrams from addresses not on the allow-list.
     foreign: u64,
     frames: u64,
+    /// Wire v1 UDP datagrams from allowed addresses, and those dropped
+    /// because transport v2 is required (REQ-SEC-001).
+    udp_v1: u64,
+    udp_dropped: u64,
 }
 
 /// One telemetry stream (APID) as the hub counted it since it started.
@@ -219,6 +232,10 @@ struct StateView<'a> {
     rejected: u64,
     foreign: u64,
     frames: u64,
+    udp_v1: u64,
+    udp_dropped: u64,
+    require_quic: bool,
+    quic: serde_json::Value,
 }
 
 fn save(path: &str, p: &Persisted) {
@@ -251,6 +268,10 @@ pub struct Hub {
     tick: Arc<tokio::sync::watch::Sender<u64>>,
     /// Held `/api/watch` requests on this hub.
     watch_slots: Arc<crate::watch::Slots>,
+    /// Transport v2 (REQ-SEC-001): what the QUIC listener accepted and refused.
+    pub quic: Arc<quic::Counts>,
+    /// Drop wire v1 UDP packets once every agent speaks transport v2.
+    require_quic: Arc<std::sync::atomic::AtomicBool>,
     /// Where each snapshot's numbers go over time (REQ-MHIST-001).
     history: Arc<std::sync::OnceLock<crate::history::History>>,
     /// `[runners]` and the self-hosted label patterns, for the report's
@@ -279,6 +300,8 @@ impl Hub {
             state_path: path.into(),
             tick: Arc::new(tokio::sync::watch::channel(0).0),
             watch_slots: Default::default(),
+            quic: Default::default(),
+            require_quic: Default::default(),
             history: Default::default(),
             runners: Default::default(),
         })
@@ -350,8 +373,60 @@ impl Hub {
             }
             return;
         }
+        if self.require_quic.load(std::sync::atomic::Ordering::Relaxed) {
+            g.udp_dropped += 1;
+            return;
+        }
+        g.udp_v1 += 1;
         let t = now();
         let snap = g.asm.ingest(datagram, t);
+        if !g.asm.ledger_in.is_empty() {
+            let recs = std::mem::take(&mut g.asm.ledger_in);
+            lk(&self.ledger).ingest(recs);
+        }
+        if let Some(snap) = snap {
+            let point = Point::from_snapshot(&snap);
+            let host = snap.host.clone();
+            g.p.history.push_back(point.clone());
+            while g.p.history.len() > HISTORY_MAX {
+                g.p.history.pop_front();
+            }
+            g.p.latest = Some(snap);
+            g.p.received_at = t;
+            g.frames += 1;
+            if g.frames.is_multiple_of(5) {
+                save(&self.state_path, &g.p);
+            }
+            drop(g);
+            self.to_history(&host, &point);
+            self.tick.send_modify(|n| *n += 1);
+        }
+    }
+
+    /// Transport counters for Health (REQ-SEC-001): wire v1 UDP packets
+    /// taken and dropped, whether v1 is still allowed, and the QUIC listener's
+    /// accepted and refused counts.
+    pub fn transport(&self) -> (u64, u64, bool) {
+        let g = lk(&self.shared);
+        (
+            g.udp_v1,
+            g.udp_dropped,
+            self.require_quic.load(std::sync::atomic::Ordering::Relaxed),
+        )
+    }
+
+    /// Drop wire v1 UDP packets from now on (`[hub] require_quic`).
+    pub fn set_require_quic(&self, on: bool) {
+        self.require_quic
+            .store(on, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// One CCSDS packet that transport v2 already authenticated (REQ-SEC-001):
+    /// the v1 assembler path without the UDP allow-list.
+    pub fn ingest_trusted(&self, packet: &[u8]) {
+        let mut g = lk(&self.shared);
+        let t = now();
+        let snap = g.asm.ingest(packet, t);
         if !g.asm.ledger_in.is_empty() {
             let recs = std::mem::take(&mut g.asm.ledger_in);
             lk(&self.ledger).ingest(recs);
@@ -609,6 +684,10 @@ impl Hub {
             rejected: g.asm.rejected,
             foreign: g.foreign,
             frames: g.frames,
+            udp_v1: g.udp_v1,
+            udp_dropped: g.udp_dropped,
+            require_quic: self.require_quic.load(std::sync::atomic::Ordering::Relaxed),
+            quic: self.quic.snapshot(),
         })
     }
 

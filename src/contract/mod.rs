@@ -209,6 +209,14 @@ pub fn current_contract() -> AgentContract {
                 auth_required: true,
                 required_right: right_for("/api/news/state"),
             },
+            ContractOperation {
+                name: "post_report_seam_check".to_string(),
+                direction: OperationDirection::AgentToTower,
+                request_type: "seam-check.v1 (the report seam-check.py --format json writes)".to_string(),
+                response_type: "204, or 422 naming the field".to_string(),
+                auth_required: true,
+                required_right: right_for("/api/reports/seam-check"),
+            },
         ],
         data_types: vec![
             ContractDataType {
@@ -328,7 +336,7 @@ mod tests {
     fn test_agent_contract() {
         let contract = current_contract();
         assert_eq!(contract.version, "0.1.0");
-        assert_eq!(contract.operations.len(), 14);
+        assert_eq!(contract.operations.len(), 15);
         assert_eq!(contract.data_types.len(), 4);
 
         // Every operation requires auth; every mutating route's right is listed.

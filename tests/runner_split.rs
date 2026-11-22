@@ -106,6 +106,9 @@ async fn ci_history_draws_one_queued_and_one_busy_chart_per_pool() {
             probe_self: false,
             costs_file: None,
             skill_usage_file: None,
+            quic: None,
+            quic_names: vec![],
+            require_quic: false,
         }),
         runners: toml::from_str(
             r#"

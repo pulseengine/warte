@@ -75,6 +75,22 @@ The resolution is one ground-station snapshot, about a minute. `--url`
 defaults to `WARTE_URL`, then to the configured bind address. Behind a reverse proxy with its own local CA (e.g. Caddy's `tls internal`), pass that CA with `--ca-cert <pem>` or `WARTE_CA_CERT`; it is trusted in addition to the operating system's trust store. There is no switch to skip certificate checks. The server
 side is `GET /api/watch`; see `/api/openapi.json`.
 
+## warte admit
+
+`warte admit` asks warte for admission before a pull request is opened
+(REQ-QUEUE-005, #70), prints the JSON verdict and exits with it, so a chained
+`gh pr create` cannot skip a `batch` or `hold`:
+
+```sh
+warte admit --repo spar --kind fix && gh pr create ...
+until warte admit --repo spar --kind feature; do sleep 600; done   # wait out a hold
+```
+
+Exit codes: `0` open, `10` batch, `11` hold, `1` anything else (warte
+unreachable, a refused request, an unknown verdict): an error is never a go.
+`--kind` is `docs`, `fix`, `feature`, `security` or `red-main`. It shares
+`--url`/`WARTE_URL` and `--ca-cert`/`WARTE_CA_CERT` with `warte watch`.
+
 ## warte probe
 
 `warte probe report` collects once and prints what this machine is and
@@ -99,6 +115,29 @@ IO pressure (`/proc/pressure/io`, some/full avg60). The Machines view
 shows them; findings: a spinning disk at least 60 % busy or 100 ms per
 request is amber, 90 % busy red; IO pressure at least 20 % amber, 50 % red.
 The fields are optional, so older probes and ground stations keep working.
+
+### Night window from Focus (REQ-FOCUS-001)
+
+`warte probe focus` (macOS) derives the attention schedule's `available`
+hours from the night Focus's schedule: the day outside the night window,
+as one span (22:30 to 06:30 at night gives `06:30-22:30`). It reads only
+`~/Library/DoNotDisturb/DB/ModeConfigurations.json`, which needs Full Disk
+Access, and sends nothing anywhere.
+
+```sh
+warte probe focus                                   # print the derived span
+warte probe focus --write ~/.config/pulseengine/attention.json
+warte probe focus --mode "Do Not Disturb"           # another Focus, by name or id
+```
+
+The default night Focus is Sleep, by its identifier
+`com.apple.sleep.sleep-mode` (its name is localized). `--write` replaces only
+`available` and keeps every other key's value as it was; it never writes
+`off`. Anything in doubt writes nothing and exits 1 with the reason: an
+unreadable file, a format that changed, no enabled schedule, a Sleep Focus
+driven by the Health sleep schedule (which has no times in this file), more
+than one schedule, or a schedule for some days only (its day order is not
+confirmed yet).
 
 ### Disk pressure (REQ-PRESSURE-002)
 
@@ -175,6 +214,36 @@ within 10 minutes and is newer than the last one from that host (no
 replays). A signature, not mutual TLS, so it works behind a reverse proxy
 that terminates TLS.
 
+### Security findings (REQ-FINDINGS-001)
+
+Detectors on a machine (a baseline-drift check, AIDE, Falco) write one
+`security-findings.v1` file, and the probe forwards it as the `security`
+feed (APID 0x401, signed like every feed):
+
+```bash
+warte probe send --ground https://<host>/warte \
+  --feed security=/var/lib/detectors/findings.json
+```
+
+```json
+{"schema": "security-findings.v1", "generated_at": "2026-11-22T02:00:00Z",
+ "findings": [{"source": "drift", "rule": "new-ssh-key", "severity": "high",
+               "subject": "SHA256:...", "first_seen": "2026-11-22T01:00:00Z",
+               "last_seen": "2026-11-22T02:00:00Z", "count": 1}]}
+```
+
+`source` is `drift`, `aide`, `falco` or `other`; `severity` is `low`,
+`medium`, `high` or `critical`; `rule` is at most 80 characters, `subject` at
+most 200; at most 500 findings, so summarize a chatty detector. Metadata only:
+an unknown field, such as file contents, refuses the whole report. Any
+enrolled, unrevoked host may send its own findings; each send replaces that
+host's set, and one not newer than the last is refused as a replay.
+
+Machines, Security shows the open findings, highest first; the owner can
+accept one into that host's baseline so it stops alerting. High and critical
+open findings, and a host whose findings stopped for over 36 hours (the
+detector may have died), are items on the night glance.
+
 ### Feeds: forwarding temper's report (REQ-TEMPER-002)
 
 A probe can also forward a file another service on its machine writes.
@@ -189,7 +258,8 @@ After the machine report, the probe sends the file as one CCSDS segmented
 sequence on APID 0x400 (the relay-ccsds codec the fleet agent's telemetry
 uses), signed with its key, to `POST /api/probe/feed/temper`. A missing or
 refused feed fails the run but does not hold back the machine report. Only
-known feeds are accepted (`temper`); an unknown name is a usage error.
+known feeds are accepted (`temper`, `security`); an unknown name is a usage
+error.
 
 On the ground station, name the one host whose temper feed counts:
 
@@ -264,8 +334,9 @@ warte probe revoke --host <host>     # on the ground station
 refuses every certificate the host holds now, for reports and renewals,
 until it enrolls again with a new token (`warte probe token --host <host>`).
 
-`POST /api/probe/enroll`, `/api/probe/report`, `/api/probe/renew` and
-`/api/probe/feed/temper` are the only write endpoints usable without the
+`POST /api/probe/enroll`, `/api/probe/report`, `/api/probe/renew`,
+`/api/probe/feed/temper` and `/api/probe/feed/security` are the only write
+endpoints usable without the
 dashboard's login: the one-time token and the signatures are their
 authentication. Every refusal gets the same answer;
 the reason is in the server log.

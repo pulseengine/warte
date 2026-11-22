@@ -8,6 +8,8 @@
 //! Stale or missing data never gates: warte does not hold an agent on numbers
 //! it does not have.
 
+pub mod admit;
+
 use crate::hub::model::Snapshot;
 use serde::Serialize;
 use std::collections::BTreeSet;
