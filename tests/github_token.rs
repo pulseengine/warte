@@ -20,6 +20,8 @@ use warte::ghtoken::{
 
 const APP_ID: u64 = 4242;
 const INST: u64 = 77;
+/// A second installation of the same App, on another account (REQ-GHTOKEN-006).
+const INST2: u64 = 78;
 const PK8: &[u8] = include_bytes!("fixtures/oidc-test-rsa.pk8");
 
 #[derive(Default)]
@@ -28,6 +30,8 @@ struct Gh {
     revoked: Vec<String>,
     minted: u32,
     overgrant: bool,
+    /// The installation each mint went to.
+    insts: Vec<u64>,
 }
 
 #[derive(Clone)]
@@ -70,11 +74,12 @@ async fn access_tokens(
     headers: HeaderMap,
     Json(body): Json<Value>,
 ) -> Response {
-    if inst != INST || !jwt_ok(&m, &headers) {
+    if ![INST, INST2].contains(&inst) || !jwt_ok(&m, &headers) {
         return StatusCode::UNAUTHORIZED.into_response();
     }
     let mut g = m.gh.lock().unwrap();
     g.minted += 1;
+    g.insts.push(inst);
     g.asked.push(body.clone());
     let mut perms = body["permissions"].clone();
     if g.overgrant {
@@ -199,6 +204,10 @@ async fn start(per_agent: u32) -> T {
     let dir = tempfile::tempdir().unwrap();
     let mut g = app_config(dir.path(), &api);
     g.per_agent_per_hour = per_agent;
+    g.installations.push(warte::ghtoken::Installation {
+        account: "example-user".into(),
+        installation_id: INST2,
+    });
     let config = warte::Config {
         db_path: dir.path().join("state.db"),
         ca_cert_path: dir.path().join("ca.pem"),
@@ -259,7 +268,7 @@ async fn ask(t: &T, path_agent: &str, bearer: Option<&str>, body: Value) -> (u16
 async fn assign(t: &T, agent: &str, repos: &[&str]) {
     let v: Vec<String> = repos.iter().map(|s| s.to_string()).collect();
     t.store
-        .set_repos(agent, &v, Some("pulseengine"))
+        .set_repos(agent, &v, &["pulseengine".to_string()])
         .await
         .unwrap();
 }
@@ -336,7 +345,7 @@ async fn a_token_reaches_only_the_operator_assigned_repos_and_requests_only_narr
     let bad = vec!["someone-else/repo".to_string()];
     assert!(t
         .store
-        .set_repos("a1", &bad, Some("pulseengine"))
+        .set_repos("a1", &bad, &["pulseengine".to_string()])
         .await
         .is_err());
 }
@@ -664,4 +673,76 @@ async fn the_client_and_git_helper_get_a_token_without_a_file() {
         .map(|e| e.unwrap().file_name())
         .collect();
     assert_eq!(before, after, "the client wrote no file");
+}
+
+// rivet: verifies REQ-GHTOKEN-006
+#[tokio::test]
+async fn each_account_mints_from_its_own_installation_and_no_token_spans_two() {
+    let t = start(10).await;
+    let accounts: Vec<String> = t
+        .config
+        .github_app
+        .as_ref()
+        .unwrap()
+        .all_installations()
+        .into_iter()
+        .map(|(a, _)| a)
+        .collect();
+    assert_eq!(accounts, ["pulseengine", "example-user"]);
+    let set = |agent: &'static str, repos: &[&str]| {
+        let v: Vec<String> = repos.iter().map(|s| s.to_string()).collect();
+        let (store, accounts) = (t.store.clone(), accounts.clone());
+        async move { store.set_repos(agent, &v, &accounts).await }
+    };
+    set("a1", &["pulseengine/warte"]).await.unwrap();
+    set("b2", &["Example-User/reader"]).await.unwrap();
+    // planted: one agent's repositories under two accounts, or under none
+    assert!(set("a1", &["pulseengine/warte", "example-user/reader"])
+        .await
+        .unwrap_err()
+        .contains("different accounts"));
+    assert!(set("a1", &["someone-else/repo"]).await.is_err());
+
+    let (s, _) = ask(&t, "a1", Some(&tok(&t, "a1", &["github:token"])), json!({})).await;
+    assert_eq!(s, 200);
+    let (s, _) = ask(&t, "b2", Some(&tok(&t, "b2", &["github:token"])), json!({})).await;
+    assert_eq!(s, 200);
+    let g = t.gh.lock().unwrap();
+    assert_eq!(g.insts, [INST, INST2], "each account's own installation");
+    assert_eq!(g.asked[1]["repositories"], json!(["reader"]));
+}
+
+// rivet: verifies REQ-GHTOKEN-006
+#[test]
+fn the_installation_list_is_checked() {
+    let parse = |extra: &str| -> Result<(), String> {
+        let g: GithubAppConfig = toml::from_str(&format!("app_id = 1\nkey_path = \"/k\"\n{extra}"))
+            .map_err(|e| e.to_string())?;
+        g.check()
+    };
+    let one = "[[installation]]\naccount = \"a\"\ninstallation_id = 1\n";
+    parse("account = \"a\"\ninstallation_id = 1\n").unwrap();
+    parse(one).unwrap();
+    parse("account = \"a\"\ninstallation_id = 1\n[[installation]]\naccount = \"b\"\ninstallation_id = 2\n")
+    .unwrap();
+    // planted: none, half a pair, the same account twice (any case), the same id twice
+    assert!(parse("").unwrap_err().contains("names no installation"));
+    assert!(parse("account = \"a\"\n")
+        .unwrap_err()
+        .contains("go together"));
+    assert!(
+        parse(&format!("account = \"A\"\ninstallation_id = 9\n{one}"))
+            .unwrap_err()
+            .contains("listed twice")
+    );
+    assert!(parse(&format!(
+        "{one}[[installation]]\naccount = \"b\"\ninstallation_id = 1\n"
+    ))
+    .unwrap_err()
+    .contains("listed twice"));
+    assert!(
+        parse("[[installation]]\naccount = \"a/b\"\ninstallation_id = 3\n")
+            .unwrap_err()
+            .contains("not a GitHub account name")
+    );
 }

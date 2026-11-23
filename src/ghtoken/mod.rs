@@ -68,11 +68,17 @@ fn default_global() -> u32 {
 pub struct GithubAppConfig {
     /// The App's id.
     pub app_id: u64,
-    /// The installation whose tokens are minted.
-    pub installation_id: u64,
-    /// The account (organisation or user) the installation belongs to; every
-    /// repository a token reaches must be under it.
-    pub account: String,
+    /// The installation whose tokens are minted, with `account`. Optional when
+    /// `[[github_app.installation]]` lists the installations instead.
+    #[serde(default)]
+    pub installation_id: Option<u64>,
+    /// The account (organisation or user) that installation belongs to.
+    #[serde(default)]
+    pub account: Option<String>,
+    /// More installations of the same App on other accounts
+    /// (REQ-GHTOKEN-006). One token reaches repositories of one account only.
+    #[serde(default, rename = "installation")]
+    pub installations: Vec<Installation>,
     /// The App's private key (PEM, PKCS#1 or PKCS#8), readable by the owner only.
     pub key_path: PathBuf,
     #[serde(default = "default_api")]
@@ -86,7 +92,38 @@ pub struct GithubAppConfig {
     pub global_per_hour: u32,
 }
 
+/// One installation of the App: the account it is installed on and its id.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct Installation {
+    pub account: String,
+    pub installation_id: u64,
+}
+
 impl GithubAppConfig {
+    /// Every configured installation as (account, id): the top-level pair
+    /// first, then the list.
+    pub fn all_installations(&self) -> Vec<(String, u64)> {
+        let mut v = Vec::new();
+        if let (Some(a), Some(i)) = (&self.account, self.installation_id) {
+            v.push((a.clone(), i));
+        }
+        v.extend(
+            self.installations
+                .iter()
+                .map(|i| (i.account.clone(), i.installation_id)),
+        );
+        v
+    }
+
+    /// The installation id for `account`, compared without case.
+    pub fn installation_for(&self, account: &str) -> Option<u64> {
+        self.all_installations()
+            .into_iter()
+            .find(|(a, _)| a.eq_ignore_ascii_case(account))
+            .map(|(_, i)| i)
+    }
+
     /// Refuse a plain-http API, a permission above the ceiling, or limits
     /// that make no sense.
     pub fn check(&self) -> Result<(), String> {
@@ -96,8 +133,27 @@ impl GithubAppConfig {
         if !self.api_base.starts_with("https://") && !loopback {
             return Err("[github_app] api_base must be https (plain http only on loopback)".into());
         }
-        if !valid_part(&self.account) {
-            return Err("[github_app] account is not a GitHub account name".into());
+        if self.account.is_some() != self.installation_id.is_some() {
+            return Err("[github_app] account and installation_id go together".into());
+        }
+        let all = self.all_installations();
+        if all.is_empty() {
+            return Err("[github_app] names no installation: set account and installation_id, or [[github_app.installation]]".into());
+        }
+        for (i, (a, id)) in all.iter().enumerate() {
+            if !valid_part(a) {
+                return Err(format!(
+                    "[github_app] account {a:?} is not a GitHub account name"
+                ));
+            }
+            if all[..i]
+                .iter()
+                .any(|(b, j)| b.eq_ignore_ascii_case(a) || j == id)
+            {
+                return Err(format!(
+                    "[github_app] account {a} or installation {id} is listed twice"
+                ));
+            }
         }
         if self.permissions.is_empty() {
             return Err("[github_app] permissions is empty".into());
@@ -310,22 +366,31 @@ impl Store {
             .collect())
     }
 
-    /// Replace an agent's repositories (1..=MAX_REPOS, each `owner/name`,
-    /// under `account` when one is configured). Keeps its grants.
+    /// Replace an agent's repositories (1..=MAX_REPOS, each `owner/name`).
+    /// With accounts configured, each is under one of them, and all under the
+    /// same one: a token cannot span accounts. Keeps its grants.
     pub async fn set_repos(
         &self,
         name: &str,
         repos: &[String],
-        account: Option<&str>,
+        accounts: &[String],
     ) -> Result<Vec<String>, String> {
         let mut v: Vec<String> = Vec::new();
         for r in repos {
             if !valid_repo(r) {
                 return Err(format!("{r:?} is not owner/name"));
             }
-            if let Some(a) = account {
-                if !r.split('/').next().unwrap_or("").eq_ignore_ascii_case(a) {
-                    return Err(format!("{r} is not under the App's account {a}"));
+            let owner = r.split('/').next().unwrap_or("");
+            if !accounts.is_empty() && !accounts.iter().any(|a| a.eq_ignore_ascii_case(owner)) {
+                return Err(format!(
+                    "{r} is not under an account the App is installed on ({})",
+                    accounts.join(", ")
+                ));
+            }
+            if let Some(first) = v.first() {
+                let first_owner = first.split('/').next().unwrap_or("");
+                if !accounts.is_empty() && !first_owner.eq_ignore_ascii_case(owner) {
+                    return Err(format!("{r} and {first} are under different accounts; one agent's repositories share one account"));
                 }
             }
             if !v.iter().any(|x| x.eq_ignore_ascii_case(r)) {
@@ -565,10 +630,25 @@ impl Broker {
                 format!("ask for 1 to {MAX_REPOS} repositories"),
             ));
         }
+        // one installation per token (REQ-GHTOKEN-006): every repository under
+        // the same configured account
+        let account = repos[0].split('/').next().unwrap_or("").to_string();
+        let Some(installation) = self.cfg.installation_for(&account) else {
+            return fail(refuse(
+                403,
+                format!(
+                    "{} is not under an account the App is installed on",
+                    repos[0]
+                ),
+            ));
+        };
         for r in &repos {
             let owner = r.split('/').next().unwrap_or("");
-            if !owner.eq_ignore_ascii_case(&self.cfg.account) {
-                return fail(refuse(403, format!("{r} is not under the App's account")));
+            if !owner.eq_ignore_ascii_case(&account) {
+                return fail(refuse(
+                    403,
+                    format!("{r} is under another account; one token reaches one account"),
+                ));
             }
         }
         repos.sort();
@@ -649,7 +729,7 @@ impl Broker {
         let url = format!(
             "{}/app/installations/{}/access_tokens",
             self.cfg.api_base.trim_end_matches('/'),
-            self.cfg.installation_id
+            installation
         );
         let resp = self
             .http
@@ -933,7 +1013,11 @@ pub mod cli {
     pub async fn repos(config_path: Option<&Path>, action: ReposCommands) -> i32 {
         let run = async {
             let config = crate::config::Config::load_at(config_path).map_err(|e| e.to_string())?;
-            let account = config.github_app.as_ref().map(|g| g.account.clone());
+            let accounts: Vec<String> = config
+                .github_app
+                .as_ref()
+                .map(|g| g.all_installations().into_iter().map(|(a, _)| a).collect())
+                .unwrap_or_default();
             let db = crate::db::Database::connect(&config.db_path)
                 .await
                 .map_err(|e| e.to_string())?;
@@ -952,7 +1036,7 @@ pub mod cli {
                     if !store.agent_exists(&name).await? {
                         eprintln!("note: no agent named {name} is registered yet");
                     }
-                    let v = store.set_repos(&name, &repos, account.as_deref()).await?;
+                    let v = store.set_repos(&name, &repos, &accounts).await?;
                     println!("{name}: {}", v.join(" "));
                 }
                 ReposCommands::Clear { name } => {

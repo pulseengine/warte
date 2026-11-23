@@ -189,3 +189,50 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-11-22T12:00:00Z
+
+  - id: REQ-GHTOKEN-006
+    type: requirement
+    title: The broker serves several installations of its App, one account per token
+    status: verified
+    release: v1.6.45
+    description: "[github_app] SHALL accept installations of the same App on several accounts: the existing account and installation_id pair and a [[github_app.installation]] list, each account and installation id at most once, at least one in all. An agent's repositories SHALL all be under one configured account; its token SHALL be minted from that account's installation, and a request whose repositories span accounts or fall outside every configured account SHALL be refused with 403. Rate limits, audit, revocation and the per-agent grants are unchanged and apply on every account alike."
+    fields:
+      category: functional
+      priority: should
+    links:
+      - type: refines
+        target: REQ-GHTOKEN-002
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-22T16:00:00Z
+
+  - id: DD-GHTOKEN-003
+    type: design-decision
+    title: One App and key, a list of installations, and the account chosen from the repositories
+    status: verified
+    release: v1.6.45
+    description: "The owner chose on 2026-11-22 to install the same App on a personal account for selected repositories rather than add a second App. The config keeps the single pair for existing deployments and adds a list; the installation for a mint is the one whose account owns the requested repositories, compared without case. An installation token cannot span accounts, so the store already refuses an agent assigned to two accounts, and the mint refuses it again in case a row was written another way."
+    fields:
+      rationale: "One key on the host instead of two; account names stay in the private deployment config."
+    links:
+      - type: satisfies
+        target: REQ-GHTOKEN-006
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-22T16:00:00Z
+
+  - id: TEST-GHTOKEN-003
+    type: verification
+    title: Each account mints from its own installation; mixed or unknown accounts and a bad list are refused
+    status: verified
+    release: v1.6.45
+    description: "tests/github_token.rs each_account_mints_from_its_own_installation_and_no_token_spans_two: with two installations on the mock, an agent on each account gets a token from its own installation id, and the store refuses repositories under two accounts or under none. the_installation_list_is_checked: no installation, half a pair, an account twice in any case, an id twice and a malformed account are refused. Negative controls: minting always from the first installation, and dropping the one-account rule, each failed the first test."
+    links:
+      - type: verifies
+        target: REQ-GHTOKEN-006
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-22T16:00:00Z
