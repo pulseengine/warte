@@ -157,6 +157,10 @@ pub struct Config {
     /// watches its own certificates and the tokens it sees.
     #[serde(default)]
     pub expiry: Option<crate::expiry::ExpiryConfig>,
+    /// Push alerts to an ntfy topic (REQ-ALERT-003). Without it alerts are
+    /// recorded as notices only.
+    #[serde(default)]
+    pub notify: Option<crate::alerts::ntfy::NotifyConfig>,
 }
 
 /// Machine history retention (REQ-MHIST-001).
@@ -421,6 +425,7 @@ impl Default for Config {
             reviews: None,
             canaries: None,
             expiry: None,
+            notify: None,
         }
     }
 }

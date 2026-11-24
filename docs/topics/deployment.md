@@ -291,6 +291,30 @@ address = "9.9.9.9"
   unauthenticated. The names are shown as written, so list only public
   hosts here.
 
+## Push alerts (ntfy)
+
+Without this section alerts are recorded as `notice.v1` notices only, and
+someone has to read them (REQ-ALERT-003). With it, every alert that opens,
+escalates or clears is also published to an ntfy topic:
+
+```toml
+[notify]
+ntfy_url   = "https://ntfy.example/"   # https, or http on loopback only
+topic      = "warte-alerts"
+token_file = "/etc/warte/ntfy-token"   # optional, mode 600, read on every push
+click      = "https://warte.example/outages"  # optional, where a tap leads
+```
+
+- The same debouncing and the same cap of 5 notices per minute apply, so a
+  push is sent only when a notice is recorded.
+- Priority follows severity: down (red) is 4, degraded (amber) is 3, a clear
+  is 2.
+- A push carries the finding's text with every path replaced by `[path]`. It
+  never carries the finding key, the token or an error body. A refused push
+  is logged with its HTTP status only.
+- A token file other users can read sends nothing. A malformed section, an
+  unknown key or a non-https URL stops startup.
+
 ## Expiry dates
 
 What runs out, and when (REQ-PREDICT-004). Without any section warte

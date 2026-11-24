@@ -329,6 +329,10 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
         None => None,
     };
 
+    if let Some(n) = &config.notify {
+        n.check().map_err(anyhow::Error::msg)?;
+    }
+
     let canaries = match &config.canaries {
         Some(c) => {
             let resolvers = c.resolvers().map_err(anyhow::Error::msg)?;

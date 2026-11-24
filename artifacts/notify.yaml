@@ -1,0 +1,50 @@
+# Alerts pushed to an ntfy topic. 2026-11-24: a runner volume reached 100% and
+# all runners died; warte's disk alerts were recorded as notices and nobody
+# was told. The owner chose self-hosted ntfy for delivery.
+artifacts:
+  - id: REQ-ALERT-003
+    type: requirement
+    title: With [notify], every alert that opens, escalates or clears is also pushed to an ntfy topic
+    status: verified
+    release: v1.6.46
+    description: "With a [notify] section (ntfy_url, topic, optional token_file and click), warte SHALL publish each alert notice it records to the topic, with the same debouncing and per-evaluation cap, and a priority from the severity: down 4, degraded 3, cleared 2. A push SHALL carry the finding's text with every path replaced by [path], and SHALL NOT carry the finding key, a token or an error body. The token SHALL be read from a mode-600 file on every push; a file other users can read SHALL send nothing. A non-https URL (http only on loopback), a malformed topic, a non-https click or an unknown key SHALL stop startup. Without [notify] nothing SHALL be sent."
+    fields:
+      category: functional
+      priority: must
+    links:
+      - type: refines
+        target: REQ-ALERT-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-24T22:40:00Z
+
+  - id: DD-ALERT-003
+    type: design-decision
+    title: Push the recorded notices, not a second evaluation; redact text, never send keys
+    status: verified
+    release: v1.6.46
+    description: "The push is sent from the alerts loop after the notices are recorded, from the same list, so hysteresis, worst-first ordering and the cap of 5 per minute need no second implementation. The message is built from the notice title only; the body (which carries the finding key with its mount path) is never sent. Paths are replaced word by word. The token file reuses the reviews token reader with its mode check, and is re-read per push so rotation needs no restart."
+    fields:
+      rationale: "One source of alert events keeps the push and the notices from disagreeing; the topic leaves warte's host, so it carries no paths."
+    links:
+      - type: satisfies
+        target: REQ-ALERT-003
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-24T22:40:00Z
+
+  - id: TEST-ALERT-003
+    type: verification
+    title: Config refusals, redaction and priorities, the token header, an unsafe token file, startup refusal
+    status: verified
+    release: v1.6.46
+    description: "tests/notify.rs: http to a non-loopback host, a look-alike loopback host, a bad topic, an http click and an unknown key are refused, and a bad [notify] stops build_state; each event kind maps to its priority and title and the push holds [path] but no mount path or finding key; two notices reach a mock ntfy server worst first with the bearer token from the file, a mode-644 token file sends nothing, and no token file sends no Authorization header. Negative controls: a no-op redact and removing the startup check each failed a test."
+    links:
+      - type: verifies
+        target: REQ-ALERT-003
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-24T22:40:00Z
