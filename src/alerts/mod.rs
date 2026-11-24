@@ -15,6 +15,8 @@
 //! are folded into one summary, so a fan-out cannot flood the owner.
 
 use crate::dashboard::fleet::Detected;
+
+pub mod ntfy;
 use std::collections::HashMap;
 
 /// Consecutive evaluations a red finding must be present before it opens.
@@ -222,6 +224,8 @@ pub fn notices(
 pub fn spawn(state: crate::server::AppState) {
     tokio::spawn(async move {
         let mut tracker = Tracker::default();
+        let http = reqwest::Client::new();
+        let disk = state.config.disk_levels();
         let mut id: Option<String> = None;
         let mut tick = tokio::time::interval(std::time::Duration::from_secs(60));
         loop {
@@ -229,7 +233,7 @@ pub fn spawn(state: crate::server::AppState) {
             let mut found = state
                 .hub
                 .as_ref()
-                .and_then(crate::dashboard::fleet::detected)
+                .and_then(|h| crate::dashboard::fleet::detected_with(h, &disk))
                 .map(|(l, _)| l)
                 .unwrap_or_default();
             if let Ok(st) = state.status.get_status().await {
@@ -256,10 +260,15 @@ pub fn spawn(state: crate::server::AppState) {
                 },
             };
             let _ = state.agents.heartbeat(&id).await;
-            for n in notices(&events, chrono::Utc::now(), None) {
-                if let Err(err) = record(&state, &id, &n).await {
+            let ns = notices(&events, chrono::Utc::now(), None);
+            for n in &ns {
+                if let Err(err) = record(&state, &id, n).await {
                     tracing::warn!(error = %err, "alert notice not recorded");
                 }
+            }
+            // the same notices, pushed (REQ-ALERT-003)
+            if let (Some(cfg), false) = (&state.config.notify, ns.is_empty()) {
+                ntfy::deliver(&http, cfg, &ns).await;
             }
         }
     });

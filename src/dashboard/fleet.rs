@@ -413,6 +413,11 @@ fn found(list: &mut Vec<Detected>, key: impl Into<String>, sev: u8, text: String
 /// What the latest snapshot and the telemetry link show as wrong, worst
 /// first, with the snapshot's time. None without a hub or a snapshot.
 pub fn detected(hub: &Hub) -> Option<(Vec<Detected>, i64)> {
+    detected_with(hub, &Default::default())
+}
+
+/// [`detected`] with per-mount disk levels (REQ-ALERT-004).
+pub fn detected_with(hub: &Hub, disk: &crate::config::DiskLevels) -> Option<(Vec<Detected>, i64)> {
     let (s, at) = hub.snapshot()?;
     let t = now();
     let mut list: Vec<Detected> = Vec::new();
@@ -463,11 +468,20 @@ pub fn detected(hub: &Hub) -> Option<(Vec<Detected>, i64)> {
             );
         }
     }
-    for d in s.machine.disks.iter().filter(|d| d.used_pct >= 85.0) {
+    for d in s
+        .machine
+        .disks
+        .iter()
+        .filter(|d| d.used_pct >= disk.of(&d.mount).amber)
+    {
         found(
             &mut list,
             format!("disk:{}", d.mount),
-            if d.used_pct >= 95.0 { 2 } else { 1 },
+            if d.used_pct >= disk.of(&d.mount).red {
+                2
+            } else {
+                1
+            },
             format!("Disk {} is {:.0}% full.", d.mount, d.used_pct),
         );
     }
@@ -611,10 +625,7 @@ pub fn github_detected(st: &crate::status::GitHubStatus) -> Vec<Detected> {
 pub fn host_detected(state: &crate::server::AppState, now: i64) -> Vec<Detected> {
     let mut list = Vec::new();
     if let Some(m) = &state.machines {
-        for f in crate::probe::findings(&m.list(), now)
-            .into_iter()
-            .filter(|f| f.severity == "red")
-        {
+        for f in m.findings(now).into_iter().filter(|f| f.severity == "red") {
             // the key must not change while the finding lasts: no counts in it
             let stable: String = f.text.chars().filter(|c| !c.is_ascii_digit()).collect();
             found(

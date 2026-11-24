@@ -4,6 +4,10 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.46 — 2026-11-24
+
+- **Disk alert levels per mount** (REQ-ALERT-004). `[alerts.disk]` sets amber and red for a mount point, e.g. `"/srv/ci" = { amber = 75, red = 85 }`, for a volume that fills faster than 85/95 leaves time for. Other mounts keep 85 and 95.
+- **Alerts can be pushed to an ntfy topic** (REQ-ALERT-003). With a `[notify]` section, every alert that opens, escalates or clears is also published, with priority by severity, paths replaced by `[path]`, and the token read from a mode-600 file. Without it nothing changes (`warte docs deployment`).
 - **CI: jig shadow pilot on jig v0.1.4.** Both jig calls move from v0.1.1 to the commit that records the v0.1.4 archive digest; the `required / verdict` job now uploads its record as the `jig-record-<attempt>` artifact. No required check changes.
 
 ## v1.6.45 — 2026-11-22

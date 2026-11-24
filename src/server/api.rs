@@ -1368,7 +1368,7 @@ async fn api_machines(State(state): State<AppState>) -> axum::response::Response
             })
         })
         .collect();
-    let mut findings = crate::probe::findings(&seen, now);
+    let mut findings = m.findings(now);
     findings.extend(m.history().and_then(|h| h.finding(now)));
     Json(serde_json::json!({
         "machines": machines,

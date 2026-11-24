@@ -291,6 +291,47 @@ address = "9.9.9.9"
   unauthenticated. The names are shown as written, so list only public
   hosts here.
 
+## Push alerts (ntfy)
+
+Without this section alerts are recorded as `notice.v1` notices only, and
+someone has to read them (REQ-ALERT-003). With it, every alert that opens,
+escalates or clears is also published to an ntfy topic:
+
+```toml
+[notify]
+ntfy_url   = "https://ntfy.example/"   # https, or http on loopback only
+topic      = "warte-alerts"
+token_file = "/etc/warte/ntfy-token"   # optional, mode 600, read on every push
+click      = "https://warte.example/outages"  # optional, where a tap leads
+```
+
+- The same debouncing and the same cap of 5 notices per minute apply, so a
+  push is sent only when a notice is recorded.
+- Priority follows severity: down (red) is 4, degraded (amber) is 3, a clear
+  is 2.
+- A push carries the finding's text with every path replaced by `[path]`. It
+  never carries the finding key, the token or an error body. A refused push
+  is logged with its HTTP status only.
+- On a public ntfy server the topic name is the only access control: use a
+  self-hosted server, or a token with a topic that requires it.
+- A token file other users can read sends nothing. A malformed section, an
+  unknown key or a non-https URL stops startup.
+
+## Disk alert levels
+
+A disk is amber at 85% and red at 95% used. To alert earlier on one mount,
+for example a volume that fills fast (REQ-ALERT-004):
+
+```toml
+[alerts.disk]
+"/srv/ci" = { amber = 75, red = 85 }
+```
+
+Each key is a mount point as the probe or fleet agent reports it, and it
+applies on every host that has it. Levels need 0 < amber < red <= 100; a
+bad entry or an unknown key stops startup. Amber findings show on Machines;
+red ones are outages and alert, and push with `[notify]`.
+
 ## Expiry dates
 
 What runs out, and when (REQ-PREDICT-004). Without any section warte

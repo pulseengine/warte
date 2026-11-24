@@ -157,6 +157,77 @@ pub struct Config {
     /// watches its own certificates and the tokens it sees.
     #[serde(default)]
     pub expiry: Option<crate::expiry::ExpiryConfig>,
+    /// Push alerts to an ntfy topic (REQ-ALERT-003). Without it alerts are
+    /// recorded as notices only.
+    #[serde(default)]
+    pub notify: Option<crate::alerts::ntfy::NotifyConfig>,
+    /// Alert thresholds (REQ-ALERT-004): per-mount disk levels.
+    #[serde(default)]
+    pub alerts: Option<AlertsConfig>,
+}
+
+/// `[alerts]` in warte.toml.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AlertsConfig {
+    /// Per mount point, the percentage at which a disk is amber and red;
+    /// any other mount uses 85 and 95.
+    #[serde(default)]
+    pub disk: std::collections::BTreeMap<String, DiskLevel>,
+}
+
+/// One mount's disk levels, in percent used.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DiskLevel {
+    pub amber: f64,
+    pub red: f64,
+}
+
+/// Disk alert levels by mount point (REQ-ALERT-004).
+#[derive(Debug, Clone, Default)]
+pub struct DiskLevels(std::collections::BTreeMap<String, DiskLevel>);
+
+impl DiskLevels {
+    /// The default amber and red levels, in percent used.
+    pub const DEFAULT: DiskLevel = DiskLevel {
+        amber: 85.0,
+        red: 95.0,
+    };
+
+    /// The levels for `mount`.
+    pub fn of(&self, mount: &str) -> DiskLevel {
+        self.0.get(mount).copied().unwrap_or(Self::DEFAULT)
+    }
+}
+
+impl Config {
+    /// The configured disk levels; defaults if `[alerts]` is absent or was
+    /// refused (startup refuses a bad one first).
+    pub fn disk_levels(&self) -> DiskLevels {
+        self.alerts
+            .as_ref()
+            .and_then(|a| a.check().ok())
+            .unwrap_or_default()
+    }
+}
+
+impl AlertsConfig {
+    /// Refuse levels that could never alert or never clear. An error names
+    /// the mount.
+    pub fn check(&self) -> Result<DiskLevels, String> {
+        for (m, l) in &self.disk {
+            if !m.starts_with('/') {
+                return Err(format!(
+                    "[alerts.disk] {m:?}: a mount point starting with /"
+                ));
+            }
+            if !(l.amber > 0.0 && l.amber < l.red && l.red <= 100.0) {
+                return Err(format!("[alerts.disk] {m:?}: needs 0 < amber < red <= 100"));
+            }
+        }
+        Ok(DiskLevels(self.disk.clone()))
+    }
 }
 
 /// Machine history retention (REQ-MHIST-001).
@@ -421,6 +492,8 @@ impl Default for Config {
             reviews: None,
             canaries: None,
             expiry: None,
+            notify: None,
+            alerts: None,
         }
     }
 }
