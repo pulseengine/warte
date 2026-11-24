@@ -3,7 +3,7 @@
 //! Host names, paths and tool output come from the machines: escaped.
 
 use super::fleet::{dur_pub as dur, esc};
-use crate::probe::{findings, Finding, Machines, Seen, MACHINE_STALE_S};
+use crate::probe::{Finding, Machines, Seen, MACHINE_STALE_S};
 
 fn meter(label: &str, value: String, pct: f64, hot: bool) -> String {
     format!(
@@ -781,7 +781,7 @@ pub fn view_open(
     let (key, span) = super::charts::range(range);
     let hist = machines.and_then(Machines::history);
     let seen = machines.map(Machines::list).unwrap_or_default();
-    let mut all = findings(&seen, now);
+    let mut all = machines.map(|m| m.findings(now)).unwrap_or_default();
     all.extend(
         machines
             .and_then(Machines::history)

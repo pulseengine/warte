@@ -315,6 +315,21 @@ click      = "https://warte.example/outages"  # optional, where a tap leads
 - A token file other users can read sends nothing. A malformed section, an
   unknown key or a non-https URL stops startup.
 
+## Disk alert levels
+
+A disk is amber at 85% and red at 95% used. To alert earlier on one mount,
+for example a volume that fills fast (REQ-ALERT-004):
+
+```toml
+[alerts.disk]
+"/var/lib/runners" = { amber = 75, red = 85 }
+```
+
+Each key is a mount point as the probe or fleet agent reports it, and it
+applies on every host that has it. Levels need 0 < amber < red <= 100; a
+bad entry or an unknown key stops startup. Amber findings show on Machines;
+red ones are outages and alert, and push with `[notify]`.
+
 ## Expiry dates
 
 What runs out, and when (REQ-PREDICT-004). Without any section warte

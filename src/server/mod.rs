@@ -213,7 +213,8 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
     }
     .map(|(dir, probe_self)| {
         let m = Arc::new(crate::probe::Machines::open(&dir));
-        // history next to machines.json; without it warte works as before
+        m.set_disk_levels(config.disk_levels()); // REQ-ALERT-004
+                                                 // history next to machines.json; without it warte works as before
         match crate::history::History::open(&dir) {
             Ok(h) => {
                 if let Some(d) = config.history.as_ref().and_then(|c| c.keep_days) {
@@ -331,6 +332,9 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
 
     if let Some(n) = &config.notify {
         n.check().map_err(anyhow::Error::msg)?;
+    }
+    if let Some(a) = &config.alerts {
+        a.check().map_err(anyhow::Error::msg)?;
     }
 
     let canaries = match &config.canaries {

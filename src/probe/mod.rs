@@ -601,6 +601,8 @@ pub struct Machines {
     path: std::path::PathBuf,
     /// Where accepted reports' numbers go over time (REQ-MHIST-001).
     history: std::sync::OnceLock<crate::history::History>,
+    /// Disk alert levels by mount (REQ-ALERT-004); defaults until set.
+    disk: std::sync::OnceLock<crate::config::DiskLevels>,
 }
 
 impl Machines {
@@ -614,7 +616,22 @@ impl Machines {
             seen: std::sync::Mutex::new(seen),
             path,
             history: std::sync::OnceLock::new(),
+            disk: std::sync::OnceLock::new(),
         }
+    }
+
+    /// Use these disk alert levels for [`Machines::findings`].
+    pub fn set_disk_levels(&self, l: crate::config::DiskLevels) {
+        let _ = self.disk.set(l);
+    }
+
+    /// [`findings`] over every machine, with this store's disk levels.
+    pub fn findings(&self, now: i64) -> Vec<Finding> {
+        findings_with(
+            &self.list(),
+            now,
+            self.disk.get().unwrap_or(&Default::default()),
+        )
     }
 
     /// Send every recorded report's numbers to `h` from now on.
@@ -711,6 +728,11 @@ pub(crate) fn vkey(v: &str) -> Vec<u64> {
 
 /// What is wrong or drifting across the machines, worst first.
 pub fn findings(seen: &[Seen], now: i64) -> Vec<Finding> {
+    findings_with(seen, now, &Default::default())
+}
+
+/// [`findings`] with per-mount disk levels (REQ-ALERT-004).
+pub fn findings_with(seen: &[Seen], now: i64, disk: &crate::config::DiskLevels) -> Vec<Finding> {
     let mut out = Vec::new();
     let f = |host: &str, severity, text: String| Finding {
         host: host.into(),
@@ -728,8 +750,9 @@ pub fn findings(seen: &[Seen], now: i64) -> Vec<Finding> {
             ));
         }
         for d in &r.disks {
-            if d.used_pct >= 85.0 {
-                let sev = if d.used_pct >= 95.0 { "red" } else { "amber" };
+            let l = disk.of(&d.mount);
+            if d.used_pct >= l.amber {
+                let sev = if d.used_pct >= l.red { "red" } else { "amber" };
                 out.push(f(
                     &r.host,
                     sev,

@@ -70,7 +70,7 @@ pub async fn overview_partial(State(state): State<crate::server::AppState>) -> R
     let mut fleet_found = state
         .hub
         .as_ref()
-        .and_then(fleet::detected)
+        .and_then(|h| fleet::detected_with(h, &state.config.disk_levels()))
         .map(|(l, _)| l)
         .unwrap_or_default();
     fleet_found.extend(fleet::host_detected(&state, crate::hub::now()));
@@ -342,7 +342,7 @@ pub async fn nav_state(State(state): State<crate::server::AppState>) -> Response
     let outages = state
         .hub
         .as_ref()
-        .and_then(fleet::detected)
+        .and_then(|h| fleet::detected_with(h, &state.config.disk_levels()))
         .map(|(l, _)| l.len())
         .unwrap_or(0)
         + fleet::host_detected(&state, now).len();
@@ -369,7 +369,7 @@ pub async fn nav_state(State(state): State<crate::server::AppState>) -> Response
     let findings = state
         .machines
         .as_ref()
-        .map(|m| crate::probe::findings(&m.list(), now))
+        .map(|m| m.findings(now))
         .unwrap_or_default();
     let attention = attention(&findings, &red_runs_now(&state, now).await);
     axum::Json(serde_json::json!({

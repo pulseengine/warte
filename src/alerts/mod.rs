@@ -225,6 +225,7 @@ pub fn spawn(state: crate::server::AppState) {
     tokio::spawn(async move {
         let mut tracker = Tracker::default();
         let http = reqwest::Client::new();
+        let disk = state.config.disk_levels();
         let mut id: Option<String> = None;
         let mut tick = tokio::time::interval(std::time::Duration::from_secs(60));
         loop {
@@ -232,7 +233,7 @@ pub fn spawn(state: crate::server::AppState) {
             let mut found = state
                 .hub
                 .as_ref()
-                .and_then(crate::dashboard::fleet::detected)
+                .and_then(|h| crate::dashboard::fleet::detected_with(h, &disk))
                 .map(|(l, _)| l)
                 .unwrap_or_default();
             if let Ok(st) = state.status.get_status().await {
