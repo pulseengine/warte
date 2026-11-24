@@ -236,9 +236,10 @@ jobs:
   # supply and planted controls run beside warte's own jobs. Nothing here is
   # a required context yet; Build, Clippy, Rivet traceability check and
   # Playwright E2E stay required until the owner adds `required / verdict`.
-  # Both jig calls pin the same full SHA (jig v0.1.1 with plant v0.4.0).
+  # Both jig calls pin the same full SHA (jig v0.1.4: the commit that records
+  # its x86_64 archive sha256 3ceb9ead… in both workflows).
   baseline:
-    uses: pulseengine/jig/.github/workflows/baseline.yml@0a7b3588c70312c971d81c2756a8166af3fe93ab
+    uses: pulseengine/jig/.github/workflows/baseline.yml@0f3d82c1dec9e4d5ce1adee1c4e0bbbd84508849
     with:
       audit: cargo-audit
       guard-config: plant-guard.toml
@@ -310,7 +311,7 @@ jobs:
   required:
     needs: [baseline, classify, build, clippy, rivet, audit, playwright, canary-stable]
     if: always()
-    uses: pulseengine/jig/.github/workflows/required.yml@0a7b3588c70312c971d81c2756a8166af3fe93ab
+    uses: pulseengine/jig/.github/workflows/required.yml@0f3d82c1dec9e4d5ce1adee1c4e0bbbd84508849
     with:
       needs-json: ${{ toJSON(needs) }}
       never-skip: "build clippy rivet audit playwright"

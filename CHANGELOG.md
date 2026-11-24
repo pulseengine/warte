@@ -4,6 +4,8 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+- **CI: jig shadow pilot on jig v0.1.4.** Both jig calls move from v0.1.1 to the commit that records the v0.1.4 archive digest; the `required / verdict` job now uploads its record as the `jig-record-<attempt>` artifact. No required check changes.
+
 ## v1.6.45 — 2026-11-22
 
 - **The token broker serves more than one account** (REQ-GHTOKEN-006). Install the App on another account and list it under `[[github_app.installation]]` with its `installation_id`; the same App id and key serve all. An agent's repositories must all be under one account, and its token comes from that account's installation, so a token never reaches two accounts. Existing single-account configs work unchanged (`warte docs github-tokens`).
