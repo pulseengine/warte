@@ -1,6 +1,7 @@
-# Alerts pushed to an ntfy topic. 2026-11-24: a runner volume reached 100% and
-# all runners died; warte's disk alerts were recorded as notices and nobody
-# was told. The owner chose self-hosted ntfy for delivery.
+# Alerts pushed to an ntfy topic, and per-mount disk levels. 2026-11-22 to
+# 24: a runner volume reached 96-100% and CI jobs failed with 'No space left
+# on device'; warte's 85% and 95% alerts were recorded as notices nobody read.
+# The owner chose self-hosted ntfy for delivery (to be confirmed first-hand).
 artifacts:
   - id: REQ-ALERT-003
     type: requirement
@@ -54,7 +55,7 @@ artifacts:
     title: Disk alert levels can be set per mount point
     status: verified
     release: v1.6.46
-    description: "With [alerts.disk], warte SHALL use the configured amber and red percentages for that mount point, on every host that reports it, in machine findings, the Outages view, the alerts and the push; every other mount SHALL keep 85 and 95. Levels outside 0 < amber < red <= 100, a mount not starting with / and an unknown key SHALL stop startup. Motivated by 2026-11-24: a runner volume went from 85% to 96% in about 20 minutes while every runner rebuilt."
+    description: "With [alerts.disk], warte SHALL use the configured amber and red percentages for that mount point, on every host that reports it, in machine findings, the Outages view, the alerts and the push; every other mount SHALL keep 85 and 95. Levels outside 0 < amber < red <= 100, a mount not starting with / and an unknown key SHALL stop startup. Motivated by 2026-11-22 to 24: a runner volume reached 96-100% and CI jobs failed with 'No space left on device'; 85% left too little time."
     fields:
       category: functional
       priority: should
@@ -71,7 +72,7 @@ artifacts:
     title: An override alerts earlier, other mounts and defaults unchanged, bad levels refused, the server applies them
     status: verified
     release: v1.6.46
-    description: "tests/disk_levels.rs: with /var/lib/runners at 75/85, 74% is quiet, 76% amber and 86% red, while / at 80% stays quiet and the defaults stay 85/95; inverted, equal, zero and over-100 levels, a relative mount and unknown keys are refused; a bad [alerts] stops build_state and a good one reaches the machine store, where 88% on that mount is red. The hub-snapshot path (detected_with) uses the same DiskLevels::of and has no test of its own. Negative controls: hard-coding 85 in the machine rule and dropping the store wiring each failed a test."
+    description: "tests/disk_levels.rs: with /srv/ci at 75/85, 74% is quiet, 76% amber and 86% red, while / at 80% stays quiet and the defaults stay 85/95; inverted, equal, zero and over-100 levels, a relative mount and unknown keys are refused; a bad [alerts] stops build_state and a good one reaches the machine store, where 88% on that mount is red. The hub-snapshot path (detected_with) uses the same DiskLevels::of and has no test of its own. Negative controls: hard-coding 85 in the machine rule and dropping the store wiring each failed a test."
     links:
       - type: verifies
         target: REQ-ALERT-004

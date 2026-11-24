@@ -312,6 +312,8 @@ click      = "https://warte.example/outages"  # optional, where a tap leads
 - A push carries the finding's text with every path replaced by `[path]`. It
   never carries the finding key, the token or an error body. A refused push
   is logged with its HTTP status only.
+- On a public ntfy server the topic name is the only access control: use a
+  self-hosted server, or a token with a topic that requires it.
 - A token file other users can read sends nothing. A malformed section, an
   unknown key or a non-https URL stops startup.
 
@@ -322,7 +324,7 @@ for example a volume that fills fast (REQ-ALERT-004):
 
 ```toml
 [alerts.disk]
-"/var/lib/runners" = { amber = 75, red = 85 }
+"/srv/ci" = { amber = 75, red = 85 }
 ```
 
 Each key is a mount point as the probe or fleet agent reports it, and it

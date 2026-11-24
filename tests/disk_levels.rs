@@ -3,7 +3,7 @@
 use warte::config::{AlertsConfig, DiskLevel, DiskLevels};
 use warte::probe::{findings_with, Seen};
 
-const RUNNERS: &str = "/var/lib/runners";
+const RUNNERS: &str = "/srv/ci";
 
 fn levels(toml_src: &str) -> Result<DiskLevels, String> {
     let c: warte::config::Config = toml::from_str(toml_src).map_err(|e| e.to_string())?;
@@ -45,7 +45,7 @@ fn disk_sev(l: &DiskLevels, mount: &str, pct: f64) -> Option<String> {
 // rivet: verifies REQ-ALERT-004
 #[test]
 fn a_mount_override_alerts_earlier_and_other_mounts_keep_85_and_95() {
-    let l = levels("[alerts.disk]\n\"/var/lib/runners\" = { amber = 75, red = 85 }\n").unwrap();
+    let l = levels("[alerts.disk]\n\"/srv/ci\" = { amber = 75, red = 85 }\n").unwrap();
     assert_eq!(l.of(RUNNERS).amber, 75.0);
     assert_eq!(disk_sev(&l, RUNNERS, 74.0), None);
     assert_eq!(disk_sev(&l, RUNNERS, 76.0).as_deref(), Some("amber"));

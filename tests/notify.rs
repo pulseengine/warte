@@ -40,9 +40,9 @@ fn cfg(url: &str, token_file: Option<String>) -> ntfy::NotifyConfig {
 
 fn disk(sev: u8) -> Detected {
     Detected {
-        key: "disk:/var/lib/runners".into(),
+        key: "disk:/srv/ci".into(),
         sev,
-        text: "Disk /var/lib/runners is 97% full.".into(),
+        text: "Disk /srv/ci is 97% full.".into(),
     }
 }
 
@@ -93,7 +93,7 @@ async fn a_bad_notify_section_stops_the_server() {
 #[test]
 fn paths_never_reach_the_push_and_priority_follows_severity() {
     assert_eq!(
-        ntfy::redact("Disk /var/lib/runners is 100% full."),
+        ntfy::redact("Disk /srv/ci is 100% full."),
         "Disk [path] is 100% full."
     );
     assert_eq!(ntfy::redact("see (~/x/y), ok"), "see ([path]), ok");
@@ -106,8 +106,8 @@ fn paths_never_reach_the_push_and_priority_follows_severity() {
         (Event::Escalated(disk(2)), 4, "warte: down"),
         (
             Event::Cleared {
-                key: "disk:/var/lib/runners".into(),
-                text: "Disk /var/lib/runners is 97% full.".into(),
+                key: "disk:/srv/ci".into(),
+                text: "Disk /srv/ci is 97% full.".into(),
             },
             2,
             "warte: cleared",
