@@ -41,10 +41,19 @@ class; all four give the class; the count groups by pool and day.
 2. warte keeps per PR and UTC day: attempts (at most 3), and the earliest next
    time (30, 60, then 120 minutes after the ejection).
 3. **Seam B** (provider: warte, consumer: the agents' CI skill in
-   pulseengine-claude): `GET /api/requeue?repo=<repo>` returns the open offers,
-   `[{pr, attempt, of: 3, earliest, pool}]`. The repo's agent reads it where it
-   already waits on CI, and re-enqueues the PR with its own broker token once
-   `earliest` has passed. Every required check still has to pass in the queue.
+   pulseengine-claude): `GET /api/requeue?repo=<repo>` returns
+   `{schema: "warte.requeue.v1", offers: [{pr, head_sha, run_id, attempt, of: 3,
+   earliest, pool}]}`, where `run_id` is the ejecting merge-group run. No offers
+   is an empty list with 200, never a 404, so a 403 or 5xx can only mean "no
+   answer". The repo's agent reads it where it already waits on CI and
+   re-enqueues the PR with its own broker token once `earliest` has passed,
+   but only if:
+   - the PR head still equals `head_sha` (a pushed fix makes the offer stale);
+   - re-reading `run_id`'s failed jobs from GitHub confirms each is cancelled,
+     runner-less and step-less, with the "not acquired" annotation.
+   Otherwise it does not re-enqueue and posts a factory-notice. warte's
+   classification is checked, never trusted. Every required check still has
+   to pass in the queue.
 4. A factory-notice per offer ("relay#636 ejected by hosted macOS arm64
    capacity, re-queue 1/3 after 16:15 UTC"), and an escalation notice when the
    third attempt is ejected too.
@@ -52,13 +61,14 @@ class; all four give the class; the count groups by pool and day.
    reason stops offers for that repo until a person clears it on the page.
 
 Tests: an ejection with one ordinary failure gives no offer; the backoff and the
-daily cap; the kill switch trips and holds; the offer endpoint reveals only repo,
-PR number, attempt and time.
+daily cap; the kill switch trips and holds; no offers is `offers: []` with 200;
+the offer endpoint reveals only repo, PR number, head SHA, run id, attempt, pool
+and time.
 
 ## Seams to open before building
 
 - **A**, with the fleet agent's owner: the `infra:not-acquired` signature.
-- **B**, with pulseengine.eu (the CI skill): the offer endpoint and who
-  enqueues.
+- **B**, with pulseengine.eu (the CI skill), which opens it: the
+  `warte.requeue.v1` offer shape, the agent's re-check, and who enqueues.
 
 Phase 1 in `[github]` mode needs neither seam and can ship first.
