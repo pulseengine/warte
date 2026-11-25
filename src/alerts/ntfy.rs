@@ -29,7 +29,7 @@ pub struct NotifyConfig {
     pub click: Option<String>,
 }
 
-fn loopback_http(u: &str) -> bool {
+pub(crate) fn loopback_http(u: &str) -> bool {
     ["http://127.0.0.1", "http://localhost", "http://[::1]"]
         .iter()
         .any(|p| {

@@ -164,6 +164,9 @@ pub struct Config {
     /// Alert thresholds (REQ-ALERT-004): per-mount disk levels.
     #[serde(default)]
     pub alerts: Option<AlertsConfig>,
+    /// A house controller's warnings as alerts (REQ-ALERT-005).
+    #[serde(default)]
+    pub house: Option<crate::alerts::house::HouseConfig>,
 }
 
 /// `[alerts]` in warte.toml.
@@ -494,6 +497,7 @@ impl Default for Config {
             expiry: None,
             notify: None,
             alerts: None,
+            house: None,
         }
     }
 }

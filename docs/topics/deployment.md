@@ -332,6 +332,23 @@ applies on every host that has it. Levels need 0 < amber < red <= 100; a
 bad entry or an unknown key stops startup. Amber findings show on Machines;
 red ones are outages and alert, and push with `[notify]`.
 
+## House warnings
+
+With a `[house]` section, warte reads a house controller's warning list every
+minute. Each warning with severity `alarm` becomes a red alert keyed by its
+`id`: it opens, clears when the id is gone, and is pushed like any outage when
+`[notify]` is set. `check` warnings stay on the controller's own page.
+
+```toml
+[house]
+url = "http://127.0.0.1:8080/api/warnings"   # https, or http on loopback only
+# silent_hold_min = 360   # a sensor_silent warning alerts after this long
+```
+
+The list is a JSON array of `{id, kind, room, message, severity, since_ms}`;
+`id` is 16 hex digits and stays the same while the condition holds. If the
+list cannot be read, the last good one stands for 10 minutes.
+
 ## Expiry dates
 
 What runs out, and when (REQ-PREDICT-004). Without any section warte

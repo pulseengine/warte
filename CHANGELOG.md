@@ -4,6 +4,10 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.47 — 2026-11-25
+
+- **A house controller's warnings become alerts** (REQ-ALERT-005). With a `[house]` section, every warning with severity `alarm` opens a red alert keyed by its id, clears when the id is gone, and is pushed with `[notify]`. A `sensor_silent` warning waits 6 hours (`silent_hold_min`). Without the section nothing changes (`warte docs deployment`).
+
 ## v1.6.46 — 2026-11-24
 
 - **Disk alert levels per mount** (REQ-ALERT-004). `[alerts.disk]` sets amber and red for a mount point, e.g. `"/srv/ci" = { amber = 75, red = 85 }`, for a volume that fills faster than 85/95 leaves time for. Other mounts keep 85 and 95.
