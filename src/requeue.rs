@@ -106,6 +106,9 @@ pub struct Ejection {
     pub only_not_acquired: bool,
 }
 
+/// A job conclusion that does not count against a merge-group run: skipped
+/// and neutral jobs count as succeeded; any other, a plain cancelled
+/// included, is a failure.
 fn ok(r: &str) -> bool {
     matches!(r, "success" | "skipped" | "neutral")
 }

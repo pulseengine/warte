@@ -6,7 +6,7 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## v1.6.50 — 2026-11-25
 
-- **Re-queue offers after a merge-queue ejection caused only by unacquired hosted jobs** (REQ-QUEUE-004, #122). When every job that failed in a merge-group run was a hosted job no runner acquired, warte reads the PR's head once and offers the PR's agent a re-queue on `GET /api/requeue?repo=` (`warte.requeue.v1`): 30, 60 and 120 minutes after each ejection, at most three times per PR per UTC day. warte stays read-only on GitHub; the agent re-checks the ejection and re-queues with its own token, and every required check still runs. Each offer is an amber alert; a fourth ejection that day is a red one. If an offered PR is then ejected for another reason, offers for that repo stop (red alert) until the owner clears them on the Queue view.
+- **Re-queue offers after a merge-queue ejection caused only by unacquired hosted jobs** (REQ-QUEUE-004, #122). When every job that failed in a merge-group run was a hosted job no runner acquired (skipped and neutral jobs count as succeeded), warte reads the PR's head once and offers the PR's agent a re-queue on `GET /api/requeue?repo=` (`warte.requeue.v1`): 30, 60 and 120 minutes after each ejection, at most three times per PR per UTC day. warte stays read-only on GitHub; the agent re-checks the ejection and re-queues with its own token, and every required check still runs. Each offer is an amber alert; a fourth ejection that day is a red one. If an offered PR is then ejected for another reason, offers for that repo stop (red alert) until the owner clears them on the Queue view.
 
 ## v1.6.49 — 2026-11-25
 

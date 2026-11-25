@@ -21,7 +21,7 @@
     },
     "/api/requeue": {
       "get": {
-        "summary": "Re-queue offers for one repo's agent after a merge-group ejection caused only by hosted jobs no runner acquired (warte.requeue.v1)",
+        "summary": "Re-queue offers for one repo's agent after a merge-group ejection in which every job that did not succeed was a hosted job no runner acquired; skipped and neutral jobs count as succeeded (warte.requeue.v1)",
         "description": "The agent re-queues the PR with its own token once earliest has passed, and only if the PR head still equals head_sha and re-reading run_id's failed jobs confirms each was cancelled, runner-less and step-less with the not-acquired annotation. At most 3 offers per PR per UTC day (30, 60, 120 min after the ejection). No offers while the repo's offers are stopped.",
         "parameters": [
           {"name": "repo", "in": "query", "required": true, "description": "Repository name without the org, e.g. relay", "schema": {"type": "string"}}

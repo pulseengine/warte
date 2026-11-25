@@ -62,6 +62,13 @@ fn only_a_run_whose_every_failure_is_unacquired_qualifies() {
         job(21, 2, 637, "failure", None, T0),
         // run 3: all passed
         job(30, 3, 638, "success", None, T0),
+        // run 5: skipped and neutral jobs are ignored, so it still qualifies
+        job(50, 5, 640, "skipped", None, T0),
+        job(51, 5, 640, "neutral", None, T0),
+        job(52, 5, 640, "cancelled", Some(NOT_ACQUIRED), T0),
+        // run 6: a plain cancelled job (no runner class) is a failure like any other
+        job(60, 6, 641, "cancelled", None, T0),
+        job(61, 6, 641, "cancelled", Some(NOT_ACQUIRED), T0),
         // a push run is not a merge group
         JobRecord {
             ev: "push".into(),
@@ -70,7 +77,15 @@ fn only_a_run_whose_every_failure_is_unacquired_qualifies() {
     ];
     let e = ejections(&recs);
     let by = |run: u64| e.iter().find(|x| x.run == run).unwrap();
-    assert_eq!(e.len(), 3);
+    assert_eq!(e.len(), 5);
+    assert!(
+        by(5).only_not_acquired && !by(5).passed,
+        "skipped and neutral are ignored"
+    );
+    assert!(
+        !by(6).only_not_acquired,
+        "a cancelled job without the class disqualifies"
+    );
     assert!(by(1).only_not_acquired && !by(1).passed);
     assert_eq!(
         (by(1).pr, by(1).at, by(1).pool.as_str()),
