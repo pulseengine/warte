@@ -1385,12 +1385,20 @@ async fn api_openapi() -> axum::response::Response {
         .into_response()
 }
 
+/// When the server state was built; `/api/health` reports the time since.
+static STARTED: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+
+/// Record the server's start (the first call wins).
+pub(crate) fn mark_started() {
+    STARTED.get_or_init(std::time::Instant::now);
+}
+
 async fn health(State(state): State<AppState>) -> impl IntoResponse {
     Json(HealthResponse {
         status: "healthy".to_string(),
         instance_id: state.config.instance_id(),
         version: env!("CARGO_PKG_VERSION").to_string(),
-        uptime_secs: 0, // TODO: track actual uptime
+        uptime_secs: STARTED.get().map_or(0, |t| t.elapsed().as_secs()),
         timestamp: Utc::now(),
     })
 }
