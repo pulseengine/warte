@@ -1,0 +1,63 @@
+# Two fixes found while checking a deployment. A sandboxed probe unit sees the
+# host's data volumes read-only, and the probe dropped every read-only mount, so
+# per-mount disk levels never applied to them. /api/health reported an uptime
+# of 0 on every call.
+artifacts:
+  - id: REQ-PROBE-DISK-001
+    type: requirement
+    title: The probe reports data volumes it sees read-only, and hides image filesystems
+    status: verified
+    release: v1.6.48
+    description: "On Linux the probe SHALL report every mount of at least 1 GiB whose filesystem is not a packaged image (squashfs, iso9660, udf, erofs, cramfs, romfs), read-only or not, so a probe sandboxed with ProtectSystem=strict still reports the host's data volumes and their disk levels apply. Image filesystems SHALL NOT be reported. On macOS a read-only volume (the sealed system snapshot) SHALL NOT be reported."
+    fields:
+      category: functional
+      priority: must
+    links:
+      - type: refines
+        target: REQ-ALERT-004
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-25T12:00:00Z
+
+  - id: TEST-PROBE-DISK-001
+    type: verification
+    title: Read-only data volumes shown on Linux, images hidden, the macOS system snapshot hidden
+    status: verified
+    release: v1.6.48
+    description: "tests/probe_disks.rs: ext4 and xfs read-only on Linux are shown; each of the six image types is hidden, writable or not; apfs read-only on macOS is hidden and writable apfs is shown. Negative control: restoring the read-only filter failed the test."
+    links:
+      - type: verifies
+        target: REQ-PROBE-DISK-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-25T12:00:00Z
+
+  - id: REQ-HEALTH-UPTIME-001
+    type: requirement
+    title: /api/health reports the seconds since the server started
+    status: verified
+    release: v1.6.48
+    description: "GET /api/health SHALL report uptime_secs as the whole seconds since the server state was built, rising between calls."
+    fields:
+      category: functional
+      priority: should
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-25T12:00:00Z
+
+  - id: TEST-HEALTH-UPTIME-001
+    type: verification
+    title: A fresh server reports under a minute, and at least two seconds more after two seconds
+    status: verified
+    release: v1.6.48
+    description: "tests/health_uptime.rs: a fresh server's first uptime_secs is below 60, and 2.1 s later it is at least 2 more. Negative control: the constant 0 failed the test."
+    links:
+      - type: verifies
+        target: REQ-HEALTH-UPTIME-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-25T12:00:00Z

@@ -4,6 +4,12 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.48 — 2026-11-25
+
+- **Disk levels apply to volumes a sandboxed probe sees read-only** (REQ-PROBE-DISK-001). The probe dropped every read-only mount, and a probe unit with `ProtectSystem=strict` sees the host's data volumes read-only, so they were missing from Machines and `[alerts.disk]` never applied to them. On Linux only image filesystems (squashfs, iso9660 and similar) are hidden now; on macOS the read-only system volume stays hidden.
+- **`/api/health` reports the real uptime** (REQ-HEALTH-UPTIME-001). `uptime_secs` was always 0.
+- **CI: jig shadow pilot on jig v0.1.5.** Both jig calls move to the commit that records v0.1.5. No required check changes.
+
 ## v1.6.47 — 2026-11-25
 
 - **A house controller's warnings become alerts** (REQ-ALERT-005). With a `[house]` section, every warning with severity `alarm` opens a red alert keyed by its id, clears when the id is gone, and is pushed with `[notify]`. A `sensor_silent` warning waits 6 hours (`silent_hold_min`). Without the section nothing changes (`warte docs deployment`).

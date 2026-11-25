@@ -360,14 +360,32 @@ pub async fn collect(io_prev: Option<&std::path::Path>) -> Report {
     }
 }
 
-/// Writable volumes of at least [`MIN_DISK_BYTES`], one per mount point.
+/// Filesystem types that are packaged images, never data volumes.
+const IMAGE_FS: [&str; 6] = ["squashfs", "iso9660", "udf", "erofs", "cramfs", "romfs"];
+
+/// Whether the probe reports a mount. A sandboxed probe (systemd
+/// `ProtectSystem=strict`) sees the host's data volumes read-only, so on
+/// Linux read-only alone does not hide one; image filesystems do. On macOS
+/// the read-only volume is the sealed system snapshot, which stays hidden.
+pub fn shown(fs: &str, read_only: bool, macos: bool) -> bool {
+    !IMAGE_FS.contains(&fs) && !(read_only && macos)
+}
+
+/// Data volumes of at least [`MIN_DISK_BYTES`], one per mount point.
 pub fn disks() -> Vec<Disk> {
     use sysinfo::Disks;
     let gb = |b: u64| (b as f64 / 1e9 * 10.0).round() / 10.0;
     let mut disks: Vec<Disk> = Disks::new_with_refreshed_list()
         .list()
         .iter()
-        .filter(|d| d.total_space() >= MIN_DISK_BYTES && !d.is_read_only())
+        .filter(|d| {
+            d.total_space() >= MIN_DISK_BYTES
+                && shown(
+                    &d.file_system().to_string_lossy(),
+                    d.is_read_only(),
+                    cfg!(target_os = "macos"),
+                )
+        })
         .map(|d| {
             let used = d.total_space().saturating_sub(d.available_space());
             Disk {

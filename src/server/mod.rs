@@ -132,6 +132,7 @@ pub async fn serve(config: Config, db: Database) -> anyhow::Result<()> {
 
 /// Everything the routes need, including the ground station when `[hub]` is set.
 pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState> {
+    api::mark_started();
     // instance_id() mints a fresh id when none is configured: fix it once
     let instance_id = config.instance_id();
     config.instance_id = Some(instance_id.clone());
