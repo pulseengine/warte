@@ -256,15 +256,32 @@ async fn api_queue(
         );
     }
     match fleet(&state) {
-        Ok((s, received)) => Json(crate::admission::queue(
-            &s,
-            received,
-            crate::hub::now(),
-            repo,
-        ))
-        .into_response(),
+        Ok((s, received)) => {
+            let now = crate::hub::now();
+            let mut v = crate::admission::queue(&s, received, now, repo);
+            if let Some(hub) = state.hub.clone() {
+                let repo = repo.map(String::from);
+                v.not_acquired = tokio::task::spawn_blocking(move || {
+                    not_acquired_week(&hub, now, repo.as_deref())
+                })
+                .await
+                .unwrap_or_default();
+            }
+            Json(v).into_response()
+        }
         Err(why) => plain(StatusCode::SERVICE_UNAVAILABLE, why),
     }
+}
+
+/// Not-acquired hosted jobs per pool and day, the last 7 UTC days (REQ-QUEUE-003).
+pub(crate) fn not_acquired_week(
+    hub: &crate::hub::Hub,
+    now: i64,
+    repo: Option<&str>,
+) -> Vec<crate::requeue::PoolDay> {
+    use crate::hub::report::day_of;
+    let recs = hub.ledger_days(&day_of(now - 6 * 86_400), &day_of(now));
+    crate::requeue::counts(&recs, repo)
 }
 
 async fn api_admission(

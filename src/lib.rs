@@ -47,6 +47,7 @@ pub mod platform;
 pub mod probe;
 pub mod realtime;
 pub mod reports;
+pub mod requeue;
 pub mod reviews;
 pub mod rivetext;
 pub mod server;

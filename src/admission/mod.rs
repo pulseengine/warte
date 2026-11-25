@@ -62,6 +62,9 @@ pub struct QueueView {
     pub hosted: Hosted,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub repo: Option<RepoQueue>,
+    /// Hosted jobs GitHub never gave a runner, per pool and UTC day, over
+    /// the last 7 days (REQ-QUEUE-003); filled by the API from the ledger.
+    pub not_acquired: Vec<crate::requeue::PoolDay>,
     pub as_of: AsOf,
 }
 
@@ -162,6 +165,7 @@ pub fn queue(s: &Snapshot, received_at: i64, now: i64, repo: Option<&str>) -> Qu
         },
         hosted,
         repo: repo.map(|r| repo_queue(s, r)),
+        not_acquired: vec![],
         as_of: AsOf {
             taken_at: s.taken_at,
             age_s: age,

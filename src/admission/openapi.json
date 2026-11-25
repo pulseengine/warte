@@ -350,6 +350,7 @@
           "self_hosted": {"type": "object", "properties": {"busy": {"type": "integer"}, "total": {"type": "integer"}, "queued_jobs": {"type": "integer"}}},
           "hosted": {"type": "object", "properties": {"queued_jobs": {"type": "integer"}, "oldest_wait_s": {"type": "integer"}, "median_wait_s": {"type": "integer"}}},
           "repo": {"type": "object", "properties": {"queued_runs": {"type": "integer"}, "running_runs": {"type": "integer"}}},
+          "not_acquired": {"type": "array", "description": "Hosted jobs cancelled before any runner took them (no step ran; GitHub annotated them not acquired by Runner), per pool and UTC day over the last 7 days, newest first; only this repo's with ?repo=. Empty without a ledger.", "items": {"type": "object", "properties": {"pool": {"type": "string"}, "day": {"type": "string"}, "jobs": {"type": "integer"}}}},
           "as_of": {"type": "object", "properties": {"taken_at": {"type": "integer"}, "age_s": {"type": "integer"}, "stale": {"type": "boolean"}}}
         }
       },

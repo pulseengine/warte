@@ -4,6 +4,10 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.49 — 2026-11-25
+
+- **Hosted jobs that never got a runner are told apart from failures** (REQ-QUEUE-003, #122). In GitHub-only mode the ledger marks a job `infra:not-acquired` when it was cancelled, no runner took it, no step ran, and GitHub annotated it "not acquired by Runner" (one annotation read per such job, at most 20 per pass). `/api/queue` gains `not_acquired`, the count per pool and UTC day over the last 7 days, and the Queue view shows today's count per pool. The re-queue offers (phase 2) follow once their interface is agreed.
+
 ## v1.6.48 — 2026-11-25
 
 - **Disk levels apply to volumes a sandboxed probe sees read-only** (REQ-PROBE-DISK-001). The probe dropped every read-only mount, and a probe unit with `ProtectSystem=strict` sees the host's data volumes read-only, so they were missing from Machines and `[alerts.disk]` never applied to them. On Linux only image filesystems (squashfs, iso9660 and similar) are hidden now; on macOS the read-only system volume stays hidden.
