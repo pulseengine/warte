@@ -119,6 +119,28 @@ pub fn queue(hub: Option<&Hub>) -> String {
         &format!("queued · {} running", q.hosted_running),
         "",
     );
+    // hosted jobs GitHub never gave a runner today, apart from code failures
+    // (REQ-QUEUE-003)
+    if let Some(h) = hub {
+        let today = crate::hub::report::day_of(now());
+        let na = crate::requeue::counts(&h.ledger_days(&today, &today), None);
+        let total: u32 = na.iter().map(|p| p.jobs).sum();
+        let by: Vec<String> = na
+            .iter()
+            .map(|p| format!("{} {}", p.pool, p.jobs))
+            .collect();
+        kpis += &kpi(
+            "Hosted · never got a runner",
+            &total.to_string(),
+            if total > 0 { "warn" } else { "" },
+            &if by.is_empty() {
+                "today, UTC".to_string()
+            } else {
+                format!("today, UTC: {}", by.join(", "))
+            },
+            "",
+        );
+    }
     kpis += &kpi(
         "Repos scanned",
         &q.repos_scanned.to_string(),

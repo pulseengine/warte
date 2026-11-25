@@ -27,8 +27,8 @@ agent re-queues with its own broker token. warte stays read-only on GitHub.
      agent, consumer: warte). Until the agent ships it, warte shows such jobs as
      "cancelled, no runner", never as `infra:not-acquired`, and offers nothing.
 2. The queue view and `/api/queue` show the class apart from code failures.
-3. A count per hosted pool and UTC day in the history store, shown on the
-   runners page.
+3. A count per hosted pool and UTC day, from the ledger records, in
+   `/api/queue` (`not_acquired`, the last 7 days) and on the queue view (today).
 
 Tests: a fixture job for each of the four conditions failing alone gives no
 class; all four give the class; the count groups by pool and day.
@@ -72,3 +72,13 @@ and time.
   `warte.requeue.v1` offer shape, the agent's re-check, and who enqueues.
 
 Phase 1 in `[github]` mode needs neither seam and can ship first.
+
+## Status
+
+- Phase 1 in `[github]` mode shipped in v1.6.49 (REQ-QUEUE-003, TEST-QUEUE-003).
+- Phase 2 waits on seam B. Finding for it: a merge-group run's branch
+  `gh-readonly-queue/<base>/pr-<N>-<sha>` carries the base commit, not the
+  PR head (checked on one merge-group run: the branch sha and the PR's head
+  differed). So `head_sha` in an offer costs one `GET /pulls/<N>` per
+  qualifying ejection, or the offer carries the ejection time and the agent
+  compares the PR's last push against it. Seam B decides which.

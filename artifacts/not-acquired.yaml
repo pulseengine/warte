@@ -1,0 +1,17 @@
+# Verification for REQ-QUEUE-003 (#122, phase 1 of
+# docs/plans/2026-11-25-requeue-not-acquired.md): hosted jobs GitHub never
+# gave a runner, classified and counted.
+artifacts:
+  - id: TEST-QUEUE-003
+    type: verification
+    title: The three listing conditions and the annotation each decide alone; counts by pool and day; the ledger reads only candidates; /api/queue reports the week
+    status: verified
+    release: v1.6.49
+    description: "tests/not_acquired.rs: a cancelled, runner-less, step-less job is a candidate, and each of not finished, another conclusion (failure, success, timed_out, skipped), a runner name, a runner id and a started step makes it none; only an annotation containing 'not acquired by Runner' classifies; counts group by pool and UTC day, newest first, skip other signatures and filter by repo; a mocked ledger pass reads annotations for the two candidates only, never for a job a runner took, and classifies only the annotated one; /api/queue returns today's count, leaves out a 10-day-old job, filters by repo and returns [] for none. Negative controls: dropping the step condition, the ledger's classification and the API fill each failed a test."
+    links:
+      - type: verifies
+        target: REQ-QUEUE-003
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-25T15:30:00Z

@@ -152,6 +152,7 @@ pub async fn pass(
     let mut out = vec![];
     let mut looked = vec![];
     let mut logs = 0;
+    let mut notes = 0;
     for k in (0..=days as i64).rev() {
         let day = day_of(today - k * 86_400);
         if st.days.get(&day).is_some_and(|d| d.closed) {
@@ -206,6 +207,24 @@ pub async fn pass(
                             logs += 1;
                             if let Ok(t) = c.job_log_tail(org, repo, r.id).await {
                                 r.sig = crate::incidents::of_log(&t).map(|s| s.encode());
+                            }
+                        }
+                        // a hosted job GitHub never gave a runner (REQ-QUEUE-003);
+                        // an annotation read that fails leaves no class
+                        if crate::requeue::may_be_not_acquired(j)
+                            && notes < crate::requeue::MAX_ANNOTATION_READS
+                        {
+                            notes += 1;
+                            if let Ok(a) = c
+                                .get(&format!(
+                                    "/repos/{org}/{repo}/check-runs/{}/annotations?per_page=50",
+                                    r.id
+                                ))
+                                .await
+                            {
+                                if crate::requeue::says_not_acquired(&a) {
+                                    r.sig = Some(crate::requeue::NOT_ACQUIRED.into());
+                                }
                             }
                         }
                         ds.n += 1;
