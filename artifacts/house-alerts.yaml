@@ -1,0 +1,36 @@
+# A house controller's warnings as alerts. A meter group showed as silent on
+# the house controller's own page for more than 3,000 minutes and nobody saw
+# it; warte's alert path is where the owner is notified. The interface (a
+# stable id and an alarm|check severity per warning) was agreed with the
+# house controller before either side built.
+artifacts:
+  - id: REQ-ALERT-005
+    type: requirement
+    title: With [house], every alarm on a house controller's warning list becomes an alert keyed by its id
+    status: verified
+    release: v1.6.47
+    description: "With a [house] section (url, optional silent_hold_min), warte SHALL read the warning list every minute and turn each warning with severity alarm and a 16-hex-digit id into a red finding keyed by that id, which opens, clears and is pushed like any outage alert. A warning with severity check, an unknown severity or a malformed id SHALL NOT alert. A sensor_silent warning SHALL alert only once now minus since_ms is at least silent_hold_min (default 360); one without since_ms SHALL NOT. The alert text SHALL carry the room and the message (at most 160 characters) and never the series ids. When a read fails, the last good list SHALL stand for 10 minutes and then clear; the read error SHALL NOT reach the alert. A URL that is not https (http only on loopback) or an unknown key SHALL stop startup."
+    fields:
+      category: functional
+      priority: must
+    links:
+      - type: refines
+        target: REQ-ALERT-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-25T07:30:00Z
+
+  - id: TEST-ALERT-005
+    type: verification
+    title: Alarms keyed by id, checks quiet, the silent-sensor hold, open and clear, a failed read, the URL rule and startup refusal, the HTTP read
+    status: verified
+    release: v1.6.47
+    description: "tests/house_alerts.rs: of five warnings only the two alarms with valid ids alert, both red, keyed house:<id>, text 'House, <room>: <message>'; sensor_silent alerts at 6 h and not at 5 h, at 2 h with a 60-minute hold, never without since_ms; an alarm opens once over four evaluations and clears after three without it; a failed read keeps the last list for exactly 10 minutes; http to a non-loopback or look-alike host and an unknown key are refused, and the hold defaults to 360, and a bad [house] stops build_state; a mock server's list is read, and a non-JSON or 500 answer reads as none."
+    links:
+      - type: verifies
+        target: REQ-ALERT-005
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-25T07:30:00Z

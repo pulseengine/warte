@@ -336,6 +336,9 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
     if let Some(a) = &config.alerts {
         a.check().map_err(anyhow::Error::msg)?;
     }
+    if let Some(h) = &config.house {
+        h.check().map_err(anyhow::Error::msg)?;
+    }
 
     let canaries = match &config.canaries {
         Some(c) => {

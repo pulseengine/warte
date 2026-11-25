@@ -16,6 +16,7 @@
 
 use crate::dashboard::fleet::Detected;
 
+pub mod house;
 pub mod ntfy;
 use std::collections::HashMap;
 
@@ -226,6 +227,7 @@ pub fn spawn(state: crate::server::AppState) {
         let mut tracker = Tracker::default();
         let http = reqwest::Client::new();
         let disk = state.config.disk_levels();
+        let mut house = house::Reader::default();
         let mut id: Option<String> = None;
         let mut tick = tokio::time::interval(std::time::Duration::from_secs(60));
         loop {
@@ -244,6 +246,17 @@ pub fn spawn(state: crate::server::AppState) {
                 &state,
                 crate::hub::now(),
             ));
+            // the house controller's alarms (REQ-ALERT-005)
+            if let Some(cfg) = &state.config.house {
+                let fresh = house::fetch(&http, cfg).await;
+                let now = chrono::Utc::now();
+                let ws = house.take(fresh, now.timestamp());
+                found.extend(house::detected(
+                    ws,
+                    now.timestamp_millis(),
+                    cfg.silent_hold_min,
+                ));
+            }
             let events = tracker.step(&found);
             // the alerts agent heartbeats every tick, so it never shows as unhealthy
             let id = match &id {
