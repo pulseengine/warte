@@ -654,6 +654,8 @@ pub const PUBLIC: &[&str] = &[
     "/api/admission",
     "/api/eta",
     "/api/queue",
+    // REQ-QUEUE-004: repo, PR number, head SHA, run id, attempt, pool and time
+    "/api/requeue",
     "/api/watch",
     "/api/status.md",
     "/api/report",

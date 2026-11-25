@@ -61,6 +61,8 @@ pub fn build_routes() -> Router<AppState> {
         // Agents: machine-readable queue and PR admission (#55)
         .route("/queue", get(api_queue))
         .route("/admission", get(api_admission))
+        .route("/requeue", get(api_requeue))
+        .route("/requeue/clear", post(api_requeue_clear))
         .route("/watch", get(api_watch))
         .route("/eta", get(api_eta))
         .route("/history/fleet", get(api_history_fleet))
@@ -2452,4 +2454,70 @@ pub async fn security_partial(
         .filter(|(_, who)| who.role == crate::login::Role::Owner)
         .map(|(s, _)| state.tokens.csrf_token(&s));
     axum::response::Html(crate::findings::view(&open, &silent, csrf.as_deref())).into_response()
+}
+
+/// Re-queue offers for one repo's agent (REQ-QUEUE-004, seam B
+/// `warte.requeue.v1`). No offers is an empty list with 200.
+async fn api_requeue(
+    State(state): State<AppState>,
+    Query(q): Query<std::collections::HashMap<String, String>>,
+) -> axum::response::Response {
+    let Some(repo) = q.get("repo").filter(|r| crate::admission::valid_repo(r)) else {
+        return plain(
+            StatusCode::BAD_REQUEST,
+            "repo is required: a repository name without the org",
+        );
+    };
+    let offers = state
+        .hub
+        .as_ref()
+        .map(|h| h.requeue.plan().offers_for(repo))
+        .unwrap_or_default();
+    Json(serde_json::json!({"schema": "warte.requeue.v1", "offers": offers})).into_response()
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RequeueClear {
+    repo: String,
+}
+
+/// A person looked at a repo whose re-queue offers stopped (REQ-QUEUE-004):
+/// the owner role only, from this origin with the session's CSRF token.
+async fn api_requeue_clear(
+    State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
+    body: axum::body::Bytes,
+) -> axum::response::Response {
+    let Some(login) = state.login.as_ref() else {
+        return plain(StatusCode::UNAUTHORIZED, "clearing needs [auth]");
+    };
+    let Some((session, who)) = login.identity_of(&headers, crate::hub::now()) else {
+        return plain(StatusCode::UNAUTHORIZED, "sign in first");
+    };
+    let csrf = headers.get("x-warte-csrf").and_then(|v| v.to_str().ok());
+    if !same_origin(&headers) || csrf != Some(state.tokens.csrf_token(&session).as_str()) {
+        return plain(StatusCode::FORBIDDEN, "not from this page");
+    }
+    if who.role != crate::login::Role::Owner {
+        return plain(
+            StatusCode::FORBIDDEN,
+            "only the owner clears stopped offers",
+        );
+    }
+    let Ok(r) = serde_json::from_slice::<RequeueClear>(&body) else {
+        return plain(StatusCode::UNPROCESSABLE_ENTITY, "not a clear request");
+    };
+    if !crate::admission::valid_repo(&r.repo) {
+        return plain(StatusCode::UNPROCESSABLE_ENTITY, "not a repository name");
+    }
+    let Some(hub) = state.hub.as_ref() else {
+        return plain(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "no ground station configured",
+        );
+    };
+    hub.requeue.clear(&r.repo, crate::hub::now());
+    tracing::info!(user = %who.name, repo = %r.repo, "re-queue offers cleared");
+    StatusCode::NO_CONTENT.into_response()
 }

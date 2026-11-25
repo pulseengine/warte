@@ -612,9 +612,23 @@ pub async fn dashboard_css() -> Response {
 }
 
 /// HTMX partial: queue view (runner pools, waiting jobs).
-pub async fn queue_partial(State(state): State<crate::server::AppState>) -> Response {
+pub async fn queue_partial(
+    State(state): State<crate::server::AppState>,
+    headers: axum::http::HeaderMap,
+) -> Response {
     // Pools and waiting jobs come from the ground station (DD-SMITHY-001).
     let fleet = fleet::queue(state.hub.as_ref());
+    // re-queue offers and stopped repos (REQ-QUEUE-004); the owner may clear
+    let owner_csrf = state.login.as_ref().and_then(|l| {
+        l.identity_of(&headers, crate::hub::now())
+            .filter(|(_, who)| who.role == crate::login::Role::Owner)
+            .map(|(s, _)| state.tokens.csrf_token(&s))
+    });
+    let requeue = state
+        .hub
+        .as_ref()
+        .map(|h| crate::requeue::view(&h.requeue.plan(), owner_csrf.as_deref()))
+        .unwrap_or_default();
 
     // Get hardware catalog (all known boards) and claims
     let hw_catalog: Vec<(String,)> = sqlx::query_as(
@@ -698,6 +712,7 @@ pub async fn queue_partial(State(state): State<crate::server::AppState>) -> Resp
         r#"<div class="overview">
   <h2>Queue</h2>
   {fleet}
+  {requeue}
   <section class="panel"><h3>Hardware availability</h3>{hw_table}</section>
 </div>"#,
     );

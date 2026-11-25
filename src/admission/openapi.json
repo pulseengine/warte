@@ -19,6 +19,28 @@
         }
       }
     },
+    "/api/requeue": {
+      "get": {
+        "summary": "Re-queue offers for one repo's agent after a merge-group ejection caused only by hosted jobs no runner acquired (warte.requeue.v1)",
+        "description": "The agent re-queues the PR with its own token once earliest has passed, and only if the PR head still equals head_sha and re-reading run_id's failed jobs confirms each was cancelled, runner-less and step-less with the not-acquired annotation. At most 3 offers per PR per UTC day (30, 60, 120 min after the ejection). No offers while the repo's offers are stopped.",
+        "parameters": [
+          {"name": "repo", "in": "query", "required": true, "description": "Repository name without the org, e.g. relay", "schema": {"type": "string"}}
+        ],
+        "responses": {
+          "200": {"description": "Offers; no offers is an empty list", "content": {"application/json": {"schema": {"type": "object", "properties": {
+            "schema": {"type": "string", "enum": ["warte.requeue.v1"]},
+            "offers": {"type": "array", "items": {"type": "object", "properties": {
+              "pr": {"type": "integer"},
+              "head_sha": {"type": "string", "description": "The PR head warte read after the ejection"},
+              "run_id": {"type": "integer", "description": "The ejecting merge-group run"},
+              "attempt": {"type": "integer"},
+              "of": {"type": "integer"},
+              "earliest": {"type": "integer", "description": "Unix seconds, UTC"},
+              "pool": {"type": "string"}}}}}}}}},
+          "400": {"description": "repo missing or not a bare repository name"}
+        }
+      }
+    },
     "/api/admission": {
       "get": {
         "summary": "Should an agent open a PR of this kind in this repo now?",
