@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/pulseengine/warte/schemas/architecture.v1.json",
+  "title": "architecture.v1",
+  "description": "warte's architecture export: hosts, services, agent sessions, credential stores, trust zones and their connections. Necessary, not sufficient: `warte arch check` also enforces rules JSON Schema cannot express. (1) ids are unique across zones, components and connections. (2) component.zone names a zone. (3) component.host names a component of kind host; a host has no host. (4) agent appears only on kind session. (5) credential names are unique per component. (6) connection from and to name components; connection.credential is \"<component id>/<credential name>\" of an existing credential. (7) zone_crossing, when given, equals (from.zone != to.zone). (8) no string anywhere looks like a secret value (PEM headers, GitHub, Slack, AWS, OpenAI-style or warte token prefixes, JWTs). tests/architecture_schema.rs keeps this file and `check()` in agreement.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "generated_at", "source", "zones", "components", "connections"],
+  "properties": {
+    "schema": {"const": "architecture.v1"},
+    "generated_at": {"type": "string"},
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tool", "version", "model"],
+      "properties": {
+        "tool": {"type": "string"},
+        "version": {"type": "string"},
+        "model": {"type": "string"},
+        "commit": {"type": ["string", "null"]}
+      }
+    },
+    "zones": {"type": "array", "items": {"$ref": "#/$defs/zone"}},
+    "components": {"type": "array", "items": {"$ref": "#/$defs/component"}},
+    "connections": {"type": "array", "items": {"$ref": "#/$defs/connection"}}
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[a-z0-9-]{1,64}$"},
+    "zone": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "trust"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "name": {"type": "string"},
+        "trust": {"enum": ["trusted", "internal", "dmz", "external"]},
+        "description": {"type": ["string", "null"]}
+      }
+    },
+    "credential": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "kind"],
+      "properties": {
+        "name": {"type": "string"},
+        "kind": {"enum": ["private-key", "token", "password", "api-key", "certificate", "seed", "other"]},
+        "purpose": {"type": ["string", "null"]}
+      }
+    },
+    "component": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "kind", "zone"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "name": {"type": "string"},
+        "kind": {"enum": ["host", "service", "session", "credential-store", "device", "external"]},
+        "zone": {"type": "string"},
+        "host": {"type": ["string", "null"]},
+        "controller": {"type": "array", "items": {"type": "string"}, "description": "STPA-Sec controller ids, opaque labels; warte does not resolve them."},
+        "credentials": {"type": "array", "items": {"$ref": "#/$defs/credential"}},
+        "aadl": {"type": ["string", "null"]},
+        "agent": {"type": ["string", "null"]}
+      }
+    },
+    "connection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "from", "to", "protocol", "authenticated", "encrypted"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "from": {"type": "string"},
+        "to": {"type": "string"},
+        "protocol": {"enum": ["quic", "https", "ssh", "udp", "wireguard", "unix", "other"]},
+        "port": {"type": ["integer", "null"], "minimum": 0, "maximum": 65535},
+        "authenticated": {"type": "boolean"},
+        "encrypted": {"type": "boolean"},
+        "credential": {"type": ["string", "null"]},
+        "zone_crossing": {"type": ["boolean", "null"]},
+        "controller": {"type": "array", "items": {"type": "string"}}
+      }
+    }
+  }
+}
