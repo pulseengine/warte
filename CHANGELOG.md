@@ -4,6 +4,10 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.52 — 2026-11-26
+
+- **Agent triage of alerts before they page, shadow mode first** (REQ-ALERT-006, #219). Every opened or escalated alert is stored with its context (other open findings, recent CI runs for the same repo or pool, the key's last week), and a triage agent posts `real` or `noise` with a one-line reason through `warte.alert-triage.v1`. warte holds no model credential: a deployment timer polls `GET /api/alerts/triage/pending` with an `alerts:triage` token and starts a headless run only when alerts are pending. The Queue view shows signed-in users each verdict and the measures (missed real alerts as a count, the keys the agent got wrong, noise caught, agreement), and gives the owner a one-tap Real or Noise. `[alert_triage] mode = "shadow"` (the default) leaves paging unchanged. `mode = "gate"`, for after the owner approves it, holds amber alerts the agent calls noise out of ntfy; red alerts and escalations always page, an alert with no verdict pages after 30 minutes, and a runner silent for 30 minutes holds nothing back.
+
 ## v1.6.51 — 2026-11-26
 
 - **A JSON Schema for architecture.v1** (REQ-ARCHVIEW-002). `schemas/architecture.v1.json` (JSON Schema 2020-12) lets a producer, such as spar's planned `emit --format architecture-v1`, pin the contract at a commit and golden-test against it. It covers the structure, every enum, the id pattern and refuses unknown fields; its description lists, numbered, the eight rules only `warte arch check` enforces (references, uniqueness, host and agent placement, credential names, zone crossings, secret values). A test keeps the schema and the check in agreement in both directions. `controller` is an array of opaque ids on components and connections; warte does not resolve them.

@@ -632,6 +632,7 @@ pub const SIGNED_IN: &[&str] = &[
 pub const SIGNED_IN_OR_RIGHT: &[(&str, &str)] = &[
     ("/api/attention", "agents:read"),
     ("/api/architecture", "architecture:read"),
+    ("/api/alerts/triage/pending", "alerts:triage"),
     ("/api/briefing", "briefing:write"),
     ("/api/briefing/facts", "briefing:write"),
     ("/api/triage", "triage:write"),

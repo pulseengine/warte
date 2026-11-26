@@ -228,6 +228,13 @@ pub fn spawn(state: crate::server::AppState) {
         let http = reqwest::Client::new();
         let disk = state.config.disk_levels();
         let mut house = house::Reader::default();
+        let mode = state
+            .config
+            .alert_triage
+            .as_ref()
+            .map(|t| t.mode)
+            .unwrap_or_default();
+        let mut gate = crate::alerttriage::Gate::default();
         let mut id: Option<String> = None;
         let mut tick = tokio::time::interval(std::time::Duration::from_secs(60));
         loop {
@@ -283,12 +290,59 @@ pub fn spawn(state: crate::server::AppState) {
                     tracing::warn!(error = %err, "alert notice not recorded");
                 }
             }
-            // the same notices, pushed (REQ-ALERT-003)
-            if let (Some(cfg), false) = (&state.config.notify, ns.is_empty()) {
-                ntfy::deliver(&http, cfg, &ns).await;
+            // every opened alert is stored for the triage agent (REQ-ALERT-006)
+            let now = crate::hub::now();
+            let triage = crate::alerttriage::Store::new(state.db.pool().clone());
+            for n in &ns {
+                if let Some((key, sev, _)) = crate::alerttriage::opened(n) {
+                    let text = n["title"].as_str().unwrap_or_default();
+                    let ctx = triage_context(&state, &triage, &key, text, &found, now).await;
+                    let id = n["id"].as_str().unwrap_or_default();
+                    if let Err(err) = triage.record(id, &key, sev, text, now, &ctx).await {
+                        tracing::warn!(error = %err, "alert not stored for triage");
+                    }
+                }
+            }
+            // the same notices, pushed (REQ-ALERT-003); in gate mode only what
+            // the triage verdicts and the fail-open rules let through
+            let push = match mode {
+                crate::alerttriage::Mode::Shadow => ns,
+                crate::alerttriage::Mode::Gate => gate.step(&triage, &ns, now).await,
+            };
+            if let (Some(cfg), false) = (&state.config.notify, push.is_empty()) {
+                ntfy::deliver(&http, cfg, &push).await;
             }
         }
     });
+}
+
+/// What the triage agent reads with an alert: the other open findings, recent
+/// runs naming the same repo or pool, and this key's last week of verdicts.
+async fn triage_context(
+    state: &crate::server::AppState,
+    store: &crate::alerttriage::Store,
+    key: &str,
+    text: &str,
+    found: &[Detected],
+    now: i64,
+) -> serde_json::Value {
+    use crate::hub::report::day_of;
+    let open: Vec<serde_json::Value> = found
+        .iter()
+        .filter(|d| d.key != key)
+        .take(20)
+        .map(|d| serde_json::json!({"key": d.key, "sev": d.sev, "text": d.text}))
+        .collect();
+    let runs = state
+        .hub
+        .as_ref()
+        .map(|h| {
+            let recs = h.ledger_days(&day_of(now - 86_400), &day_of(now));
+            crate::alerttriage::runs_for(&recs, key, text)
+        })
+        .unwrap_or_default();
+    let history = store.history(key, now - 7 * 86_400).await;
+    serde_json::json!({"open": open, "runs": runs, "history": history})
 }
 
 async fn agent_id(state: &crate::server::AppState) -> anyhow::Result<String> {

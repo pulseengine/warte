@@ -167,6 +167,9 @@ pub struct Config {
     /// A house controller's warnings as alerts (REQ-ALERT-005).
     #[serde(default)]
     pub house: Option<crate::alerts::house::HouseConfig>,
+    /// Agent triage of alerts before they page (REQ-ALERT-006).
+    #[serde(default)]
+    pub alert_triage: Option<crate::alerttriage::TriageConfig>,
 }
 
 /// `[alerts]` in warte.toml.
@@ -498,6 +501,7 @@ impl Default for Config {
             notify: None,
             alerts: None,
             house: None,
+            alert_triage: None,
         }
     }
 }
