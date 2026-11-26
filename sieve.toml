@@ -18,9 +18,9 @@ cargo = ["Cargo.toml"]
 hand = ["tests/playwright/", "templates/"]
 
 [workflows]
-# .github/required-contexts.txt mirrors the required status checks of main's
-# branch protection, one context per line; the two change together. No
-# comments in that file: sieve reads every non-empty line as a context.
+# .github/required-contexts.txt: the required status checks of main, one per
+# line; its header says why. sieve >= v0.4.5 skips `#` lines and refuses a
+# file with no context.
 required_contexts = ".github/required-contexts.txt"
 
 [workflows.job_outputs]     # HAND-MAINTAINED: job -> the classes it reads
