@@ -48,3 +48,34 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-11-22T16:00:00Z
+
+  - id: REQ-ARCHVIEW-002
+    type: requirement
+    title: warte publishes a JSON Schema for architecture.v1 that agrees with its check
+    status: verified
+    release: v1.6.51
+    description: "warte SHALL publish schemas/architecture.v1.json (JSON Schema 2020-12) that a producer can pin at a commit and test against. Every document the schema refuses, `check()` SHALL refuse too. The schema's description SHALL list, numbered, every rule `check()` enforces that JSON Schema cannot express (unique ids, resolving zone, host, endpoint and credential references, host kinds, agent only on a session, credential names unique per component, zone_crossing agreement, secret-looking values), so a producer knows the schema is necessary, not sufficient."
+    fields:
+      category: interface
+      priority: should
+    links:
+      - type: refines
+        target: REQ-ARCHVIEW-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-26T06:00:00Z
+
+  - id: TEST-ARCHVIEW-002
+    type: verification
+    title: The schema and check() agree on accepted documents, shape errors, and the listed gap
+    status: verified
+    release: v1.6.51
+    description: "tests/architecture_schema.rs: the example, null optionals, port 65535, empty lists, several controllers and every enum value the schema publishes are accepted by both; 25 shape errors (unknown fields, wrong enums or case, controller as a string, null credentials, bad ids, ports out of u16 or fractional, wrong types) are refused by both; the ten cross-reference and secret cases are accepted by the schema and refused by check(), and the description lists rules (1) to (8). schema_enums_equal_the_rust_enums: each published enum equals the Rust enum's serde names, with exhaustive matches so a new variant cannot compile unlisted. Negative controls: dropping dmz from the trust enum, and dropping additionalProperties false on components, each failed a test."
+    links:
+      - type: verifies
+        target: REQ-ARCHVIEW-002
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-26T06:00:00Z

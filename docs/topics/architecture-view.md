@@ -23,6 +23,13 @@ login, `GET /api/architecture` needs a warte token with the right
 Version **1**. A change that an older reader could misread is a new version.
 Unknown fields are refused, so the contract cannot drift silently.
 
+A JSON Schema (2020-12) for producers to pin and test against is published at
+`schemas/architecture.v1.json`. It is necessary, not sufficient: its
+description lists, numbered, the rules below that JSON Schema cannot express
+(references, uniqueness, host and agent placement, zone crossings, secret
+values), and `tests/architecture_schema.rs` keeps it in agreement with
+`warte arch check`.
+
 ```json
 {
   "schema": "architecture.v1",

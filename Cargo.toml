@@ -1,6 +1,6 @@
 [package]
 name = "warte"
-version = "1.6.50"
+version = "1.6.51"
 edition = "2021"
 description = "Warte — the PulseEngine control tower. A CI dashboard with an ask feature and an API."
 license = "Apache-2.0"
@@ -82,6 +82,7 @@ time = "0.3"
 [dev-dependencies]
 tokio-test = "0.4"
 tempfile = "3"
+jsonschema = { version = "=0.61.2", default-features = false }
 
 [[bin]]
 name = "warte"
