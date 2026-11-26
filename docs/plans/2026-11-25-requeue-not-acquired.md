@@ -76,9 +76,16 @@ Phase 1 in `[github]` mode needs neither seam and can ship first.
 ## Status
 
 - Phase 1 in `[github]` mode shipped in v1.6.49 (REQ-QUEUE-003, TEST-QUEUE-003).
-- Phase 2 waits on seam B. Finding for it: a merge-group run's branch
+- After v1.6.49, phase 2 waited on seam B. Finding for it: a merge-group run's branch
   `gh-readonly-queue/<base>/pr-<N>-<sha>` carries the base commit, not the
   PR head (checked on one merge-group run: the branch sha and the PR's head
   differed). So `head_sha` in an offer costs one `GET /pulls/<N>` per
   qualifying ejection, or the offer carries the ejection time and the agent
   compares the PR's last push against it. Seam B decides which.
+- Phase 2 shipped in v1.6.50 (REQ-QUEUE-004, TEST-QUEUE-004), `[github]`
+  mode. Seam B decided on pulseengine.eu#411: `head_sha` is the PR head warte
+  reads with one `GET /pulls/<N>` per qualifying ejection, and the agent
+  re-queues only when it still equals the PR's head. Notices are alerts under
+  `warte-alerts`: an offer is amber (it opens after five evaluations), an
+  exhausted PR and a stopped repo are red. The owner clears a stopped repo on
+  the Queue view (`POST /api/requeue/clear`).

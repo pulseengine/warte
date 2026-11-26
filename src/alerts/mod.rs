@@ -246,6 +246,10 @@ pub fn spawn(state: crate::server::AppState) {
                 &state,
                 crate::hub::now(),
             ));
+            // re-queue offers, exhausted retries, stopped repos (REQ-QUEUE-004)
+            if let Some(h) = &state.hub {
+                found.extend(crate::requeue::detected(&h.requeue.plan()));
+            }
             // the house controller's alarms (REQ-ALERT-005)
             if let Some(cfg) = &state.config.house {
                 let fresh = house::fetch(&http, cfg).await;

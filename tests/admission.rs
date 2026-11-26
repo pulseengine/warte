@@ -279,6 +279,7 @@ async fn endpoints_answer_as_documented() {
             "/api/admission" => "?repo=spar&kind=docs",
             "/api/watch" => "?repo=spar&pr=1&timeout=0",
             "/api/eta" => "?repo=spar&pr=1",
+            "/api/requeue" => "?repo=spar",
             "/api/fleet" => continue, // 404 without a model; tests/fleet_model.rs covers it
             "/api/pressure" => continue, // needs a reporting host; tests/pressure.rs covers it
             // 503 without [briefing]; tests/briefing.rs covers both

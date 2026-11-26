@@ -277,6 +277,8 @@ pub struct Hub {
     /// `[runners]` and the self-hosted label patterns, for the report's
     /// names, kinds and notional cost (REQ-RUNNERS-004).
     runners: Arc<std::sync::OnceLock<(pools::RunnersConfig, Vec<String>)>>,
+    /// Re-queue offers after merge-group ejections (REQ-QUEUE-004).
+    pub requeue: Arc<crate::requeue::Board>,
 }
 
 impl Hub {
@@ -304,6 +306,7 @@ impl Hub {
             require_quic: Default::default(),
             history: Default::default(),
             runners: Default::default(),
+            requeue: Arc::new(crate::requeue::Board::open(data_dir)),
         })
     }
 

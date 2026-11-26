@@ -713,9 +713,51 @@ async fn ledger_pass(
         }
         Err(e) => tracing::warn!(error = %e, "GitHub ledger pass failed"),
     }
+    requeue_pass(c, &cfg.org, hub, now).await;
     if let Err(e) = st.save(path) {
         tracing::warn!(error = %e, "GitHub ledger state not saved");
     }
+}
+
+/// The re-queue offers after this pass (REQ-QUEUE-004): the merge-group runs
+/// of the last two UTC days, and for each ejection caused only by unacquired
+/// jobs the PR's head, one `GET /pulls/<N>` per ejection, once. A head that
+/// cannot be read gets no offer.
+pub async fn requeue_pass(c: &Client, org: &str, hub: &crate::hub::Hub, now: i64) {
+    use crate::hub::report::day_of;
+    let h = hub.clone();
+    let recs =
+        tokio::task::spawn_blocking(move || h.ledger_days(&day_of(now - 86_400), &day_of(now)))
+            .await
+            .unwrap_or_default();
+    let ejs = crate::requeue::ejections(&recs);
+    let mut reads = 0;
+    for e in ejs
+        .iter()
+        .filter(|e| e.only_not_acquired && now - e.at <= crate::requeue::OFFER_FOR_S)
+    {
+        if hub.requeue.has_head(e.run) || reads >= crate::requeue::MAX_HEAD_READS {
+            continue;
+        }
+        reads += 1;
+        match c
+            .get(&format!("/repos/{org}/{}/pulls/{}", e.repo, e.pr))
+            .await
+        {
+            Ok(v) => match v["head"]["sha"].as_str() {
+                Some(sha) if sha.len() == 40 && sha.bytes().all(|b| b.is_ascii_hexdigit()) => {
+                    hub.requeue.set_head(e.run, sha)
+                }
+                _ => {
+                    tracing::warn!(repo = %e.repo, pr = e.pr, "PR head unreadable: no re-queue offer")
+                }
+            },
+            Err(err) => {
+                tracing::warn!(repo = %e.repo, pr = e.pr, error = %err, "PR not read: no re-queue offer")
+            }
+        }
+    }
+    hub.requeue.update(&ejs, now);
 }
 
 /// Scan every `interval_s` and hand each snapshot to the hub. A rate limit

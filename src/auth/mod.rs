@@ -30,10 +30,11 @@ pub const ATTENTION_PATH: &str = "/api/attention";
 /// Writes made with a login, not a token: each handler checks the session,
 /// the origin and the session's CSRF token itself (REQ-ATTN-001,
 /// REQ-DECIDE-001). (method, path).
-pub const LOGIN_WRITES: [(&str, &str); 3] = [
+pub const LOGIN_WRITES: [(&str, &str); 4] = [
     ("PUT", ATTENTION_PATH),
     ("POST", "/api/decisions/answer"),
     ("POST", "/api/security/accept"),
+    ("POST", "/api/requeue/clear"),
 ];
 
 pub const PROBE_OPEN_PATHS: [&str; 5] = [

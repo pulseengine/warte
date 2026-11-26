@@ -154,8 +154,31 @@ struct Server {
 }
 
 async fn serve(auth: Option<AuthConfig>) -> Server {
+    serve_with(auth, false).await
+}
+
+/// With `requeue_stopped`, a ground station whose re-queue offers for
+/// "relay" are stopped (REQ-QUEUE-004).
+async fn serve_with(auth: Option<AuthConfig>, requeue_stopped: bool) -> Server {
     let dir = tempfile::tempdir().unwrap();
+    let hub = requeue_stopped.then(|| {
+        let d = dir.path().join("hub");
+        std::fs::create_dir_all(&d).unwrap();
+        warte::config::HubConfig {
+            udp: "127.0.0.1:0".into(),
+            allow: vec![std::net::Ipv4Addr::LOCALHOST.into()],
+            data_dir: d.to_str().unwrap().into(),
+            org: "pulseengine".into(),
+            probe_self: false,
+            costs_file: None,
+            skill_usage_file: None,
+            quic: None,
+            quic_names: vec![],
+            require_quic: false,
+        }
+    });
     let config = warte::config::Config {
+        hub,
         db_path: dir.path().join("state.db"),
         ca_cert_path: dir.path().join("ca.pem"),
         ca_key_path: dir.path().join("ca-key.pem"),
@@ -171,6 +194,23 @@ async fn serve(auth: Option<AuthConfig>) -> Server {
     };
     let db = warte::db::Database::connect(&config.db_path).await.unwrap();
     let state = warte::server::build_state(config, db).unwrap();
+    if let Some(h) = state.hub.as_ref().filter(|_| requeue_stopped) {
+        let t = now() - 600;
+        let ej = |run: u64, at: i64, only: bool| warte::requeue::Ejection {
+            repo: "relay".into(),
+            pr: 636,
+            run,
+            att: 1,
+            at,
+            pool: "macos-15-arm64".into(),
+            passed: false,
+            only_not_acquired: only,
+        };
+        // offered, then ejected for another reason: offers stop
+        h.requeue
+            .update(&[ej(1, t, true), ej(2, t + 60, false)], now());
+        assert_eq!(h.requeue.plan().stopped.len(), 1);
+    }
     let agent = state
         .tokens
         .issue_token("a1", vec!["agents:data".into()])
@@ -1410,4 +1450,107 @@ async fn a_producer_posts_its_report_with_its_right_and_only_a_login_sees_it() {
         .await
         .unwrap();
     assert!(page.contains("needs a login"), "{page}");
+}
+
+async fn csrf_of(s: &Server, cookie: &str) -> String {
+    let page = client()
+        .get(format!("{}/api/dashboard/attention-partial", s.base))
+        .header("Cookie", cookie)
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    page.split(r#"data-csrf=""#)
+        .nth(1)
+        .unwrap()
+        .split('"')
+        .next()
+        .unwrap()
+        .to_string()
+}
+
+async fn post_clear(s: &Server, cookie: &str, csrf: Option<&str>, origin: &str) -> (u16, String) {
+    let host = s.base.trim_start_matches("http://").to_string();
+    let mut r = client()
+        .post(format!("{}/api/requeue/clear", s.base))
+        .header("Cookie", cookie)
+        .header("Origin", origin.replace("SELF", &host))
+        .json(&json!({"repo": "relay"}));
+    if let Some(t) = csrf {
+        r = r.header("X-Warte-CSRF", t);
+    }
+    let r = r.send().await.unwrap();
+    (r.status().as_u16(), r.text().await.unwrap())
+}
+
+async fn queue_page(s: &Server, cookie: &str) -> String {
+    client()
+        .get(format!("{}/api/dashboard/queue-partial", s.base))
+        .header("Cookie", cookie)
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap()
+}
+
+// rivet: verifies REQ-QUEUE-004
+#[tokio::test]
+async fn only_the_owner_clears_stopped_requeue_offers_from_this_page() {
+    let (i, iss) = idp().await;
+    let s = serve_with(Some(cfg(&iss)), true).await;
+    let owner = sign_in(&s, &i, "u1", "d1").await;
+    *i.role.lock().unwrap() = "member".into();
+    let member = sign_in(&s, &i, "u2", "d2").await;
+    *i.role.lock().unwrap() = String::new();
+    let (ocsrf, mcsrf) = (csrf_of(&s, &owner).await, csrf_of(&s, &member).await);
+    assert_ne!(ocsrf, mcsrf);
+
+    // the owner sees the Clear button, a member does not
+    let page = queue_page(&s, &owner).await;
+    assert!(
+        page.contains("offers stopped") && page.contains(r#"data-requeue-repo="relay""#),
+        "{page}"
+    );
+    let page = queue_page(&s, &member).await;
+    assert!(
+        page.contains("offers stopped") && !page.contains("data-requeue-repo"),
+        "{page}"
+    );
+
+    // planted: no token, another session's token, a foreign origin, a member
+    assert_eq!(post_clear(&s, &owner, None, "http://SELF").await.0, 403);
+    assert_eq!(
+        post_clear(&s, &owner, Some(&mcsrf), "http://SELF").await.0,
+        403
+    );
+    assert_eq!(
+        post_clear(&s, &owner, Some("forged"), "http://SELF")
+            .await
+            .0,
+        403
+    );
+    assert_eq!(
+        post_clear(&s, &owner, Some(&ocsrf), "https://evil.example")
+            .await
+            .0,
+        403
+    );
+    let (code, body) = post_clear(&s, &member, Some(&mcsrf), "http://SELF").await;
+    assert_eq!(
+        (code, body.as_str()),
+        (403, "only the owner clears stopped offers")
+    );
+    assert!(
+        queue_page(&s, &owner).await.contains("offers stopped"),
+        "still stopped"
+    );
+
+    // the owner, from this page: cleared
+    let (code, body) = post_clear(&s, &owner, Some(&ocsrf), "http://SELF").await;
+    assert_eq!(code, 204, "{body}");
+    assert!(!queue_page(&s, &owner).await.contains("offers stopped"));
 }

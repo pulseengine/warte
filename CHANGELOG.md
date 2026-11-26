@@ -4,6 +4,10 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.50 — 2026-11-25
+
+- **Re-queue offers after a merge-queue ejection caused only by unacquired hosted jobs** (REQ-QUEUE-004, #122). When every job that failed in a merge-group run was a hosted job no runner acquired (skipped and neutral jobs count as succeeded), warte reads the PR's head once and offers the PR's agent a re-queue on `GET /api/requeue?repo=` (`warte.requeue.v1`): 30, 60 and 120 minutes after each ejection, at most three times per PR per UTC day. warte stays read-only on GitHub; the agent re-checks the ejection and re-queues with its own token, and every required check still runs. Each offer is an amber alert; a fourth ejection that day is a red one. If an offered PR is then ejected for another reason, offers for that repo stop (red alert) until the owner clears them on the Queue view.
+
 ## v1.6.49 — 2026-11-25
 
 - **Hosted jobs that never got a runner are told apart from failures** (REQ-QUEUE-003, #122). In GitHub-only mode the ledger marks a job `infra:not-acquired` when it was cancelled, no runner took it, no step ran, and GitHub annotated it "not acquired by Runner" (one annotation read per such job, at most 20 per pass). `/api/queue` gains `not_acquired`, the count per pool and UTC day over the last 7 days, and the Queue view shows today's count per pool. The re-queue offers (phase 2) follow once their interface is agreed.
