@@ -847,8 +847,11 @@ fn the_jig_shadow_pilot_has_the_caller_shape_and_changes_no_required_context() {
         Path::new(env!("CARGO_MANIFEST_DIR")).join(".github/required-contexts.txt"),
     )
     .unwrap();
+    assert!(ctx.starts_with("# Mirrors the required status checks"));
     assert_eq!(
-        ctx.lines().collect::<Vec<_>>(),
+        ctx.lines()
+            .filter(|l| !l.is_empty() && !l.starts_with('#'))
+            .collect::<Vec<_>>(),
         [
             "Build",
             "Clippy",

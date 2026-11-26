@@ -1,3 +1,6 @@
+# Mirrors the required status checks of main's branch protection, one
+# context per line; the two change together. sieve reads every other
+# non-empty line as a context.
 Build
 Clippy
 Rivet traceability check
