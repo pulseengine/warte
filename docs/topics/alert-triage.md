@@ -26,7 +26,13 @@ least 30 owner-marked alerts, at least 5 of them real.
 
 ## The runner
 
-A timer every 10 minutes:
+Cadence contract (owner's decision, 2026-11-25): the runner polls **at most
+once every 10 minutes** and starts **one headless agent run per non-empty
+batch**, never one per alert. A batch is every alert the poll returned. A
+runner that polls faster gains nothing: verdicts are taken once, and gate
+mode's 30-minute limits already assume this cadence.
+
+Each tick of that timer:
 
 1. `GET /api/alerts/triage/pending` with a warte agent token holding
    `alerts:triage`. No model is involved; each poll is the runner's
