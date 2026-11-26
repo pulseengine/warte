@@ -2,3 +2,4 @@ Build
 Clippy
 Rivet traceability check
 Playwright E2E
+Dependency audit
