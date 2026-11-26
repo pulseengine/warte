@@ -842,7 +842,7 @@ fn the_jig_shadow_pilot_has_the_caller_shape_and_changes_no_required_context() {
         .as_str()
         .is_some_and(|v| v.starts_with('v')));
     assert_eq!(env["SIEVE_SHA256"].as_str().map(str::len), Some(64));
-    // the required contexts are still warte's own four
+    // the required contexts mirror main's protection (owner, 2026-11-26)
     let ctx = fs::read_to_string(
         Path::new(env!("CARGO_MANIFEST_DIR")).join(".github/required-contexts.txt"),
     )
@@ -853,7 +853,8 @@ fn the_jig_shadow_pilot_has_the_caller_shape_and_changes_no_required_context() {
             "Build",
             "Clippy",
             "Rivet traceability check",
-            "Playwright E2E"
+            "Playwright E2E",
+            "Dependency audit"
         ]
     );
 }
