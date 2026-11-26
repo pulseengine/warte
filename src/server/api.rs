@@ -63,6 +63,9 @@ pub fn build_routes() -> Router<AppState> {
         .route("/admission", get(api_admission))
         .route("/requeue", get(api_requeue))
         .route("/requeue/clear", post(api_requeue_clear))
+        .route("/alerts/triage/pending", get(api_alert_triage_pending))
+        .route("/alerts/triage/verdict", post(api_alert_triage_verdict))
+        .route("/alerts/owner-verdict", post(api_alert_owner_verdict))
         .route("/watch", get(api_watch))
         .route("/eta", get(api_eta))
         .route("/history/fleet", get(api_history_fleet))
@@ -2520,4 +2523,111 @@ async fn api_requeue_clear(
     hub.requeue.clear(&r.repo, crate::hub::now());
     tracing::info!(user = %who.name, repo = %r.repo, "re-queue offers cleared");
     StatusCode::NO_CONTENT.into_response()
+}
+
+/// Alerts awaiting the triage agent's verdict, with their context
+/// (REQ-ALERT-006, `warte.alert-triage.v1`). A token with `alerts:triage`
+/// reading this is the triage runner's heartbeat.
+async fn api_alert_triage_pending(
+    State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Response {
+    let now = crate::hub::now();
+    let runner = headers
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .and_then(|t| state.tokens.verify_token(t).ok())
+        .is_some_and(|p| {
+            p.rights
+                .iter()
+                .any(|r| r == crate::auth::RIGHT_ALERT_TRIAGE)
+        });
+    let store = crate::alerttriage::Store::new(state.db.pool().clone());
+    if runner {
+        store.polled(now).await;
+    }
+    Json(serde_json::json!({
+        "schema": crate::alerttriage::SCHEMA,
+        "alerts": store.pending(now).await,
+    }))
+    .into_response()
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AlertVerdict {
+    id: String,
+    verdict: crate::alerttriage::Verdict,
+    reason: String,
+    model: String,
+}
+
+/// The triage agent's verdict on one alert, once (REQ-ALERT-006).
+async fn api_alert_triage_verdict(
+    State(state): State<AppState>,
+    body: axum::body::Bytes,
+) -> axum::response::Response {
+    let Ok(v) = serde_json::from_slice::<AlertVerdict>(&body) else {
+        return plain(StatusCode::UNPROCESSABLE_ENTITY, "not a verdict");
+    };
+    if v.reason.chars().count() > crate::alerttriage::MAX_REASON || v.model.len() > 100 {
+        return plain(StatusCode::UNPROCESSABLE_ENTITY, "reason or model too long");
+    }
+    let now = crate::hub::now();
+    let store = crate::alerttriage::Store::new(state.db.pool().clone());
+    store.polled(now).await;
+    match store
+        .verdict(&v.id, v.verdict, &v.reason, &v.model, now)
+        .await
+    {
+        Ok(()) => StatusCode::NO_CONTENT.into_response(),
+        Err(crate::alerttriage::VerdictError::Already) => {
+            plain(StatusCode::CONFLICT, "this alert already has a verdict")
+        }
+        Err(crate::alerttriage::VerdictError::NotFound) => {
+            plain(StatusCode::NOT_FOUND, "no such alert")
+        }
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct OwnerVerdict {
+    id: String,
+    verdict: crate::alerttriage::Verdict,
+}
+
+/// The owner's one-tap Real or Noise on an alert (REQ-ALERT-006): the owner
+/// role only, from this origin with the session's CSRF token.
+async fn api_alert_owner_verdict(
+    State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
+    body: axum::body::Bytes,
+) -> axum::response::Response {
+    let Some(login) = state.login.as_ref() else {
+        return plain(StatusCode::UNAUTHORIZED, "marking alerts needs [auth]");
+    };
+    let Some((session, who)) = login.identity_of(&headers, crate::hub::now()) else {
+        return plain(StatusCode::UNAUTHORIZED, "sign in first");
+    };
+    let csrf = headers.get("x-warte-csrf").and_then(|v| v.to_str().ok());
+    if !same_origin(&headers) || csrf != Some(state.tokens.csrf_token(&session).as_str()) {
+        return plain(StatusCode::FORBIDDEN, "not from this page");
+    }
+    if who.role != crate::login::Role::Owner {
+        return plain(StatusCode::FORBIDDEN, "only the owner marks alerts");
+    }
+    let Ok(v) = serde_json::from_slice::<OwnerVerdict>(&body) else {
+        return plain(StatusCode::UNPROCESSABLE_ENTITY, "not a verdict");
+    };
+    let store = crate::alerttriage::Store::new(state.db.pool().clone());
+    if store
+        .owner(&v.id, v.verdict, &who.name, crate::hub::now())
+        .await
+    {
+        StatusCode::NO_CONTENT.into_response()
+    } else {
+        plain(StatusCode::NOT_FOUND, "no such alert")
+    }
 }

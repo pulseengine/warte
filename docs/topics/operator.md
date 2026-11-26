@@ -164,6 +164,10 @@ These rights belong to agents and peers rather than the operator's jobs:
 - `reports:write:seam-check`: the weekly seam-check workflow posting its
   report to `POST /api/reports/seam-check` (REQ-REPORTS-001); mint it for
   that job alone, since it can post the report and do nothing else;
+- `alerts:triage`: the alert triage runner reading
+  `GET /api/alerts/triage/pending` and posting one verdict per alert to
+  `POST /api/alerts/triage/verdict` (REQ-ALERT-006, `warte docs alert-triage`);
+  mint it for that runner alone; never in a bare mint;
 - `architecture:read`: read `GET /api/architecture`, the architecture view's
   data, without a login (REQ-ARCHVIEW-001); it shows where every credential
   lives, so mint it only for the job that needs it; never in a bare mint;

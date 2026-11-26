@@ -151,6 +151,8 @@ struct Server {
     arch_reader: String,
     /// "seam-job" with reports:write:seam-check only.
     reporter: String,
+    /// "triage-runner" with alerts:triage only.
+    triager: String,
 }
 
 async fn serve(auth: Option<AuthConfig>) -> Server {
@@ -250,6 +252,10 @@ async fn serve_with(auth: Option<AuthConfig>, requeue_stopped: bool) -> Server {
         .tokens
         .issue_token_owned("a1", vec!["agents:read".into()], Some("u1"))
         .unwrap();
+    let triager = state
+        .tokens
+        .issue_token("triage-runner", vec!["alerts:triage".into()])
+        .unwrap();
     let app = warte::server::build_router(state);
     let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base = format!("http://{}", l.local_addr().unwrap());
@@ -265,6 +271,7 @@ async fn serve_with(auth: Option<AuthConfig>, requeue_stopped: bool) -> Server {
         owned_by_u1,
         arch_reader,
         reporter,
+        triager,
     }
 }
 
@@ -1553,4 +1560,195 @@ async fn only_the_owner_clears_stopped_requeue_offers_from_this_page() {
     let (code, body) = post_clear(&s, &owner, Some(&ocsrf), "http://SELF").await;
     assert_eq!(code, 204, "{body}");
     assert!(!queue_page(&s, &owner).await.contains("offers stopped"));
+}
+
+async fn seed_alert(s: &Server, id: &str) {
+    let url = format!("sqlite://{}", s._dir.path().join("state.db").display());
+    let pool = sqlx::SqlitePool::connect(&url).await.unwrap();
+    warte::alerttriage::Store::new(pool)
+        .record(
+            id,
+            "github:actions",
+            1,
+            "GitHub Actions degraded",
+            now(),
+            &json!({"open": []}),
+        )
+        .await
+        .unwrap();
+}
+
+async fn post_owner_verdict(
+    s: &Server,
+    cookie: &str,
+    csrf: Option<&str>,
+    origin: &str,
+    id: &str,
+) -> (u16, String) {
+    let host = s.base.trim_start_matches("http://").to_string();
+    let mut r = client()
+        .post(format!("{}/api/alerts/owner-verdict", s.base))
+        .header("Cookie", cookie)
+        .header("Origin", origin.replace("SELF", &host))
+        .json(&json!({"id": id, "verdict": "noise"}));
+    if let Some(t) = csrf {
+        r = r.header("X-Warte-CSRF", t);
+    }
+    let r = r.send().await.unwrap();
+    (r.status().as_u16(), r.text().await.unwrap())
+}
+
+// rivet: verifies REQ-ALERT-006
+#[tokio::test]
+async fn only_the_owner_marks_an_alert_real_or_noise_from_this_page() {
+    let (i, iss) = idp().await;
+    let s = serve_with(Some(cfg(&iss)), false).await;
+    seed_alert(&s, "warte-alert-1").await;
+    let owner = sign_in(&s, &i, "u1", "d1").await;
+    *i.role.lock().unwrap() = "member".into();
+    let member = sign_in(&s, &i, "u2", "d2").await;
+    *i.role.lock().unwrap() = String::new();
+    let (ocsrf, mcsrf) = (csrf_of(&s, &owner).await, csrf_of(&s, &member).await);
+
+    // signed in: the panel; the owner gets the buttons; anonymous: no panel
+    let page = queue_page(&s, &owner).await;
+    assert!(page.contains(r#"data-triage-id="warte-alert-1""#), "{page}");
+    let page = queue_page(&s, &member).await;
+    assert!(
+        page.contains("alert-triage") && !page.contains("data-triage-id"),
+        "{page}"
+    );
+    let anon = client()
+        .get(format!("{}/api/dashboard/queue-partial", s.base))
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    assert!(!anon.contains("alert-triage"), "{anon}");
+
+    // planted: no token, another session's token, forged, foreign origin, a member
+    let id = "warte-alert-1";
+    assert_eq!(
+        post_owner_verdict(&s, &owner, None, "http://SELF", id)
+            .await
+            .0,
+        403
+    );
+    assert_eq!(
+        post_owner_verdict(&s, &owner, Some(&mcsrf), "http://SELF", id)
+            .await
+            .0,
+        403
+    );
+    assert_eq!(
+        post_owner_verdict(&s, &owner, Some("forged"), "http://SELF", id)
+            .await
+            .0,
+        403
+    );
+    assert_eq!(
+        post_owner_verdict(&s, &owner, Some(&ocsrf), "https://evil.example", id)
+            .await
+            .0,
+        403
+    );
+    let (code, body) = post_owner_verdict(&s, &member, Some(&mcsrf), "http://SELF", id).await;
+    assert_eq!((code, body.as_str()), (403, "only the owner marks alerts"));
+    assert!(!queue_page(&s, &owner)
+        .await
+        .contains(r#"aria-pressed="true""#));
+
+    // the owner, from this page
+    let (code, body) = post_owner_verdict(&s, &owner, Some(&ocsrf), "http://SELF", id).await;
+    assert_eq!(code, 204, "{body}");
+    assert!(queue_page(&s, &owner)
+        .await
+        .contains(r#"aria-pressed="true""#));
+    assert_eq!(
+        post_owner_verdict(&s, &owner, Some(&ocsrf), "http://SELF", "nope")
+            .await
+            .0,
+        404
+    );
+}
+
+// rivet: verifies REQ-ALERT-006
+#[tokio::test]
+async fn the_triage_runner_reads_pending_alerts_and_posts_one_verdict_with_its_right() {
+    let (i, iss) = idp().await;
+    let s = serve_with(Some(cfg(&iss)), false).await;
+    seed_alert(&s, "warte-alert-2").await;
+    let pending = |tok: Option<String>| {
+        let mut r = client().get(format!("{}/api/alerts/triage/pending", s.base));
+        if let Some(t) = tok {
+            r = r.bearer_auth(t);
+        }
+        r.send()
+    };
+    assert_eq!(pending(None).await.unwrap().status().as_u16(), 401);
+    assert_eq!(
+        pending(Some(s.arch_reader.clone()))
+            .await
+            .unwrap()
+            .status()
+            .as_u16(),
+        403
+    );
+    let r = pending(Some(s.triager.clone())).await.unwrap();
+    assert_eq!(r.status().as_u16(), 200);
+    let v: Value = r.json().await.unwrap();
+    assert_eq!(v["schema"], "warte.alert-triage.v1");
+    assert_eq!(v["alerts"][0]["id"], "warte-alert-2");
+    assert_eq!(v["alerts"][0]["context"]["open"], json!([]));
+
+    let verdict = |tok: Option<String>, id: &str| {
+        let mut r = client()
+            .post(format!("{}/api/alerts/triage/verdict", s.base))
+            .json(&json!({"id": id, "verdict": "noise", "reason": "status page flapped", "model": "small"}));
+        if let Some(t) = tok {
+            r = r.bearer_auth(t);
+        }
+        r.send()
+    };
+    let st = |r: reqwest::Response| r.status().as_u16();
+    assert_eq!(st(verdict(None, "warte-alert-2").await.unwrap()), 401);
+    assert_eq!(
+        st(verdict(Some(s.arch_reader.clone()), "warte-alert-2")
+            .await
+            .unwrap()),
+        403
+    );
+    assert_eq!(
+        st(verdict(Some(s.triager.clone()), "warte-alert-2")
+            .await
+            .unwrap()),
+        204
+    );
+    assert_eq!(
+        st(verdict(Some(s.triager.clone()), "warte-alert-2")
+            .await
+            .unwrap()),
+        409
+    );
+    assert_eq!(
+        st(verdict(Some(s.triager.clone()), "nope").await.unwrap()),
+        404
+    );
+    let v: Value = pending(Some(s.triager.clone()))
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(v["alerts"], json!([]));
+
+    // the owner sees the verdict and that the runner polled
+    let owner = sign_in(&s, &i, "u1", "d1").await;
+    let page = queue_page(&s, &owner).await;
+    assert!(
+        page.contains("status page flapped") && page.contains("runner polled 0 min ago"),
+        "{page}"
+    );
 }

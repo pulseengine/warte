@@ -1,0 +1,50 @@
+# Agent triage of alerts before they page (warte#219). Owner-approved
+# 2026-11-25: shadow mode first, measured against the owner's own marks, and
+# a switch to gate mode only on the owner's approval.
+artifacts:
+  - id: REQ-ALERT-006
+    type: requirement
+    title: A triage agent marks each alert real or noise; shadow mode measures it, gate mode holds only what it may
+    status: verified
+    release: v1.6.52
+    description: "warte SHALL store every opened or escalated alert with a context of the other open findings, the last ten CI runs naming its repo or pool (no runner names, only the kind of an error signature) and its key's last week of verdicts. GET /api/alerts/triage/pending (warte.alert-triage.v1) SHALL list alerts without a verdict from the last day to a token holding alerts:triage or a login; such a token's read SHALL count as the runner's heartbeat. POST /api/alerts/triage/verdict SHALL take one verdict per alert from a token holding alerts:triage (repeat 409, unknown 404, reason at most 200 characters). POST /api/alerts/owner-verdict SHALL accept only the owner's session from this origin with its CSRF token. The Queue view SHALL show signed-in users the alerts with the agent's verdict and the measures (missed real as a count of owner-real, the keys the agent got wrong, noise caught, agreement, unmarked and unverdicted counts), and give only the owner the one-tap marks. In shadow mode (the default) paging SHALL be unchanged. In gate mode an amber alert SHALL be held until a real verdict (it pages) or a noise verdict (it and its clear stay unpushed); red alerts and escalations SHALL page whatever the verdict; an alert with no verdict SHALL page after 30 minutes; and nothing SHALL be held while the runner has not polled for 30 minutes. warte SHALL hold no model credential."
+    fields:
+      category: functional
+      priority: should
+    links:
+      - type: refines
+        target: REQ-ALERT-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-26T08:00:00Z
+
+  - id: DD-ALERT-006
+    type: design-decision
+    title: The runner polls without a model; gate mode fails open three ways
+    status: verified
+    release: v1.6.52
+    description: "warte never holds a model credential, so the agent runs where one already lives: a deployment timer polls pending every 10 minutes and starts a headless run only when the list is non-empty, so an empty minute costs no model call. Each poll is the heartbeat. Gate mode only decides what ntfy pushes; every alert is still recorded as a notice, so noise reaches the existing notice digest. It fails open on red, on a missing verdict after 30 minutes and on a silent runner, so a broken agent can delay an amber alert by at most 30 minutes and never hide a red one. Agent reasons are free text, so the panel is for signed-in users only, though the Queue view is public."
+    fields:
+      rationale: "Cost per alert stays near zero when nothing is pending; the critical failure (a real alert suppressed) is bounded by construction rather than by the model's quality."
+    links:
+      - type: satisfies
+        target: REQ-ALERT-006
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-26T08:00:00Z
+
+  - id: TEST-ALERT-006
+    type: verification
+    title: The gate decision table, gate mode across ticks, the measures, the redacted context, and the access rules
+    status: verified
+    release: v1.6.52
+    description: "tests/alert_triage.rs: decide() pages red and escalations whatever the verdict, holds amber until 30 minutes and pages at 30, and holds nothing for a runner that never polled or is silent for 30 minutes; Gate::step over an in-memory store pages at once without a poll, holds amber, drops a noise verdict and its clear, pages a real verdict on the next tick, pages at 30 minutes and pages when the runner falls silent; measures() counts missed real with its denominator and names the wrong keys, and is judgeable only at 30 labelled with 5 owner-real; the run context carries no runner name and no host; a verdict is taken once. tests/auth.rs: only the owner marks an alert (no, another session's or a forged CSRF token, a foreign origin and a member each 403), signed-in users see the panel, anonymous users do not; the runner needs alerts:triage to read pending (401, 403, 200) and to post a verdict (401, 403, 204, then 409; unknown 404), and its poll shows on the page. Negative controls: dropping the red and escalation pass-through, the 30-minute hold limit, the runner-staleness rule, and the owner role check each failed a test."
+    links:
+      - type: verifies
+        target: REQ-ALERT-006
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-26T08:00:00Z

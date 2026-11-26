@@ -199,6 +199,14 @@ pub fn current_contract() -> AgentContract {
                 auth_required: true,
                 required_right: right_for("/api/reports/seam-check"),
             },
+            ContractOperation {
+                name: "post_alert_triage_verdict".to_string(),
+                direction: OperationDirection::AgentToTower,
+                request_type: "{ id, verdict: real|noise, reason, model } (warte.alert-triage.v1)".to_string(),
+                response_type: "204; 404 unknown alert; 409 already decided".to_string(),
+                auth_required: true,
+                required_right: right_for("/api/alerts/triage/verdict"),
+            },
         ],
         data_types: vec![
             ContractDataType {
@@ -248,7 +256,7 @@ mod tests {
     fn test_agent_contract() {
         let contract = current_contract();
         assert_eq!(contract.version, "0.1.0");
-        assert_eq!(contract.operations.len(), 13);
+        assert_eq!(contract.operations.len(), 14);
         assert_eq!(contract.data_types.len(), 3);
 
         // Every operation requires auth; every mutating route's right is listed.

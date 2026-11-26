@@ -349,6 +349,10 @@ The list is a JSON array of `{id, kind, room, message, severity, since_ms}`;
 `id` is 16 hex digits and stays the same while the condition holds. If the
 list cannot be read, the last good one stands for 10 minutes.
 
+With `[alert_triage]`, a triage agent marks each alert real or noise before
+it pages; see the `alert-triage` topic. The default, `mode = "shadow"`,
+changes nothing about paging.
+
 ## Expiry dates
 
 What runs out, and when (REQ-PREDICT-004). Without any section warte

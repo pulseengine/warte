@@ -22,6 +22,7 @@ warte token mint <agent-id> [--valid-hours 720] [--any-agent] [--right <r>]...
   | `POST /api/agents/register` | `agents:register` |
   | `POST /api/agents/{id}/heartbeat` | `agents:heartbeat` |
   | `POST /api/reports/seam-check` | `reports:write:seam-check` |
+  | `POST /api/alerts/triage/verdict` | `alerts:triage` |
   | `POST /api/agents/{id}/data` | `agents:data` |
   | `POST /api/access/grant` | `access:grant` |
   | `POST /api/access/revoke` | `access:revoke` |
@@ -223,6 +224,7 @@ saturated fleet.
 
 ```
 GET /api/queue[?repo=spar]                       # self_hosted, hosted, repo, as_of
+GET /api/alerts/triage/pending                  # alerts:triage: alerts awaiting a verdict
 GET /api/admission?repo=spar&kind=docs           # {verdict: open|batch|hold, reason, recheck_s}
     kind: docs | fix | feature | security | red-main
 GET /api/eta?repo=spar&pr=511                    # when PR 511's next job starts (or branch=)

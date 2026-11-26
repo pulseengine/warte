@@ -629,6 +629,31 @@ pub async fn queue_partial(
         .as_ref()
         .map(|h| crate::requeue::view(&h.requeue.plan(), owner_csrf.as_deref()))
         .unwrap_or_default();
+    // alert triage (REQ-ALERT-006): agent reasons are free text, so only a
+    // signed-in user sees the panel; only the owner marks alerts
+    let signed_in = state
+        .login
+        .as_ref()
+        .is_some_and(|l| l.identity_of(&headers, crate::hub::now()).is_some());
+    let alert_triage = if signed_in {
+        let store = crate::alerttriage::Store::new(state.db.pool().clone());
+        let now = crate::hub::now();
+        let mode = state
+            .config
+            .alert_triage
+            .as_ref()
+            .map(|t| t.mode)
+            .unwrap_or_default();
+        crate::alerttriage::view(
+            &store.rows(now - 14 * 86_400).await,
+            mode,
+            store.last_poll().await,
+            now,
+            owner_csrf.as_deref(),
+        )
+    } else {
+        String::new()
+    };
 
     // Get hardware catalog (all known boards) and claims
     let hw_catalog: Vec<(String,)> = sqlx::query_as(
@@ -713,6 +738,7 @@ pub async fn queue_partial(
   <h2>Queue</h2>
   {fleet}
   {requeue}
+  {alert_triage}
   <section class="panel"><h3>Hardware availability</h3>{hw_table}</section>
 </div>"#,
     );

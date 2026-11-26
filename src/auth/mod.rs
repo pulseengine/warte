@@ -30,11 +30,12 @@ pub const ATTENTION_PATH: &str = "/api/attention";
 /// Writes made with a login, not a token: each handler checks the session,
 /// the origin and the session's CSRF token itself (REQ-ATTN-001,
 /// REQ-DECIDE-001). (method, path).
-pub const LOGIN_WRITES: [(&str, &str); 4] = [
+pub const LOGIN_WRITES: [(&str, &str); 5] = [
     ("PUT", ATTENTION_PATH),
     ("POST", "/api/decisions/answer"),
     ("POST", "/api/security/accept"),
     ("POST", "/api/requeue/clear"),
+    ("POST", "/api/alerts/owner-verdict"),
 ];
 
 pub const PROBE_OPEN_PATHS: [&str; 5] = [
@@ -205,6 +206,10 @@ pub const RIGHT_AGENTS_READ: &str = "agents:read";
 /// it shows where every credential lives. Never a default right.
 pub const RIGHT_ARCH_READ: &str = "architecture:read";
 
+/// The triage runner (REQ-ALERT-006): read the alerts awaiting a verdict and
+/// post one verdict per alert. Never a default right.
+pub const RIGHT_ALERT_TRIAGE: &str = "alerts:triage";
+
 /// The read routes `agents:read` opens, and whose id each names.
 pub const AGENT_READ_ROUTES: [(&str, Binding); 3] = [
     ("/api/agents", Binding::None),
@@ -218,7 +223,7 @@ pub const AGENT_READ_ROUTES: [(&str, Binding); 3] = [
 /// With `[auth]` the login gate covers them (they are in `login::SIGNED_IN`).
 /// The `{id}` binding is the same as for `AGENT_READ_ROUTES`; `agents:any`
 /// lifts it.
-pub const TOKEN_READ_ROUTES: [(&str, Binding, &str); 3] = [
+pub const TOKEN_READ_ROUTES: [(&str, Binding, &str); 4] = [
     ("/api/agents/{id}/data", Binding::PathId, RIGHT_AGENTS_READ),
     (
         "/api/access/list/{id}",
@@ -226,6 +231,11 @@ pub const TOKEN_READ_ROUTES: [(&str, Binding, &str); 3] = [
         RIGHT_AGENTS_READ,
     ),
     ("/api/architecture", Binding::None, RIGHT_ARCH_READ),
+    (
+        "/api/alerts/triage/pending",
+        Binding::None,
+        RIGHT_ALERT_TRIAGE,
+    ),
 ];
 
 /// May this GET pass without `[auth]` (REQ-API-007)? `Ok` for any route not
@@ -303,7 +313,7 @@ pub struct RouteRule {
 /// valid token, so a route added without a row is closed, not open; the
 /// test `every_mutating_route_in_the_router_has_a_right` also fails.
 /// The probe routes (`PROBE_OPEN_PATHS`) authenticate themselves and are not here.
-pub const MUTATING_ROUTES: [RouteRule; 12] = [
+pub const MUTATING_ROUTES: [RouteRule; 13] = [
     RouteRule {
         method: "POST",
         pattern: "/api/agents/register",
@@ -375,6 +385,13 @@ pub const MUTATING_ROUTES: [RouteRule; 12] = [
         method: "POST",
         pattern: "/api/reports/seam-check",
         right: "reports:write:seam-check",
+        binding: Binding::None,
+    },
+    // the triage agent's verdict on an alert (REQ-ALERT-006)
+    RouteRule {
+        method: "POST",
+        pattern: "/api/alerts/triage/verdict",
+        right: RIGHT_ALERT_TRIAGE,
         binding: Binding::None,
     },
 ];

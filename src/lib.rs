@@ -9,6 +9,7 @@ pub mod access;
 pub mod admission;
 pub mod agent;
 pub mod alerts;
+pub mod alerttriage;
 pub mod architecture;
 pub mod attention;
 pub mod auth;
