@@ -234,16 +234,20 @@ jobs:
 
   # jig, the shared CI baseline, in shadow mode (phase 1): guard, pins,
   # supply and planted controls run beside warte's own jobs. Nothing here is
-  # a required context yet; Build, Clippy, Rivet traceability check and
-  # Playwright E2E stay required until the owner adds `required / verdict`.
-  # Both jig calls pin the same full SHA (jig v0.1.4: the commit that records
-  # its x86_64 archive sha256 3ceb9ead… in both workflows).
+  # a required context yet; warte's own contexts (.github/required-contexts.txt)
+  # stay required until the owner adds `required / verdict`.
+  # Both jig calls pin the same full SHA: jig v0.1.7's record commit (the one
+  # that records its archive sha256s), not its tag commit.
   baseline:
-    uses: pulseengine/jig/.github/workflows/baseline.yml@076512a804fa605feec7330b991cc718cbce1610
+    uses: pulseengine/jig/.github/workflows/baseline.yml@34e04731fd68b92a768862a05ebca8a997769918
     with:
       audit: cargo-audit
       guard-config: plant-guard.toml
       controls-only: "lock-stale toolchain-floating guard-unguarded verdict-sees-failure"
+      # Off on purpose: warte's own private names are enforced exactly, by hash, in
+      # tests/public_names.rs, and generic shapes (private IPv4, .lan/.local/
+      # .internal hosts) match dozens of deliberate examples in docs and tests.
+      names-patterns: none
 
   # sieve's path classifier, as warte's own job. Shadow mode: no job reads its
   # outputs yet, so everything still runs; the verdict is recorded to count
@@ -311,7 +315,7 @@ jobs:
   required:
     needs: [baseline, classify, build, clippy, rivet, audit, playwright, canary-stable]
     if: always()
-    uses: pulseengine/jig/.github/workflows/required.yml@076512a804fa605feec7330b991cc718cbce1610
+    uses: pulseengine/jig/.github/workflows/required.yml@34e04731fd68b92a768862a05ebca8a997769918
     with:
       needs-json: ${{ toJSON(needs) }}
       never-skip: "build clippy rivet audit playwright"
