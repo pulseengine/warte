@@ -387,10 +387,10 @@ jobs:
   # supply and planted controls run beside warte's own jobs. Since 2026-11-27
   # `required / verdict` and `baseline / guard` are required contexts beside
   # warte's own five (.github/required-contexts.txt).
-  # Both jig calls pin the same full SHA: jig v0.1.8's record commit (the one
+  # Both jig calls pin the same full SHA: jig v0.1.9's record commit (the one
   # that records its archive sha256s), not its tag commit.
   baseline:
-    uses: pulseengine/jig/.github/workflows/baseline.yml@5458397bb99ef86ec0ed6422b3a192bb64eec035
+    uses: pulseengine/jig/.github/workflows/baseline.yml@2b7ac68e524c900e86193138750d024198d348a7
     with:
       audit: cargo-audit
       guard-config: plant-guard.toml
@@ -466,7 +466,7 @@ jobs:
   required:
     needs: [baseline, classify, build, clippy, component, kiln, rivet, audit, playwright, canary-stable]
     if: always()
-    uses: pulseengine/jig/.github/workflows/required.yml@5458397bb99ef86ec0ed6422b3a192bb64eec035
+    uses: pulseengine/jig/.github/workflows/required.yml@2b7ac68e524c900e86193138750d024198d348a7
     with:
       needs-json: ${{ toJSON(needs) }}
       never-skip: "build clippy component rivet audit playwright"

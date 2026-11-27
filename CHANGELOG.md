@@ -4,7 +4,7 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
-- **The WASI component also runs on PulseEngine's own chain** (REQ-COMPONENT-001, TEST-COMPONENT-002). A new advisory CI job, kiln run, installs the covalent layer 2026.11.28 (pinned in `tools/chain/varve.toml`, varve installed cosign-verified into a job-local root), fuses `warte-check.wasm` with `meld fuse --reproducible` twice and requires identical bytes, and runs the fused module under kiln with the same 0/1/2 expectations as the wasmtime job. jig moves to v0.1.8 in both workflow calls, and the verdict control's fixtures carry the new job; the unplanted fixture now shows an advisory failure (kiln) that the verdict must tolerate.
+- **The WASI component also runs on PulseEngine's own chain** (REQ-COMPONENT-001, TEST-COMPONENT-002). A new advisory CI job, kiln run, installs the covalent layer 2026.11.28 (pinned in `tools/chain/varve.toml`, varve installed cosign-verified into a job-local root), fuses `warte-check.wasm` with `meld fuse --reproducible` twice and requires identical bytes, and runs the fused module under kiln with the same 0/1/2 expectations as the wasmtime job. jig moves to v0.1.9 (its record commit, which ships jig.wasm) in both workflow calls, and the verdict control's fixtures carry the new job; the unplanted fixture now shows an advisory failure (kiln) that the verdict must tolerate.
 
 ## v1.6.56 — 2026-11-27
 
