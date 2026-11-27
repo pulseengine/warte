@@ -553,6 +553,19 @@ fn lockfiles() -> Vec<(String, String)> {
         .lines()
         .map(str::to_string)
         .collect();
+    // a member of the root workspace resolves through the root Cargo.lock
+    let root: toml::Value = toml::from_str(
+        &fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml")).unwrap(),
+    )
+    .unwrap();
+    let members: BTreeSet<String> = root["workspace"]["members"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|m| m.as_str())
+        .filter(|m| *m != ".")
+        .map(|m| format!("{m}/Cargo.toml"))
+        .collect();
     let mut pairs = Vec::new();
     for f in &files {
         let (dir, base) = match f.rsplit_once('/') {
@@ -564,7 +577,11 @@ fn lockfiles() -> Vec<(String, String)> {
             "package.json" => "package-lock.json",
             _ => continue,
         };
-        let lock = format!("{dir}{lock}");
+        let lock = if members.contains(f) {
+            "Cargo.lock".to_string()
+        } else {
+            format!("{dir}{lock}")
+        };
         assert!(
             files.contains(&lock),
             "{f} has no committed {lock}: its dependencies float"

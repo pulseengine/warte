@@ -1,0 +1,31 @@
+artifacts:
+  - id: REQ-COMPONENT-001
+    type: requirement
+    title: warte's report validators build and run as a WASI p2 component
+    status: verified
+    release: v1.6.54
+    description: "The architecture.v1 check and the temper-report.v1 parser SHALL live in a crate with no async runtime and no I/O (crates/warte-check), used natively by warte serve and built for wasm32-wasip2 as the command component warte-check. Its tests SHALL run under wasmtime in CI, and the release component SHALL accept a good report (exit 0), refuse a planted bad one (exit 1) and report a usage or read error as 2. Owner decision 2026-11-27, 'run what we build'. A kiln run (meld fuse --reproducible, then kiln 0.9) joins as an advisory step."
+    tags: [component, wasi]
+    links:
+      - type: refines
+        target: REQ-TEMPER-002
+      - type: refines
+        target: REQ-ARCHVIEW-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-27T12:00:00Z
+
+  - id: TEST-COMPONENT-001
+    type: verification
+    title: warte-check's tests under wasmtime, and the component on a good and a planted bad report
+    status: verified
+    release: v1.6.54
+    description: "CI job 'WASI component' (.github/workflows/ci.yml): cargo test -p warte-check --target wasm32-wasip2 runs the crate's unit tests and tests/architecture.rs and tests/temper_report.rs under wasmtime v42.0.1 (pinned by sha256); the release warte-check.wasm exits 0 on tests/fixtures/architecture.example.json and the good temper report, 1 on crates/warte-check/tests/fixtures/temper-report.planted-bad.json (markup as a repository name) and 2 on a missing file. tests/temper_report.rs holds the fixtures to the parser, and the refusal never quotes the input. Locally the same tests passed under wasmtime 42.0.1, and the component's exit codes were 0, 1, 0, 2, 2 for good report, planted report, good architecture, missing file and unknown kind."
+    links:
+      - type: verifies
+        target: REQ-COMPONENT-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-27T12:00:00Z

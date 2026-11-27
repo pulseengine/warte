@@ -1,9 +1,9 @@
 //! The architecture view's contract, architecture.v1 (REQ-ARCHVIEW-001).
 
 use serde_json::{json, Value};
-use warte::architecture::check;
+use warte_check::architecture::check;
 
-const EXAMPLE: &str = include_str!("fixtures/architecture.example.json");
+const EXAMPLE: &str = include_str!("../../../tests/fixtures/architecture.example.json");
 
 /// A planted change to the example, and the error it must cause.
 type Case = (Box<dyn Fn(&mut Value)>, &'static str);
@@ -117,29 +117,4 @@ fn a_value_that_looks_like_a_secret_is_refused_and_never_echoed() {
     let mut v = example();
     v["components"][1]["credentials"][0]["purpose"] = json!("signs agent tokens");
     assert!(check(&v.to_string()).is_ok());
-}
-
-// rivet: verifies REQ-ARCHVIEW-001
-#[test]
-fn the_cli_exits_0_1_or_2() {
-    let bin = env!("CARGO_BIN_EXE_warte");
-    let dir = tempfile::tempdir().unwrap();
-    let good = dir.path().join("good.json");
-    std::fs::write(&good, EXAMPLE).unwrap();
-    let mut broken = example();
-    broken["schema"] = json!("nope");
-    let bad = dir.path().join("bad.json");
-    std::fs::write(&bad, broken.to_string()).unwrap();
-    let run = |p: &std::path::Path| {
-        std::process::Command::new(bin)
-            .args(["arch", "check"])
-            .arg(p)
-            .output()
-            .unwrap()
-    };
-    let o = run(&good);
-    assert_eq!(o.status.code(), Some(0));
-    assert!(String::from_utf8_lossy(&o.stdout).contains("finding: e-sensor"));
-    assert_eq!(run(&bad).status.code(), Some(1));
-    assert_eq!(run(&dir.path().join("missing.json")).status.code(), Some(2));
 }

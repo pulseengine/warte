@@ -4,12 +4,12 @@ schema = "sieve.config.v1"
 
 # The binary, its tests and everything it embeds (templates, docs, migrations).
 [class.rust]
-cargo = ["Cargo.toml"]
+cargo = ["Cargo.toml", "crates/warte-check/Cargo.toml"]
 hand = ["templates/", "docs/", "migrations/", "deploy/"]
 
 # rivet validate and coverage: the artifacts and the source markers.
 [class.rivet]
-cargo = ["Cargo.toml"]
+cargo = ["Cargo.toml", "crates/warte-check/Cargo.toml"]
 hand = ["artifacts/", "rivet.yaml", "architecture/"]
 
 # The browser tests drive the release binary.
@@ -26,6 +26,7 @@ required_contexts = ".github/required-contexts.txt"
 [workflows.job_outputs]     # HAND-MAINTAINED: job -> the classes it reads
 build = ["rust"]
 clippy = ["rust"]
+component = ["rust"]
 rivet = ["rivet"]
 audit = ["rust", "e2e"]
 playwright = ["e2e"]
