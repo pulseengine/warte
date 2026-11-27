@@ -129,6 +129,10 @@ pub enum CheckId {
     /// Shared README blocks in sync (temper#128, warte 1.6.53).
     #[serde(rename = "readme.shared_blocks")]
     ReadmeSharedBlocks,
+    /// .github/required-contexts.txt against live protection, classic contexts
+    /// plus ruleset required checks (temper, warte 1.6.56).
+    #[serde(rename = "protection.required_contexts_mirror")]
+    ProtectionRequiredContextsMirror,
 }
 
 impl CheckId {
@@ -160,6 +164,12 @@ pub enum Code {
     StricterThanStandard,
     DivergentDeclared,
     DivergentUndeclared,
+    /// The mirror file names a context protection does not require.
+    DriftFileOnly,
+    /// Protection requires a context the mirror file does not name.
+    DriftProtectionOnly,
+    /// Both drifts at once.
+    DriftBoth,
     NotApplicable,
     ErrorApi,
     ErrorPermission,
@@ -369,6 +379,40 @@ pub mod tests {
             ("spar", "protection.signed_commits")
         );
         assert_eq!(f[1].1.code.as_str(), "divergent_undeclared");
+    }
+
+    // rivet: verifies REQ-TEMPER-002
+    #[test]
+    fn the_contexts_mirror_check_is_accepted_with_its_codes() {
+        for (ok, code) in [
+            (Some(true), "ok"),
+            (Some(true), "not_applicable"),
+            (Some(false), "drift_file_only"),
+            (Some(false), "drift_protection_only"),
+            (Some(false), "drift_both"),
+            (None, "error_permission"),
+            (None, "error_api"),
+        ] {
+            let mut v = sample();
+            v["repos"][0]["checks"][0] = serde_json::json!(
+                {"id": "protection.required_contexts_mirror", "ok": ok, "severity": "medium", "code": code}
+            );
+            let r =
+                parse(&serde_json::to_vec(&v).unwrap()).unwrap_or_else(|e| panic!("{code}: {e}"));
+            assert_eq!(
+                r.repos[0].checks[0].id.as_str(),
+                "protection.required_contexts_mirror"
+            );
+            assert_eq!(r.repos[0].checks[0].code.as_str(), code);
+        }
+        // a drift is decided: ok null is refused; the shape stays closed
+        let mut v = sample();
+        v["repos"][0]["checks"][0] = serde_json::json!({"id": "protection.required_contexts_mirror", "ok": null, "severity": "medium", "code": "drift_both"});
+        assert!(parse(&serde_json::to_vec(&v).unwrap()).is_err());
+        v["repos"][0]["checks"][0] = serde_json::json!({"id": "protection.required_contexts_mirror", "ok": false, "severity": "medium", "code": "drift"});
+        assert!(parse(&serde_json::to_vec(&v).unwrap()).is_err());
+        v["repos"][0]["checks"][0] = serde_json::json!({"id": "protection.required_contexts_mirror", "ok": false, "severity": "medium", "code": "drift_both", "contexts": ["Build"]});
+        assert!(parse(&serde_json::to_vec(&v).unwrap()).is_err());
     }
 
     // rivet: verifies REQ-TEMPER-002

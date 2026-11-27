@@ -4,6 +4,10 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.56 — 2026-11-27
+
+- **temper reports may carry the required-contexts mirror check** (REQ-TEMPER-002). temper-report.v1 gains the check id `protection.required_contexts_mirror`, one finding per repository at severity medium, comparing `.github/required-contexts.txt` with the union of classic required contexts and ruleset required checks: `ok`, `not_applicable` (no file), `drift_file_only`, `drift_protection_only` or `drift_both` (ok false), and `error_permission` or `error_api` (ok null). The three drift codes are new. The report stays closed: context names stay in temper's own output, and any other unknown id, code or field still rejects the whole report. temper starts sending the check only once this release is deployed.
+
 ## v1.6.55 — 2026-11-27
 
 - **`warte agents` works on the host again** (REQ-CLI-002). It read `/api/agents` without a token, and since that route needs `agents:read` it failed with a JSON decode error, leaving no way to look up the id `warte agents rm` takes. It now reads the configured database directly, like `warte agents rm`. `--format json` prints the same objects as the API, `--health unhealthy` now matches (it compared against the capitalised JSON value and never matched), and a missing database exits 1 without creating one.
