@@ -60,7 +60,7 @@ jobs:
         run: cargo build --locked --verbose
 
       - name: Run tests
-        run: cargo test --locked --verbose
+        run: cargo test --locked --workspace --verbose
 
   clippy:
     name: Clippy
@@ -78,7 +78,61 @@ jobs:
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
 
       - name: Run clippy
-        run: cargo clippy --locked --all-targets -- -D warnings
+        run: cargo clippy --locked --workspace --all-targets -- -D warnings
+
+  # warte's report validators as a WASI p2 component (owner, 2026-11-27, "run
+  # what we build"): crates/warte-check builds for wasm32-wasip2, its tests run
+  # under wasmtime, and the release component must accept a good report and
+  # refuse a planted bad one. Not a required check yet. A kiln run (meld fuse
+  # --reproducible, then kiln 0.9) joins as an advisory step.
+  component:
+    name: WASI component
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","linux","x64","rust-cpu"]') || 'ubuntu-24.04' }}
+    timeout-minutes: 20
+    env:
+      WASMTIME_VERSION: v42.0.1
+      WASMTIME_SHA256: dd5253f3cb521bb094f9951c3d2c45c746b31e5723b07ce56f162ec9bab44d59
+      # exit-with-code lets the component report 2 (usage or read error) apart from 1
+      CARGO_TARGET_WASM32_WASIP2_RUNNER: wasmtime run -S cli-exit-with-code
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc # master
+        with:
+          toolchain: 1.100.0
+          targets: wasm32-wasip2
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+
+      - name: Fetch pinned wasmtime
+        run: |
+          d="$RUNNER_TEMP/wasmtime"; mkdir -p "$d"; cd "$d"
+          a="wasmtime-$WASMTIME_VERSION-x86_64-linux.tar.xz"
+          curl -fsSL -o "$a" "https://github.com/bytecodealliance/wasmtime/releases/download/$WASMTIME_VERSION/$a"
+          echo "$WASMTIME_SHA256  $a" | sha256sum -c -
+          tar -xJf "$a" --strip-components=1
+          echo "$d" >> "$GITHUB_PATH"
+
+      - name: Test warte-check under wasmtime
+        run: cargo test --locked -p warte-check --target wasm32-wasip2
+
+      - name: Build the component
+        run: cargo build --locked -p warte-check --target wasm32-wasip2 --release
+
+      - name: The component accepts good reports and refuses the planted one
+        run: |
+          run() { wasmtime run -S cli-exit-with-code --dir=. target/wasm32-wasip2/release/warte-check.wasm "$@"; }
+          f=crates/warte-check/tests/fixtures
+          run temper-report "$f/temper-report.good.json"
+          run architecture tests/fixtures/architecture.example.json
+          set +e
+          run temper-report "$f/temper-report.planted-bad.json"; bad=$?
+          run architecture missing.json; missing=$?
+          set -e
+          echo "planted bad report: exit $bad (want 1); missing file: exit $missing (want 2)"
+          test "$bad" -eq 1 && test "$missing" -eq 2
 
   rivet:
     name: Rivet traceability check
@@ -313,10 +367,10 @@ jobs:
   # The one context that will replace the list: red on any failure,
   # cancellation, skip of a selected class or a job missing from needs.
   required:
-    needs: [baseline, classify, build, clippy, rivet, audit, playwright, canary-stable]
+    needs: [baseline, classify, build, clippy, component, rivet, audit, playwright, canary-stable]
     if: always()
     uses: pulseengine/jig/.github/workflows/required.yml@34e04731fd68b92a768862a05ebca8a997769918
     with:
       needs-json: ${{ toJSON(needs) }}
-      never-skip: "build clippy rivet audit playwright"
+      never-skip: "build clippy component rivet audit playwright"
       advisory: "canary-stable"

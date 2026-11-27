@@ -1,12 +1,14 @@
 [package]
 name = "warte"
-version = "1.6.53"
+version = "1.6.54"
 edition = "2021"
 description = "Warte — the PulseEngine control tower. A CI dashboard with an ask feature and an API."
 license = "Apache-2.0"
 repository = "https://github.com/pulseengine/warte"
 
 [dependencies]
+# warte's report validators, also built as a WASI p2 component (crates/warte-check)
+warte-check = { path = "crates/warte-check" }
 # Web framework
 axum = { version = "0.8", features = ["ws", "macros"] }
 tokio = { version = "1", features = ["full"] }
@@ -92,3 +94,6 @@ path = "src/main.rs"
 opt-level = 2
 lto = "thin"
 strip = true
+
+[workspace]
+members = [".", "crates/warte-check"]

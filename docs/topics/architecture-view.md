@@ -86,6 +86,19 @@ values), and `tests/architecture_schema.rs` keeps it in agreement with
 warte arch check architecture.json   # exit 0 valid, 1 invalid, 2 unreadable
 ```
 
+The same check, and the temper-report.v1 parser, also build as a WASI p2
+component from `crates/warte-check`, which has no async runtime and no I/O
+of its own:
+
+```sh
+cargo build -p warte-check --target wasm32-wasip2 --release
+wasmtime run -S cli-exit-with-code --dir=. \
+  target/wasm32-wasip2/release/warte-check.wasm architecture architecture.json
+```
+
+It takes `architecture` or `temper-report` and a file, with the same exit
+codes. Without `-S cli-exit-with-code` the host reports every failure as 1.
+
 - `schema` other than `architecture.v1`, an unknown field, or a value outside
   a field's set;
 - an id that is not `[a-z0-9-]` (at most 64), or one declared twice;

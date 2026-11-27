@@ -1,0 +1,19 @@
+{
+  "schema": "temper-report.v1",
+  "generated_at": "2026-11-04T06:00:00Z",
+  "temper": {"version": "2.4.0", "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "config_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
+  "org": "pulseengine",
+  "source": {"trigger": "webhook", "last_sweep_at": "2026-11-04T01:00:00Z",
+             "api": {"calls_last_hour": 12, "remaining": 4980, "limit": 5000, "reset_at": "2026-11-04T07:00:00Z"}},
+  "summary": {"repos": 2, "compliant": 1, "noncompliant": 1, "unknown": 0},
+  "repos": [
+    {"name": "warte", "checked_at": "2026-11-04T05:59:00Z", "default_branch": "main",
+     "checks": [{"id": "readme.shared_blocks", "ok": true, "severity": "low", "code": "ok"}]},
+    {"name": "<img src=x onerror=alert(1)>", "checked_at": "2026-11-04T05:00:00Z", "default_branch": "main",
+     "checks": [{"id": "protection.signed_commits", "ok": false, "severity": "high", "code": "missing"}]}
+  ],
+  "org_checks": [{"id": "standards.drift", "ok": false, "severity": "medium", "code": "divergent_undeclared"}],
+  "reviews": {"window_days": 7, "posted": 3, "suppressed_no_findings": 5, "findings": 4,
+              "dropped_unquoted": 1, "rivet_oracle_runs": 2, "errors": 0},
+  "tasks": {"pending": 0, "in_progress": 0, "failed": 1, "oldest_pending_age_s": 0, "stale_in_progress": 0}
+}
