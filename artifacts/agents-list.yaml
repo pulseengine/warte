@@ -1,0 +1,30 @@
+artifacts:
+  - id: REQ-CLI-002
+    type: requirement
+    title: warte agents lists the host's agents from its database, without a token
+    status: verified
+    release: v1.6.55
+    description: "Since /api/agents needs agents:read, plain 'warte agents' on the ground station failed with a JSON decode error, and 'warte agents rm' needs an id from that list. warte agents SHALL read the configured db_path directly, never over HTTP, as warte agents rm does; --format json SHALL print the same agent objects as GET /api/agents; --health SHALL match the health name case-insensitively; a missing database SHALL exit 1 without creating one. The read API's agents:read requirement (REQ-API-007) is unchanged."
+    tags: [cli, agents]
+    links:
+      - type: refines
+        target: REQ-CLI-001
+      - type: refines
+        target: REQ-API-006
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-27T16:00:00Z
+
+  - id: TEST-CLI-002
+    type: verification
+    title: warte agents lists from the database, filters health, and refuses a missing database
+    status: verified
+    release: v1.6.55
+    description: "tests/agent_list.rs runs the warte binary with no server: two registered agents both appear in the text list; --health unhealthy lists only the one set unhealthy; --format json parses to two objects with id and health_status; a config pointing at an absent database exits 1 with 'no database' and leaves no file behind."
+    links:
+      - type: verifies
+        target: REQ-CLI-002
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5

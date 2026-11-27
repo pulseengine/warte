@@ -35,6 +35,10 @@ warte agents --format json        # structured output
 warte agents rm <id> --reason "duplicate from a retry"   # on the host
 ```
 
+`warte agents` (since v1.6.55) reads this host's database directly, like
+`warte agents rm`, so it needs no token; elsewhere use `GET /api/agents`
+with a token holding `agents:read`.
+
 `warte agents rm` (since v1.6.33) removes one agent from this host's database,
 for duplicates older releases made. It runs on the ground station host
 against the configured `db_path`, never over HTTP. It refuses an unknown id,

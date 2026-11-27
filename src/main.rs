@@ -84,35 +84,10 @@ async fn main() -> anyhow::Result<()> {
             std::process::exit(code);
         }
         Commands::Agents { health, .. } => {
-            let config = Config::load_at(config_path.as_deref())?;
-            let client = reqwest::Client::new();
-            let url = format!("http://{}/api/agents", config.bind);
-            let resp = client.get(&url).send().await?;
-            let agents: Vec<serde_json::Value> = resp.json().await?;
-
-            match cli.format {
-                OutputFormat::Json => println!("{}", serde_json::to_string_pretty(&agents)?),
-                OutputFormat::Text => {
-                    println!(
-                        "{:<38} {:<12} {:<10} LAST SEEN",
-                        "AGENT ID", "NAME", "HEALTH"
-                    );
-                    for agent in &agents {
-                        if let Some(ref h) = health {
-                            if agent["health_status"].as_str() != Some(h) {
-                                continue;
-                            }
-                        }
-                        println!(
-                            "{:<38} {:<12} {:<10} {}",
-                            agent["id"].as_str().unwrap_or(""),
-                            agent["name"].as_str().unwrap_or(""),
-                            agent["health_status"].as_str().unwrap_or(""),
-                            agent["last_heartbeat"].as_str().unwrap_or("never"),
-                        );
-                    }
-                }
-            }
+            let json = matches!(cli.format, OutputFormat::Json);
+            let code =
+                warte::agent::list_cli(config_path.as_deref(), health.as_deref(), json).await;
+            std::process::exit(code);
         }
 
         Commands::Schedule => {
