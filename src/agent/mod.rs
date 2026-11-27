@@ -412,3 +412,59 @@ pub async fn rm_cli(
         }
     }
 }
+
+/// `warte agents`: list this host's agents from the configured `db_path`,
+/// never over HTTP, like `warte agents rm`. `/api/agents` needs `agents:read`,
+/// and the host CLI holds no token. `health` matches case-insensitively.
+/// Exit 0 listed (also when empty), 1 when the database is missing or
+/// unreadable.
+pub async fn list_cli(
+    config_path: Option<&std::path::Path>,
+    health: Option<&str>,
+    json: bool,
+) -> i32 {
+    let run = async {
+        let config = crate::config::Config::load_at(config_path).map_err(|e| e.to_string())?;
+        if !config.db_path.exists() {
+            return Err(format!("no database at {}", config.db_path.display()));
+        }
+        let db = crate::db::Database::connect(&config.db_path)
+            .await
+            .map_err(|e| e.to_string())?;
+        let reg = AgentRegistry::new(db.pool().clone(), config.instance_id());
+        let agents: Vec<Agent> = reg
+            .list()
+            .await
+            .map_err(|e| e.to_string())?
+            .into_iter()
+            .filter(|a| health.is_none_or(|h| a.health_status.to_string().eq_ignore_ascii_case(h)))
+            .collect();
+        if json {
+            return serde_json::to_string_pretty(&agents).map_err(|e| e.to_string());
+        }
+        let mut out = format!(
+            "{:<38} {:<12} {:<10} LAST SEEN\n",
+            "AGENT ID", "NAME", "HEALTH"
+        );
+        for a in &agents {
+            let seen = a
+                .last_heartbeat
+                .map_or_else(|| "never".to_string(), |t| t.to_rfc3339());
+            out.push_str(&format!(
+                "{:<38} {:<12} {:<10} {}\n",
+                a.id, a.name, a.health_status, seen
+            ));
+        }
+        Ok(out.trim_end().to_string())
+    };
+    match run.await {
+        Ok(out) => {
+            println!("{out}");
+            0
+        }
+        Err(e) => {
+            eprintln!("warte agents: {e}");
+            1
+        }
+    }
+}

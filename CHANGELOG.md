@@ -4,6 +4,10 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.55 — 2026-11-27
+
+- **`warte agents` works on the host again** (REQ-CLI-002). It read `/api/agents` without a token, and since that route needs `agents:read` it failed with a JSON decode error, leaving no way to look up the id `warte agents rm` takes. It now reads the configured database directly, like `warte agents rm`. `--format json` prints the same objects as the API, `--health unhealthy` now matches (it compared against the capitalised JSON value and never matched), and a missing database exits 1 without creating one.
+
 ## v1.6.54 — 2026-11-27
 
 - **warte's report validators run as a WASI component** (REQ-COMPONENT-001). The architecture.v1 check and the temper-report.v1 parser move into `crates/warte-check`, a crate with no async runtime and no I/O, which `warte serve` uses natively and which builds for wasm32-wasip2 as the command component `warte-check <architecture|temper-report> <file>` (exit 0, 1, 2). A new CI job, WASI component, runs the crate's tests under a pinned wasmtime and checks the release component on a good report and a planted bad one. It is not a required check. `warte arch check` and the ground station's report intake are unchanged.
