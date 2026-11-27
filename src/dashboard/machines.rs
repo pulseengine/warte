@@ -291,6 +291,48 @@ pub fn history_panel_full(
     out + &procs
 }
 
+/// Bench device chips for a card (REQ-PROBE-019): each registered device,
+/// present (on) or missing (off), missing first.
+fn bench_chips(b: &crate::probe::bench::Bench) -> String {
+    let mut c: Vec<String> = Vec::new();
+    match b.state.as_str() {
+        "invalid" => c.push(r#"<span class="chip off">bench registry refused</span>"#.into()),
+        "unsupported" => {
+            c.push(r#"<span class="chip warn" title="no sysfs on this host">bench: not readable here</span>"#.into())
+        }
+        _ => {}
+    }
+    let mut devs: Vec<&crate::probe::bench::Device> = b
+        .devices
+        .iter()
+        .filter(|d| crate::probe::bench::name_ok(&d.name))
+        .collect();
+    devs.sort_by_key(|d| (d.present, d.name.as_str()));
+    for d in devs {
+        let (class, what) = if d.present {
+            ("on", "present")
+        } else {
+            ("off", "missing")
+        };
+        c.push(format!(
+            r#"<span class="chip {class}" title="bench device {what}, matched by {}">{}</span>"#,
+            match d.matched_by.as_str() {
+                m @ ("serial" | "usb" | "iface") => m,
+                _ => "?",
+            },
+            esc(&d.name)
+        ));
+    }
+    if c.is_empty() {
+        String::new()
+    } else {
+        format!(
+            r#"<div class="mtools mhw"><span class="dim">bench</span> {}</div>"#,
+            c.join("")
+        )
+    }
+}
+
 /// Hardware chips for a card: attached debug probes, a missing collector.
 fn hardware_chips(x: &crate::probe::hardware::Hardware) -> String {
     let mut kinds: std::collections::BTreeMap<&str, usize> = Default::default();
@@ -470,7 +512,8 @@ fn card(s: &Seen, mine: &[&Finding], ci: Option<&str>, now: i64, trend: &str) ->
         .collect();
     let inv = r.inventory.as_ref().map(inventory).unwrap_or_default();
     let chips = r.health.as_ref().map(health_chips).unwrap_or_default()
-        + &r.hardware.as_ref().map(hardware_chips).unwrap_or_default();
+        + &r.hardware.as_ref().map(hardware_chips).unwrap_or_default()
+        + &r.bench.as_ref().map(bench_chips).unwrap_or_default();
     let mut agents: std::collections::BTreeMap<&str, usize> = Default::default();
     for x in &r.sessions {
         *agents.entry(x.agent.as_str()).or_default() += 1;
@@ -897,4 +940,53 @@ pub fn model_panel(
         r#"<section class="panel"><h3>Fleet model vs reality · {}</h3>{list}</section><div class="machines">{missing}</div>"#,
         esc(&f.root)
     )
+}
+
+#[cfg(test)]
+mod bench_tests {
+    use crate::probe::bench::{Bench, Device};
+
+    fn dev(name: &str, present: bool) -> Device {
+        Device {
+            name: name.into(),
+            present,
+            matched_by: "usb".into(),
+            missing_since: None,
+            alert_after_min: 15,
+        }
+    }
+
+    // rivet: verifies REQ-PROBE-019
+    #[test]
+    fn bench_chips_show_present_and_missing_and_drop_a_planted_name() {
+        let b = Bench {
+            state: "ok".into(),
+            devices: vec![
+                dev("stlink-v3", true),
+                dev("esp-jtag", false),
+                dev("<img src=x onerror=alert(1)>", false),
+            ],
+            skipped: 0,
+        };
+        let html = super::bench_chips(&b);
+        assert!(
+            html.contains(r#"chip off" title="bench device missing, matched by usb">esp-jtag<"#),
+            "{html}"
+        );
+        assert!(
+            html.contains(r#"chip on" title="bench device present, matched by usb">stlink-v3<"#),
+            "{html}"
+        );
+        assert!(
+            html.find("esp-jtag") < html.find("stlink-v3"),
+            "missing first: {html}"
+        );
+        assert!(!html.contains("img") && !html.contains("onerror"), "{html}");
+        // and the planted name raises no finding
+        let f = crate::probe::bench::findings(&b, 0);
+        assert_eq!(
+            f,
+            vec![("amber", "bench device esp-jtag missing".to_string())]
+        );
+    }
 }

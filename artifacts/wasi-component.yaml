@@ -33,9 +33,9 @@ artifacts:
   - id: TEST-COMPONENT-002
     type: verification
     title: The component fused by meld and run by kiln gives the same exit codes
-    status: implemented
+    status: verified
     release: v1.6.57
-    description: "CI job 'kiln run' (.github/workflows/ci.yml), advisory in required: installs varve v0.47.0 cosign-verified into a job-local root and the covalent layer 2026.11.28 pinned in tools/chain/varve.toml; checks wasmtime, meld and kiln resolve to that layer's shims; builds warte-check.wasm, checks it imports exit-with-code, fuses it twice with meld fuse --reproducible --memory multi and requires identical bytes; then kiln runs the fused core module and must exit 0 on the good temper report and the architecture example, 1 on the planted bad report and 2 on a missing file, the same as the wasmtime run in TEST-COMPONENT-001."
+    description: "CI job 'kiln run' (.github/workflows/ci.yml), advisory in required: installs varve v0.47.0 cosign-verified into a job-local root and the covalent layer 2026.11.28 pinned in tools/chain/varve.toml; checks wasmtime, meld and kiln resolve to that layer's shims; builds warte-check.wasm, checks it imports exit-with-code, fuses it twice with meld fuse --reproducible --memory multi and requires identical bytes; then kiln runs the fused core module and must exit 0 on the good temper report and the architecture example, 1 on the planted bad report and 2 on a missing file, the same as the wasmtime run in TEST-COMPONENT-001. First green run on warte#232 (head 26753f5): meld 0.70.0 fused 344500 bytes identically twice, kiln 0.9.0 exited 0, 0, 1, 2."
     links:
       - type: verifies
         target: REQ-COMPONENT-001

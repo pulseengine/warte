@@ -239,6 +239,7 @@ fn report(
         health: None,
         hardware: None,
         pressure: held,
+        bench: None,
     }
 }
 
