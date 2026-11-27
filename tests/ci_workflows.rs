@@ -874,7 +874,9 @@ fn the_jig_shadow_pilot_has_the_caller_shape_and_changes_no_required_context() {
             "Clippy",
             "Rivet traceability check",
             "Playwright E2E",
-            "Dependency audit"
+            "Dependency audit",
+            "required / verdict",
+            "baseline / guard"
         ]
     );
 }

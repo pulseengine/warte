@@ -8,6 +8,7 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 - **warte's report validators run as a WASI component** (REQ-COMPONENT-001). The architecture.v1 check and the temper-report.v1 parser move into `crates/warte-check`, a crate with no async runtime and no I/O, which `warte serve` uses natively and which builds for wasm32-wasip2 as the command component `warte-check <architecture|temper-report> <file>` (exit 0, 1, 2). A new CI job, WASI component, runs the crate's tests under a pinned wasmtime and checks the release component on a good report and a planted bad one. It is not a required check. `warte arch check` and the ground station's report intake are unchanged.
 - **The jig verdict control knows the new job.** Its fixture needs files and its `--never-skip` list now include `component`, and a test in `tests/ci_workflows.rs` holds both fixtures to `required`'s needs list. Without them, the push run on #227's merge went red in `baseline / controls`.
+- **The required-checks mirror gains jig's pair** (owner, 2026-11-27): `.github/required-contexts.txt` adds `required / verdict` and `baseline / guard` beside the existing five, ahead of the same change to main's protection.
 
 ## v1.6.53 — 2026-11-27
 
