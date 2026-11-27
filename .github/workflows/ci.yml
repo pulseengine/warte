@@ -202,23 +202,31 @@ jobs:
 
       # kiln 0.9.0 hung on other repositories' Linux runners (kiln#748): each
       # call gets 120 s, and a timeout (124) is reported as a hang by name.
+      # kiln 0.9.0 read nothing through a `--dir HOST::GUEST` preopen, so the
+      # inputs are copied under the pinned directory (shims refuse outside it)
+      # and opened relative to `--dir .`, as in the wasmtime job.
       - name: kiln accepts good reports and refuses the planted one
         working-directory: tools/chain
         timeout-minutes: 10
         run: |
-          w="$GITHUB_WORKSPACE"
+          set -eu
+          d=run; rm -rf "$d"; mkdir "$d"
+          f="$GITHUB_WORKSPACE/crates/warte-check/tests/fixtures"
+          cp "$f/temper-report.good.json" "$f/temper-report.planted-bad.json" "$d/"
+          cp "$GITHUB_WORKSPACE/tests/fixtures/architecture.example.json" "$d/"
+          cp "$RUNNER_TEMP/chain/a.core.wasm" "$d/warte-check.core.wasm"
+          cd "$d"
           run() {
-            timeout 120 kiln --wasi --dir "$w::/w" "$RUNNER_TEMP/chain/a.core.wasm" "$@"
+            timeout 120 kiln --wasi --dir . warte-check.core.wasm "$@"
             rc=$?
             if [ "$rc" -eq 124 ]; then echo "kiln hung (kiln#748) on: $*"; fi
             return "$rc"
           }
-          f=/w/crates/warte-check/tests/fixtures
           set +e
-          run temper-report "$f/temper-report.good.json"; good=$?
-          run architecture /w/tests/fixtures/architecture.example.json; arch=$?
-          run temper-report "$f/temper-report.planted-bad.json"; bad=$?
-          run architecture /w/missing.json; missing=$?
+          run temper-report temper-report.good.json; good=$?
+          run architecture architecture.example.json; arch=$?
+          run temper-report temper-report.planted-bad.json; bad=$?
+          run architecture missing.json; missing=$?
           set -e
           echo "good report $good (want 0), architecture $arch (want 0), planted bad $bad (want 1), missing $missing (want 2)"
           test "$good" -eq 0 && test "$arch" -eq 0 && test "$bad" -eq 1 && test "$missing" -eq 2
