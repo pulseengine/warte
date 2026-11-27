@@ -1,0 +1,14 @@
+artifacts:
+  - id: TEST-TEMPER-002
+    type: verification
+    title: temper-report.v1 accepts readme.shared_blocks with its four codes and stays closed
+    status: verified
+    release: v1.6.53
+    description: "src/temper/report.rs the_shared_readme_blocks_check_is_accepted_with_its_four_codes: a report whose check is readme.shared_blocks parses with ok, not_applicable, divergent_declared and divergent_undeclared at severity low; the same check with the code drift, or with a notes field, rejects the whole report. Negative control: without the CheckId variant every case is refused."
+    links:
+      - type: verifies
+        target: REQ-TEMPER-002
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-27T10:00:00Z

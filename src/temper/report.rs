@@ -126,6 +126,9 @@ pub enum CheckId {
     SecretScanning,
     #[serde(rename = "standards.drift")]
     StandardsDrift,
+    /// Shared README blocks in sync (temper#128, warte 1.6.53).
+    #[serde(rename = "readme.shared_blocks")]
+    ReadmeSharedBlocks,
 }
 
 impl CheckId {
@@ -366,6 +369,31 @@ pub mod tests {
             ("spar", "protection.signed_commits")
         );
         assert_eq!(f[1].1.code.as_str(), "divergent_undeclared");
+    }
+
+    // rivet: verifies REQ-TEMPER-002
+    #[test]
+    fn the_shared_readme_blocks_check_is_accepted_with_its_four_codes() {
+        for (ok, code) in [
+            (true, "ok"),
+            (true, "not_applicable"),
+            (true, "divergent_declared"),
+            (false, "divergent_undeclared"),
+        ] {
+            let mut v = sample();
+            v["repos"][0]["checks"][0] = serde_json::json!(
+                {"id": "readme.shared_blocks", "ok": ok, "severity": "low", "code": code}
+            );
+            let r =
+                parse(&serde_json::to_vec(&v).unwrap()).unwrap_or_else(|e| panic!("{code}: {e}"));
+            assert_eq!(r.repos[0].checks[0].id.as_str(), "readme.shared_blocks");
+        }
+        // the shape stays closed: no drift code, no notes
+        let mut v = sample();
+        v["repos"][0]["checks"][0] = serde_json::json!({"id": "readme.shared_blocks", "ok": false, "severity": "low", "code": "drift"});
+        assert!(parse(&serde_json::to_vec(&v).unwrap()).is_err());
+        v["repos"][0]["checks"][0] = serde_json::json!({"id": "readme.shared_blocks", "ok": false, "severity": "low", "code": "divergent_undeclared", "notes": "intro"});
+        assert!(parse(&serde_json::to_vec(&v).unwrap()).is_err());
     }
 
     // rivet: verifies REQ-TEMPER-002
