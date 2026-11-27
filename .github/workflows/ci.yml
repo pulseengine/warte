@@ -83,8 +83,8 @@ jobs:
   # warte's report validators as a WASI p2 component (owner, 2026-11-27, "run
   # what we build"): crates/warte-check builds for wasm32-wasip2, its tests run
   # under wasmtime, and the release component must accept a good report and
-  # refuse a planted bad one. Not a required check yet. A kiln run (meld fuse
-  # --reproducible, then kiln 0.9) joins as an advisory step.
+  # refuse a planted bad one. Not a required check yet. The `kiln` job below
+  # runs the same component through meld and kiln, advisory.
   component:
     name: WASI component
     runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","linux","x64","rust-cpu"]') || 'ubuntu-24.04' }}
@@ -133,6 +133,87 @@ jobs:
           set -e
           echo "planted bad report: exit $bad (want 1); missing file: exit $missing (want 2)"
           test "$bad" -eq 1 && test "$missing" -eq 2
+
+  # The same component through PulseEngine's own chain (owner, 2026-11-27):
+  # meld fuses it into a core module (--reproducible, fused twice and compared)
+  # and kiln runs it with the same 0/1/2 expectations as wasmtime above.
+  # meld, kiln and wasmtime come from the covalent layer pinned in
+  # tools/chain/varve.toml, installed cosign-verified into a job-local root.
+  # Advisory in `required`: a red run here is a finding about the chain.
+  # rivet: verifies REQ-COMPONENT-001
+  kiln:
+    name: kiln run
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","linux","x64","rust-cpu"]') || 'ubuntu-24.04' }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
+
+      # Job-local, never ~/.varve: on a persistent runner another repository's
+      # newer layer leaves an anti-rollback mark that refuses this pin.
+      - name: A fresh varve root for this job
+        run: |
+          echo "VARVE_ROOT=$RUNNER_TEMP/varve" >> "$GITHUB_ENV"
+          echo "VARVE_INSTALL_DIR=$RUNNER_TEMP/varve/bin" >> "$GITHUB_ENV"
+
+      - name: Install varve (cosign-verified) and the pinned layer
+        working-directory: tools/chain
+        env:
+          VARVE_VERSION: v0.47.0
+        run: bash ../../scripts/install-varve.sh
+
+      - name: The chain's tools resolve to the pinned layer
+        working-directory: tools/chain
+        run: |
+          set -euo pipefail
+          for t in wasmtime meld kiln; do
+            test "$(command -v "$t")" = "$VARVE_ROOT/shims/$t"
+            "$VARVE_INSTALL_DIR/varve" which "$t"
+          done
+          meld --version
+          kiln --version
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc # master
+        with:
+          toolchain: 1.100.0
+          targets: wasm32-wasip2
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+
+      - name: Build the component
+        run: cargo build --locked -p warte-check --target wasm32-wasip2 --release
+
+      - name: The component asks for exit-with-code
+        run: grep -aq exit-with-code target/wasm32-wasip2/release/warte-check.wasm
+
+      - name: meld fuses it reproducibly
+        working-directory: tools/chain
+        run: |
+          set -euo pipefail
+          c="$GITHUB_WORKSPACE/target/wasm32-wasip2/release/warte-check.wasm"
+          o="$RUNNER_TEMP/chain"; mkdir -p "$o"
+          meld fuse --reproducible --memory multi "$c" -o "$o/a.core.wasm"
+          meld fuse --reproducible --memory multi "$c" -o "$o/b.core.wasm"
+          cmp "$o/a.core.wasm" "$o/b.core.wasm"
+          sha256sum "$o/a.core.wasm"
+
+      - name: kiln accepts good reports and refuses the planted one
+        working-directory: tools/chain
+        run: |
+          w="$GITHUB_WORKSPACE"
+          run() { kiln --wasi --dir "$w::/w" "$RUNNER_TEMP/chain/a.core.wasm" "$@"; }
+          f=/w/crates/warte-check/tests/fixtures
+          set +e
+          run temper-report "$f/temper-report.good.json"; good=$?
+          run architecture /w/tests/fixtures/architecture.example.json; arch=$?
+          run temper-report "$f/temper-report.planted-bad.json"; bad=$?
+          run architecture /w/missing.json; missing=$?
+          set -e
+          echo "good report $good (want 0), architecture $arch (want 0), planted bad $bad (want 1), missing $missing (want 2)"
+          test "$good" -eq 0 && test "$arch" -eq 0 && test "$bad" -eq 1 && test "$missing" -eq 2
 
   rivet:
     name: Rivet traceability check
@@ -287,13 +368,13 @@ jobs:
           if-no-files-found: ignore
 
   # jig, the shared CI baseline, in shadow mode (phase 1): guard, pins,
-  # supply and planted controls run beside warte's own jobs. Nothing here is
-  # a required context yet; warte's own contexts (.github/required-contexts.txt)
-  # stay required until the owner adds `required / verdict`.
-  # Both jig calls pin the same full SHA: jig v0.1.7's record commit (the one
+  # supply and planted controls run beside warte's own jobs. Since 2026-11-27
+  # `required / verdict` and `baseline / guard` are required contexts beside
+  # warte's own five (.github/required-contexts.txt).
+  # Both jig calls pin the same full SHA: jig v0.1.8's record commit (the one
   # that records its archive sha256s), not its tag commit.
   baseline:
-    uses: pulseengine/jig/.github/workflows/baseline.yml@34e04731fd68b92a768862a05ebca8a997769918
+    uses: pulseengine/jig/.github/workflows/baseline.yml@5458397bb99ef86ec0ed6422b3a192bb64eec035
     with:
       audit: cargo-audit
       guard-config: plant-guard.toml
@@ -367,10 +448,10 @@ jobs:
   # The one context that will replace the list: red on any failure,
   # cancellation, skip of a selected class or a job missing from needs.
   required:
-    needs: [baseline, classify, build, clippy, component, rivet, audit, playwright, canary-stable]
+    needs: [baseline, classify, build, clippy, component, kiln, rivet, audit, playwright, canary-stable]
     if: always()
-    uses: pulseengine/jig/.github/workflows/required.yml@34e04731fd68b92a768862a05ebca8a997769918
+    uses: pulseengine/jig/.github/workflows/required.yml@5458397bb99ef86ec0ed6422b3a192bb64eec035
     with:
       needs-json: ${{ toJSON(needs) }}
       never-skip: "build clippy component rivet audit playwright"
-      advisory: "canary-stable"
+      advisory: "canary-stable kiln"

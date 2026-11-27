@@ -1,0 +1,13 @@
+# The chain job's toolchain pin: the `covalent` layer (owner, 2026-11-27:
+# covalent 2026.11.28 is the standard layer), which composes PulseEngine's
+# toolchain with the component-model tools. Only the `kiln` CI job runs here;
+# the repository root keeps its own pin until it moves to covalent as a
+# reviewed change. The realm is defined in ../../varve-realms.toml.
+#
+# Shims refuse outside a pinned project, so chain steps run in this directory.
+manifest-version = 1
+
+[toolchain]
+realm   = "covalent"
+channel = "rolling"
+layer   = "2026.11.28"
