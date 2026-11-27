@@ -874,7 +874,47 @@ fn the_jig_shadow_pilot_has_the_caller_shape_and_changes_no_required_context() {
             "Clippy",
             "Rivet traceability check",
             "Playwright E2E",
-            "Dependency audit"
+            "Dependency audit",
+            "required / verdict",
+            "baseline / guard"
         ]
+    );
+}
+
+// rivet: verifies REQ-CI-007
+/// jig's verdict control (ci-controls.toml) replays `required` against fixture
+/// needs files; a job added to `required` but missing there turns main red on
+/// push only, where the controls job runs (the v1.6.54 merge, 2026-11-27).
+#[test]
+fn the_verdict_control_fixtures_cover_every_job_required_needs() {
+    let wf = workflow("ci.yml");
+    let required = jobs(&wf)
+        .into_iter()
+        .find(|(n, _)| n == "required")
+        .expect("ci.yml has a required job")
+        .1;
+    let needs: BTreeSet<String> = required["needs"]
+        .as_sequence()
+        .expect("required lists its needs")
+        .iter()
+        .filter_map(|n| n.as_str().map(str::to_string))
+        .collect();
+    assert!(needs.len() > 3, "required needs nothing: {needs:?}");
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    for f in [
+        "ci-controls/fixtures/needs.json",
+        "ci-controls/verdict-sees-failure/ci-controls/fixtures/needs.json",
+    ] {
+        let v: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(root.join(f)).unwrap()).unwrap();
+        let keys: BTreeSet<String> = v.as_object().unwrap().keys().cloned().collect();
+        assert_eq!(keys, needs, "{f} must name exactly the jobs required needs");
+    }
+    // the control's never-skip list is ci.yml's
+    let never_skip = required["with"]["never-skip"].as_str().unwrap();
+    let controls = fs::read_to_string(root.join("ci-controls.toml")).unwrap();
+    assert!(
+        controls.contains(&format!("--never-skip \"{never_skip}\"")),
+        "ci-controls.toml's verdict control must pass --never-skip \"{never_skip}\""
     );
 }

@@ -6,3 +6,5 @@ Clippy
 Rivet traceability check
 Playwright E2E
 Dependency audit
+required / verdict
+baseline / guard
