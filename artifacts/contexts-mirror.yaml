@@ -1,0 +1,14 @@
+artifacts:
+  - id: TEST-TEMPER-003
+    type: verification
+    title: temper-report.v1 accepts protection.required_contexts_mirror with its codes and stays closed
+    status: verified
+    release: v1.6.56
+    description: "crates/warte-check/src/temper_report.rs the_contexts_mirror_check_is_accepted_with_its_codes: a report whose check is protection.required_contexts_mirror parses at severity medium with ok and not_applicable (ok true), drift_file_only, drift_protection_only and drift_both (ok false), and error_permission and error_api (ok null). A drift code with ok null, the code drift, or a contexts field rejects the whole report. Agreed with temper 2026-11-27 (owner decision relayed: the mirror file against the union of classic contexts and ruleset required checks). Negative control: without the CheckId variant every case is refused."
+    links:
+      - type: verifies
+        target: REQ-TEMPER-002
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-27T18:45:00Z
