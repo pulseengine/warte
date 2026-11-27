@@ -5,7 +5,7 @@ schema = "sieve.config.v1"
 # The binary, its tests and everything it embeds (templates, docs, migrations).
 [class.rust]
 cargo = ["Cargo.toml", "crates/warte-check/Cargo.toml"]
-hand = ["templates/", "docs/", "migrations/", "deploy/"]
+hand = ["templates/", "docs/", "migrations/", "deploy/", "tools/chain/", "scripts/install-varve.sh", "varve-realms.toml"]
 
 # rivet validate and coverage: the artifacts and the source markers.
 [class.rivet]
@@ -27,6 +27,7 @@ required_contexts = ".github/required-contexts.txt"
 build = ["rust"]
 clippy = ["rust"]
 component = ["rust"]
+kiln = ["rust"]
 rivet = ["rivet"]
 audit = ["rust", "e2e"]
 playwright = ["e2e"]

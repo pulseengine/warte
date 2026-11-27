@@ -917,4 +917,10 @@ fn the_verdict_control_fixtures_cover_every_job_required_needs() {
         controls.contains(&format!("--never-skip \"{never_skip}\"")),
         "ci-controls.toml's verdict control must pass --never-skip \"{never_skip}\""
     );
+    // and so is its advisory list
+    let advisory = required["with"]["advisory"].as_str().unwrap();
+    assert!(
+        controls.contains(&format!("--advisory \"{advisory}\"")),
+        "ci-controls.toml's verdict control must pass --advisory \"{advisory}\""
+    );
 }

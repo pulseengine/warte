@@ -28,6 +28,6 @@ stderr_or_stdout_matches = 'zz-planted\.yml'
 [[control]]
 id = "verdict-sees-failure"
 check = "aggregator: required / verdict"
-run = 'sh ci-controls/jig.sh verdict --needs ci-controls/fixtures/needs.json --workflow .github/workflows/ci.yml --never-skip "build clippy component rivet audit playwright" --advisory canary-stable'
+run = 'sh ci-controls/jig.sh verdict --needs ci-controls/fixtures/needs.json --workflow .github/workflows/ci.yml --never-skip "build clippy component rivet audit playwright" --advisory "canary-stable kiln"'
 plant = "ci-controls/verdict-sees-failure"
 stderr_or_stdout_matches = 'job .clippy. result is failure'

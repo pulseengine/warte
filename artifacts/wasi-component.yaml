@@ -29,3 +29,17 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-11-27T12:00:00Z
+
+  - id: TEST-COMPONENT-002
+    type: verification
+    title: The component fused by meld and run by kiln gives the same exit codes
+    status: implemented
+    release: v1.6.57
+    description: "CI job 'kiln run' (.github/workflows/ci.yml), advisory in required: installs varve v0.47.0 cosign-verified into a job-local root and the covalent layer 2026.11.28 pinned in tools/chain/varve.toml; checks wasmtime, meld and kiln resolve to that layer's shims; builds warte-check.wasm, checks it imports exit-with-code, fuses it twice with meld fuse --reproducible --memory multi and requires identical bytes; then kiln runs the fused core module and must exit 0 on the good temper report and the architecture example, 1 on the planted bad report and 2 on a missing file, the same as the wasmtime run in TEST-COMPONENT-001."
+    links:
+      - type: verifies
+        target: REQ-COMPONENT-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-27T22:00:00Z

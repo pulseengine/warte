@@ -3,6 +3,7 @@
  "build": {"result": "success", "outputs": {}},
  "clippy": {"result": "failure", "outputs": {}},
  "component": {"result": "success", "outputs": {}},
+ "kiln": {"result": "success", "outputs": {}},
  "rivet": {"result": "success", "outputs": {}},
  "audit": {"result": "success", "outputs": {}},
  "playwright": {"result": "success", "outputs": {}},

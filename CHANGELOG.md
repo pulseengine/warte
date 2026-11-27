@@ -4,6 +4,8 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+- **The WASI component also runs on PulseEngine's own chain** (REQ-COMPONENT-001, TEST-COMPONENT-002). A new advisory CI job, kiln run, installs the covalent layer 2026.11.28 (pinned in `tools/chain/varve.toml`, varve installed cosign-verified into a job-local root), fuses `warte-check.wasm` with `meld fuse --reproducible` twice and requires identical bytes, and runs the fused module under kiln with the same 0/1/2 expectations as the wasmtime job. jig moves to v0.1.9 (its record commit, which ships jig.wasm) in both workflow calls, and the verdict control's fixtures carry the new job; the unplanted fixture now shows an advisory failure (kiln) that the verdict must tolerate.
+
 ## v1.6.56 — 2026-11-27
 
 - **temper reports may carry the required-contexts mirror check** (REQ-TEMPER-002). temper-report.v1 gains the check id `protection.required_contexts_mirror`, one finding per repository at severity medium, comparing `.github/required-contexts.txt` with the union of classic required contexts and ruleset required checks: `ok`, `not_applicable` (no file), `drift_file_only`, `drift_protection_only` or `drift_both` (ok false), and `error_permission` or `error_api` (ok null). The three drift codes are new. The report stays closed: context names stay in temper's own output, and any other unknown id, code or field still rejects the whole report. temper starts sending the check only once this release is deployed.
