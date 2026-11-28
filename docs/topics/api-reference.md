@@ -184,6 +184,34 @@ the view has a filter per account. A source whose scan fails keeps its last
 lists and says why; the others carry on. `GET /api/reviews` answers
 `{accounts: [{account, reviewer, scanned_at, prs, items, error}]}`.
 
+## Outside contributions (REQ-OUTSIDE-001)
+
+```
+GET /api/outside
+```
+
+Open issues and pull requests in the watched orgs and accounts from authors
+who are not inside (#238). It reads the `[[reviews.sources]]` tokens:
+
+```toml
+[outside]
+inside_people = ["example-friend"]          # count as inside anywhere
+inside_teams = ["example-org/core"]         # members read once per scan
+# interval_s = 900
+
+[outside.watch]
+"github.com" = ["example-org", "example-user"]   # by source host ...
+work = ["example-corp"]                          # ... or by source label
+```
+
+Inside is GitHub's author association on the repository, OWNER or MEMBER
+(as the token sees membership), or a listed login or team member; on a
+user-owned repository only the owner is inside. Bots are left out. Each row
+says whether an insider has commented; unanswered ones come first, then by
+last activity. A team whose org is not on a source's host is skipped there.
+Access is the queue's: a signed-in person with `[auth]`, else loopback only.
+The CI menu shows it as Outside.
+
 
 ## Reports (REQ-REPORTS-001)
 

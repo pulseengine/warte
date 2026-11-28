@@ -22,6 +22,8 @@ pub struct AppState {
     pub attention: crate::attention::Store,
     /// The reviews view's latest scan (REQ-PRREVIEW-001), with `[reviews]`.
     pub reviews: Option<crate::reviews::Shared>,
+    /// Outside contributions (REQ-OUTSIDE-001), with `[outside]` and sources.
+    pub outside: Option<crate::outside::Shared>,
     pub realtime: Arc<crate::realtime::EventBroadcaster>,
     pub status: Arc<crate::status::StatusClient>,
     /// The ground station, when `[hub]` is configured.
@@ -423,6 +425,14 @@ pub fn build_state(mut config: Config, db: Database) -> anyhow::Result<AppState>
             crate::reviews::spawn(r, shared.clone());
             shared
         }),
+        outside: match (&config.outside, &config.reviews) {
+            (Some(o), Some(r)) => {
+                let shared: crate::outside::Shared = Default::default();
+                crate::outside::spawn(r.sources(), o.clone(), shared.clone());
+                Some(shared)
+            }
+            _ => None,
+        },
         github_tokens,
         canaries,
         expiry,

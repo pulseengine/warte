@@ -4,6 +4,10 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.60 — 2026-11-28
+
+- **Outside contributions** (REQ-OUTSIDE-001, #238). A new CI view, Outside, lists open issues and pull requests in the orgs and accounts you watch whose author is not an owner, an org member or someone you list as inside (people, or teams by `org/team`); bots are left out. Items no insider has answered come first. Membership is GitHub's own author association on each repository, so no member list is read. Configure `[outside] watch` per `[[reviews.sources]]` host or label; it uses the same tokens and the same access rule as My queue.
+
 ## v1.6.59 — 2026-11-28
 
 - **My queue: several GitHub hosts, assignments and mentions** (REQ-PRREVIEW-002, #236, #237). The Reviews view is now My queue. `[[reviews.sources]]` lists the hosts it reads (github.com, GitHub Enterprise Cloud or Server), each with your own read-only token and teams; a single `token_file` still works. Next to review requests it lists team review requests apart, pull requests and issues assigned to you, and issues and pull requests that mention you with no post of yours since. With more than one host the view filters by account; a host whose scan fails keeps its last lists and does not hold up the others. `GET /api/reviews` now answers `{accounts: [...]}`.

@@ -44,6 +44,7 @@ pub mod nav;
 pub mod news;
 pub mod northstar;
 pub mod operator;
+pub mod outside;
 pub mod platform;
 pub mod probe;
 pub mod realtime;
