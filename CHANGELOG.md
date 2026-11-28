@@ -6,6 +6,7 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## v1.6.60 — 2026-11-28
 
+- **temper reports may carry the CI concurrency check** (REQ-TEMPER-002, TEST-TEMPER-004). temper-report.v1 gains the check id `ci.concurrency` with the codes `pr_not_cancelled`, `main_cancellable`, `release_cancellable` and `error_parse`; `ok`, `not_applicable`, `error_api` and `error_permission` as before. One code per repository; no workflow paths are carried. temper emits it behind a flag until the ground station runs this version.
 - **Outside contributions** (REQ-OUTSIDE-001, #238). A new CI view, Outside, lists open issues and pull requests in the orgs and accounts you watch whose author is not an owner, an org member or someone you list as inside (people, or teams by `org/team`); bots are left out. Items no insider has answered come first. Membership is GitHub's own author association on each repository, so no member list is read. Configure `[outside] watch` per `[[reviews.sources]]` host or label; it uses the same tokens and the same access rule as My queue.
 
 ## v1.6.59 — 2026-11-28

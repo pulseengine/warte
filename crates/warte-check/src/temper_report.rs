@@ -133,6 +133,10 @@ pub enum CheckId {
     /// plus ruleset required checks (temper, warte 1.6.56).
     #[serde(rename = "protection.required_contexts_mirror")]
     ProtectionRequiredContextsMirror,
+    /// Workflow concurrency: superseded PR runs cancel, main and release runs
+    /// never do (temper, warte 1.6.60).
+    #[serde(rename = "ci.concurrency")]
+    CiConcurrency,
 }
 
 impl CheckId {
@@ -170,6 +174,16 @@ pub enum Code {
     DriftProtectionOnly,
     /// Both drifts at once.
     DriftBoth,
+    /// ci.concurrency: a pull_request workflow without ref-scoped concurrency
+    /// that cancels superseded runs.
+    PrNotCancelled,
+    /// ci.concurrency: cancel-in-progress is literally true on a workflow that
+    /// also runs on push to the default branch or on merge_group.
+    MainCancellable,
+    /// ci.concurrency: a tag, release or release-dispatch workflow can be cancelled.
+    ReleaseCancellable,
+    /// ci.concurrency: a workflow file does not parse, and no finding applies.
+    ErrorParse,
     NotApplicable,
     ErrorApi,
     ErrorPermission,
@@ -412,6 +426,38 @@ pub mod tests {
         v["repos"][0]["checks"][0] = serde_json::json!({"id": "protection.required_contexts_mirror", "ok": false, "severity": "medium", "code": "drift"});
         assert!(parse(&serde_json::to_vec(&v).unwrap()).is_err());
         v["repos"][0]["checks"][0] = serde_json::json!({"id": "protection.required_contexts_mirror", "ok": false, "severity": "medium", "code": "drift_both", "contexts": ["Build"]});
+        assert!(parse(&serde_json::to_vec(&v).unwrap()).is_err());
+    }
+
+    // rivet: verifies REQ-TEMPER-002
+    #[test]
+    fn the_ci_concurrency_check_is_accepted_with_its_codes() {
+        for (ok, code) in [
+            (Some(true), "ok"),
+            (Some(true), "not_applicable"),
+            (Some(false), "pr_not_cancelled"),
+            (Some(false), "main_cancellable"),
+            (Some(false), "release_cancellable"),
+            (Some(false), "error_parse"),
+            (None, "error_permission"),
+            (None, "error_api"),
+        ] {
+            let mut v = sample();
+            v["repos"][0]["checks"][0] = serde_json::json!(
+                {"id": "ci.concurrency", "ok": ok, "severity": "medium", "code": code}
+            );
+            let r =
+                parse(&serde_json::to_vec(&v).unwrap()).unwrap_or_else(|e| panic!("{code}: {e}"));
+            assert_eq!(r.repos[0].checks[0].id.as_str(), "ci.concurrency");
+            assert_eq!(r.repos[0].checks[0].code.as_str(), code);
+        }
+        // a finding is decided; workflow paths never travel; the shape stays closed
+        let mut v = sample();
+        v["repos"][0]["checks"][0] = serde_json::json!({"id": "ci.concurrency", "ok": null, "severity": "medium", "code": "main_cancellable"});
+        assert!(parse(&serde_json::to_vec(&v).unwrap()).is_err());
+        v["repos"][0]["checks"][0] = serde_json::json!({"id": "ci.concurrency", "ok": false, "severity": "medium", "code": "main_cancellable", "workflows": [".github/workflows/ci.yml"]});
+        assert!(parse(&serde_json::to_vec(&v).unwrap()).is_err());
+        v["repos"][0]["checks"][0] = serde_json::json!({"id": "ci.concurrency", "ok": false, "severity": "medium", "code": "cancellable"});
         assert!(parse(&serde_json::to_vec(&v).unwrap()).is_err());
     }
 
