@@ -4,6 +4,10 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.59 — 2026-11-28
+
+- **My queue: several GitHub hosts, assignments and mentions** (REQ-PRREVIEW-002, #236, #237). The Reviews view is now My queue. `[[reviews.sources]]` lists the hosts it reads (github.com, GitHub Enterprise Cloud or Server), each with your own read-only token and teams; a single `token_file` still works. Next to review requests it lists team review requests apart, pull requests and issues assigned to you, and issues and pull requests that mention you with no post of yours since. With more than one host the view filters by account; a host whose scan fails keeps its last lists and does not hold up the others. `GET /api/reviews` now answers `{accounts: [...]}`.
+
 ## v1.6.58 — 2026-11-28
 
 - **Each badged view says what its badge counts** (REQ-DASH-021, #235). Outages, Machines and Compliance open with a "Needs a look (N)" block right under the heading: exactly the N items the top-bar badge counts, red first, then by severity or due date. The view tabs carry the badge too, and opening a badged group lands on that view at the block. The group badge is now red plus amber, in the colour of the worst. Two counts that disagreed with their views are fixed: the Machines badge counted forecasts that only Overview showed, and Outages used default disk levels while its badge used the configured ones.
