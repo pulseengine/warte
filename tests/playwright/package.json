@@ -2,7 +2,7 @@
   "name": "warte-playwright",
   "private": true,
   "devDependencies": {
-    "@playwright/test": "1.55.1"
+    "@playwright/test": "1.65.1"
   },
   "scripts": {
     "test": "playwright test",
