@@ -147,6 +147,10 @@ pub struct Config {
     /// watchlists.
     #[serde(default)]
     pub reviews: Option<crate::reviews::ReviewsConfig>,
+    /// Outside contributions (REQ-OUTSIDE-001): the orgs and accounts to
+    /// watch per `[[reviews.sources]]`, and who counts as inside.
+    #[serde(default)]
+    pub outside: Option<crate::outside::OutsideConfig>,
     /// The issue triage queue (REQ-TRIAGE-001).
     #[serde(default)]
     pub triage: Option<crate::triage::TriageConfig>,
@@ -496,6 +500,7 @@ impl Default for Config {
             architecture: None,
             glance: None,
             reviews: None,
+            outside: None,
             canaries: None,
             expiry: None,
             notify: None,

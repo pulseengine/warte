@@ -48,7 +48,7 @@ fn five_groups_hold_every_view_once_and_overview_is_the_landing() {
         .collect();
     assert_eq!(groups, ["now", "ci", "machines", "agents", "compliance"]);
     let v = views();
-    assert_eq!(v.len(), 24, "{v:?}");
+    assert_eq!(v.len(), 25, "{v:?}");
     let routes: BTreeSet<&str> = v.iter().map(|x| x.2.as_str()).collect();
     assert_eq!(routes.len(), v.len(), "a view is in the menu twice");
     let labels: BTreeSet<&str> = v.iter().map(|x| x.1.as_str()).collect();
@@ -141,7 +141,7 @@ async fn every_view_in_the_menu_still_answers_on_its_route() {
         );
         checked += 1;
     }
-    assert_eq!(checked, 24);
+    assert_eq!(checked, 25);
 }
 
 fn finding(severity: &'static str, text: &str) -> warte::probe::Finding {

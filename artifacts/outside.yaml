@@ -1,0 +1,49 @@
+# warte#238: outside contributions. The owner decided the rule on 2026-11-28.
+artifacts:
+  - id: REQ-OUTSIDE-001
+    type: requirement
+    title: "Outside contributions: open issues and PRs in the watched orgs and accounts from authors who are not inside"
+    status: verified
+    release: v1.6.60
+    description: "warte SHALL list the open issues and pull requests in the orgs and user accounts configured per source whose author is not inside, newest activity first with the ones no insider has answered before the rest. Inside SHALL be GitHub's author association OWNER or MEMBER on that repository, or a configured login, or a member of a configured team; on a user-owned repository only the owner is inside. Bots SHALL be left out. Each row SHALL say whether an insider has commented. A team whose org is not on a source's host SHALL be skipped there without failing the scan. A source whose scan fails SHALL keep its last list and say why without the token. Access SHALL be as for the queue (REQ-PRREVIEW-001): a signed-in person with [auth], else only a warte bound to loopback; agent tokens are refused."
+    fields:
+      category: functional
+      priority: should
+      upstream-ref: https://github.com/pulseengine/warte/issues/238
+    links:
+      - type: refines
+        target: REQ-PRREVIEW-002
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-28T13:00:00Z
+
+  - id: DD-OUTSIDE-001
+    type: design-decision
+    title: Inside is GitHub's authorAssociation plus configured people and teams, read with the queue's per-source tokens
+    status: verified
+    release: v1.6.60
+    description: "src/outside/mod.rs searches `user:<owner> is:open archived:false sort:updated-desc` per watched owner (first 100), keyed by source label or host in `[outside] watch`. A node is outside unless its authorAssociation is OWNER or MEMBER, its login is in inside_people, or it is in an inside team (members read once per scan); bots (__typename Bot or a [bot] login) are dropped. answered is any comment by an insider that is not a bot. The view sorts unanswered first, then by last activity."
+    fields:
+      rationale: "Owner decision on #238 (2026-11-28): outside means not a member of the owning org, with extra inside teams or people configurable, bots hidden. GitHub's authorAssociation answers membership per repository in the search result itself, so no org member list is read; it also handles user-owned repositories (OWNER is the account) and private membership the token can see. Listing org members would cost one paged call per org and would miss private members the token cannot see in the same way."
+    links:
+      - type: satisfies
+        target: REQ-OUTSIDE-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-28T13:00:00Z
+
+  - id: TEST-OUTSIDE-001
+    type: verification
+    title: Unit and integration tests pin who is inside, what counts as an answer, watching by label or host, the order, and access
+    status: verified
+    release: v1.6.60
+    description: "src/outside/mod.rs: owners, members, listed people and bots are not outside while collaborators, contributors, first-time contributors and none are; an answer counts only from inside and never from a bot; sources are watched by label or host, the search names the owner, the view puts waiting items first and escapes titles. tests/outside.rs: a scan against a stand-in GraphQL keeps the outside authors newest first, leaves out a member and an inside-team member, merges a duplicate, and survives a team whose org is not on the host; without a login only loopback answers. tests/auth.rs outside_contributions_answer_a_signed_in_person_only: 401 anonymous, refused for agents:read, the sign-in panel in the page, a signed-in person passes. Negative control: counting org members as outside failed the scan test."
+    links:
+      - type: verifies
+        target: REQ-OUTSIDE-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-28T13:00:00Z

@@ -104,6 +104,7 @@ pub fn build_routes() -> Router<AppState> {
         .route("/architecture", get(api_architecture))
         .route("/glance", get(api_glance))
         .route("/reviews", get(api_reviews))
+        .route("/outside", get(api_outside))
         .route(
             "/decisions/answer",
             axum::routing::post(api_decisions_answer),
@@ -203,6 +204,7 @@ pub fn build_routes() -> Router<AppState> {
         .route("/api/dashboard/decisions-partial", get(decisions_partial))
         .route("/api/dashboard/seams-partial", get(seams_partial))
         .route("/api/dashboard/reviews-partial", get(reviews_partial))
+        .route("/api/dashboard/outside-partial", get(outside_partial))
         .route("/api/dashboard/security-partial", get(security_partial))
         .route(
             "/api/dashboard/architecture-partial",
@@ -2636,4 +2638,37 @@ async fn api_alert_owner_verdict(
     } else {
         plain(StatusCode::NOT_FOUND, "no such alert")
     }
+}
+
+/// Outside contributions (REQ-OUTSIDE-001): private work data like the
+/// queue, under the same rule.
+async fn api_outside(State(state): State<AppState>) -> axum::response::Response {
+    if !reviews_allowed(&state) {
+        return plain(
+            StatusCode::UNAUTHORIZED,
+            "outside contributions need [auth], or a warte bound to loopback",
+        );
+    }
+    match &state.outside {
+        None => plain(StatusCode::NOT_FOUND, "no [outside] configured"),
+        Some(s) => Json(s.lock().map(|g| g.clone()).unwrap_or_default()).into_response(),
+    }
+}
+
+pub async fn outside_partial(
+    State(state): State<AppState>,
+    axum::extract::Query(q): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> axum::response::Response {
+    let body = if !reviews_allowed(&state) {
+        r#"<div class="overview"><h2>Outside</h2><p class="empty">Outside contributions show private work data: configure <code>[auth]</code>, or run this warte on loopback.</p></div>"#.to_string()
+    } else {
+        match &state.outside {
+            None => r#"<div class="overview"><h2>Outside</h2><p class="empty">No <code>[outside]</code> configured: name the orgs and accounts to watch per <code>[[reviews.sources]]</code> host.</p></div>"#.to_string(),
+            Some(s) => crate::outside::view(
+                &s.lock().map(|g| g.clone()).unwrap_or_default(),
+                q.get("account").map(String::as_str),
+            ),
+        }
+    };
+    axum::response::Html(body).into_response()
 }

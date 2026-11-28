@@ -1778,3 +1778,24 @@ async fn the_queue_answers_a_signed_in_person_only_never_an_anonymous_caller_or_
     let u1 = sign_in(&s, &i, "u1", "q1").await;
     assert_eq!(status(&s.base, "/api/reviews", None, Some(&u1)).await, 404);
 }
+
+// rivet: verifies REQ-OUTSIDE-001
+#[tokio::test]
+async fn outside_contributions_answer_a_signed_in_person_only() {
+    let (i, iss) = idp().await;
+    let s = serve(Some(cfg(&iss))).await;
+    assert_eq!(status(&s.base, "/api/outside", None, None).await, 401);
+    let agent = status(&s.base, "/api/outside", Some(&s.reader), None).await;
+    assert!(agent == 401 || agent == 403, "agents:read answered {agent}");
+    let page = client()
+        .get(format!("{}/api/dashboard/outside-partial", s.base))
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    assert_eq!(page, warte::login::sign_in_panel());
+    let u1 = sign_in(&s, &i, "u1", "o1").await;
+    assert_eq!(status(&s.base, "/api/outside", None, Some(&u1)).await, 404);
+}
