@@ -234,14 +234,14 @@ mod tests {
     #[test]
     fn the_manifest_is_read_strictly() {
         let e = parse_expected(
-            "# comment\nnetcup-vps/certbot.json 108000\nprefix-sync.json 900 # trailing\n\
+            "# comment\nvps-dir/certbot.json 108000\nprefix-sync.json 900 # trailing\n\
              ../etc/passwd.json 5\n/abs.json 5\nbad-line\nx.json notanumber\n",
         );
         assert_eq!(
             e,
             vec![
                 Expected {
-                    path: "netcup-vps/certbot.json".into(),
+                    path: "vps-dir/certbot.json".into(),
                     window_s: 108000
                 },
                 Expected {
@@ -263,8 +263,8 @@ mod tests {
         };
         write(
             d.path(),
-            "netcup-vps/certbot.json",
-            job("certbot", "netcup-vps", 0, now - 100),
+            "vps-dir/certbot.json",
+            job("certbot", "vps-dir", 0, now - 100),
         );
         write(
             d.path(),
@@ -281,7 +281,7 @@ mod tests {
             "macbook/extra.json",
             job("extra", "macbook", 0, now - 10),
         );
-        let manifest = "netcup-vps/certbot.json 108000\nmini/costs.json 3600\n\
+        let manifest = "vps-dir/certbot.json 108000\nmini/costs.json 3600\n\
                         mini/archive.json 3600\nmacbook/gone.json 600\n";
         let jobs = read(d.path(), Some(manifest), now);
         let st = |n: &str| jobs.iter().find(|j| j.name == n).unwrap().state.clone();

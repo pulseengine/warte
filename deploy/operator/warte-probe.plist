@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- macOS: ~/Library/LaunchAgents/org.example.warte-probe.plist (operator duty: probes).
-     Replace: org.example, warte.example.internal, /Users/warte. -->
+     Replace: org.example, warte.example.internal, /Users/example-user. -->
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
@@ -11,7 +11,7 @@
     <string>probe</string>
     <string>send</string>
     <string>--ground</string><string>https://warte.example.internal/warte</string>
-    <string>--state-dir</string><string>/Users/warte/Library/Application Support/warte-probe</string>
+    <string>--state-dir</string><string>/Users/example-user/Library/Application Support/warte-probe</string>
   </array>
   <key>StartInterval</key><integer>60</integer>
   <key>RunAtLoad</key><true/>

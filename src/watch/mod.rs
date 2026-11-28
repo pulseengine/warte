@@ -245,7 +245,7 @@ mod tests {
         let lan = Some("192.0.2.9".parse().unwrap());
         assert_eq!(client_of(lo, Some("192.0.2.7")).to_string(), "192.0.2.7");
         assert_eq!(
-            client_of(lo, Some("10.0.0.1, 192.0.2.7")).to_string(),
+            client_of(lo, Some("198.51.100.1, 192.0.2.7")).to_string(),
             "192.0.2.7"
         );
         assert_eq!(client_of(lo, Some("junk")).to_string(), "127.0.0.1");

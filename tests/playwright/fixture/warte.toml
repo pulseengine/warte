@@ -18,4 +18,4 @@ probe_self = false
 [jobs]
 dir = "jobs"
 expected = "jobs-expected"
-hosts = { "netcup-vps" = "netcup" }
+hosts = { "vps-dir" = "example-vps" }

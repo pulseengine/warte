@@ -4,6 +4,10 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+- **`warte agents --health` names its values** and refuses others with exit 2: healthy, degraded, unhealthy or unknown, in any case.
+- **Examples use reserved values.** Docs, the probe templates and two unit tests now use RFC 5737 addresses, `example-user` home paths and `.example` host names, so a private-name scan cannot mistake an example for a real host.
+- **A VPS provider name left the tests and the changelog.** Jobs, probe-renewal and temper-feed tests, the Playwright jobs fixture and five changelog lines named a real machine; they now use `example-vps`. `tests/public_names.rs` forbids that name and one more, by hash.
+
 ## v1.6.57 — 2026-11-28
 
 - **Bench devices on the Machines view** (REQ-PROBE-019, #230). Where the bench device registry exists, the probe matches each registered debug probe, board and bus interface against sysfs (USB serial or vendor:product id, interface state), never opening a device, and reports only its name, present or missing, the key that matched and since when it is missing. Serials and USB ids stay on the host. Machine cards list the devices, missing first; a device missing for its `missing-alert-minutes` (default 15, `0` never) is a red finding and notifies. See `docs/topics/bench-devices.md`.
@@ -329,13 +333,13 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## v1.6.7 — 2026-11-08
 
-What went unnoticed on a host for days now reaches Outages and the outage alerts. On netcup, temper crash-looped for two days and a newer kernel waited 22 days for a reboot; warte showed neither.
+What went unnoticed on a host for days now reaches Outages and the outage alerts. On one host, temper crash-looped for two days and a newer kernel waited 22 days for a reboot; warte showed neither.
 
 - **Red machine findings and late feeds are outages** (REQ-TEMPER-003). The outage alerts only ever looked at the CI fleet and GitHub's status. Now Outages has a "machines and feeds" panel and the alerts notify red machine findings and a temper report that is missing or older than `[temper] stale_after_s`.
 - **Crash loops are found** (REQ-PROBE-016). A `Restart=` loop never reaches `failed`, so failed units missed it. The probe reports services whose restart count rose since its last report or that wait to restart; 3 or more in one interval is red.
 - **A pending reboot is found from the files themselves** (REQ-PROBE-015): Debian's reboot-required file with its package count, or a newer kernel in `/boot` than the one running. Amber at once, red after 7 days, its age taken from the files, so it no longer resets.
 - **ext4 errors are reported** (REQ-PROBE-017). Each mounted ext4 filesystem's error count, read without root: amber above zero, red when it rose. On gale an SD card's write failure showed only as a failed unattended-upgrades unit.
-- **Kernel drift compares like with like**: machines of the same OS, architecture and kernel flavour. netcup's amd64 kernel was reported "behind" the Raspberry Pis'.
+- **Kernel drift compares like with like**: machines of the same OS, architecture and kernel flavour. One VPS's amd64 kernel was reported "behind" the Raspberry Pis'.
 
 The probes need this release for the reboot reason and the crash loops.
 
@@ -784,13 +788,13 @@ Automotive SPICE 11-03 names these release-note elements. rivet does not yet com
 
 #### requirement
 
-- `REQ-DEPLOY-001` (accepted) — Edge proxy deployment automation — Terraform for Hetzner/Netcup
+- `REQ-DEPLOY-001` (accepted) — Edge proxy deployment automation — Terraform for two VPS providers
 - `REQ-STATUS-001` (accepted) — GitHub status API integration — real status from status.github.com
 - `REQ-WEBHOOK-002` (accepted) — GitLab webhook endpoint — receive pipeline events
 
 #### verification
 
-- `TEST-DEPLOY-001` (accepted) — Terraform configuration — Hetzner edge + Netcup secondary + WireGuard mesh + DNS
+- `TEST-DEPLOY-001` (accepted) — Terraform configuration — edge VPS + secondary VPS + WireGuard mesh + DNS
 - `TEST-STATUS-001` (accepted) — test_status_client_creation + test_status_client_custom + test_status_serialization + test_incident_serialization — GitHub status API
 - `TEST-WEBHOOK-002` (accepted) — GitLab webhook endpoint — X-Gitlab-Token verification + pipeline event processing
 
@@ -1252,7 +1256,7 @@ Automotive SPICE 11-03 names these release-note elements. rivet does not yet com
 - `DD-ARCH-004` (accepted) — Sigil/wsc signatures for artifact integrity
 - `DD-ARCH-005` (accepted) — Push-based revocation with active disconnection
 - `DD-ARCH-006` (accepted) — WebSocket/SSE for real-time dashboard and mobile push
-- `DD-ARCH-007` (accepted) — Edge proxy as the sole internet-facing component (Hetzner/Netcup)
+- `DD-ARCH-007` (accepted) — Edge proxy as the sole internet-facing component (two VPS providers)
 - `DD-ARCH-008` (accepted) — Mobile app uses native iOS (Swift) and Android (Kotlin)
 - `DD-ARCH-009` (accepted) — Migration from the original hub — agent fleet data import
 - `DD-ARCH-010` (accepted) — Migration from temper — repo hardening config import

@@ -186,18 +186,23 @@ async fn another_key_a_stale_or_forged_request_is_refused() {
 async fn an_expired_certificate_needs_a_new_enrollment() {
     let (dir, base, db) = serve().await;
     let p = dir.path().join("p");
-    enrolled(&base, &db, "netcup", &p).await;
+    enrolled(&base, &db, "example-vps", &p).await;
     let (key, cert) = (read(&p, "probe-key.pem"), read(&p, "probe-cert.pem"));
     let own = rcgen::KeyPair::from_pem(&key).unwrap();
     let ca = std::fs::read_to_string(dir.path().join("ca.pem")).unwrap();
     let ca_der = der(&ca);
     let later = not_after(&cert) + 1;
-    let req = renewal(&cert, &key, &own, "netcup", later);
+    let req = renewal(&cert, &key, &own, "example-vps", later);
     let e = send::verify_renew(&ca_der, &req, later).unwrap_err();
     assert!(e.to_string().contains("validity"), "{e}");
     // the same request while the certificate is valid passes
     let now = warte::hub::now();
-    assert!(send::verify_renew(&ca_der, &renewal(&cert, &key, &own, "netcup", now), now).is_ok());
+    assert!(send::verify_renew(
+        &ca_der,
+        &renewal(&cert, &key, &own, "example-vps", now),
+        now
+    )
+    .is_ok());
 }
 
 // rivet: verifies REQ-PROBE-007

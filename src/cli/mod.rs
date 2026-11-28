@@ -44,8 +44,8 @@ pub enum Commands {
 
     /// List registered agents, or remove one (`warte agents rm`)
     Agents {
-        /// Filter by health status
-        #[arg(long)]
+        /// Filter by health status: healthy, degraded, unhealthy or unknown
+        #[arg(long, value_parser = ["healthy", "degraded", "unhealthy", "unknown"], ignore_case = true)]
         health: Option<String>,
         #[command(subcommand)]
         action: Option<AgentsCommands>,
