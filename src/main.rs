@@ -530,6 +530,19 @@ async fn main() -> anyhow::Result<()> {
             axum::serve(listener, hub.router()).await?;
         }
 
+        Commands::CiAgent { action } => {
+            let config = Config::load_at(config_path.as_deref())?;
+            // the agent loop, its ledger thread and the blocking GitHub client
+            // are plain threads: run them off the async runtime
+            let r =
+                tokio::task::spawn_blocking(move || warte::ciagent::run(action, &config.ci_agent))
+                    .await?;
+            if let Err(e) = r {
+                eprintln!("warte ci-agent: {e}");
+                std::process::exit(1);
+            }
+        }
+
         Commands::Arch {
             action: warte::cli::ArchCommands::Check { file },
         } => {

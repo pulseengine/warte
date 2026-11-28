@@ -16,6 +16,7 @@ pub mod auth;
 pub mod briefing;
 pub mod ca;
 pub mod canary;
+pub mod ciagent;
 pub mod cihealth;
 pub mod cli;
 pub mod config;

@@ -205,6 +205,13 @@ pub enum Commands {
         brand: String,
     },
 
+    /// The fleet agent on a self-hosted CI host: snapshot, telemetry to the
+    /// hub, architecture.v1 from an inventory (see `warte docs ci-agent`)
+    CiAgent {
+        #[command(subcommand)]
+        action: crate::ciagent::Cmd,
+    },
+
     /// The architecture view's contract, architecture.v1 (REQ-ARCHVIEW-001)
     Arch {
         #[command(subcommand)]

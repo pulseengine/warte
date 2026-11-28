@@ -170,6 +170,10 @@ pub struct Config {
     /// Agent triage of alerts before they page (REQ-ALERT-006).
     #[serde(default)]
     pub alert_triage: Option<crate::alerttriage::TriageConfig>,
+    /// `warte ci-agent` on a CI host: where the runners and the host's
+    /// automation live (`warte docs ci-agent`).
+    #[serde(default)]
+    pub ci_agent: crate::ciagent::CiAgentConfig,
 }
 
 /// `[alerts]` in warte.toml.
@@ -502,6 +506,7 @@ impl Default for Config {
             alerts: None,
             house: None,
             alert_triage: None,
+            ci_agent: Default::default(),
         }
     }
 }

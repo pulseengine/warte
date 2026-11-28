@@ -64,7 +64,8 @@ thiserror = "2"
 anyhow = "1"
 
 # HTTP client (for GitHub API)
-reqwest = { version = "0.12", features = ["json", "rustls-tls-native-roots"], default-features = false }
+# `blocking`: the GitHub client of `warte ci-agent`, which runs on plain threads.
+reqwest = { version = "0.12", features = ["json", "rustls-tls-native-roots", "blocking"], default-features = false }
 
 # CCSDS space-packet codec (fleet agent -> ground station telemetry), the same
 # rev the original hub used, so the wire format is unchanged (DD-SMITHY-001).
