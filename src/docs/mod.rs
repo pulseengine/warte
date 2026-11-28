@@ -112,6 +112,11 @@ const TOPICS: &[Topic] = &[
         content: include_str!("../../docs/topics/github-tokens.md"),
     },
     Topic {
+        name: "ci-agent",
+        title: "warte ci-agent: the fleet agent on a CI host",
+        content: include_str!("../../docs/topics/ci-agent.md"),
+    },
+    Topic {
         name: "probe-privileged",
         title: "Privileged collector (SMART for the probe)",
         content: include_str!("../../docs/topics/probe-privileged.md"),

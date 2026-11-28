@@ -35,7 +35,7 @@ Options:
 - Unknown flags exit 2
 - Structured output via `--format json`
 - Subcommands: `serve`, `status`, `agents`, `schedule`, `watch`,
-  `access`, `migrate`, `probe`, `fleet`, `news`, `nav`, `sessions`, `hub`, `artifact`, `docs`
+  `access`, `migrate`, `probe`, `fleet`, `news`, `nav`, `sessions`, `hub`, `ci-agent`, `artifact`, `docs`
 
 ## Examples
 
@@ -368,6 +368,15 @@ when it finished its turn (shown as "idle" after 30 minutes), otherwise what
 it does ("editing", "running tests", ...). No prompt, command, file name or
 path leaves the machine. Vibe has no session-start or prompt event, so a
 Vibe session shows its tools and "done" only.
+
+## warte ci-agent
+
+The fleet agent on a self-hosted CI host: `warte ci-agent snapshot` collects
+once and prints it, `warte ci-agent agent --hub <addr>` sends CCSDS telemetry
+to every ground station each minute (and, with `--state-dir`, the job
+ledger), `warte ci-agent arch` prints an `architecture.v1` document from a
+spar instance and an inventory. Host paths come from `[ci_agent]` in the
+config. See `warte docs ci-agent`.
 
 ## warte agent
 
