@@ -4,6 +4,9 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.57 — 2026-11-28
+
+- **Bench devices on the Machines view** (REQ-PROBE-019, #230). Where the bench device registry exists, the probe matches each registered debug probe, board and bus interface against sysfs (USB serial or vendor:product id, interface state), never opening a device, and reports only its name, present or missing, the key that matched and since when it is missing. Serials and USB ids stay on the host. Machine cards list the devices, missing first; a device missing for its `missing-alert-minutes` (default 15, `0` never) is a red finding and notifies. See `docs/topics/bench-devices.md`.
 - **The WASI component also runs on PulseEngine's own chain** (REQ-COMPONENT-001, TEST-COMPONENT-002). A new advisory CI job, kiln run, installs the covalent layer 2026.11.28 (pinned in `tools/chain/varve.toml`, varve installed cosign-verified into a job-local root), fuses `warte-check.wasm` with `meld fuse --reproducible` twice and requires identical bytes, and runs the fused module under kiln with the same 0/1/2 expectations as the wasmtime job. jig moves to v0.1.9 (its record commit, which ships jig.wasm) in both workflow calls, and the verdict control's fixtures carry the new job; the unplanted fixture now shows an advisory failure (kiln) that the verdict must tolerate.
 
 ## v1.6.56 — 2026-11-27

@@ -35,6 +35,7 @@ fn report(host: &str, health: Health) -> Report {
         health: Some(health),
         hardware: None,
         pressure: None,
+        bench: None,
     }
 }
 

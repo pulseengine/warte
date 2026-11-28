@@ -11,6 +11,7 @@
 //! carry prompts and tokens.
 
 pub mod activity;
+pub mod bench;
 pub mod enroll;
 pub mod focus;
 pub mod hardware;
@@ -61,6 +62,9 @@ pub struct Report {
     /// (REQ-PRESSURE-001).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pressure: Option<pressure::Held>,
+    /// Registered bench devices present or missing (REQ-PROBE-019).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bench: Option<bench::Bench>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -357,6 +361,13 @@ pub async fn collect(io_prev: Option<&std::path::Path>) -> Report {
         ),
         // attached by `probe send`, which has the state directory
         pressure: None,
+        bench: bench::collect(
+            bench::registry_path().as_deref(),
+            io_prev
+                .map(|p| p.with_file_name("bench-prev.json"))
+                .as_deref(),
+            chrono::Utc::now().timestamp(),
+        ),
     }
 }
 
@@ -800,6 +811,11 @@ pub fn findings_with(seen: &[Seen], now: i64, disk: &crate::config::DiskLevels) 
         }
         if let Some(h) = &r.hardware {
             for (sev, text) in hardware::findings(h) {
+                out.push(f(&r.host, sev, text));
+            }
+        }
+        if let Some(b) = &r.bench {
+            for (sev, text) in bench::findings(b, r.taken_at) {
                 out.push(f(&r.host, sev, text));
             }
         }

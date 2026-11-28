@@ -1,0 +1,29 @@
+artifacts:
+  - id: REQ-PROBE-019
+    type: requirement
+    title: Probes report registered bench devices present or missing; a device missing past its threshold pages
+    status: verified
+    release: v1.6.57
+    description: "Requested by the deployment side and owner-approved 2026-11-27 (#230). When the bench device registry exists (WARTE_BENCH_REGISTRY, else $HOME/.config/pulseengine/bench-devices.yaml, at most 64 KiB), the probe SHALL match each entry that has serial, usb (vvvv:pppp) or iface against sysfs only (/sys/bus/usb/devices serial, idVendor, idProduct; /sys/class/net operstate not down), never opening a tty, socket or device node, and report per device only its name (charset [a-z0-9][a-z0-9._-]*, at most 48 bytes; others skipped and counted), present or missing, the key that matched, the time it was first seen missing, and its threshold (missing-alert-minutes, default 15, 0 never). Serials and USB ids SHALL NOT leave the host. Entries with none of the three keys are pseudo-devices and SHALL be skipped. A registry that is too large or not YAML SHALL be reported as invalid, and a host without sysfs as unsupported. warte SHALL re-check names before using them, show each device on the machine card, raise a red finding (which notifies) for a device missing at least its threshold and an amber one otherwise, and clear it when the device returns."
+    tags: [probe, bench]
+    links:
+      - type: refines
+        target: REQ-PROBE-012
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-28T00:00:00Z
+
+  - id: TEST-PROBE-019
+    type: verification
+    title: Bench devices match by serial, usb id and interface, alert after the threshold, and leak no serial
+    status: verified
+    release: v1.6.57
+    description: "src/probe/bench.rs four_present_one_missing_and_the_missing_one_alerts_after_its_threshold: a registry with two probes (by serial and by vid:pid), a logic analyser by serial, a CAN interface and a board missing gives four present and one missing; the pseudo-device and a name outside the charset are skipped; the missing board is amber at first, red after its 30 minutes with missing_since kept, and clears when it returns. no_serial_or_usb_id_is_reported_and_bad_input_is_refused: the serialised report carries no serial, USB id or skipped name; threshold 0 stays amber after a day; a registry that is not YAML is invalid with one amber finding; a down interface is missing. names_outside_the_charset_are_refused. src/dashboard/machines.rs bench_chips_show_present_and_missing_and_drop_a_planted_name: the card shows missing first and drops a markup name, which also raises no finding. Negative control: without the name re-check in findings, the planted name raises a finding and the card test fails."
+    links:
+      - type: verifies
+        target: REQ-PROBE-019
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-28T00:00:00Z

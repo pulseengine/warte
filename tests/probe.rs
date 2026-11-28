@@ -97,6 +97,7 @@ fn report(host: &str, kernel: &str, claude: Option<&str>) -> warte::probe::Repor
         health: None,
         hardware: None,
         pressure: None,
+        bench: None,
     }
 }
 
