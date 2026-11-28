@@ -682,6 +682,13 @@ details.internals > summary:focus-visible { outline: 2px solid var(--accent); ou
 .nav-badge.amber { background: var(--amber); color: var(--bg); }
 .nav-views { flex-basis: 100%; padding-left: .2rem; }
 .nav-views .nav-btn { font-size: .66rem; }
+.nav-views .nav-btn .nav-badge { margin-left: .35rem; }
+/* REQ-DASH-021: the items behind a badge, at the top of its view */
+.needs-a-look { border-left: 3px solid var(--amber); }
+.needs-a-look.red { border-left-color: var(--red); }
+.needs-a-look ul { margin: .3rem 0 0; padding-left: 1.1rem; font: .78rem var(--mono); }
+.needs-a-look li.red::marker { color: var(--red); }
+.needs-a-look li.amber::marker { color: var(--amber); }
 .nav-hidden-note { flex-basis: 100%; margin: 0; padding-left: .7rem; font: .66rem var(--mono); color: var(--dim); }
 .nav-views[hidden], .nav-btn[hidden], .nav-badge[hidden], .nav-hidden-note[hidden] { display: none; }
 

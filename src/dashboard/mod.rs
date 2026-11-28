@@ -16,6 +16,7 @@ pub mod compliance;
 pub mod costs;
 pub mod fleet;
 pub mod jobs;
+pub mod look;
 pub mod machines;
 pub mod skills;
 
@@ -177,12 +178,18 @@ pub async fn machines_partial(
     .await
     .unwrap_or_default();
     // the model panel and the modelled-but-silent cards go before the live cards
-    Html(page.replacen(
+    // and the forecasts the Machines badge counts go before both (REQ-DASH-021)
+    let now = crate::hub::now();
+    let forecast = state
+        .machines
+        .as_ref()
+        .and_then(|m| crate::forecast::of_machines(m, now));
+    let page = page.replacen(
         r#"<div class="machines">"#,
         &format!(r#"{model}<div class="machines">"#),
         1,
-    ))
-    .into_response()
+    );
+    Html(look::prepend(page, &look::machines(forecast.as_ref()))).into_response()
 }
 
 /// HTMX partial: one machine's full history charts (REQ-MHIST-003).
@@ -339,33 +346,21 @@ pub async fn nav_state(State(state): State<crate::server::AppState>) -> Response
     if friction.0 == 0 {
         hidden.push("friction");
     }
-    let outages = state
-        .hub
-        .as_ref()
-        .and_then(|h| fleet::detected_with(h, &state.config.disk_levels()))
-        .map(|(l, _)| l.len())
-        .unwrap_or(0)
-        + fleet::host_detected(&state, now).len();
-    let forecasts = state
-        .machines
-        .as_ref()
-        .and_then(|m| crate::forecast::of_machines(m, now))
-        .map(|f| f.items.len())
-        .unwrap_or(0);
-    let stale_after = state
-        .config
-        .temper
-        .as_ref()
-        .map(|t| t.stale_after_s)
-        .unwrap_or(26 * 3600);
-    let (temper_red, temper_amber) = match state.temper.as_ref().map(|t| t.latest()) {
-        Some(Some(s)) => (
-            s.report.failures().len(),
-            usize::from(now - s.received_at > stale_after),
-        ),
-        Some(None) => (0, 1),
-        None => (0, 0),
+    // REQ-DASH-021: the badges count the lines of each view's "Needs a look"
+    let look = look::of(&state, now);
+    let count = |items: &[look::Item]| {
+        let red = items.iter().filter(|i| i.red).count();
+        serde_json::json!({"red": red, "amber": items.len() - red})
     };
+    let mut badges = serde_json::Map::new();
+    let mut views = serde_json::Map::new();
+    for g in ["now", "ci", "machines", "agents", "compliance"] {
+        badges.insert(g.into(), serde_json::json!({"red": 0, "amber": 0}));
+    }
+    for (view, group, items) in look.views() {
+        badges.insert(group.into(), count(items));
+        views.insert(view.into(), count(items));
+    }
     let findings = state
         .machines
         .as_ref()
@@ -375,13 +370,8 @@ pub async fn nav_state(State(state): State<crate::server::AppState>) -> Response
     axum::Json(serde_json::json!({
         "attention": attention,
         "hidden": hidden,
-        "badges": {
-            "now": {"red": outages, "amber": 0},
-            "ci": {"red": 0, "amber": 0},
-            "machines": {"red": 0, "amber": forecasts},
-            "agents": {"red": 0, "amber": 0},
-            "compliance": {"red": temper_red, "amber": temper_amber},
-        },
+        "badges": badges,
+        "views": views,
     }))
     .into_response()
 }
@@ -420,11 +410,19 @@ pub async fn compliance_partial(State(state): State<crate::server::AppState>) ->
         .as_ref()
         .map(|t| t.stale_after_s)
         .unwrap_or(26 * 3600);
-    Html(compliance::view(
-        state.temper.is_some(),
-        latest.as_ref(),
-        stale,
-        crate::hub::now(),
+    Html(look::prepend(
+        compliance::view(
+            state.temper.is_some(),
+            latest.as_ref(),
+            stale,
+            crate::hub::now(),
+        ),
+        &look::compliance(
+            state.temper.is_some(),
+            latest.as_ref(),
+            stale,
+            crate::hub::now(),
+        ),
     ))
     .into_response()
 }
@@ -860,16 +858,19 @@ pub async fn outages_partial(State(state): State<crate::server::AppState>) -> Re
         )
     };
     let gh = state.status.get_status().await.map_err(|e| e.to_string());
-    Html(format!(
-        r#"<div class="overview">
+    Html(look::prepend(
+        format!(
+            r#"<div class="overview">
   <h2>Outages</h2>
   {}
   {}
   <section class="panel"><h3>Registered agents</h3>{agents_line}</section>
 </div>"#,
-        fleet::incidents(state.hub.as_ref())
-            + &fleet::host_incidents(&fleet::host_detected(&state, crate::hub::now())),
-        fleet::github_status(gh.as_ref().map_err(Clone::clone)),
+            fleet::incidents(state.hub.as_ref(), &state.config.disk_levels())
+                + &fleet::host_incidents(&fleet::host_detected(&state, crate::hub::now())),
+            fleet::github_status(gh.as_ref().map_err(Clone::clone)),
+        ),
+        &look::outages(&state, crate::hub::now()),
     ))
     .into_response()
 }

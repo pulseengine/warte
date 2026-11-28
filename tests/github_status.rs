@@ -123,7 +123,7 @@ fn hosted_jobs_stuck_in_the_queue_are_a_detected_degradation() {
         hosted("macos-latest", "in_progress", wait + 900),
         hosted("ubuntu-latest", "queued", 120),
     ]));
-    let html = fleet::incidents(Some(&hub));
+    let html = fleet::incidents(Some(&hub), &Default::default());
     assert!(
         html.contains("GitHub-hosted macos-latest: 2 job(s) queued"),
         "{html}"
@@ -134,5 +134,5 @@ fn hosted_jobs_stuck_in_the_queue_are_a_detected_degradation() {
     );
 
     let (_d2, calm) = hub_with(&snap(vec![hosted("macos-latest", "queued", wait - 60)]));
-    assert!(fleet::incidents(Some(&calm)).contains("all clear"));
+    assert!(fleet::incidents(Some(&calm), &Default::default()).contains("all clear"));
 }

@@ -726,7 +726,7 @@ fn health_and_outages_come_from_the_snapshot_not_from_decoration() {
     // the internals are folded, and their summary says why to open them
     assert!(h.contains(r#"<details class="panel internals"><summary>Ground station internals · 1 collection error(s)"#), "{h}");
     assert!(h.contains("&lt;script&gt;x&lt;/script&gt; failed") && !h.contains("<script>x"));
-    let o = fleet::incidents(Some(&hub));
+    let o = fleet::incidents(Some(&hub), &Default::default());
     assert!(o.contains("Offline runners: runner2."), "{o}");
     assert!(o.contains("Disk /var/lib/runners is 96% full."), "{o}");
     assert!(o.contains("CPU pressure 61.6%"), "{o}");
@@ -736,9 +736,9 @@ fn health_and_outages_come_from_the_snapshot_not_from_decoration() {
     assert!(!o.contains("<script>x"));
     // a calm fleet says so
     let (_d2, calm) = hub_with(&fleet_snapshot());
-    let c = fleet::incidents(Some(&calm));
+    let c = fleet::incidents(Some(&calm), &Default::default());
     assert!(c.contains("all clear"), "{c}");
-    assert!(fleet::incidents(None).contains("not configured"));
+    assert!(fleet::incidents(None, &Default::default()).contains("not configured"));
 }
 
 // rivet: verifies REQ-SEC-001
