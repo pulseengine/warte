@@ -124,7 +124,20 @@
     // with no view in the URL the page opens on Overview, in the Now group
     var landing = document.querySelector('.nav-btn[data-default]') || buttons[0];
     var current = landing;
-    function slug(btn) { return '#' + btn.textContent.trim().toLowerCase().replace(/\s+/g, '-'); }
+    // the slug is taken once, from the label alone: a badge added later is not part of it
+    function slug(btn) {
+      if (!btn.dataset.slug) btn.dataset.slug = '#' + btn.textContent.trim().toLowerCase().replace(/\s+/g, '-');
+      return btn.dataset.slug;
+    }
+    buttons.forEach(slug);
+    // REQ-DASH-021: opening a view from its badge scrolls to its "Needs a look"
+    var warteLookNext = false;
+    document.body.addEventListener('htmx:afterSwap', function () {
+      if (!warteLookNext) return;
+      warteLookNext = false;
+      var el = document.getElementById('needs-a-look');
+      if (el) el.scrollIntoView({ block: 'start' });
+    });
     function fromHash() {
       var view = location.hash.split(/[\/?]/)[0];
       return buttons.find(function (b) { return slug(b) === view; }) || landing;
@@ -141,12 +154,16 @@
     groups.forEach(function (gb) {
       gb.addEventListener('click', function () {
         var row = rows.find(function (r) { return r.dataset.group === gb.dataset.group; });
-        var first = row && row.querySelector('.nav-btn:not([hidden])');
+        // a badged group opens on the view that holds its count
+        var look = row && row.querySelector('.nav-btn.has-look:not([hidden])');
+        var first = look || (row && row.querySelector('.nav-btn:not([hidden])'));
+        if (look) warteLookNext = true;
         if (first) htmx.trigger(first, 'click'); else showGroup(gb.dataset.group);
       });
     });
     buttons.forEach(function (btn) {
-      btn.addEventListener('click', function () {
+      btn.addEventListener('click', function (e) {
+        if (e.isTrusted && btn.classList.contains('has-look')) warteLookNext = true;
         buttons.forEach(function (b) { b.classList.remove('active'); });
         btn.classList.add('active');
         current = btn;
@@ -177,11 +194,22 @@
         groups.forEach(function (g) {
           var c = (s.badges || {})[g.dataset.group] || {};
           var badge = g.querySelector('.nav-badge');
-          var n = c.red || c.amber || 0;
+          var n = (c.red || 0) + (c.amber || 0);
           badge.hidden = !n;
           badge.textContent = n ? String(n) : '';
           badge.className = 'nav-badge' + (c.red ? ' red' : c.amber ? ' amber' : '');
           badge.title = (c.red ? c.red + ' red' : '') + (c.red && c.amber ? ', ' : '') + (c.amber ? c.amber + ' amber' : '');
+        });
+        buttons.forEach(function (b) {
+          var c = (s.views || {})[slug(b).slice(1)] || {};
+          var n = (c.red || 0) + (c.amber || 0);
+          var badge = b.querySelector('.nav-badge');
+          if (!badge && n) { badge = document.createElement('span'); badge.setAttribute('aria-hidden', 'true'); b.appendChild(badge); }
+          b.classList.toggle('has-look', n > 0);
+          if (!badge) return;
+          badge.hidden = !n;
+          badge.textContent = n ? String(n) : '';
+          badge.className = 'nav-badge' + (c.red ? ' red' : c.amber ? ' amber' : '');
         });
         var strip = document.getElementById('attention');
         var list = strip.querySelector('ul');

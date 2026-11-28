@@ -727,8 +727,8 @@ pub fn host_incidents(list: &[Detected]) -> String {
     )
 }
 
-pub fn incidents(hub: Option<&Hub>) -> String {
-    let Some((list, at)) = hub.and_then(detected) else {
+pub fn incidents(hub: Option<&Hub>, disk: &crate::config::DiskLevels) -> String {
+    let Some((list, at)) = hub.and_then(|h| detected_with(h, disk)) else {
         return format!(r#"<section class="panel">{}</section>"#, unavailable(hub));
     };
     let body = if list.is_empty() {

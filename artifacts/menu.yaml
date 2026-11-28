@@ -93,3 +93,51 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-11-21T09:30:00Z
+
+  - id: REQ-DASH-021
+    type: requirement
+    title: "Each badged view opens with a 'Needs a look' block listing exactly the items its badge counts"
+    status: verified
+    release: v1.6.58
+    description: "Every view whose items a top-bar badge counts (Outages in Now, Machines, Compliance) SHALL open with a 'Needs a look (N)' block directly under its heading, listing exactly the N items the badge counts, red before amber and, within a colour, worst or soonest first. The group badge SHALL show the total of red and amber items and the colour of the worst. The view's own tab in the second row SHALL carry the same badge. Opening a badged group SHALL open the view that holds the count and scroll to the block. A view with nothing counted SHALL show no block. Items SHALL be written as text, never as HTML."
+    fields:
+      category: functional
+      priority: should
+      upstream-ref: https://github.com/pulseengine/warte/issues/235
+    links:
+      - type: refines
+        target: REQ-DASH-019
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-28T09:00:00Z
+
+  - id: DD-DASH-021
+    type: design-decision
+    title: Badges and blocks come from one list per view, so a badge's number is the block's line count by construction
+    status: verified
+    release: v1.6.58
+    description: "src/dashboard/look.rs computes the items for Outages (ground-station detections with the configured disk levels, plus the machines' red findings), Machines (forecasts) and Compliance (failing decided checks by severity, plus a late or missing report). nav-state counts those lists for both the group badges and a new per-view map; each partial prepends the block from the same list. The Outages view now uses the configured disk levels too; before, it used the defaults while its badge used the configuration, so the two could disagree. The Machines badge counted forecasts that only the Overview showed."
+    fields:
+      rationale: "Owner decision on #235 (2026-11-28): every badged view opens with the items behind its badge. Counting and listing from one list removes the class of bug where a badge and its view are computed by different code, which had already happened twice (Machines, Outages)."
+    links:
+      - type: satisfies
+        target: REQ-DASH-021
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-28T09:00:00Z
+
+  - id: TEST-DASH-021
+    type: verification
+    title: tests/needs_a_look.rs and look.rs unit tests pin badge = block lines, order, placement and escaping
+    status: verified
+    release: v1.6.58
+    description: "the_compliance_badge_counts_the_lines_of_its_block_worst_first: with no report the Compliance badge is 1 amber and the block has 1 line; after a report with three failing checks (critical, high, medium) the badge is 3 red, the per-view count equals it, the block has 3 lines right under the heading in severity order; Machines with no forecast has a zero badge and no block; the Outages block's lines equal its badge. Unit tests: an empty list gives no block, red sorts first, text is escaped, forecasts read 'host: what reaches N% in about D'. Negative control: rendering all but the first item failed the integration test."
+    links:
+      - type: verifies
+        target: REQ-DASH-021
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-28T09:00:00Z

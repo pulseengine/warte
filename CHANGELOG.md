@@ -4,9 +4,13 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+## v1.6.58 — 2026-11-28
+
+- **Each badged view says what its badge counts** (REQ-DASH-021, #235). Outages, Machines and Compliance open with a "Needs a look (N)" block right under the heading: exactly the N items the top-bar badge counts, red first, then by severity or due date. The view tabs carry the badge too, and opening a badged group lands on that view at the block. The group badge is now red plus amber, in the colour of the worst. Two counts that disagreed with their views are fixed: the Machines badge counted forecasts that only Overview showed, and Outages used default disk levels while its badge used the configured ones.
 - **`warte agents --health` names its values** and refuses others with exit 2: healthy, degraded, unhealthy or unknown, in any case.
 - **Examples use reserved values.** Docs, the probe templates and two unit tests now use RFC 5737 addresses, `example-user` home paths and `.example` host names, so a private-name scan cannot mistake an example for a real host.
 - **A VPS provider name left the tests and the changelog.** Jobs, probe-renewal and temper-feed tests, the Playwright jobs fixture and five changelog lines named a real machine; they now use `example-vps`. `tests/public_names.rs` forbids that name and one more, by hash.
+- tower-http 0.7 (#217).
 
 ## v1.6.57 — 2026-11-28
 
