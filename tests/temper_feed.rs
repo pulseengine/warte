@@ -17,7 +17,7 @@ async fn serve() -> (tempfile::TempDir, String, warte::db::Database) {
         ca_cert_path: dir.path().join("ca.pem"),
         ca_key_path: dir.path().join("ca-key.pem"),
         hub: Some(hub),
-        temper: Some(toml::from_str("host = \"netcup\"").unwrap()),
+        temper: Some(toml::from_str("host = \"example-vps\"").unwrap()),
         ..Default::default()
     };
     let db = warte::db::Database::connect(&config.db_path).await.unwrap();
@@ -109,10 +109,10 @@ fn packets(v: &serde_json::Value) -> Vec<u8> {
 
 // rivet: verifies REQ-TEMPER-002
 #[tokio::test]
-async fn the_netcup_probe_forwards_temper_report_and_warte_shows_it() {
+async fn the_example_vps_probe_forwards_temper_report_and_warte_shows_it() {
     let (dir, base, db) = serve().await;
     let p = dir.path().join("p");
-    enrolled(&base, &db, "netcup", &p).await;
+    enrolled(&base, &db, "example-vps", &p).await;
     assert_eq!(compliance(&base).await["report"], serde_json::Value::Null);
     // a big report crosses many CCSDS packets
     let mut r = report(3600);
@@ -136,7 +136,7 @@ async fn the_netcup_probe_forwards_temper_report_and_warte_shows_it() {
     .await
     .unwrap();
     let c = compliance(&base).await;
-    assert_eq!(c["host"], "netcup");
+    assert_eq!(c["host"], "example-vps");
     assert_eq!(c["stale"], false);
     assert_eq!(c["failures"], 1);
     assert_eq!(c["report"]["repos"].as_array().unwrap().len(), 302);
@@ -165,7 +165,7 @@ async fn the_netcup_probe_forwards_temper_report_and_warte_shows_it() {
 async fn another_host_a_replay_altered_packets_and_a_bad_report_are_refused() {
     let (dir, base, db) = serve().await;
     let (n, g) = (dir.path().join("n"), dir.path().join("g"));
-    enrolled(&base, &db, "netcup", &n).await;
+    enrolled(&base, &db, "example-vps", &n).await;
     enrolled(&base, &db, "gale", &g).await;
     let now = warte::hub::now();
     let pk = packets(&report(60));
@@ -208,7 +208,7 @@ async fn another_host_a_replay_altered_packets_and_a_bad_report_are_refused() {
         "the earlier report stays"
     );
     // revoked: refused
-    enroll::revoke(&db, "netcup", warte::hub::now())
+    enroll::revoke(&db, "example-vps", warte::hub::now())
         .await
         .unwrap();
     assert_eq!(post(&base, &signed(&n, &pk, now + 4)).await, 403);
@@ -219,7 +219,7 @@ async fn another_host_a_replay_altered_packets_and_a_bad_report_are_refused() {
 async fn an_old_sweep_shows_as_stale_and_unknown_feeds_are_refused_by_the_cli() {
     let (dir, base, db) = serve().await;
     let p = dir.path().join("p");
-    enrolled(&base, &db, "netcup", &p).await;
+    enrolled(&base, &db, "example-vps", &p).await;
     assert_eq!(
         post(
             &base,

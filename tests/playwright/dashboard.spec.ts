@@ -282,7 +282,7 @@ test.describe("jobs", () => {
     await expect(rows.nth(0)).toContainText("missing");
     await expect(rows.nth(1)).toContainText("archive");
     await expect(rows.nth(1)).toContainText("overdue");
-    await expect(rows.nth(2)).toContainText("netcup");
+    await expect(rows.nth(2)).toContainText("example-vps");
     await expect(rows.nth(2)).toContainText("certbot");
     await expect(page.locator("#content .lede")).toContainText("2");
     const api = await (await page.request.get("/api/jobs")).json();
