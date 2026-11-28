@@ -27,7 +27,7 @@ const WARTE_SERVICE_TYPE: &str = "_warte-sync._tcp.local";
 pub struct DiscoveredPeer {
     /// Instance ID (from TXT record).
     pub instance_id: String,
-    /// WireGuard address (from TXT record, e.g. "10.0.0.2:8080").
+    /// WireGuard address (from TXT record, e.g. "192.0.2.2:8080").
     pub wg_address: Option<String>,
     /// LAN address (from mDNS SRV record).
     pub lan_address: Option<String>,
@@ -307,11 +307,11 @@ mod tests {
     fn test_discovery_service_create() {
         let (service, _rx) = DiscoveryService::new(
             "test-instance".to_string(),
-            Some("10.0.0.2:8080".to_string()),
-            Some("192.168.1.10:8080".to_string()),
+            Some("192.0.2.2:8080".to_string()),
+            Some("198.51.100.10:8080".to_string()),
         );
         assert_eq!(service.instance_id, "test-instance");
-        assert_eq!(service.wg_address, Some("10.0.0.2:8080".to_string()));
+        assert_eq!(service.wg_address, Some("192.0.2.2:8080".to_string()));
     }
 
     #[tokio::test]
@@ -320,8 +320,8 @@ mod tests {
 
         let peer = DiscoveredPeer {
             instance_id: "peer-1".to_string(),
-            wg_address: Some("10.0.0.3:8080".to_string()),
-            lan_address: Some("192.168.1.20:8080".to_string()),
+            wg_address: Some("192.0.2.3:8080".to_string()),
+            lan_address: Some("198.51.100.20:8080".to_string()),
             version_vector: HashMap::new(),
             last_seen: chrono::Utc::now(),
         };

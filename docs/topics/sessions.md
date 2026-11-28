@@ -14,10 +14,10 @@ no hostnames: `role` names the kind of machine, not the machine. Example:
 {
   "version": 1,
   "sessions": [
-    {"id": "warte", "name": "warte", "dir": "/Users/agent/git/warte",
+    {"id": "warte", "name": "warte", "dir": "/Users/example-user/git/warte",
      "model": "opus", "effort": "medium", "mode": "bypassPermissions",
      "role": "workstation", "enabled": true},
-    {"id": "docs", "name": "Docs site", "dir": "/Users/agent/git/site",
+    {"id": "docs", "name": "Docs site", "dir": "/Users/example-user/git/site",
      "model": "sonnet", "effort": "low", "mode": "acceptEdits",
      "role": "workstation", "enabled": false}
   ]

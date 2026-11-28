@@ -253,7 +253,7 @@ pub struct JobsConfig {
     /// The manifest: `<path relative to dir> <window_s>` per line.
     #[serde(default)]
     pub expected: Option<PathBuf>,
-    /// Job host directory name -> machine name, e.g. `mini = "mac.lan"`.
+    /// Job host directory name -> machine name, e.g. `laptop = "laptop.example"`.
     #[serde(default)]
     pub hosts: std::collections::BTreeMap<String, String>,
 }

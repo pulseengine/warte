@@ -149,8 +149,8 @@ UDP show on Health.
 
 ```toml
 [hub]
-udp = "10.0.0.1:8094"             # wire v1 stays on while agents move
-quic = "10.0.0.1:8095"            # transport v2 listener
+udp = "192.0.2.1:8094"             # wire v1 stays on while agents move
+quic = "192.0.2.1:8095"            # transport v2 listener
 quic_names = ["ground.example"]   # the names agents dial; in the server certificate
 require_quic = false              # true once wire v1 stays at 0
 ```

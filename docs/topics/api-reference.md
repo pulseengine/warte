@@ -128,7 +128,7 @@ The pull requests one person has to review (#85), from `[reviews]`:
 
 ```toml
 [reviews]
-token_file = "/home/me/.config/warte/review-token"  # the reviewer's own read-only token, mode 0600
+token_file = "/home/example-user/.config/warte/review-token"  # the reviewer's own read-only token, mode 0600
 teams = ["acme/core"]                 # team review requests that count
 highlight_authors = ["boss"]          # also listed, and highlighted
 highlight_repos = ["acme/app"]

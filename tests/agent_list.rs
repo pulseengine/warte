@@ -67,6 +67,14 @@ async fn agents_lists_from_the_database_and_filters_health() {
     assert_eq!(o.status.code(), Some(0));
     assert!(out.contains(&stale) && !out.contains(&ok), "{out}");
 
+    // case does not matter; a value outside the four is a usage error
+    let o = warte(&cfg, &["agents", "--health", "UNHEALTHY"]);
+    assert_eq!(o.status.code(), Some(0));
+    assert!(String::from_utf8_lossy(&o.stdout).contains(&stale));
+    let o = warte(&cfg, &["agents", "--health", "sick"]);
+    assert_eq!(o.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&o.stderr).contains("degraded"));
+
     // --format json is the same shape as GET /api/agents
     let o = warte(&cfg, &["--format", "json", "agents"]);
     assert_eq!(o.status.code(), Some(0));

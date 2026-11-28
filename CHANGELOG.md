@@ -4,6 +4,9 @@ Newest first. Releases up to v1.3.0 were merged while the rivet CI gate was red 
 
 ## Unreleased
 
+- **`warte agents --health` names its values** and refuses others with exit 2: healthy, degraded, unhealthy or unknown, in any case.
+- **Examples use reserved values.** Docs, the probe templates and two unit tests now use RFC 5737 addresses, `example-user` home paths and `.example` host names, so a private-name scan cannot mistake an example for a real host.
+
 ## v1.6.57 — 2026-11-28
 
 - **Bench devices on the Machines view** (REQ-PROBE-019, #230). Where the bench device registry exists, the probe matches each registered debug probe, board and bus interface against sysfs (USB serial or vendor:product id, interface state), never opening a device, and reports only its name, present or missing, the key that matched and since when it is missing. Serials and USB ids stay on the host. Machine cards list the devices, missing first; a device missing for its `missing-alert-minutes` (default 15, `0` never) is a red finding and notifies. See `docs/topics/bench-devices.md`.
