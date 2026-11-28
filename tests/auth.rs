@@ -1752,3 +1752,29 @@ async fn the_triage_runner_reads_pending_alerts_and_posts_one_verdict_with_its_r
         "{page}"
     );
 }
+
+// rivet: verifies REQ-PRREVIEW-002
+#[tokio::test]
+async fn the_queue_answers_a_signed_in_person_only_never_an_anonymous_caller_or_an_agent() {
+    let (i, iss) = idp().await;
+    let s = serve(Some(cfg(&iss))).await;
+    assert_eq!(
+        status(&s.base, "/api/reviews", None, None).await,
+        401,
+        "anonymous"
+    );
+    let agent = status(&s.base, "/api/reviews", Some(&s.reader), None).await;
+    assert!(agent == 401 || agent == 403, "agents:read answered {agent}");
+    // the view inside the page answers with the sign-in panel, not the queue
+    for bearer in [None, Some(s.reader.as_str())] {
+        let mut r = client().get(format!("{}/api/dashboard/reviews-partial", s.base));
+        if let Some(b) = bearer {
+            r = r.bearer_auth(b);
+        }
+        let page = r.send().await.unwrap().text().await.unwrap();
+        assert_eq!(page, warte::login::sign_in_panel(), "{bearer:?}");
+    }
+    // a signed-in person passes the gate (this server has no [reviews]: 404)
+    let u1 = sign_in(&s, &i, "u1", "q1").await;
+    assert_eq!(status(&s.base, "/api/reviews", None, Some(&u1)).await, 404);
+}
