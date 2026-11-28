@@ -2323,13 +2323,19 @@ async fn api_reviews(State(state): State<AppState>) -> axum::response::Response 
     }
 }
 
-pub async fn reviews_partial(State(state): State<AppState>) -> axum::response::Response {
+pub async fn reviews_partial(
+    State(state): State<AppState>,
+    axum::extract::Query(q): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> axum::response::Response {
     let body = if !reviews_allowed(&state) {
-        r#"<div class="overview"><h2>Reviews</h2><p class="empty">The reviews show private work data: configure <code>[auth]</code>, or run this warte on loopback.</p></div>"#.to_string()
+        r#"<div class="overview"><h2>My queue</h2><p class="empty">The queue shows private work data: configure <code>[auth]</code>, or run this warte on loopback.</p></div>"#.to_string()
     } else {
         match &state.reviews {
-            None => r#"<div class="overview"><h2>Reviews</h2><p class="empty">No <code>[reviews]</code> configured: it needs your own read-only GitHub token.</p></div>"#.to_string(),
-            Some(s) => crate::reviews::view(&s.lock().map(|g| g.clone()).unwrap_or_default()),
+            None => r#"<div class="overview"><h2>My queue</h2><p class="empty">No <code>[reviews]</code> configured: it needs your own read-only GitHub token for each host.</p></div>"#.to_string(),
+            Some(s) => crate::reviews::view(
+                &s.lock().map(|g| g.clone()).unwrap_or_default(),
+                q.get("account").map(String::as_str),
+            ),
         }
     };
     axum::response::Html(body).into_response()

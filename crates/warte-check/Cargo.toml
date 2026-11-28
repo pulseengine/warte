@@ -1,6 +1,6 @@
 [package]
 name = "warte-check"
-version = "1.6.58"
+version = "1.6.59"
 edition = "2021"
 license = "Apache-2.0"
 description = "warte's report validators (architecture.v1, temper-report.v1), with no async runtime, so they build as a WASI p2 component"

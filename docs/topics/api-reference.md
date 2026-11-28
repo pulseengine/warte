@@ -150,7 +150,40 @@ A failed scan keeps the last list and says why, never with the token.
 
 PR titles and authors are private work data: with `[auth]` only a signed-in
 user reads them; without it, only a warte bound to loopback (`401`
-otherwise). The CI menu shows them as Reviews.
+otherwise). The CI menu shows them as My queue.
+
+### Several hosts, assignments and mentions (REQ-PRREVIEW-002)
+
+With `[[reviews.sources]]` the queue reads several GitHub hosts, each with the
+person's own read-only token there, and the top-level `token_file`,
+`api_url` and `teams` are left out:
+
+```toml
+[reviews]
+highlight_labels = ["urgent"]
+
+[[reviews.sources]]
+token_file = "/home/example-user/.config/warte/github-token"   # github.com
+teams = ["example-org/core"]
+
+[[reviews.sources]]
+api_url = "https://ghe.example.test/api/v3"   # GHES; GHE Cloud: https://api.<tenant>.ghe.com
+token_file = "/home/example-user/.config/warte/ghe-token"
+teams = ["example-org/platform"]
+label = "work"                                  # default: login@host
+```
+
+Each source is scanned as its own login. Next to the review requests the
+queue lists pull requests assigned to the person, issues assigned to them
+(oldest first), and issues and pull requests that mention them with no post
+of theirs after the latest mention (a mention the text does not show, such as
+a team mention, waits until they post at all). Bodies and comments are read
+only to find the mention and are not kept. A pull request already in the
+review sections is not listed again as a mention. With more than one source
+the view has a filter per account. A source whose scan fails keeps its last
+lists and says why; the others carry on. `GET /api/reviews` answers
+`{accounts: [{account, reviewer, scanned_at, prs, items, error}]}`.
+
 
 ## Reports (REQ-REPORTS-001)
 

@@ -48,3 +48,51 @@ artifacts:
       created-by: ai-assisted
       model: claude-opus-5-5
       timestamp: 2026-11-22T21:00:00Z
+
+  - id: REQ-PRREVIEW-002
+    type: requirement
+    title: "The queue reads several GitHub hosts and lists assigned PRs and issues, unanswered mentions and team requests apart"
+    status: verified
+    release: v1.6.59
+    description: "warte SHALL read the queue from a list of sources, each a GitHub API (github.com, GitHub Enterprise Cloud or Server) with the person's own read-only token file and optional teams, and SHALL keep a single top-level token working as a list of one. Each source SHALL be scanned as its own login. Next to review requests to the person, the queue SHALL list team review requests in their own section, pull requests assigned to the person, issues assigned to them, and issues and pull requests that mention them with no post of theirs after the latest mention. Bodies and comments SHALL be read only to decide that and SHALL NOT be kept or shown. With more than one source the view SHALL filter by account. A source whose scan fails SHALL keep its last lists, say why without the token, and SHALL NOT hold up the other sources. Access stays as in REQ-PRREVIEW-001."
+    fields:
+      category: functional
+      priority: should
+      upstream-ref: https://github.com/pulseengine/warte/issues/237
+    links:
+      - type: refines
+        target: REQ-PRREVIEW-001
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-28T12:00:00Z
+
+  - id: DD-PRREVIEW-002
+    type: design-decision
+    title: One scan per source with its own login; issue buckets use a second GraphQL fragment; the mention rule is a pure function
+    status: verified
+    release: v1.6.59
+    description: "ReviewsConfig gains sources; sources() returns the list or the legacy single source, for_source() narrows the config to one host and its teams. scan() runs the PR searches (now with assignee:@me) and two issue searches (assignee:@me for issues, mentions:@me) with an Issue/PullRequest fragment that carries body and the last 30 comments. unanswered_since() finds the latest post that mentions @login and is not the person's own, and lists the item until a later post of theirs. The shared state becomes Queue{accounts}, one Snapshot per source in configured order."
+    fields:
+      rationale: "Owner decisions on #236 and #237 (2026-11-28): one warte must see several orgs and a personal account and run at work on Enterprise, and the queue should hold assigned issues and PRs, mentions and team requests. The people views need only search, so they move first; the CI views follow as a second step of #236. Keeping the mention rule pure makes it testable without GitHub; a team mention that the text cannot show falls back to 'any post of mine answers it', which errs toward listing."
+    links:
+      - type: satisfies
+        target: REQ-PRREVIEW-002
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-28T12:00:00Z
+
+  - id: TEST-PRREVIEW-002
+    type: verification
+    title: tests/reviews.rs pins the mention rule, issue nodes, the source list, a multi-bucket scan and the account filter
+    status: verified
+    release: v1.6.59
+    description: "a_mention_waits_until_the_person_answers_after_it: whole-login matching, waiting from the latest mention, answered after it, mentioned again, a team mention, a self-mention. issue_nodes_become_assigned_or_mentioned_items: kinds, waiting times, an answered mention and the person's own item dropped. sources_are_the_list_or_the_one_top_level_token_and_hosts_read_plainly: legacy and list configs, narrowing, github.com, ghe.com and GHES hosts. a_scan_fills_assigned_prs_assigned_issues_and_open_mentions: against a stand-in GraphQL the scan lists a review request, an assigned PR, an assigned issue and a mention, drops a mention of a PR already under review, and labels everything login@host. the_view_has_a_section_per_bucket_and_filters_by_account: sections with counts, an account filter only with two accounts, a failed source named, titles escaped. tests/auth.rs the_queue_answers_a_signed_in_person_only_never_an_anonymous_caller_or_an_agent: with [auth], GET /api/reviews is 401 without a login and refused with an agents:read token, the view answers the sign-in panel to both, and a signed-in person passes the gate. Negative controls: taking the first mention instead of the latest failed the mention test; listing /api/reviews as public failed the access test."
+    links:
+      - type: verifies
+        target: REQ-PRREVIEW-002
+    provenance:
+      created-by: ai-assisted
+      model: claude-opus-5-5
+      timestamp: 2026-11-28T12:00:00Z

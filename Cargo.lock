@@ -3379,7 +3379,7 @@ dependencies = [
 
 [[package]]
 name = "warte"
-version = "1.6.58"
+version = "1.6.59"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3429,7 +3429,7 @@ dependencies = [
 
 [[package]]
 name = "warte-check"
-version = "1.6.58"
+version = "1.6.59"
 dependencies = [
  "chrono",
  "serde",
